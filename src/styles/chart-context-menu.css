@@ -28,7 +28,7 @@
   display: flex;
   align-items: center;
   height: 32px;
-  padding-right: 12px;
+  padding-inline-end: 12px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -61,8 +61,8 @@
 /* Remove button of a removable row (saved chart templates), shown on hover. */
 .ot-chart-ctx-remove {
   all: unset;
-  margin-left: auto;
-  padding-left: 12px;
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
   display: inline-flex;
   align-items: center;
   color: var(--color-text-secondary);
@@ -77,13 +77,13 @@
 }
 
 .ot-chart-ctx-shortcut {
-  margin-left: 24px;
+  margin-inline-start: 24px;
   color: var(--color-text-secondary);
   font-size: 13px;
 }
 
 .ot-chart-ctx-arrow {
-  margin-left: 12px;
+  margin-inline-start: 12px;
   color: var(--color-cold-gray-400);
 }
 

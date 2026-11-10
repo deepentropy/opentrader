@@ -77,7 +77,7 @@ function OptLabel(props: { opt: Opt }) {
       <span class="cp3-menu-title">{props.opt.label}</span>
       <Show when={props.opt.tip}>
         {(tip) => (
-          <span style={{ "margin-left": "auto" }}>
+          <span style={{ "margin-inline-start": "auto" }}>
             <Info text={tip()} />
           </span>
         )}

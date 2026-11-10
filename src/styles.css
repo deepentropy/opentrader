@@ -125,7 +125,8 @@ body,
   border-radius: 6px;
   color: inherit;
   font-size: 14px;
-  padding: 0 2px 0 5px;
+  padding-block: 0;
+  padding-inline: 5px 2px;
 }
 /* Gann square ratio title: 52 px before the line button. */
 .drawing-settings-level-coeff.is-fixed {
@@ -154,5 +155,5 @@ body,
  * line button 8 px after (x = 106 in a 380 px dialog). */
 .drawing-settings-level-title {
   flex: 0 0 78px;
-  margin-right: 0;
+  margin-inline-end: 0;
 }

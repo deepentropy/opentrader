@@ -224,7 +224,8 @@
   color: var(--color-text-primary);
   font-size: 14px;
   font-family: inherit;
-  padding: 0 2px 0 5px;
+  padding-block: 0;
+  padding-inline: 5px 2px;
 }
 
 .goto-dialog-input::placeholder {

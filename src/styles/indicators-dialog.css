@@ -116,7 +116,8 @@
   color: inherit;
   font-size: 16px;
   font-family: inherit;
-  padding: 0 5px 0 2px;
+  padding-block: 0;
+  padding-inline: 2px 5px;
 }
 
 .indicators-search-input::placeholder {
@@ -135,7 +136,8 @@
   width: 230px;
   flex-shrink: 0;
   box-sizing: border-box;
-  padding: 8px 10px 16px 20px;
+  padding-block: 8px 16px;
+  padding-inline: 20px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -153,7 +155,8 @@
   font-weight: 400;
   line-height: 16px;
   color: var(--color-cold-gray-400);
-  padding: 7px 0 7px 12px;
+  padding-block: 7px;
+  padding-inline: 12px 0;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -172,7 +175,7 @@
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -234,17 +237,18 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 16px 20px 8px 50px;
+  padding-block: 16px 8px;
+  padding-inline: 50px 20px;
 }
 
 /* NAME label sits over the row name text (clears the 22px star + 8px gap). */
-.indicators-col-name { padding-left: 30px; }
+.indicators-col-name { padding-inline-start: 30px; }
 
 .indicators-list-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 5px;
+  padding-inline-end: 5px;
 }
 
 /* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
@@ -342,7 +346,8 @@ html.theme-light {
 .indicators-section-title {
   box-sizing: border-box;
   height: 40px;
-  padding: 16px 20px 8px 50px;
+  padding-block: 16px 8px;
+  padding-inline: 50px 20px;
   font-size: 11px;
   line-height: 16px;
   letter-spacing: 0.4px;
@@ -499,7 +504,7 @@ html.theme-light {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 5px;
+  padding-inline-end: 5px;
 }
 
 /* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
@@ -513,8 +518,10 @@ html.theme-light {
   display: flex;
   align-items: center;
   height: 32px;
-  margin: 0 15px 0 10px;
-  padding: 0 16px 0 4px;
+  margin-block: 0;
+  margin-inline: 10px 15px;
+  padding-block: 0;
+  padding-inline: 4px 16px;
   font-size: 14px;
   color: var(--color-text-primary);
   border-radius: 8px;
@@ -524,18 +531,18 @@ html.theme-light {
   background-color: var(--ot-ind-row-hover);
 }
 
-.indicators-metric .indicators-favorite { margin-right: 4px; }
+.indicators-metric .indicators-favorite { margin-inline-end: 4px; }
 .indicators-metric:not(:hover) .indicators-favorite:not(.is-active) { visibility: hidden; }
 
 .indicators-metric.depth-1 {
   color: var(--color-content-primary-neutral-semi-bold);
 }
-.indicators-metric.depth-1 .indicators-favorite { margin-right: 5px; }
+.indicators-metric.depth-1 .indicators-favorite { margin-inline-end: 5px; }
 
 .indicators-metric-dot {
   width: 5px;
   height: 5px;
-  margin-right: 5px;
+  margin-inline-end: 5px;
   border-radius: 50%;
   background-color: var(--ot-ind-metric-dot);
   flex-shrink: 0;
@@ -555,7 +562,7 @@ html.theme-light {
   display: none;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .indicators-metric:hover .indicators-metric-actions,
 .indicators-row.is-metric:hover .indicators-metric-actions { display: flex; }
@@ -581,7 +588,7 @@ html.theme-light {
   display: inline-flex;
   width: 18px;
   height: 18px;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   color: var(--color-text-primary);
 }
 

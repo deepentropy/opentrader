@@ -10,7 +10,7 @@
   width: 300px;
   padding: 12px 12px 16px;
   overflow-y: auto;
-  border-left: 4px solid var(--color-grapes-purple-400);
+  border-inline-start: 4px solid var(--color-grapes-purple-400);
   border-radius: 4px;
   background: var(--color-bg-primary);
   box-shadow: 0 2px 4px 0 var(--ot-shadow-40);

@@ -99,12 +99,15 @@
   position: absolute;
   top: 2px;
   bottom: 2px;
-  right: 0;
+  inset-inline-end: 0;
   width: 11px;
   z-index: 1;
   opacity: 0;
   /* Arrow button border-radius. */
-  border-radius: 4px 0 0 4px;
+  border-start-start-radius: 4px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 4px;
   transition: opacity 60ms ease, color 60ms ease;
   /* Pill insets 0 so the hover fill covers the full 11×34 box (NOT an inset
    * pill); the asymmetric radius below makes it read as a tab from the toolbar
@@ -116,7 +119,10 @@
 }
 /* Asymmetric corners: rounded on the left, square against the toolbar edge. */
 .drawing-tool-arrow::before {
-  border-radius: 4px 0 0 4px;
+  border-start-start-radius: 4px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 4px;
 }
 .drawing-tool-group:hover .drawing-tool-arrow,
 .drawing-tool-group.open .drawing-tool-arrow,
@@ -134,7 +140,7 @@
 .drawing-tool-submenu {
   position: absolute;
   top: 0;
-  left: calc(100% + 1px);
+  inset-inline-start: calc(100% + 1px);
   /* Flyouts are content-sized per group (190px for Annotation up to 354px for
    * Icons); 190 is the floor so short menus shrink. */
   min-width: 190px;
@@ -164,14 +170,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px 6px 8px;
+  padding-block: 6px;
+  padding-inline: 8px 12px;
   background: transparent;
   border: none;
   outline: none;
   color: var(--color-toolbar-button-text);
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -212,7 +219,7 @@
   font-size: 12px; /* The hint renders on a 16px line (36×16 "Alt + T") */
   line-height: 16px;
   flex-shrink: 0;
-  padding-left: 12px;
+  padding-inline-start: 12px;
 }
 
 /* ── Submenu row: tool button + favorite star ──────────────────────────── *
@@ -262,7 +269,7 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-right: 8px;
+  margin-inline-end: 8px;
   flex-shrink: 0;
   padding: 0;
   border: none;
@@ -358,7 +365,8 @@
   justify-content: space-between;
 }
 .drawing-tool-submenu .drawing-tool-submenu-item.has-switch .ind3-switch {
-  margin: 0 2px 0 24px;
+  margin-block: 0;
+  margin-inline: 24px 2px;
 }
 .drawing-tool-submenu .drawing-tool-submenu-item.has-switch:disabled {
   opacity: 0.5;
@@ -369,11 +377,11 @@
   height: 40px;
   box-sizing: border-box;
   border-radius: 6px;
-  padding-right: 6px;
+  padding-inline-end: 6px;
 }
 /* The 24 px gap before the star is kept on rows without a hotkey. */
 .drawing-tool-submenu .drawing-tool-submenu-row:not(:has(.drawing-tool-submenu-hotkey)) .drawing-tool-submenu-fav {
-  margin-left: 24px;
+  margin-inline-start: 24px;
 }
 .drawing-tool-submenu .drawing-tool-submenu-row .drawing-tool-submenu-item {
   height: 40px;
@@ -387,13 +395,13 @@
   color: var(--color-content-secondary-inverse);
 }
 .drawing-tool-submenu .drawing-tool-submenu-hotkey {
-  padding-left: 24px;
-  margin-right: 4px;
+  padding-inline-start: 24px;
+  margin-inline-end: 4px;
 }
 .drawing-tool-submenu .drawing-tool-submenu-fav {
   width: 24px;
   height: 24px;
-  margin-right: 0;
+  margin-inline-end: 0;
 }
 .drawing-tool-submenu .drawing-tool-submenu-row:has(.drawing-tool-submenu-item.current) .drawing-tool-submenu-fav {
   color: var(--color-content-primary-inverse);

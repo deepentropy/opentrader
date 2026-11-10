@@ -26,7 +26,8 @@
 
 .ot-lsp-icon.ot-legend-status-item {
   flex: 0 0 auto;
-  margin: 2px 6px 2px 0;
+  margin-block: 2px;
+  margin-inline: 0 6px;
   border-radius: 9px;
   overflow: hidden;
 }

@@ -45,8 +45,8 @@ html.theme-light {
 }
 .ot-replay-toolbar + .chart-controls-bar.bottom-bar {
   margin-top: 1px;
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
 }
 
 .ot-replay-toolbar__controls {
@@ -69,7 +69,7 @@ html.theme-light {
 }
 .ot-replay-toolbar__close {
   position: absolute;
-  right: 16px;
+  inset-inline-end: 16px;
   top: 5px;
 }
 
@@ -144,7 +144,7 @@ html.theme-light {
   color: var(--color-popup-element-text);
   font: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   white-space: nowrap;
   cursor: default;
 }
@@ -152,7 +152,8 @@ html.theme-light {
   justify-content: flex-start;
   gap: 4px;
   height: 34px;
-  padding: 0 12px 0 8px;
+  padding-block: 0;
+  padding-inline: 8px 12px;
 }
 .ot-replay-menu__item:hover:not(.is-disabled) {
   background-color: var(--color-popup-element-background-hover);
@@ -364,7 +365,7 @@ html.theme-light {
 .ot-replay-caution__icon {
   display: flex;
   flex: none;
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: var(--color-tan-orange-500);
 }
 .ot-replay-caution__box.no-icon .ot-replay-caution__icon {

@@ -8,7 +8,8 @@
   z-index: 1000;
   box-sizing: border-box;
   width: 300px;
-  padding: 16px 16px 16px 20px;
+  padding-block: 16px;
+  padding-inline: 20px 16px;
   overflow: hidden auto;
   border-radius: 10px;
   background: var(--color-bg-primary);
@@ -21,7 +22,7 @@
   content: "";
   position: absolute;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   width: 4px;
   height: 100%;
   background: var(--ot-event-color);

@@ -27,8 +27,7 @@
 /* Resize handle: 7 px over the top edge, ns-resize. */
 .st-resize-handle {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   top: -3px;
   height: 7px;
   cursor: ns-resize;
@@ -52,7 +51,7 @@
   flex: 1 1 auto;
   min-width: 0;
   background: var(--color-bg-primary);
-  border-top-left-radius: 4px;
+  border-start-start-radius: 4px;
 }
 .st-panel.is-collapsed .st-tabs {
   background: var(--color-bg-secondary);
@@ -95,7 +94,8 @@
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 8px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 8px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -107,17 +107,17 @@
   display: inline-flex;
   width: 24px;
   height: 24px;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 .st-tab-title {
   max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: 26px;
+  margin-inline-end: 26px;
 }
 .st-tab-caret {
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   top: 50%;
   transform: translateY(-50%);
   width: 22px;
@@ -141,7 +141,7 @@
   display: flex;
   align-items: center;
   background: var(--color-bg-primary);
-  border-top-right-radius: 4px;
+  border-start-end-radius: 4px;
   padding-inline-start: 2px;
 }
 .st-footer-btn {
@@ -249,13 +249,13 @@
   flex-shrink: 0;
 }
 .st-pill-text {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   font-size: 14px;
   line-height: 18px;
   white-space: nowrap;
 }
 .st-pill-currency {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   font-size: 11px;
   line-height: 14px;
 }
@@ -271,7 +271,7 @@
    the inverse colours (white on the dark theme; 12/16, padding 0 4px, r8)
    before the chevron (reference app). */
 .st-pill-counter {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   min-width: 16px;
   height: 16px;
   box-sizing: border-box;
@@ -330,7 +330,7 @@
   display: none;
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
+  inset-inline-start: 0;
   z-index: 5;
   flex-direction: column;
   padding: 6px 8px;
@@ -459,10 +459,10 @@
   font-feature-settings: "tnum", "lnum";
 }
 .st-change {
-  margin-left: 8px;
+  margin-inline-start: 8px;
 }
 .st-currency {
-  margin-left: 2px;
+  margin-inline-start: 2px;
   font: 400 11px/16px var(--st-font);
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -706,7 +706,7 @@
   font-feature-settings: "tnum", "lnum";
 }
 .st-equity-card-currency {
-  margin-left: 2px;
+  margin-inline-start: 2px;
   font-size: 11px;
 }
 .st-period-card {
@@ -818,7 +818,10 @@
   background: var(--color-ripe-red-800);
 }
 .st-pnl-left > :first-child {
-  border-radius: 4px 0 0 4px;
+  border-start-start-radius: 4px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 4px;
 }
 .st-pnl-netloss {
   background: var(--color-ripe-red-500);
@@ -830,7 +833,10 @@
   background: var(--color-minty-green-800);
 }
 .st-pnl-right > :last-child {
-  border-radius: 0 4px 4px 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+  border-end-start-radius: 0;
 }
 .st-pnl-value {
   font-size: 13px;
@@ -841,7 +847,7 @@
   font-weight: 600;
 }
 .st-pnl-currency {
-  margin-left: 2px;
+  margin-inline-start: 2px;
   font-size: 10px;
   font-weight: 500;
 }
@@ -880,9 +886,9 @@
   font: 400 13px var(--st-font);
 }
 .st-donut-num {
-  text-align: right;
+  text-align: end;
   font-feature-settings: "tnum", "lnum";
-  padding-left: 24px;
+  padding-inline-start: 24px;
 }
 .st-dot {
   width: 8px;
@@ -1070,7 +1076,10 @@
 }
 .st-cmp-bar {
   height: 18px;
-  border-radius: 0 2px 2px 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 2px;
+  border-end-end-radius: 2px;
+  border-end-start-radius: 0;
 }
 
 /* Returns distribution: 168 px chart over its legend (dots, then the dashed average lines). */
@@ -1085,7 +1094,7 @@
   flex-wrap: wrap;
   justify-content: space-between;
   row-gap: 6px;
-  padding-right: 44px;
+  padding-inline-end: 44px;
 }
 .st-returns-legend .st-chart-legend {
   flex-wrap: nowrap;
@@ -1200,7 +1209,7 @@
 }
 .st-tip-unit {
   align-self: end;
-  margin-left: 2px;
+  margin-inline-start: 2px;
   font-size: 11px;
   line-height: 16px;
   letter-spacing: 0.4px;
@@ -1229,7 +1238,7 @@
   box-sizing: border-box;
   width: 300px;
   padding: 16px 16px 13px;
-  border-left: 4px solid var(--color-content-primary-negative);
+  border-inline-start: 4px solid var(--color-content-primary-negative);
   white-space: nowrap;
 }
 .st-liq-header {
@@ -1294,7 +1303,7 @@
   justify-content: flex-end;
 }
 .st-liq-unit {
-  margin-left: 2px;
+  margin-inline-start: 2px;
   font: 400 11px/16px var(--st-tip-font);
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -1311,7 +1320,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-right: 20px;
+  padding-inline-end: 20px;
 }
 .st-trades-title {
   margin: 16px 0 12px;
@@ -1346,7 +1355,7 @@
   text-overflow: ellipsis;
 }
 .st-th:first-child {
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 .st-th.is-end {
   text-align: end;
@@ -1361,15 +1370,14 @@
 .st-sort-glyph {
   font-size: 10px;
   color: var(--color-text-secondary);
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 .st-trades-body {
   position: relative;
 }
 .st-trade-row {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   height: 98px;
   display: grid;
   border-bottom: 1px solid var(--color-divider-hover);
@@ -1392,7 +1400,7 @@
   justify-content: flex-end;
 }
 .st-trade-number {
-  padding-left: 20px;
+  padding-inline-start: 20px;
   gap: 8px;
 }
 .st-side-long {
@@ -1446,7 +1454,7 @@
   color: var(--color-text-secondary);
 }
 .st-cur {
-  margin-left: 3px;
+  margin-inline-start: 3px;
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;

@@ -15,7 +15,7 @@
 .rt-tab-dot {
   position: absolute;
   top: 1px;
-  right: 1px;
+  inset-inline-end: 1px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -89,7 +89,7 @@
   all: unset;
   width: 34px;
   height: 34px;
-  margin-right: -8px;
+  margin-inline-end: -8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,7 +114,7 @@
   flex: none;
   line-height: 18px;
 }
-.rs-row .ind3-info { margin-left: 2px; }
+.rs-row .ind3-info { margin-inline-start: 2px; }
 .rs-footer {
   display: flex;
   align-items: center;
@@ -123,7 +123,7 @@
   border-top: 1px solid var(--color-divider-line-primary);
 }
 .rs-spacer { flex: 1; }
-.rs-defaults { padding-right: 4px; }
+.rs-defaults { padding-inline-end: 4px; }
 .rs-more {
   all: unset;
   box-sizing: border-box;
@@ -186,7 +186,7 @@
   all: unset;
   position: absolute;
   top: 16px;
-  right: 16px;
+  inset-inline-end: 16px;
   z-index: 2;
   width: 34px;
   height: 34px;
@@ -221,7 +221,7 @@
   min-width: 130px;
   padding: 0 32px;
 }
-.re-stat + .re-stat { border-left: 1px solid var(--color-divider); }
+.re-stat + .re-stat { border-inline-start: 1px solid var(--color-divider); }
 .re-stat-label {
   font-size: 14px;
   line-height: 20px;
@@ -236,7 +236,7 @@
 .re-stat-value.is-positive { color: var(--color-minty-green-400); }
 .re-stat-value.is-negative { color: var(--color-ripe-red-400); }
 .re-cur {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   font-size: 11px;
 }
 .re-buttons {

@@ -112,7 +112,8 @@
   width: 206px;
   flex-shrink: 0;
   box-sizing: border-box;
-  padding: 8px 8px 8px 16px;
+  padding-block: 8px;
+  padding-inline: 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -125,14 +126,15 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 16px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 16px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -186,7 +188,7 @@
   min-height: 50px; /* Row pitch */
 }
 .settings-row-head.is-full { grid-column: 1 / -1; }
-.settings-row-head.is-indent { padding-left: 28px; }
+.settings-row-head.is-indent { padding-inline-start: 28px; }
 
 .settings-checkbox {
   width: 18px;
@@ -221,7 +223,8 @@
   font-size: 12px;
   line-height: 16px;
   color: var(--color-cold-gray-400);
-  margin: -4px 0 8px 26px;
+  margin-block: -4px 8px;
+  margin-inline: 26px 0;
   max-width: 360px;
 }
 
@@ -389,7 +392,8 @@
   align-items: center;
   gap: 8px;
   height: 32px;
-  padding: 0 12px 0 6px;
+  padding-block: 0;
+  padding-inline: 6px 12px;
   font-size: 14px;
   white-space: nowrap;
   cursor: pointer;
@@ -484,10 +488,11 @@
   margin: 4px 0;
   background: var(--color-bg-primary-hover);
 }
-.settings-template-action { padding-left: 12px; }
+.settings-template-action { padding-inline-start: 12px; }
 .settings-template-item {
   justify-content: space-between;
-  padding: 0 8px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 8px;
 }
 .settings-template-item-name {
   overflow: hidden;
@@ -574,7 +579,8 @@
 .cp3-close {
   width: 34px;
   height: 34px;
-  margin: -3px -1px 0 0;
+  margin-block: -3px 0;
+  margin-inline: 0 -1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -593,7 +599,8 @@
   width: 226px;
   flex-shrink: 0;
   box-sizing: border-box;
-  padding: 8px 0 0 20px;
+  padding-block: 8px 0;
+  padding-inline: 20px 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -639,14 +646,14 @@
 .cp3-label {
   grid-column: 1;
   min-width: 0;
-  padding-right: 20px;
+  padding-inline-end: 20px;
   overflow-wrap: break-word;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
-.cp3-label.is-full { grid-column: 1 / -1; padding-right: 0; }
-.cp3-label.is-offset { padding-left: 26px; }
+.cp3-label.is-full { grid-column: 1 / -1; padding-inline-end: 0; }
+.cp3-label.is-offset { padding-inline-start: 26px; }
 .cp3-label-inner {
   min-height: 34px;
   display: flex;
@@ -721,7 +728,8 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-select {
   height: 34px;
   box-sizing: border-box;
-  padding: 0 1px 0 8px;
+  padding-block: 0;
+  padding-inline: 8px 1px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -733,7 +741,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
   font-size: 14px;
   line-height: 18px;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 .cp3-select:hover, .cp3-select.is-open { border-color: var(--color-border-primary-neutral-semi-bold); }
 .cp3-select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -782,11 +790,11 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-menu-title { padding: 5px 4px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; }
 .cp3-menu-item.is-disabled { color: var(--color-text-disabled); cursor: default; }
 .cp3-menu-item.is-disabled:hover { background-color: transparent; }
-.cp3-menu-tag { margin-left: auto; padding: 0 4px 0 12px; font-size: 12px; color: var(--color-text-secondary); }
+.cp3-menu-tag { margin-inline-start: auto; padding-block: 0; padding-inline: 12px 4px; font-size: 12px; color: var(--color-text-secondary); }
 .cp3-menu-item.is-selected .cp3-menu-tag { color: var(--ot-text-inverse); }
-.cp3-suffix { flex: none; padding-right: 8px; font-size: 14px; line-height: 18px; color: var(--color-text-secondary); }
-.cp3-menu-check { padding-left: 8px; }
-.cp3-menu-check .cp3-menu-title { padding-left: 2px; }
+.cp3-suffix { flex: none; padding-inline-end: 8px; font-size: 14px; line-height: 18px; color: var(--color-text-secondary); }
+.cp3-menu-check { padding-inline-start: 8px; }
+.cp3-menu-check .cp3-menu-title { padding-inline-start: 2px; }
 
 /* Colour box (color-select 34×34) and colour + line (75×34). */
 .cp3-color {
@@ -836,7 +844,8 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-line {
   flex: 0 0 30px;
   height: 0;
-  margin: 0 3px 0 8px;
+  margin-block: 0;
+  margin-inline: 8px 3px;
   border-top-color: var(--color-text-primary) !important;
 }
 .cp3-color-panel { z-index: 310; }
@@ -859,8 +868,9 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
   flex: 1;
   min-width: 0;
   height: 28px;
-  margin-left: 2px;
-  padding: 0 2px 0 5px;
+  margin-inline-start: 2px;
+  padding-block: 0;
+  padding-inline: 5px 2px;
   border: 0;
   background: transparent;
   color: var(--color-text-primary);
@@ -873,7 +883,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-spin {
   width: 22px;
   height: 28px;
-  margin-right: 2px;
+  margin-inline-end: 2px;
   display: flex;
   flex-direction: column;
   opacity: 0;
@@ -912,7 +922,8 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-template {
   height: 34px;
   box-sizing: border-box;
-  padding: 0 1px 0 11px;
+  padding-block: 0;
+  padding-inline: 11px 1px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -1017,10 +1028,11 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-color-panel .cp-opacity-input {
   width: 47px;
   height: 26px;
-  margin-left: 8px;
-  padding: 0 14px 0 5px;
+  margin-inline-start: 8px;
+  padding-block: 0;
+  padding-inline: 5px 14px;
   line-height: 24px;
-  text-align: right;
+  text-align: end;
   background: transparent;
   border: 1px solid var(--color-border-hover);
   border-radius: 4px;
@@ -1030,7 +1042,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-color-panel .cp-opacity-input:focus { border-color: var(--color-brand); outline: none; }
 .cp3-color-panel .cp-opacity-pct {
   position: absolute;
-  left: 40px;
+  inset-inline-start: 40px;
   top: 5px;
   pointer-events: none;
   font-size: 14px;
@@ -1042,11 +1054,11 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
   box-sizing: border-box;
   border: 1px solid var(--color-border-hover);
   border-radius: 0;
-  margin-left: -1px;
+  margin-inline-start: -1px;
   color: var(--ot-strong);
 }
-.cp3-color-panel .cp-item:first-child { margin-left: 0; border-radius: 3px 0 0 3px; }
-.cp3-color-panel .cp-item:last-child { border-radius: 0 3px 3px 0; }
+.cp3-color-panel .cp-item:first-child { margin-inline-start: 0; border-start-start-radius: 3px; border-start-end-radius: 0; border-end-end-radius: 0; border-end-start-radius: 3px; }
+.cp3-color-panel .cp-item:last-child { border-start-start-radius: 0; border-start-end-radius: 3px; border-end-end-radius: 3px; border-end-start-radius: 0; }
 .cp3-color-panel .cp-item:hover { background-color: var(--color-bg-primary-hover); }
 .cp3-color-panel .cp-item.selected {
   position: relative;
@@ -1063,8 +1075,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .settings-backdrop.cp3-backdrop { display: block; }
 .settings-backdrop.cp3-backdrop .cp3-dialog {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   margin: 0 auto;
   max-height: calc(100vh - 40px);
 }
@@ -1075,7 +1086,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .settings-defaults { position: relative; }
 .settings-defaults-menu {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   bottom: calc(100% + 4px);
 }
 
@@ -1092,7 +1103,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .ind3-title {
   flex: 1;
   min-width: 0;
-  margin-right: 17px;
+  margin-inline-end: 17px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1108,8 +1119,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .ind3-tabs::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   bottom: 0;
   height: 4px;
   border-radius: 2px;
@@ -1131,8 +1141,7 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .ind3-tab.is-active::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   bottom: 0;
   height: 4px;
   border-radius: 2px;
@@ -1165,12 +1174,12 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .ind3-check-row .cp3-label-inner { min-height: 18px; }
 /* One input of a shared (inline) row after the first: 8 px after the previous item, 20 px when it has a title. */
 .ind3-inline-item { display: inline-flex; align-items: center; gap: 8px; }
-.ind3-inline-item.is-wide { margin-left: 12px; }
+.ind3-inline-item.is-wide { margin-inline-start: 12px; }
 .ind3-vis-controls { gap: 0; }
 .ind3-vis-slider {
   display: flex;
   width: 109px;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 
 
@@ -1214,7 +1223,8 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
   gap: 12px;
   height: 32px;
   box-sizing: border-box;
-  padding: 6px 10px 2px 12px;
+  padding-block: 6px 2px;
+  padding-inline: 12px 10px;
   cursor: default;
 }
 .ind3-plottype-switch-label { line-height: 16px; }
@@ -1256,13 +1266,14 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
   align-items: center;
   height: 32px;
   box-sizing: border-box;
-  padding: 2px 10px 2px 4px;
+  padding-block: 2px;
+  padding-inline: 4px 10px;
   white-space: nowrap;
   cursor: default;
 }
 .ind3-plottype-item:hover { background: var(--color-bg-primary-hover); }
 .ind3-plottype-item.is-selected { background: var(--color-container-fill-primary-neutral-extra-bold); color: var(--color-content-primary-inverse); }
-.ind3-plottype-label { padding-left: 6px; line-height: 16px; }
+.ind3-plottype-label { padding-inline-start: 6px; line-height: 16px; }
 
 /* Indicator Style: other outputs (StyleOutputRows). Shape button 34 x 34 with an 18 px glyph (no arrow), menu rows
    glyph + name; character field 34 x 34 (28 px input, centred); a part title under an output check ("Body" of
