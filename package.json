@@ -31,7 +31,7 @@
     "url": "https://github.com/deepentropy/opentrader.git"
   },
   "config": {
-    "drawingRef": "v0.8.0"
+    "drawingRef": "v0.9.0"
   },
   "overrides": {
     "lightweight-charts-indicators": {

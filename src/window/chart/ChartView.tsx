@@ -17,7 +17,7 @@ import { Show, createEffect, createMemo, createResource, createSignal, onCleanup
 import { createStore } from "solid-js/store";
 import { CrosshairMode, createChartEx, type IChartApi, type MouseEventParams } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
-import { chartNumberOptions } from "./price-format";
+import { chartNumberOptions, localizeLibraryNumbers } from "./price-format";
 import { chartBackgroundAt } from "./selection-markers";
 import { MAIN_SOURCE_ID } from "./object-tree-sources";
 import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime } from "./crosshair-lock";
@@ -392,6 +392,8 @@ export function ChartView(props: ChartViewProps) {
       // createChart's default for its time scale (the time formatter replaces it).
       localization: { dateFormat: "dd MMM 'yy", ...chartNumberOptions() },
     }) as IChartApi;
+    // The indexed-to-100 scale's values in the language's marks ("103,25").
+    localizeLibraryNumbers(chart);
     cx.chart = chart;
     cx.lockViews = new CrosshairLockViews(chart, () => {
       const t = currentTokens();

@@ -8,6 +8,7 @@
  * writing numbers with other marks gets them on the finished text ("1 234,5",
  * i18n/format localNumber).
  */
+import { LineSeries, type IChartApi } from "lightweight-charts";
 import type { SymbolSessions } from "../../data/session";
 import { volumeFormat } from "../../data/volume-format";
 import { activeFormats } from "../../i18n/translator";
@@ -44,6 +45,32 @@ export function chartPriceFormat(precision: string | undefined, grid: SymbolSess
 export function chartNumberOptions(): { percentageFormatter?: (v: number) => string } {
   if (!activeFormats().numberMarks) return {};
   return { percentageFormatter: remembered((v) => localNumber(`${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}%`)) };
+}
+
+let libraryNumbersLocal = false;
+
+/**
+ * The chart library's own price formatter in the marks of the interface language: the indexed-to-100 scale writes its
+ * values with it ("103.25") and takes no formatter option. In a language writing numbers with other marks its
+ * `format` is wrapped once for the page ("103,25"); nothing changes in English. Its class is reached through the
+ * default price format of a hidden series, removed at once.
+ */
+export function localizeLibraryNumbers(chart: IChartApi): void {
+  if (libraryNumbersLocal || !activeFormats().numberMarks) return;
+  const probe = chart.addSeries(LineSeries, { visible: false, priceFormat: { type: "price", precision: 2, minMove: 0.01 } });
+  const formatter: object = probe.priceFormatter();
+  chart.removeSeries(probe);
+  libraryNumbersLocal = localizeFormat(Object.getPrototypeOf(formatter));
+}
+
+/** `proto.format`'s English text in the interface language's marks; false when it has no own `format`. */
+export function localizeFormat(proto: { format?: (price: number) => string } | null): boolean {
+  const format = proto && Object.prototype.hasOwnProperty.call(proto, "format") ? proto.format : undefined;
+  if (!proto || typeof format !== "function") return false;
+  proto.format = function (this: unknown, price: number) {
+    return localNumber(format.call(this, price));
+  };
+  return true;
 }
 
 /**

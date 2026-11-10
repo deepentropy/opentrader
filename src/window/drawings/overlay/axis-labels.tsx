@@ -10,6 +10,7 @@ import type { Pt } from "lightweight-charts-drawing/core/_shared";
 import { positionAnchors } from "lightweight-charts-drawing/core/kinds/position";
 import { textOnColor } from "lightweight-charts-drawing/core/color";
 import { measureTextFont } from "lightweight-charts-drawing/core/scene/text";
+import { localNumber } from "../../../i18n/format";
 
 /** Kinds with parts on an axis (drawn outside the pane clip). */
 export const AXIS_PART_KINDS = new Set<string>(["vertical-line", "cross-line", "long-position", "short-position"]);
@@ -34,7 +35,7 @@ export function renderAxisParts(d: Drawing, pts: Pt[], pane: { w: number; h: num
     const entry = d.points[0].price;
     const sign = d.kind === "long-position" ? 1 : -1;
     const pill = (y: number, price: number, bg: string) => {
-      const label = price.toFixed(2);
+      const label = localNumber(price.toFixed(2));
       const pw = label.length * 6.5 + 10;
       return (
         <g pointer-events="none">
