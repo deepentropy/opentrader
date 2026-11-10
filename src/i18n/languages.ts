@@ -80,6 +80,23 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     direction: "ltr",
   },
   {
+    id: "ja",
+    name: "日本語",
+    dictionary: () => import("./ja.json"),
+    // One plural form ("other"), as Chinese.
+    pluralLocale: "ja",
+    // Dates written "2026年11月10日(火)", the calendar's weekday heads in single kanji.
+    formats: {
+      dateLocale: "ja-JP",
+      numberLocale: "ja-JP",
+      chartDate: "{yyyy}年{M}月{d}日",
+      chartWeekdayDate: "{yyyy}年{M}月{d}日({wd})",
+      calendarWeekdays: ["月", "火", "水", "木", "金", "土", "日"],
+      listSeparator: "、",
+    },
+    direction: "ltr",
+  },
+  {
     id: "fr",
     name: "Français",
     dictionary: () => import("./fr.json"),

@@ -1,0 +1,591 @@
+{
+  "Add": {
+    "translation": "追加"
+  },
+  "Alert": {
+    "translation": "アラート"
+  },
+  "Alerts": {
+    "translation": "アラート"
+  },
+  "All charts": {
+    "translation": "すべてのチャート"
+  },
+  "Apply": {
+    "translation": "適用"
+  },
+  "Arrow": {
+    "translation": "矢印"
+  },
+  "Auto": {
+    "translation": "自動"
+  },
+  "Average": {
+    "translation": "平均",
+    "notes": "after the noun: 'True Range平均'"
+  },
+  "Background": {
+    "translation": "背景"
+  },
+  "Background Color": {
+    "translation": "背景色"
+  },
+  "Backtest": {
+    "translation": "バックテスト"
+  },
+  "Bar": {
+    "translation": "バー",
+    "notes": "a chart bar; counted with 本: '{0}本のバー'"
+  },
+  "Bar Replay": {
+    "translation": "バーリプレイ"
+  },
+  "Bars": {
+    "translation": "バー",
+    "notes": "counted: '{0}本のバー'"
+  },
+  "Bearish": {
+    "translation": "弱気"
+  },
+  "Bullish": {
+    "translation": "強気"
+  },
+  "Buy": {
+    "translation": "買い",
+    "notes": "button and side"
+  },
+  "Calculation": {
+    "translation": "計算"
+  },
+  "Cancel": {
+    "translation": "キャンセル"
+  },
+  "Candle": {
+    "translation": "ローソク足"
+  },
+  "Candles": {
+    "translation": "ローソク足"
+  },
+  "Change": {
+    "translation": "変化",
+    "notes": "price change; 'Change|action' is 変更"
+  },
+  "Chart": {
+    "translation": "チャート"
+  },
+  "Chart syncing": {
+    "translation": "チャート同期"
+  },
+  "Charts": {
+    "translation": "チャート"
+  },
+  "Chg": {
+    "translation": "変化"
+  },
+  "Close": {
+    "translation": "終値",
+    "notes": "the closing price; 'Close|action' is 閉じる"
+  },
+  "Cloud": {
+    "translation": "雲",
+    "notes": "the Ichimoku cloud too"
+  },
+  "Color": {
+    "translation": "色"
+  },
+  "Colors": {
+    "translation": "色"
+  },
+  "Commission": {
+    "translation": "手数料"
+  },
+  "Community": {
+    "translation": "コミュニティ"
+  },
+  "Condition": {
+    "translation": "条件"
+  },
+  "Content": {
+    "translation": "コンテンツ"
+  },
+  "Create": {
+    "translation": "作成"
+  },
+  "Crosshair": {
+    "translation": "クロスヘア"
+  },
+  "Current": {
+    "translation": "現在"
+  },
+  "Custom": {
+    "translation": "カスタム"
+  },
+  "Data": {
+    "translation": "データ"
+  },
+  "Date": {
+    "translation": "日付"
+  },
+  "Day": {
+    "translation": "日"
+  },
+  "Days": {
+    "translation": "日"
+  },
+  "Default": {
+    "translation": "デフォルト"
+  },
+  "Delete": {
+    "translation": "削除"
+  },
+  "Display": {
+    "translation": "表示"
+  },
+  "Divergence": {
+    "translation": "ダイバージェンス"
+  },
+  "Download": {
+    "translation": "ダウンロード"
+  },
+  "Downtrend": {
+    "translation": "下降トレンド"
+  },
+  "Drawdown": {
+    "translation": "ドローダウン"
+  },
+  "Drawing": {
+    "translation": "描画",
+    "notes": "a drawing object; '描画ツール' for the tools"
+  },
+  "Drawings": {
+    "translation": "描画"
+  },
+  "Edit": {
+    "translation": "編集"
+  },
+  "Enable": {
+    "translation": "有効化",
+    "notes": "'…を有効にする' in sentences"
+  },
+  "Engulfing": {
+    "translation": "包み足",
+    "notes": "'強気の包み足'"
+  },
+  "Entry": {
+    "translation": "エントリー"
+  },
+  "Equity": {
+    "translation": "資産",
+    "notes": "'資産曲線' for the equity curve"
+  },
+  "Exit": {
+    "translation": "決済",
+    "notes": "a trade's exit"
+  },
+  "Extend": {
+    "translation": "延長"
+  },
+  "Factor": {
+    "translation": "係数"
+  },
+  "Fill": {
+    "translation": "塗りつぶし"
+  },
+  "Gradient": {
+    "translation": "グラデーション"
+  },
+  "Harami": {
+    "translation": "はらみ足"
+  },
+  "Hide": {
+    "translation": "非表示"
+  },
+  "High": {
+    "translation": "高値",
+    "notes": "the bar's high; the on-chart high/low price lines too ('High|chart')"
+  },
+  "History": {
+    "translation": "履歴"
+  },
+  "Holiday": {
+    "translation": "休場日"
+  },
+  "Icon": {
+    "translation": "アイコン"
+  },
+  "Idea": {
+    "translation": "アイデア"
+  },
+  "Import": {
+    "translation": "インポート"
+  },
+  "Index": {
+    "translation": "指数",
+    "notes": "a market index"
+  },
+  "Indicator": {
+    "translation": "インジケーター",
+    "notes": "also for 'study'"
+  },
+  "Indicators": {
+    "translation": "インジケーター"
+  },
+  "Inputs": {
+    "translation": "パラメーター",
+    "notes": "the settings tab of a study"
+  },
+  "Interval": {
+    "translation": "時間足",
+    "notes": "the bar interval: '1分足', '日足'"
+  },
+  "Label": {
+    "translation": "ラベル"
+  },
+  "Labels": {
+    "translation": "ラベル"
+  },
+  "Layout": {
+    "translation": "レイアウト"
+  },
+  "Length": {
+    "translation": "期間",
+    "notes": "a study's length"
+  },
+  "Lock": {
+    "translation": "ロック"
+  },
+  "Log": {
+    "translation": "ログ",
+    "notes": "'Log|history'"
+  },
+  "Long": {
+    "translation": "ロング"
+  },
+  "Lookback": {
+    "translation": "ルックバック期間"
+  },
+  "Loss": {
+    "translation": "損失"
+  },
+  "Low": {
+    "translation": "安値",
+    "notes": "the bar's low; 'Low|chart' too"
+  },
+  "Lower Band": {
+    "translation": "下部バンド"
+  },
+  "Market closed": {
+    "translation": "市場クローズ"
+  },
+  "Market open": {
+    "translation": "市場オープン"
+  },
+  "Message": {
+    "translation": "メッセージ"
+  },
+  "Minute": {
+    "translation": "分"
+  },
+  "Minutes": {
+    "translation": "分"
+  },
+  "Mode": {
+    "translation": "モード"
+  },
+  "Momentum": {
+    "translation": "モメンタム"
+  },
+  "Month": {
+    "translation": "月"
+  },
+  "Months": {
+    "translation": "月",
+    "notes": "a label or unit; 'か月' in a count: '3か月'"
+  },
+  "Moving Average": {
+    "translation": "移動平均",
+    "notes": "MA kept as MA"
+  },
+  "Multiplier": {
+    "translation": "乗数"
+  },
+  "Name": {
+    "translation": "名前"
+  },
+  "Net Profit": {
+    "translation": "純利益"
+  },
+  "Object Tree": {
+    "translation": "オブジェクトツリー"
+  },
+  "Offset": {
+    "translation": "オフセット"
+  },
+  "Once": {
+    "translation": "1回のみ"
+  },
+  "Open": {
+    "translation": "始値",
+    "notes": "the opening price; 'Open|action' 開く, 'Open|trade' 未決済"
+  },
+  "Options": {
+    "translation": "オプション"
+  },
+  "Order": {
+    "translation": "注文"
+  },
+  "Orders": {
+    "translation": "注文"
+  },
+  "Oscillator": {
+    "translation": "オシレーター"
+  },
+  "Other": {
+    "translation": "その他"
+  },
+  "Overbought": {
+    "translation": "買われ過ぎ"
+  },
+  "Oversold": {
+    "translation": "売られ過ぎ"
+  },
+  "Pane": {
+    "translation": "ペイン",
+    "notes": "a chart pane"
+  },
+  "Panel": {
+    "translation": "パネル",
+    "notes": "distinct from pane"
+  },
+  "Percentage": {
+    "translation": "パーセンテージ"
+  },
+  "Period": {
+    "translation": "期間"
+  },
+  "Pivot": {
+    "translation": "ピボット"
+  },
+  "PnL": {
+    "translation": "損益",
+    "notes": "P&L too"
+  },
+  "Position": {
+    "translation": "ポジション"
+  },
+  "Post": {
+    "translation": "アフター",
+    "notes": "on the chart (after hours), paired with 'Pre' プレ; 'Post|action' is 投稿"
+  },
+  "Post-market": {
+    "translation": "アフターマーケット"
+  },
+  "Pre-market": {
+    "translation": "プレマーケット"
+  },
+  "Preset": {
+    "translation": "プリセット"
+  },
+  "Price scale": {
+    "translation": "価格スケール"
+  },
+  "Profit": {
+    "translation": "利益"
+  },
+  "Real-time": {
+    "translation": "リアルタイム"
+  },
+  "Redo": {
+    "translation": "やり直す",
+    "notes": "'{0}をやり直す'"
+  },
+  "Regular": {
+    "translation": "通常",
+    "notes": "the regular session: 通常取引時間"
+  },
+  "Remove": {
+    "translation": "削除"
+  },
+  "Replay": {
+    "translation": "リプレイ"
+  },
+  "Reset": {
+    "translation": "リセット"
+  },
+  "Resistance": {
+    "translation": "レジスタンス"
+  },
+  "Reward": {
+    "translation": "リワード",
+    "notes": "'リスクリワード比'"
+  },
+  "Right": {
+    "translation": "右"
+  },
+  "Risk": {
+    "translation": "リスク"
+  },
+  "Scale": {
+    "translation": "スケール"
+  },
+  "Scan": {
+    "translation": "スキャン",
+    "notes": "'Scan|action' too"
+  },
+  "Screen": {
+    "translation": "スクリーン",
+    "notes": "a saved screener screen"
+  },
+  "Screener": {
+    "translation": "スクリーナー"
+  },
+  "Search": {
+    "translation": "検索"
+  },
+  "Seconds": {
+    "translation": "秒"
+  },
+  "Select": {
+    "translation": "選択"
+  },
+  "Sell": {
+    "translation": "売り",
+    "notes": "button and side"
+  },
+  "Session": {
+    "translation": "セッション"
+  },
+  "Settings": {
+    "translation": "設定"
+  },
+  "Setup": {
+    "translation": "設定"
+  },
+  "Short": {
+    "translation": "ショート"
+  },
+  "Show": {
+    "translation": "表示"
+  },
+  "Signal": {
+    "translation": "シグナル"
+  },
+  "Signals": {
+    "translation": "シグナル"
+  },
+  "Slippage": {
+    "translation": "スリッページ"
+  },
+  "Smoothing": {
+    "translation": "平滑化"
+  },
+  "Snapshot": {
+    "translation": "スナップショット"
+  },
+  "Sound": {
+    "translation": "サウンド"
+  },
+  "Source": {
+    "translation": "ソース"
+  },
+  "Standard Deviation": {
+    "translation": "標準偏差"
+  },
+  "Stop Loss": {
+    "translation": "ストップロス"
+  },
+  "Strategy": {
+    "translation": "ストラテジー"
+  },
+  "Strategy Tester": {
+    "translation": "ストラテジーテスター"
+  },
+  "Study": {
+    "translation": "インジケーター"
+  },
+  "Style": {
+    "translation": "スタイル"
+  },
+  "Support": {
+    "translation": "サポート"
+  },
+  "Symbol": {
+    "translation": "シンボル"
+  },
+  "Symbols": {
+    "translation": "シンボル"
+  },
+  "Table": {
+    "translation": "テーブル"
+  },
+  "Take Profit": {
+    "translation": "テイクプロフィット"
+  },
+  "Template": {
+    "translation": "テンプレート"
+  },
+  "Threshold": {
+    "translation": "しきい値"
+  },
+  "Ticker": {
+    "translation": "ティッカー"
+  },
+  "Ticks": {
+    "translation": "ティック"
+  },
+  "Time zone": {
+    "translation": "タイムゾーン"
+  },
+  "Timeframe": {
+    "translation": "タイムフレーム",
+    "notes": "a study's timeframe input; 時間足 is the chart's interval"
+  },
+  "Trade": {
+    "translation": "取引",
+    "notes": "a strategy or journal trade"
+  },
+  "Trades": {
+    "translation": "取引"
+  },
+  "Trading": {
+    "translation": "トレード"
+  },
+  "Trend": {
+    "translation": "トレンド"
+  },
+  "Trigger": {
+    "translation": "トリガー"
+  },
+  "Type": {
+    "translation": "タイプ"
+  },
+  "Undo": {
+    "translation": "元に戻す",
+    "notes": "'{0}を元に戻す'"
+  },
+  "Update": {
+    "translation": "更新"
+  },
+  "Upper Band": {
+    "translation": "上部バンド"
+  },
+  "Uptrend": {
+    "translation": "上昇トレンド"
+  },
+  "Volume": {
+    "translation": "出来高"
+  },
+  "Volume Profile": {
+    "translation": "出来高プロファイル"
+  },
+  "Watchlist": {
+    "translation": "ウォッチリスト"
+  },
+  "Week": {
+    "translation": "週"
+  },
+  "Width": {
+    "translation": "太さ",
+    "notes": "line width; '幅' for a box or a column"
+  }
+}
