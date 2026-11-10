@@ -77,6 +77,16 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     direction: "ltr",
     pseudo: true,
   },
+  {
+    // Right to left with readable English words (pseudo-rtl.ts): panels, menus, icons and values in a mirrored page (#290).
+    id: "en-XB",
+    name: "English, right to left (test)",
+    dictionary: () => import("./pseudo-rtl").then((m) => m.loadPseudoRtl()),
+    pluralLocale: "en",
+    formats: ENGLISH.formats,
+    direction: "rtl",
+    pseudo: true,
+  },
 ];
 
 /** The languages the language menu offers: the pseudo-languages in a development build only. */
