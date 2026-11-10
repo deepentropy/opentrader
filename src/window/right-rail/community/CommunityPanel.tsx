@@ -513,7 +513,7 @@ export function CommunityPanel(props: Props) {
     return (
       <div class="cm-post-view">
         <div class="cm-subheader">
-          <IconButton aria-label="Back" onClick={() => setView({ kind: "list" })}><Icon name="community-back" size={28} /></IconButton>
+          <IconButton aria-label="Back" onClick={() => setView({ kind: "list" })}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
           <span class="cm-subheader-title is-static">New post</span>
         </div>
         <div class="cm-scroll cm-composer">
@@ -631,7 +631,7 @@ export function CommunityPanel(props: Props) {
         <Match when={view().kind === "signin"}>
           <div class="cm-post-view">
             <div class="cm-subheader">
-              <IconButton aria-label="Back" onClick={() => setView(afterSignIn)}><Icon name="community-back" size={28} /></IconButton>
+              <IconButton aria-label="Back" onClick={() => setView(afterSignIn)}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
             </div>
             <div class="cm-scroll">
               <SignInBox

@@ -22,7 +22,7 @@ function Frame(props: { title: string; onBack: () => void; children: any }) {
   return (
     <div class="cm-post-view">
       <div class="cm-subheader">
-        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} /></IconButton>
+        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
         <span class="cm-subheader-title is-static">{props.title}</span>
       </div>
       <div class="cm-scroll">{props.children}</div>

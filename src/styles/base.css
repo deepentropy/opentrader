@@ -219,3 +219,9 @@ html.theme-dark {
   font-size: 16px;
   cursor: pointer;
 }
+
+/* Icons that point along the reading direction (back, send, undo, redo) turn around when the text runs right to
+   left. Not for icons on the chart, which keeps its left-to-right layout. */
+.ot-flip-rtl:dir(rtl) {
+  transform: scaleX(-1);
+}

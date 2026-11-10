@@ -157,7 +157,7 @@ export function PopSearch(props: { value: string; onInput: (v: string) => void; 
 export function PopBack(props: { title: string; onClick: () => void }) {
   return (
     <div class="scr-item scr-item-back" onClick={() => props.onClick()}>
-      <span class="scr-item-icon"><Icon name="scr-back" size={28} /></span>
+      <span class="scr-item-icon"><Icon name="scr-back" size={28} class="ot-flip-rtl" /></span>
       <span class="scr-item-text"><span class="scr-item-title scr-item-title--strong">{props.title}</span></span>
     </div>
   );

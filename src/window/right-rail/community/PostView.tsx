@@ -238,7 +238,7 @@ export function PostView(props: Props) {
   return (
     <div class="cm-post-view">
       <div class="cm-subheader">
-        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} /></IconButton>
+        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
         <Show when={post.p}>
           <button type="button" class="cm-subheader-title" onClick={() => props.onOpenCommunity(post.p!.community.id)}>{post.p!.community.title.replace(/^\$/, "")}</button>
         </Show>

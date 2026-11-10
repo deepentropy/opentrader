@@ -42,7 +42,7 @@ export function ContactPage(props: { onBack: () => void }) {
   return (
     <div class="ot-rail-panel cm-panel">
       <div class="cm-subheader">
-        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} /></IconButton>
+        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
         <span class="cm-subheader-title is-static">Contact and reports</span>
       </div>
       <div class="cs-contact">

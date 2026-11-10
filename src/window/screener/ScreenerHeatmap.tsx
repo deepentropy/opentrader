@@ -365,7 +365,7 @@ export function ScreenerHeatmap(props: Props) {
       <Show when={zoom() !== null}>
         <div class="scr-heat-crumbs">
           <button type="button" class="scr-heat-crumb" onClick={() => setZoom(null)}>
-            <Icon name="scr-back" size={18} />
+            <Icon name="scr-back" size={18} class="ot-flip-rtl" />
             All
           </button>
           <span class="scr-heat-crumb-sep">•</span>

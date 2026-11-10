@@ -218,7 +218,7 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
             when={running()}
             fallback={
               <button type="button" class="asst-send" title="Send message" aria-label="Send message" disabled={!draft().trim() || !localInfo()?.installed} onClick={() => submit()}>
-                <Icon name="ai-send" size={28} />
+                <Icon name="ai-send" size={28} class="ot-flip-rtl" />
               </button>
             }
           >

@@ -61,7 +61,7 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
   return (
     <div class="cm-post-view">
       <div class="cm-subheader">
-        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} /></IconButton>
+        <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} class="ot-flip-rtl" /></IconButton>
         <span class="cm-subheader-title is-static">Moderation queue</span>
       </div>
       <div class="cm-scroll">
