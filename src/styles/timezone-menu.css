@@ -161,7 +161,7 @@
 
 /* Title: rgb(128,128,128), 11px, padding 0 12px, margin 6px 0. */
 .session-menu-title {
-  color: var(--color-cold-gray-400, #808080);
+  color: var(--color-cold-gray-400);
   font-size: 11px;
   line-height: 16px;
   padding: 0 12px;
@@ -188,7 +188,7 @@
 
 .session-menu-item:hover {
   background-color: var(--color-bg-primary-hover);
-  color: rgb(201, 201, 201);
+  color: var(--color-cold-gray-250);
 }
 
 .session-menu-item.is-active {

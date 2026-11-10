@@ -88,7 +88,7 @@
  * and on hover. Placed after the plain-hover rule so it wins on hover by source order. */
 .ot-toolbar-button.selected::before,
 .ot-toolbar-button.selected:hover:not(.is-disabled)::before {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 
 /* Selected TIMEFRAME on the header interval strip — the same neutral grey
@@ -98,7 +98,7 @@
  * at rest and on hover. */
 .ot-toolbar-button.header-toolbar-btn.active::before,
 .ot-toolbar-button.header-toolbar-btn.active:hover:not(.is-disabled)::before {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 .ot-toolbar-button.header-toolbar-btn.active {
   color: var(--color-toolbar-button-text);
@@ -115,7 +115,7 @@
 .ot-toolbar-button.right-rail-tab[aria-pressed="true"]::before,
 .ot-toolbar-button.right-rail-tab.active:hover:not(.is-disabled)::before,
 .ot-toolbar-button.right-rail-tab[aria-pressed="true"]:hover:not(.is-disabled)::before {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 .ot-toolbar-button.right-rail-tab.active,
 .ot-toolbar-button.right-rail-tab[aria-pressed="true"] {
@@ -130,7 +130,7 @@
  * colour with a grey pill when active, never the blue toggle. */
 .ot-toolbar-button.drawing-fav-toggle.active::before,
 .ot-toolbar-button.drawing-fav-toggle.active:hover:not(.is-disabled)::before {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 .ot-toolbar-button.drawing-fav-toggle.active {
   color: var(--color-toolbar-button-text);

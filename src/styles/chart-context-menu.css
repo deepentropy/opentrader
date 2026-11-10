@@ -12,7 +12,7 @@
   background: var(--ot-popover-bg);
   color: var(--color-main-text);
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   font-family: var(--font-family-base);
   font-size: 14px;
   user-select: none;
@@ -21,7 +21,7 @@
 .ot-chart-ctx-separator {
   height: 1px;
   margin: 4px 0;
-  background: var(--color-divider, rgba(255, 255, 255, 0.1));
+  background: var(--color-divider);
 }
 
 .ot-chart-ctx-item {
@@ -84,7 +84,7 @@
 
 .ot-chart-ctx-arrow {
   margin-left: 12px;
-  color: var(--color-cold-gray-400, #9c9c9c);
+  color: var(--color-cold-gray-400);
 }
 
 /* Submenu (Chart template) is a second floating menu; narrower than the root. */

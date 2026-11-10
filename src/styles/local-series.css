@@ -35,7 +35,7 @@
   cursor: pointer;
 }
 .symbol-search-import:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+  background: var(--ot-tint-white-6);
 }
 .symbol-search-local-actions {
   display: flex;
@@ -59,7 +59,7 @@
   cursor: pointer;
 }
 .symbol-search-local-action:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+  background: var(--ot-tint-white-6);
   color: var(--color-text-primary);
 }
 .symbol-search-list.is-local:not(.is-compare) {
@@ -90,7 +90,7 @@
   cursor: pointer;
 }
 .ls-import-skip:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+  background: var(--ot-tint-white-6);
 }
 .ls-import-file.is-skipped .tj-section-title {
   color: var(--color-text-secondary);

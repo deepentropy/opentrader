@@ -10,9 +10,9 @@
   max-width: 344px;
   box-sizing: border-box;
   border-radius: 6px;
-  background-color: var(--color-popup-background, #1f1f1f);
-  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy, #0006);
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  background-color: var(--color-popup-background);
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+  color: var(--color-content-primary-neutral-bold);
   font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   font-size: 14px;
 }
@@ -83,12 +83,12 @@
   width: 30px;
   padding-top: 3px;
   overflow: hidden;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   font-size: 10px;
   text-transform: uppercase;
 }
 .ot-lsp-day.is-active .ot-lsp-weekday {
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
 }
 .ot-lsp-segments,
 .ot-lsp-marks {
@@ -149,16 +149,16 @@
   border-end-end-radius: 4px;
 }
 .ot-lsp-segment.is-open {
-  color: var(--color-content-primary-success-bold, #42bda8);
+  color: var(--color-content-primary-success-bold);
 }
 .ot-lsp-segment.is-pre {
-  color: var(--color-content-primary-warning-extra-bold, #ff9100);
+  color: var(--color-content-primary-warning-extra-bold);
 }
 .ot-lsp-segment.is-post {
-  color: var(--color-content-primary-accent-extra-bold, #82b1ff);
+  color: var(--color-content-primary-accent-extra-bold);
 }
 .ot-lsp-segment.is-closed {
-  color: var(--color-background-primary-neutral-normal, #3d3d3d);
+  color: var(--color-background-primary-neutral-normal);
 }
 .ot-lsp-now-wrap {
   position: absolute;
@@ -172,8 +172,8 @@
   top: 2px;
   bottom: -1px;
   width: 1px;
-  background-color: var(--color-content-primary-neutral-bold, #dbdbdb);
-  outline: 1px solid var(--color-container-fill-tertiary-inverse, #1f1f1f);
+  background-color: var(--color-content-primary-neutral-bold);
+  outline: 1px solid var(--color-container-fill-tertiary-inverse);
   backface-visibility: hidden;
 }
 .ot-lsp-mark-seg {
@@ -182,7 +182,7 @@
   justify-content: center;
 }
 .ot-lsp-mark {
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   font-size: 11px;
   font-feature-settings: "tnum", "lnum";
   line-height: 14px;
@@ -208,7 +208,7 @@
 .ot-lsp-zone {
   width: 100%;
   padding-top: 4px;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   font-size: 11px;
   line-height: 18px;
   text-align: center;
@@ -221,19 +221,19 @@
 }
 .ot-lsp-tip-time {
   margin-inline-start: 5px;
-  color: #fff;
+  color: var(--color-white);
 }
 .ot-lsp-tip-title.is-open {
-  color: #22ab94;
+  color: var(--color-minty-green-400);
 }
 .ot-lsp-tip-title.is-pre {
-  color: #ffa726;
+  color: var(--color-tan-orange-400);
 }
 .ot-lsp-tip-title.is-post {
-  color: #5b9cf6;
+  color: var(--color-ot-blue-300);
 }
 .ot-lsp-tip-title.is-closed {
-  color: #b8b8b8;
+  color: var(--color-cold-gray-300);
 }
 
 /* The pill opens the popup. */

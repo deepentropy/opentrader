@@ -55,14 +55,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border: 1px solid var(--color-toolbar-divider-background);
   border-radius: 50%;
   font-size: 10px;
   line-height: 1;
   color: inherit;
 }
 .header-toolbar-btn.is-template:hover:not(.is-disabled) .header-toolbar-template-badge {
-  border-color: var(--color-toolbar-button-text-hover, #fff);
+  border-color: var(--color-toolbar-button-text-hover);
 }
 
 /* Favorite layouts: a 28px-wide slot (padding 0 3px) holding a 20px circle with a
@@ -77,7 +77,7 @@
   padding: 0 3px;
   border: 0;
   background: none;
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
   font-family: inherit;
   cursor: default;
 }
@@ -96,7 +96,7 @@
 }
 .header-toolbar-fav-layout:hover::before,
 .header-toolbar-fav-layout:active::before {
-  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
+  background-color: var(--color-toolbar-button-background-hover);
 }
 .header-toolbar-fav-layout-round {
   position: relative;
@@ -108,15 +108,15 @@
   box-sizing: content-box; /* 20px + 1px border = 22px disc */
   width: 20px;
   height: 20px;
-  border: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border: 1px solid var(--color-toolbar-divider-background);
   border-radius: 50%;
   font-size: 10px;
   text-align: center;
 }
 .header-toolbar-fav-layout-round.is-active {
-  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
-  border-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
-  color: var(--color-content-primary-inverse, #000);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-primary-inverse);
 }
 
 /* Header button — dimensions + label gap only.  Hover pill is provided
@@ -150,7 +150,7 @@
   min-width: 24px;
   padding: 0 2px;
   margin-left: -2px;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 .header-toolbar-btn.is-chevron:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-hover);
@@ -181,7 +181,7 @@
 .header-toolbar-save-action {
   font-size: 11px;
   line-height: 1.1;
-  color: var(--color-brand, #2962ff);
+  color: var(--color-brand);
 }
 
 /* Wide non-icon item (Symbol search) — placeholder until it gets real
@@ -242,7 +242,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-white);
   font-family: var(--font-family-base);
   font-size: 14px;
   font-weight: 600;
@@ -256,7 +256,7 @@
 .profile-menu {
   width: 260px;
   font-size: 14px;
-  color: var(--color-popup-element-text, #dbdbdb);
+  color: var(--color-popup-element-text);
 }
 
 /* Plan badge — logo mark + plan name. */
@@ -267,7 +267,7 @@
   padding: 8px 14px 10px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .profile-menu-plan-label {
   line-height: 1;
@@ -300,7 +300,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-white);
   font-size: 14px;
   font-weight: 600;
   line-height: 1;
@@ -381,7 +381,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-popup-element-secondary-text, #b2b5be);
+  color: var(--color-popup-element-secondary-text);
 }
 .profile-menu-row:hover .profile-menu-icon {
   color: inherit;
@@ -414,7 +414,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--color-popup-element-text, #dbdbdb);
+  color: var(--color-popup-element-text);
   font-size: 14px;
   text-align: left;
   cursor: default;
@@ -424,18 +424,18 @@
   color: var(--color-popup-element-text-hover);
 }
 .profile-menu-language.is-current {
-  background: var(--color-popup-element-background-active, #f2f2f2);
-  color: var(--color-popup-element-text-active, #0f0f0f);
+  background: var(--color-popup-element-background-active);
+  color: var(--color-popup-element-text-active);
 }
 
 /* Sign out (danger) — red text + icon. */
 .profile-menu-row.is-danger,
 .profile-menu-row.is-danger .profile-menu-icon {
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 .profile-menu-row.is-danger:hover {
   background: var(--color-popup-element-background-hover);
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 
 /* Drawings-panel toggle switch. */
@@ -449,7 +449,7 @@
   transition: background 0.15s ease;
 }
 .profile-menu-toggle.is-on {
-  background: var(--color-accent, #2962ff);
+  background: var(--color-brand);
 }
 .profile-menu-toggle-knob {
   position: absolute;
@@ -458,7 +458,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--color-white);
   transition: transform 0.15s ease;
 }
 .profile-menu-toggle.is-on .profile-menu-toggle-knob {

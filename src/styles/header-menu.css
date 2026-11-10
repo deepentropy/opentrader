@@ -22,7 +22,7 @@
   text-transform: none;
   font-size: 13px;
   letter-spacing: normal;
-  color: var(--color-popup-element-text, #d1d4dc);
+  color: var(--color-popup-element-text);
   padding: 8px 10px 4px;
 }
 
@@ -41,7 +41,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-popup-element-secondary-text, #787b86);
+  color: var(--color-popup-element-secondary-text);
 }
 .header-menu-row.is-toggle .header-menu-switch {
   margin-left: auto;
@@ -61,15 +61,15 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--color-toggle-knob, #d1d4dc);
+  background: #d1d4dc;
   transition: transform 0.12s ease;
 }
 .header-menu-row.is-toggle .header-menu-switch.is-on {
-  background: var(--color-ot-blue, #2962ff);
+  background: var(--color-brand);
 }
 .header-menu-row.is-toggle .header-menu-switch.is-on::after {
   transform: translateX(14px);
-  background: #fff;
+  background: var(--color-white);
 }
 
 .header-menu-section-title {
@@ -114,7 +114,7 @@
  * focus colour, which would be too loud.  Falls back to a neutral 8%
  * white when the popup-element-hover token isn't defined. */
 .header-menu-row.is-checked {
-  background: var(--color-popup-element-background-hover, rgba(255, 255, 255, 0.08));
+  background: var(--color-popup-element-background-hover);
 }
 
 /* Disabled row (e.g. "Save layout" when there are no unsaved changes) —
@@ -145,7 +145,7 @@
 }
 
 .header-menu-row.is-favorited .header-menu-star {
-  color: var(--color-popup-element-text-hover, #fff);
+  color: var(--color-popup-element-text-hover);
 }
 
 .header-menu-row .header-menu-icon {
@@ -223,8 +223,8 @@
   color: var(--color-popup-element-text-hover);
 }
 .header-menu-variant.is-checked {
-  background: var(--color-popup-element-background-hover, rgba(255, 255, 255, 0.08));
-  color: var(--color-popup-element-text-hover, #fff);
+  background: var(--color-popup-element-background-hover);
+  color: var(--color-popup-element-text-hover);
 }
 
 .header-menu-row .header-menu-label {

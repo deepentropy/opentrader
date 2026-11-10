@@ -15,13 +15,13 @@
   pointer-events: none;
 
   /* neutral intent progressbar colours */
-  --ot-loader-fg: #0f0f0f;
-  --ot-loader-track: #ebebeb;
+  --ot-loader-fg: var(--color-cold-gray-900);
+  --ot-loader-track: var(--color-cold-gray-150);
 }
 
 html.theme-dark .ot-chart-loader {
-  --ot-loader-fg: #dbdbdb;
-  --ot-loader-track: #3d3d3d;
+  --ot-loader-fg: var(--color-cold-gray-200);
+  --ot-loader-track: var(--color-cold-gray-750);
 }
 
 .ot-chart-loader__svg {
@@ -63,7 +63,7 @@ html.theme-dark .ot-chart-loader {
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  color: var(--color-content-secondary-neutral, var(--ot-loader-fg));
+  color: var(--color-content-secondary-neutral);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }

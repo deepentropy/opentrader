@@ -178,7 +178,7 @@
   padding: 0;
   border: 0;
   border-radius: 2px 0 0 2px;
-  color: #ffffff;
+  color: var(--color-white);
   display: flex;
   align-items: center;
   justify-content: center;

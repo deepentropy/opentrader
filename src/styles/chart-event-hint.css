@@ -14,7 +14,7 @@
 .chart-event-hint-pill {
   display: flex;
   align-items: flex-start;
-  background: #2962ff;
+  background: var(--color-brand);
   border-radius: 4px;
   cursor: default;
   overflow: auto;
@@ -24,7 +24,7 @@
   padding: 4px 8px;
 }
 .chart-event-hint-text {
-  color: var(--color-white, #ffffff);
+  color: var(--color-white);
   font-size: 14px;
   line-height: 21px;
   margin-bottom: auto;
@@ -32,5 +32,5 @@
 }
 .chart-event-hint-close {
   display: block;
-  color: var(--color-white, #ffffff);
+  color: var(--color-white);
 }

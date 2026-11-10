@@ -12,7 +12,7 @@
   overflow: hidden auto;
   border-radius: 10px;
   background: var(--color-bg-primary);
-  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px 0 var(--ot-shadow-40);
   color: var(--color-text-primary);
   font-family: var(--font-family-base);
   font-size: 14px;

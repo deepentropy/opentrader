@@ -43,6 +43,6 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-popup-element-secondary-text, var(--color-content-primary-neutral));
+  color: var(--color-popup-element-secondary-text);
   pointer-events: none;
 }

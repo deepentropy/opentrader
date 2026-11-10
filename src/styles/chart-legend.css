@@ -51,7 +51,7 @@
    price labels under it. */
 .ot-legend-titles,
 .ot-legend-values {
-  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
+  background: color-mix(in srgb, var(--ot-chart-bg) 50%, transparent);
   border-radius: 4px;
 }
 
@@ -75,13 +75,13 @@
   line-height: 20px;
   /* The title row is dimmer than the values (#B2B5BE on the dark theme;
      values keep --color-main-text). */
-  color: var(--ot-legend-title-color, #b2b5be);
+  color: var(--ot-legend-title-color);
 }
 
 /* The ACTIVE chart's legend title is brighter on the dark theme (#DBDBDB;
    inactive charts keep #B2B5BE); #0F0F0F on the light theme. */
 .chart-grid-cell.is-active .ot-legend-titles {
-  color: var(--ot-legend-title-active-color, #dbdbdb);
+  color: var(--ot-legend-title-active-color);
 }
 
 .ot-legend-title-piece {
@@ -153,14 +153,14 @@
   border: 0;
   background: none;
   cursor: pointer;
-  color: var(--color-cold-gray-400, #9c9c9c);
+  color: var(--color-cold-gray-400);
 }
 .ot-legend-action:hover {
   color: var(--color-main-text);
 }
 /* A flagged symbol keeps its flag lit (blue) even when not hovering. */
 .ot-legend-action.is-flagged {
-  color: var(--color-ot-blue-500, #2962ff);
+  color: var(--color-ot-blue-500);
 }
 
 /* Hidden main series (legend eye, dark theme): titles
@@ -203,10 +203,10 @@
 }
 
 .ot-legend-up {
-  color: var(--color-growing, #089981);
+  color: var(--color-growing);
 }
 .ot-legend-down {
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 
 /* ---- Studies (indicator) legend ---------------------------------------- *
@@ -235,7 +235,7 @@
   pointer-events: auto;
   width: fit-content;
   /* Same 50% pane-bg plate as the series row. */
-  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
+  background: color-mix(in srgb, var(--ot-chart-bg) 50%, transparent);
   border-radius: 4px;
 }
 
@@ -246,11 +246,11 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 18px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   white-space: nowrap;
 }
 .ot-ind-legend-row.is-hidden .ot-ind-legend-title {
-  color: var(--color-cold-gray-400, #9c9c9c);
+  color: var(--color-cold-gray-400);
 }
 
 /* Per-plot values, each coloured by its plot's own colour (inline style). */
@@ -295,7 +295,7 @@
   /* Hairline + soft shadow so the pill reads as a floating box even when its
      fill matches the chart background (neutral in both themes). */
   border: 1px solid rgba(127, 127, 127, 0.18);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 4px var(--ot-shadow-35);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.08s;
@@ -315,7 +315,7 @@
   border: 0;
   background: none;
   cursor: pointer;
-  color: var(--color-cold-gray-400, #9c9c9c);
+  color: var(--color-cold-gray-400);
 }
 .ot-ind-legend-action:hover {
   color: var(--color-main-text);
@@ -366,7 +366,7 @@
   display: inline-flex;
   width: 18px;
   height: 18px;
-  color: #82b1ff;
+  color: var(--color-ot-blue-a100);
 }
 
 /* Compared-symbol row: the title changes the symbol on click. */
@@ -376,10 +376,10 @@
  * title + buttons are framed in blue (reference legend `selected`:
  * ot-blue-700 on a dark chart, ot-blue-500 on a light one). */
 .ot-ind-legend-row.is-selected {
-  --ot-ind-selected-border: var(--color-ot-blue-700, #1848cc);
+  --ot-ind-selected-border: var(--color-ot-blue-700);
 }
 html.theme-light .ot-ind-legend-row.is-selected {
-  --ot-ind-selected-border: var(--color-ot-blue-500, #2962ff);
+  --ot-ind-selected-border: var(--color-ot-blue-500);
 }
 .ot-ind-legend-row.is-selected .ot-ind-legend-title {
   position: relative;
@@ -423,7 +423,7 @@ html.theme-light .ot-ind-legend-row.is-selected {
   padding: 4px 6px;
   background: var(--ot-popover-bg);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px var(--ot-shadow-35);
 }
 .ot-flag-popup-arrow {
   position: absolute;
@@ -481,7 +481,7 @@ html.theme-light .ot-ind-legend-row.is-selected {
 }
 .ot-chart-sync-item:hover,
 .ot-chart-sync-item.is-active {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .ot-chart-sync-emoji {
   font-size: 15px;
@@ -503,15 +503,15 @@ html.theme-light .ot-ind-legend-row.is-selected {
   cursor: default;
   pointer-events: auto;
 }
-.ot-ind-legend-error-pill.is-invalidSymbol { color: #fff; background-color: var(--color-ripe-red-500, #f23645); }
-.ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-400, #f7525f); }
-.ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-a400, #f33); }
-html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-600, #cc2f3c); }
-html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-800, #991f29); }
-.ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-a400, #f33); background-color: #f2364533; }
+.ot-ind-legend-error-pill.is-invalidSymbol { color: var(--color-white); background-color: var(--color-ripe-red-500); }
+.ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-400); }
+.ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-a400); }
+html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-600); }
+html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-800); }
+.ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-a400); background-color: var(--ot-tint-red-20); }
 .ot-ind-legend-error-pill.is-error:hover { background-color: #f236454d; }
 .ot-ind-legend-error-pill.is-error:active { background-color: #f2364566; }
-html.theme-light .ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-800, #991f29); background-color: #cc2f3c26; }
+html.theme-light .ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-800); background-color: #cc2f3c26; }
 html.theme-light .ot-ind-legend-error-pill.is-error:hover { background-color: #cc2f3c4d; }
 html.theme-light .ot-ind-legend-error-pill.is-error:active { background-color: #cc2f3c66; }
 
@@ -523,11 +523,11 @@ html.theme-light .ot-ind-legend-error-pill.is-error:active { background-color: #
   max-width: 344px;
   box-sizing: border-box;
   border-radius: 6px;
-  background-color: var(--color-popup-background, #1f1f1f);
-  box-shadow: 0 2px 4px #0006;
-  color: var(--color-popup-element-text, #dbdbdb);
+  background-color: var(--color-popup-background);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
+  color: var(--color-popup-element-text);
 }
-html.theme-light .ot-study-error-panel { box-shadow: 0 2px 4px #0003; }
+html.theme-light .ot-study-error-panel { box-shadow: 0 2px 4px var(--ot-shadow-20); }
 .ot-study-error-panel-body {
   display: flex;
   padding: 11px 16px 10px;
@@ -540,9 +540,9 @@ html.theme-light .ot-study-error-panel { box-shadow: 0 2px 4px #0003; }
   margin: 2px 6px 2px 0;
   border-radius: 9px;
 }
-.ot-study-error-icon.is-invalidSymbol { color: #fff; background-color: var(--color-ripe-red-500, #f23645); }
-.ot-study-error-icon.is-error { color: var(--color-ripe-red-a400, #f33); background-color: #f2364533; }
-html.theme-light .ot-study-error-icon.is-error { color: var(--color-ripe-red-800, #991f29); background-color: #cc2f3c26; }
+.ot-study-error-icon.is-invalidSymbol { color: var(--color-white); background-color: var(--color-ripe-red-500); }
+.ot-study-error-icon.is-error { color: var(--color-ripe-red-a400); background-color: var(--ot-tint-red-20); }
+html.theme-light .ot-study-error-icon.is-error { color: var(--color-ripe-red-800); background-color: #cc2f3c26; }
 .ot-study-error-desc {
   display: flex;
   flex-direction: column;
@@ -555,9 +555,9 @@ html.theme-light .ot-study-error-icon.is-error { color: var(--color-ripe-red-800
   font-weight: 600;
   margin-bottom: 4px;
 }
-.ot-study-error-title.is-invalidSymbol { color: var(--color-ripe-red-500, #f23645); }
-.ot-study-error-title.is-error { color: var(--color-ripe-red-a400, #f33); }
-html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-800, #991f29); }
+.ot-study-error-title.is-invalidSymbol { color: var(--color-ripe-red-500); }
+.ot-study-error-title.is-error { color: var(--color-ripe-red-a400); }
+html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-800); }
 .ot-study-error-text {
   margin: 0;
   font-size: 14px;
@@ -655,7 +655,7 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
   display: inline-flex;
 }
 .ot-ind-legend-action[data-qa-id="legend-interval-show-hide-action"] {
-  color: #fb8c00;
+  color: var(--color-tan-orange-600);
 }
 
 /* Source open in the OakScript editor (reference legend status "opened in editor"): 18 px braces pill
@@ -688,7 +688,7 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
   color: var(--color-content-tertiary-success-extra-bold);
   background-color: var(--color-overlay-positive-3-light);
 }
-.ot-study-error-title.is-opened { color: var(--color-forest-green-500, #089950); }
+.ot-study-error-title.is-opened { color: var(--color-forest-green-500); }
 .ot-study-status-actions { display: flex; }
 .ot-study-status-action {
   box-sizing: border-box;

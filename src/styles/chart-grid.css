@@ -14,7 +14,7 @@
   height: 100%;
   /* Panels are 4px-rounded cards separated by 2px of the #2e2e2e window
      background, not 1px divider lines. */
-  background-color: var(--color-widget-border, #2e2e2e);
+  background-color: var(--color-widget-border);
 }
 
 .chart-grid-cell {

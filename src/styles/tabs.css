@@ -20,8 +20,8 @@
      paints the strip. */
   height: 38px;
   box-sizing: border-box;
-  background-color: var(--color-container-fill-primary-neutral-light, #3d3d3d);
-  border-bottom: 3px solid var(--color-container-fill-secondary-inverse, #0f0f0f);
+  background-color: var(--color-container-fill-primary-neutral-light);
+  border-bottom: 3px solid var(--color-container-fill-secondary-inverse);
   -webkit-app-region: drag;
 }
 
@@ -117,18 +117,18 @@
   text-overflow: ellipsis;
 }
 .tab-title .tab-part-layout {
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 .tab-title .tab-part-last {
   color: var(--color-content-primary-neutral-bold);
 }
 .tab-title .tab-part-change.up,
 .tab-title .tab-part-icon.up {
-  color: var(--color-success, #089981);
+  color: var(--color-success);
 }
 .tab-title .tab-part-change.down,
 .tab-title .tab-part-icon.down {
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 .tab-title .tab-part-icon {
   font-size: 9px;
@@ -148,7 +148,7 @@
   transform: translateY(-1px);
   border-radius: 50%;
   background-color: var(--color-container-fill-primary-neutral-light);
-  color: var(--color-white, #fff);
+  color: var(--color-white);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -210,7 +210,7 @@
 .tab.xxsmall > .tab-close-button-container > .fadeout { width: 16px; left: -16px; }
 .tab.active.xxsmall > .tab-close-button-container > .fadeout { display: none; }
 .tab:not(.active) > .tab-close-button-container > .fadeout {
-  background: linear-gradient(90deg, transparent, var(--color-container-fill-primary-neutral-light, #3d3d3d));
+  background: linear-gradient(90deg, transparent, var(--color-container-fill-primary-neutral-light));
 }
 .tab:not(.active):hover > .tab-close-button-container > .fadeout {
   background: linear-gradient(90deg, transparent, var(--color-container-fill-secondary-neutral-thin));
@@ -273,7 +273,7 @@
   padding: 0 6px;
   border-radius: 4px;
   background-color: var(--color-tan-orange-50);
-  color: var(--color-tan-orange-800, #ef6c00);
+  color: var(--color-tan-orange-800);
   font-size: 12px;
   line-height: 20px;
   white-space: nowrap;
@@ -292,11 +292,11 @@ html.theme-dark .data-delay-badge {
 }
 .data-delay-badge.is-realtime {
   background-color: rgba(8, 153, 129, 0.12);
-  color: #089981;
+  color: var(--color-minty-green-500);
 }
 html.theme-dark .data-delay-badge.is-realtime {
   background-color: rgba(8, 153, 129, 0.2);
-  color: #22ab94;
+  color: var(--color-minty-green-400);
 }
 .plan-signin {
   display: flex;
@@ -306,7 +306,7 @@ html.theme-dark .data-delay-badge.is-realtime {
 }
 .plan-signin-button {
   height: 34px;
-  border: 1px solid var(--color-cold-gray-650, #434651);
+  border: 1px solid var(--color-cold-gray-650);
   border-radius: 6px;
   background: transparent;
   color: inherit;
@@ -314,7 +314,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   cursor: pointer;
 }
 .plan-signin-button:hover {
-  background-color: var(--color-cold-gray-800, #2a2e39);
+  background-color: var(--color-cold-gray-800);
 }
 .action-button {
   -webkit-app-region: no-drag;
@@ -407,7 +407,7 @@ html.theme-dark .data-delay-badge.is-realtime {
 }
 .window-control-close:hover {
   background-color: #e81123;
-  color: #fff;
+  color: var(--color-white);
 }
 
 .create-new-tab-button {
@@ -445,7 +445,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   background-color: var(--color-container-fill-secondary-inverse);
   border: 1px solid var(--color-container-fill-secondary-neutral-extra-light);
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px var(--ot-shadow-35);
   display: flex;
   align-items: center;
   pointer-events: none;
@@ -494,7 +494,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   font-size: 13px;
 }
 .tab-menu-item:hover {
-  background-color: var(--color-toolbar-button-background-hover, var(--color-container-fill-secondary-neutral-thin));
+  background-color: var(--color-toolbar-button-background-hover);
 }
 .tab-menu-item-icon {
   width: 18px;

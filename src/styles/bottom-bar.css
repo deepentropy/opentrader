@@ -113,13 +113,13 @@
 .bottom-bar-tab::before,
 .bottom-bar-item::before,
 .bottom-bar-icon-button::before {
-  border-radius: var(--ot-toolbar-explicit-hover-border-radius, 6px);
-  bottom: var(--ot-toolbar-explicit-hover-margin-bottom, var(--ot-toolbar-explicit-hover-margin, 2px));
+  border-radius: 6px;
+  bottom: 2px;
   display: block;
-  inset-inline-end: var(--ot-toolbar-explicit-hover-margin-right, var(--ot-toolbar-explicit-hover-margin, 2px));
-  inset-inline-start: var(--ot-toolbar-explicit-hover-margin-left, var(--ot-toolbar-explicit-hover-margin, 2px));
+  inset-inline-end: 2px;
+  inset-inline-start: 2px;
   position: absolute;
-  top: var(--ot-toolbar-explicit-hover-margin-top, var(--ot-toolbar-explicit-hover-margin, 2px));
+  top: 2px;
   z-index: -1;
   content: '';
   background-color: transparent;
