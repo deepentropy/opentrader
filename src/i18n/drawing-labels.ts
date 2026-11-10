@@ -7,11 +7,11 @@ import type { DrawingLabel, LabelFormatter } from "lightweight-charts-drawing/co
 import { translate, translateWith, translating } from "./translator";
 
 /** Units of a time span ("1d 2h 30m"). */
-const SPAN_UNITS: Record<string, string> = { d: "{0}d", h: "{0}h", m: "{0}m", s: "{0}s" };
+const SPAN_UNIT_TEXTS: Record<string, string> = { d: "{0}d", h: "{0}h", m: "{0}m", s: "{0}s" };
 
 /** "1d 2h 30m" with each unit translated. */
 function timeSpan(text: string): string {
-  return text.replace(/(\d[\d,]*)([dhms])\b/g, (_, n, u) => translateWith(SPAN_UNITS[u], n));
+  return text.replace(/(\d[\d,]*)([dhms])\b/g, (_, n, u) => translateWith(SPAN_UNIT_TEXTS[u], n));
 }
 
 /** The field names of the position labels ("Target: 30.00, Amount: 1500"). */
