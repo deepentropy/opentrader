@@ -1,3 +1,5 @@
+import { translateWith } from "../i18n/translator";
+import { dateText } from "../i18n/format";
 /*
  * Trade journal values: what a trade earned and how far it went for and
  * against it, read on the bars between its entry and its exit; the groups of
@@ -236,7 +238,6 @@ export function durationText(t: Pick<TradeInput, "entryTime" | "exitTime" | "dat
   if (h > 0) return m ? `${h}h ${m}m` : `${h}h`;
   return `${m}m`;
 }
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** What grouping reads of a trade; `zone`: its exchange zone (a date-only
  *  trade's dates are read there). */
@@ -256,12 +257,12 @@ export function groupOf(t: Groupable, by: GroupBy, timeZone: string): GroupKey {
     case "week": {
       // Weeks start on Monday (01/01/1970 was a Thursday).
       const monday = day - ((day + 3) % 7);
-      return { key: String(monday), label: `Week of ${dayLabel(monday)}`, order: -monday };
+      return { key: String(monday), label: translateWith("Week of {0}", dayLabel(monday)), order: -monday };
     }
     case "month": {
       const d = new Date(day * 86400000);
       const n = d.getUTCFullYear() * 12 + d.getUTCMonth();
-      return { key: String(n), label: `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`, order: -n };
+      return { key: String(n), label: dateText(d, { month: "long", year: "numeric", timeZone: "UTC" }), order: -n };
     }
     case "year": {
       const y = new Date(day * 86400000).getUTCFullYear();

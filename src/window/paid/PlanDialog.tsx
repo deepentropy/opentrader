@@ -9,7 +9,7 @@ import { showConfirm, showNotice } from "../../components/Dialogs";
 import { PROVIDER_LABELS, me, signIn } from "../../data/community/session";
 import { request } from "../../data/community/api";
 import { openPortal, planInfo, realtimeActive, realtimeElsewhere, startCheckout, useRealtimeHere } from "../../data/paid/plan";
-import { translateAs } from "../../i18n/translator";
+import { translateAs, translateWith } from "../../i18n/translator";
 
 const PRICE = "$10/month";
 const WHAT = "Real-time prices on charts, in the watchlist and in the screener, instead of 15-minute delayed data.";
@@ -49,7 +49,7 @@ export function showPlanDialog(): void {
   if (!me()) {
     showConfirm({
       title: "Real-time data",
-      text: `${WHAT} ${PRICE}. Sign in to your OpenTrader account to subscribe.`,
+      text: translateWith("{0} {1}. Sign in to your OpenTrader account to subscribe.", WHAT, PRICE),
       mainText: translateAs("Close", "action"),
       cancelText: null,
       intent: "neutral",
@@ -89,7 +89,7 @@ export function showPlanDialog(): void {
   }
   showConfirm({
     title: "Real-time data",
-    text: `${WHAT} ${PRICE}, cancel any time. The payment page opens in your browser.`,
+    text: translateWith("{0} {1}, cancel any time. The payment page opens in your browser.", WHAT, PRICE),
     mainText: "Subscribe",
     cancelText: "Not now",
     onConfirm: () => void startCheckout().catch(failed),

@@ -1,3 +1,4 @@
+import { dateFormat, dateText, numberFormat } from "../../i18n/format";
 /*
  * Strategy Tester number / date formats, as the reference app 3.4.1 renders them
  * (.tmp/backtester/design/doc §3.1): thousands ",", 2 decimals for money
@@ -5,15 +6,14 @@
  * negatives, U+202F before the K / M / B suffix, U+2014 when not available.
  */
 import { volumeFormat } from "../../data/volume-format";
-import { translate, translateWith } from "../../i18n/translator";
 
 export const MINUS = "−";
 export const NNBSP = " ";
 export const DASH = "—";
 
-const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const nf3 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const nfInt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const nf2 = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf3 = () => numberFormat({ minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const nfInt = () => numberFormat({ maximumFractionDigits: 0 });
 
 function sign(v: number, signed: boolean): string {
   if (v < 0) return MINUS;
@@ -23,39 +23,25 @@ function sign(v: number, signed: boolean): string {
 /** 133192.13 -> "133,192.13"; signed: "+133,192.13"; negatives always U+2212. */
 export function money(v: number | null | undefined, signed = false): string {
   if (v == null || !Number.isFinite(v)) return DASH;
-  return sign(v, signed) + nf2.format(Math.abs(v));
+  return sign(v, signed) + nf2().format(Math.abs(v));
 }
 
 /** Fraction -> percent: 1.3319 -> "133.19%". */
 export function percent(fraction: number | null | undefined, signed = false): string {
   if (fraction == null || !Number.isFinite(fraction)) return DASH;
   const v = fraction * 100;
-  return sign(v, signed) + nf2.format(Math.abs(v)) + "%";
+  return sign(v, signed) + nf2().format(Math.abs(v)) + "%";
 }
 
 export function ratio(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return DASH;
-  return (v < 0 ? MINUS : "") + nf3.format(Math.abs(v));
+  return (v < 0 ? MINUS : "") + nf3().format(Math.abs(v));
 }
 
 export function count(v: number): string {
-  return nfInt.format(v);
+  return nfInt().format(v);
 }
 
-const DURATION_UNITS = [
-  [86_400_000, "{0} day", "{0} days"],
-  [3_600_000, "{0} hour", "{0} hours"],
-  [60_000, "{0} minute", "{0} minutes"],
-] as const;
-
-/** Duration in its largest whole unit: "412 days", "1 day", "2 hours", "1 minute", "< 1 minute". */
-export function durationString(ms: number): string {
-  for (const [size, one, many] of DURATION_UNITS) {
-    const n = Math.floor(ms / size);
-    if (n > 0) return translateWith(n === 1 ? one : many, nfInt.format(n));
-  }
-  return translate("< 1 minute");
-}
 
 /** Capital pill and trade sizes: 100000 -> "100 K", 36683.12 -> "36.68 K",
  *  512.5 -> "512.5" (see volume-format.ts). */
@@ -85,7 +71,7 @@ export function zoneFormat(locale: string, options: Intl.DateTimeFormatOptions, 
  *  (intraday), in `timeZone` (the symbol's exchange zone). */
 export function tradeDate(ms: number, intraday: boolean, timeZone: string): string {
   const d = new Date(ms);
-  const date = zoneFormat("en-US", { month: "short", day: "numeric", year: "numeric" }, timeZone).format(d);
+  const date = dateText(d, { month: "short", day: "numeric", year: "numeric" }, timeZone);
   if (!intraday) return date;
   const time = zoneFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }, timeZone).format(d);
   return `${date} ${time}`;
@@ -93,6 +79,6 @@ export function tradeDate(ms: number, intraday: boolean, timeZone: string): stri
 
 /** Testing period pill: "Jul 25, 2018 — Sep 29, 2026", in `timeZone`. */
 export function dateRange(fromMs: number, toMs: number, timeZone: string): string {
-  const f = zoneFormat("en-US", { month: "short", day: "numeric", year: "numeric" }, timeZone);
+  const f = dateFormat({ month: "short", day: "numeric", year: "numeric" }, timeZone);
   return `${f.format(new Date(fromMs))} ${DASH} ${f.format(new Date(toMs))}`;
 }

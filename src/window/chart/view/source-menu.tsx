@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Rows of the study and compared-symbol menus (legend "More", right click on
  * a plot) that act on the source itself:
@@ -241,7 +242,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
       if (!lay.canCreate(pane)) return null;
       if (!shares && curSlot?.side === side) return null;
       const at = (side === "left" ? left : right).length;
-      const label = counts[side] > at ? `Pin to scale ${scaleLetter(side, at)}` : `Pin to new ${side} scale`;
+      const label = counts[side] > at ? translateWith("Pin to scale {0}", scaleLetter(side, at)) : side === "left" ? "Pin to new left scale" : "Pin to new right scale";
       return {
         kind: "item", id: `pin-new-${side}`, label,
         onSelect: () => {
@@ -253,8 +254,10 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const scaleRow = (side: "left" | "right", key: string, index: number): Item => {
       const checked = key === cur;
       const letter = scaleLetter(side, index);
-      const label = named ? `${checked ? "Pinned" : "Pin"} to scale ${letter}` : `${checked ? "Pinned" : "Pin"} to ${side} scale`;
-      const undoText = named ? `pin to scale ${letter}` : `pin to ${side} scale`;
+      const label = named
+        ? translateWith(checked ? "Pinned to scale {0}" : "Pin to scale {0}", letter)
+        : side === "left" ? (checked ? "Pinned to left scale" : "Pin to left scale") : checked ? "Pinned to right scale" : "Pin to right scale";
+      const undoText = named ? translateWith("pin to scale {0}", letter) : side === "left" ? "pin to left scale" : "pin to right scale";
       return { kind: "item", id: `pin-${key}`, label, checked, onSelect: () => { if (!checked) pin(key, undoText); } };
     };
     const newRight = newRow("right");
@@ -274,7 +277,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
       onSelect: () => { if (cur !== "none") pin("none", `make ${title} no scale (Full screen)`); },
     });
     const now = cur === "none" || !curSlot ? "no scale" : named ? scaleLetter(curSlot.side, curSlot.index) : curSlot.side;
-    return { kind: "item", id: "pin-to-scale", label: `Pin to scale (now ${now})`, icon: PIN_ICON(), submenu: sub };
+    return { kind: "item", id: "pin-to-scale", label: translateWith("Pin to scale (now {0})", now), icon: PIN_ICON(), submenu: sub };
   }
 
   // ── Compared symbols: Move to, Pin to scale ─────────────────────────────
@@ -444,7 +447,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const parent = childParentOf(id);
     if (!parent) return null;
     return {
-      kind: "item", id: "add-on-source", label: `Add indicator/strategy on ${parent.title}…`, icon: CtxIcons.addIndicator,
+      kind: "item", id: "add-on-source", label: translateWith("Add indicator/strategy on {0}…", parent.title), icon: CtxIcons.addIndicator,
       onSelect: () => emitAppEvent("chart-open-indicators", { parent }),
     };
   }

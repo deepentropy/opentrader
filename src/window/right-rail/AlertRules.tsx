@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Alerts panel, "Alerts" view: the toolbar row (create on the left; search,
  * sort, options on the right) and the list of alerts: the alert rules and
@@ -137,7 +138,7 @@ type Item = { kind: "rule"; rule: AlertRule } | { kind: "list"; list: ListAlert 
 const itemId = (i: Item) => (i.kind === "rule" ? i.rule.id : `list:${i.list.listId}`);
 const itemEnabled = (i: Item) => (i.kind === "rule" ? i.rule.enabled : i.list.enabled);
 const itemName = (i: Item) => (i.kind === "rule" ? i.rule.name : "");
-const listMessage = (l: ListAlert) => `Absolute change ≥ ${l.threshold}%`;
+const listMessage = (l: ListAlert) => translateWith("Absolute change ≥ {0}%", l.threshold);
 const itemMessage = (i: Item) => (i.kind === "rule" ? ruleText(i.rule) : listMessage(i.list));
 const itemType = (i: Item): "price" | "technicals" | "watchlist" => (i.kind === "list" ? "watchlist" : isTechnical(i.rule) ? "technicals" : "price");
 
@@ -289,7 +290,7 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings
       {tool("set-alert-button", "Create alert", "scr-add", () => emitAppEvent("chart-open-alert-dialog", { symbol: props.ctx.symbol }))}
       <div class="alerts-panel-subheader-right">
         {tool("alerts-search-button", "Search", "scr-search", () => { if (searchOpen()) setSearch(""); setSearchOpen(!searchOpen()); }, searchOpen())}
-        {tool("alert-sort-button", `Sorted by ${sortLabel(sort()).replace(/^./, (c) => c.toLowerCase())}`, sort().desc ? "scr-menu-sort-desc" : "scr-menu-sort-asc", () => toggle("sort"), menu() === "sort")}
+        {tool("alert-sort-button", translateWith("Sorted by {0}", translate(sortLabel(sort())).replace(/^./, (c) => c.toLowerCase())), sort().desc ? "scr-menu-sort-desc" : "scr-menu-sort-asc", () => toggle("sort"), menu() === "sort")}
         <OptionsButton name="alerts-settings-button" count={filterCount()} pressed={menu() === "options"} onClick={() => toggle("options")} />
       </div>
       <Show when={menu() === "sort"}>
@@ -377,7 +378,7 @@ export function AlertRulesList(props: {
   };
   const ticker = (i: Item) =>
     i.kind === "list" ? `${i.list.name}, 1D` : i.rule.left.kind === "screen" ? `Screen · ${i.rule.left.title}` : `${tickerOf(i.rule.symbol)}, ${intervalLabel(i.rule.resolution)}`;
-  const status = (i: Item) => (itemEnabled(i) ? "Active" : i.kind === "rule" && i.rule.cloned ? "Paused — Cloned" : "Inactive");
+  const statusText = (i: Item) => (itemEnabled(i) ? "Active" : i.kind === "rule" && i.rule.cloned ? "Paused — Cloned" : "Inactive");
   const ruleOf = (i: Item) => (i.kind === "rule" ? i.rule : null);
   return (
     <>
@@ -427,7 +428,7 @@ export function AlertRulesList(props: {
                 </Show>
                 <span class="alerts-panel-attr alerts-panel-attr--strong" data-name="alert-item-ticker">{ticker(i)}</span>
                 <span class="alerts-panel-attr alerts-panel-status" classList={{ "is-active": itemEnabled(i) }} data-name="alert-item-status">
-                  {status(i)}
+                  {statusText(i)}
                 </span>
                 <Show when={filters().source && ruleOf(i)}>
                   {(r) => <SourceIcon rule={r()} />}

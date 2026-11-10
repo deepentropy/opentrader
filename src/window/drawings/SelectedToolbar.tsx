@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * SelectedToolbar — floating action strip above the selected drawing.
  *
@@ -669,7 +670,7 @@ export function SelectedToolbar(props: Props) {
           type="button"
           class="selected-toolbar-btn selected-toolbar-btn-remove"
           data-name="remove"
-          title={isGroup() ? `Remove ${groupTargets().length} drawings` : "Remove"}
+          title={isGroup() ? translateWith("Remove {0} drawings", groupTargets().length) : "Remove"}
           aria-label="Remove"
           onClick={removeSelection}
         >

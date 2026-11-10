@@ -146,7 +146,7 @@ export function WatchlistContextMenu(props: Props) {
     >
       <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(rows()))}>
         <span class="ot-menu-item__icon" aria-hidden="true" />
-        <span class="ot-menu-item__label">{multi() ? "Flag/Unflag all selected" : `Flag/Unflag ${sym()}`}</span>
+        <span class="ot-menu-item__label">{multi() ? "Flag/Unflag all selected" : translateWith("Flag/Unflag {0}", sym())}</span>
         <span class="ot-menu-item__hotkey">Alt + ↵</span>
       </button>
 
@@ -195,7 +195,7 @@ export function WatchlistContextMenu(props: Props) {
           onClick={() => setListsOpen((o) => !o)}
         >
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_LIST_ADD} />
-          <span class="ot-menu-item__label">{multi() ? "Add all selected to" : `Add ${sym()} to watchlist`}</span>
+          <span class="ot-menu-item__label">{multi() ? "Add all selected to" : translateWith("Add {0} to watchlist", sym())}</span>
           <span class="ot-menu-item__submenu-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
         </button>
         <Show when={listsOpen()}>
@@ -240,7 +240,7 @@ export function WatchlistContextMenu(props: Props) {
       <Show when={props.canCompare}>
         <button type="button" role="menuitem" class="ot-menu-item" data-name="add-to-compare" onClick={() => run(() => props.onAddCompare(rows()))}>
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_COMPARE} />
-          <span class="ot-menu-item__label">{multi() ? "Add all selected to compare" : `Add ${sym()} to compare`}</span>
+          <span class="ot-menu-item__label">{multi() ? "Add all selected to compare" : translateWith("Add {0} to compare", sym())}</span>
         </button>
       </Show>
 

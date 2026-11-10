@@ -1,3 +1,4 @@
+import { durationText } from "../../i18n/format";
 /*
  * Chart legend statuses (the status pill next to the symbol title) and what
  * their popup says, as the reference app 3.4.1 (FullTooltipsPopup): one
@@ -51,22 +52,6 @@ export const REPLAY_STATUS_TEXT = {
   select: { title: "Replay mode", color: "var(--color-content-primary-neutral-normal)", text: "Select your start point." },
   on: { title: "Replay mode", color: "var(--color-content-secondary-accent)", text: "You're in Replay mode. You're in Replay mode. You're in Replay mode." },
 } as const;
-
-const plural = (n: number, one: string, many: string) => translateWith(n === 1 ? `{0} ${one}` : `{0} ${many}`, n);
-
-/** Remaining time as the reference app words it: "2 hours and 28 minutes",
- *  "1 day and 3 hours", "5 minutes", "less than 1 minute"; in the interface
- *  language (built from whole phrases, so a translation can reorder them). */
-export function durationText(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const days = Math.floor(s / 86400);
-  const hours = Math.floor((s - days * 86400) / 3600);
-  const minutes = Math.floor((s - days * 86400 - hours * 3600) / 60);
-  if (days === 0 && hours === 0 && minutes === 0) return translateWith("less than 1 minute");
-  if (days > 0) return translateWith("{0} and {1}", plural(days, "day", "days"), plural(hours, "hour", "hours"));
-  if (hours > 0) return translateWith("{0} and {1}", plural(hours, "hour", "hours"), plural(minutes, "minute", "minutes"));
-  return plural(minutes, "minute", "minutes");
-}
 
 /** Market status at `sec`, with a holiday (a weekday with no session) told
  *  apart from a plain close. */

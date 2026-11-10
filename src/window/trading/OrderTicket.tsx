@@ -39,7 +39,7 @@ import { CloseIcon } from "./icons";
 import { FavoritePresets, OrderPresetsButton } from "./OrderPresets";
 import { DomPanel } from "./DomPanel";
 import { orderSummary, positionSummary } from "../chart/trading-lines-model";
-import { translateAs } from "../../i18n/translator";
+import { translateAs, translateWith } from "../../i18n/translator";
 
 /** Order / DOM switch: tab, title, tooltip and its Shift hotkey. */
 const TABS: ["order" | "dom", string, string, string][] = [
@@ -211,7 +211,7 @@ function TicketBody(props: { floating: boolean }) {
         title={
           <>
             {tickerOf(d().symbol)}
-            {d().editing && !isPos() ? `, order ${d().editing}` : ""}
+            {d().editing && !isPos() ? translateWith(", order {0}", d().editing ?? "") : ""}
           </>
         }
         extra={

@@ -1,3 +1,5 @@
+import { numberFormat } from "../../i18n/format";
+import { translateWith } from "../../i18n/translator";
 /*
  * "Margin utilization" of the Margin usage tab (the reference app module
  * 151996):
@@ -349,7 +351,7 @@ function cards(items: Liquidation[]): Card[] {
   return [{ first: Math.min(...numbers), last: Math.max(...numbers), quantity, price: quantity === 0 ? 0 : amount / quantity, amount }];
 }
 
-const qty = new Intl.NumberFormat("en-US", { maximumFractionDigits: 8 });
+const qty = () => numberFormat({ maximumFractionDigits: 8 });
 
 /** "Forced liquidations" popover, 7 px above the marker, centred on it. */
 function LiquidationsPopover(props: { click: MarkerClick; currency: string; onClose: () => void }) {
@@ -394,10 +396,10 @@ function LiquidationsPopover(props: { click: MarkerClick; currency: string; onCl
           <For each={cards(items())}>
             {(c, i) => (
               <div class="st-liq-card" classList={{ "has-divider": i() > 0 }}>
-                <div class="st-liq-caption">{c.last === null ? `Trade #${c.first}` : `Trades #${c.first}–${c.last}`}</div>
+                <div class="st-liq-caption">{c.last === null ? translateWith("Trade #{0}", c.first) : translateWith("Trades #{0}–{1}", c.first, c.last)}</div>
                 <div class="st-liq-rows">
                   <span class="st-liq-cell">Quantity</span>
-                  <span class="st-liq-cell is-value">{qty.format(c.quantity)}</span>
+                  <span class="st-liq-cell is-value">{qty().format(c.quantity)}</span>
                   <span class="st-liq-cell">Average price</span>
                   <span class="st-liq-cell is-value">
                     {money(c.price)}

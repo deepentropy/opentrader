@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Shell requests from the charts and the panels (app events): open the Chart
  * settings / Indicators / alert dialog or a right-rail page, chart templates
@@ -57,7 +58,7 @@ export function installAppRequests(a: RequestActions): () => void {
     onAppEvent("chart-remove-template", (d) => {
       const name = d?.name;
       if (!name) return;
-      showConfirm({ text: `Do you really want to delete Chart Template '${name}' ?`, onConfirm: () => removeChartTemplate(name) });
+      showConfirm({ text: translateWith("Do you really want to delete Chart Template '{0}' ?", name), onConfirm: () => removeChartTemplate(name) });
     }),
     onAppEvent("chart-clear-indicators", () => a.removeAllIndicators()),
     onAppEvent("chart-open-panel", (d) => {

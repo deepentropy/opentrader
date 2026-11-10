@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * CompareSettingsDialog: Settings of one compared symbol (legend gear /
  * "Settings…"). Title "description · exchange"; tabs Inputs (Symbol), Style
@@ -106,7 +107,7 @@ export function CompareSettingsDialog(props: Props) {
       inline
       class="settings-dialog ind3-dialog"
       data-qa-id="compare-properties-dialog"
-      label={`${props.title} settings`}
+      label={translateWith("{0} settings", props.title)}
       title={props.title}
       onClose={props.onClose}
       // Escape / Enter in the bubble phase: popovers take their own Escape first. The symbol search has its own keys;

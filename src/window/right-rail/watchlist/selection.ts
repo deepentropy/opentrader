@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Watchlist selection: one selection of symbol rows and section headers
  * (click, Ctrl / Shift click, Shift + Up / Down), put back on the charted
@@ -134,7 +135,7 @@ export function createSelection(cx: WatchlistCx): SelectionApi {
     }
     showConfirm({
       title: "Remove selected symbols?",
-      text: `Doing this will remove ${ids.length} selected symbols from your watchlist.`,
+      text: translateWith("Doing this will remove {0} selected symbols from your watchlist.", ids.length),
       mainText: "Remove",
       cancelText: "Cancel",
       intent: "danger",

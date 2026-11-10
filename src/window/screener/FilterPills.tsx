@@ -25,7 +25,7 @@ import { screenerStore } from "../../data/screener-store";
 import { CategoryMenu } from "./CategoryMenu";
 import { FilterEditor } from "./FilterEditor";
 import { PopItem, Popover } from "./Popover";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural } from "../../i18n/translator";
 
 type Props = {
   has: (field: string) => boolean;
@@ -345,7 +345,7 @@ export function FilterPills(props: Props) {
           />
           <Show when={inactiveCount() > 0 && activeCount() > 0}>
             <PopItem
-              title={translateWith(inactiveCount() === 1 ? "Remove {0} inactive filter" : "Remove {0} inactive filters", inactiveCount())}
+              title={translatePlural(inactiveCount(), { one: "Remove {0} inactive filter", other: "Remove {0} inactive filters" }, inactiveCount())}
               onClick={() => {
                 screenerStore.update((s) => ({ ...s, filters: s.filters.filter(isActive) }));
                 close();

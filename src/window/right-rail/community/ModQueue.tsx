@@ -12,7 +12,7 @@ import { IconButton } from "../../../components/IconButton";
 import { api, type ContactMessage, type QueueItem } from "../../../data/community/api";
 import { me } from "../../../data/community/session";
 import { Age, Author, ErrorBanner, ReasonForm, errorText } from "../../../community-shared/parts";
-import { translateWith } from "../../../i18n/translator";
+import { translatePlural } from "../../../i18n/translator";
 
 const REASON_LABELS: Record<string, string> = {
   spam: "Spam",
@@ -96,7 +96,7 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
                     <span class="cm-badge">{item.target_type}</span>
                     <span>{item.community_id.replace(/^t:/, "$").replace(/^c:/, "")}</span>
                     <span class="cm-dot">·</span>
-                    <span>{translateWith(item.reports === 1 ? "{0} report" : "{0} reports", item.reports)}</span>
+                    <span>{translatePlural(item.reports, { one: "{0} report", other: "{0} reports" }, item.reports)}</span>
                     <span class="cm-dot">·</span>
                     <Age at={item.first_at} />
                   </div>
@@ -122,7 +122,7 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
                       </div>
                     }
                   >
-                    <ReasonForm title={`Remove this ${item.target_type}`} action="Remove" danger onCancel={() => setRemoving(null)} onSubmit={(r) => act(item, "remove", r)} />
+                    <ReasonForm title={item.target_type === "post" ? "Remove this post" : "Remove this comment"} action="Remove" danger onCancel={() => setRemoving(null)} onSubmit={(r) => act(item, "remove", r)} />
                   </Show>
                 </div>
               )}

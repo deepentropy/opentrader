@@ -1,3 +1,4 @@
+import { translateWith } from "../i18n/translator";
 /*
  * Alert message placeholders: the "Add placeholder" menu of the message
  * editor, and the text each one gives when the alert fires.
@@ -69,7 +70,7 @@ export function placeholderGroups(plots: readonly { title: string; named?: boole
       if (!seen.has(p.title) && p.named !== false) titled.push({ title: p.title, value: `{{plot("${p.title}")}}` });
       seen.add(p.title);
     }
-    groups.push({ id: "plots", title: "Plots", items: [...titled, ...list.map((_, i) => ({ title: `Plot ${i}`, value: `{{plot_${i}}}` }))] });
+    groups.push({ id: "plots", title: "Plots", items: [...titled, ...list.map((_, i) => ({ title: translateWith("Plot {0}", i), value: `{{plot_${i}}}` }))] });
   }
   if (source === "strategy") groups.push(...STRATEGY_GROUPS);
   if (source === "position") groups.push(POSITION_GROUP);

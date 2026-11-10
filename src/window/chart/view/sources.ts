@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Sources of a chart view and their order: study selection requests, the
  * drawing order of the series (Object tree), drawings painted behind a series,
@@ -451,7 +452,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     // A source's move is one undo step (reference texts).
     if (pane === targetPane) {
       const targetTitle = treeSources().find((x) => x.id === target)?.title ?? "";
-      placeInPane(pane, id, target, below, `insert ${src.title} ${below ? "after" : "before"} ${targetTitle}`);
+      placeInPane(pane, id, target, below, translateWith(below ? "insert {0} after {1}" : "insert {0} before {1}", src.title, targetTitle));
       return;
     }
     // A drop in another pane: only a study changes pane (it joins the target's pane, its former pane closes when

@@ -1,3 +1,4 @@
+import { dateText, numberFormat } from "../../i18n/format";
 /*
  * Shared plumbing of the report tab charts (Metrics view sub-tabs), after the
  * reference app's report chart helpers:
@@ -81,7 +82,7 @@ export const reportTheme = theme;
 /** The dark or the light set of a chart's colours, for the current theme. */
 export const themed = <T>(dark: T, light: T): T => (theme() === "light" ? light : dark);
 
-const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf2 = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const UNITS = ["", "K", "M", "B", "T"];
 
 /** Axis numbers of the report charts: 2 decimals, K / M / B / T from a thousand ("86.00 K", "−43.00 K", "0.00"). */
@@ -93,20 +94,17 @@ export function volume2(v: number): string {
     a /= 1000;
     u++;
   }
-  return sign + nf2.format(a) + (u ? NNBSP + UNITS[u] : "");
+  return sign + nf2().format(a) + (u ? NNBSP + UNITS[u] : "");
 }
 
 /** Money value of the chart tooltips: 2 decimals, "+" when `signed` and above 0; exactly 0 reads "0". */
 export const tipMoney = (v: number, signed = false) => (v === 0 ? "0" : money(v, signed));
 
-const utcFormats = new Map<string, Intl.DateTimeFormat>();
 /** UNIX ms as a UTC date ("Jul 5", "Jul 5, 2020", "Jul 2020", "2020"): bucket dates are UTC days. */
 export function utcDate(ms: number, parts: "monthDay" | "date" | "monthYear" | "year"): string {
   const options: Intl.DateTimeFormatOptions =
     parts === "monthDay" ? { month: "short", day: "numeric" } : parts === "date" ? { month: "short", day: "numeric", year: "numeric" } : parts === "monthYear" ? { month: "short", year: "numeric" } : { year: "numeric" };
-  let f = utcFormats.get(parts);
-  if (!f) utcFormats.set(parts, (f = new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" })));
-  return f.format(new Date(ms));
+  return dateText(ms, options, "UTC");
 }
 
 /** Quarter of a UTC date: "Q3 '20". */

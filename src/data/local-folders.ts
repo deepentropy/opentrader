@@ -1,3 +1,4 @@
+import { numberText } from "../i18n/format";
 /*
  * Synced folders of CSV files (#267), desktop app only: Settings > Local data.
  * Each folder's bar files are imported series ("LOCAL:<NAME>", see
@@ -20,7 +21,7 @@ import { commands, type LocalSeries } from "../bindings";
 import { getItem, onExternalChange, setItem } from "./kv";
 import { parseSeedSymbolInfo, seriesNameFromFile } from "./local-series-csv";
 import { deleteLocalSeries, importLocalSeries, localSeriesChanged } from "./local-series";
-import { translate, translateWith } from "../i18n/translator";
+import { translate, translatePlural, translateWith } from "../i18n/translator";
 
 /** A file a sync could not import, with its size and time then (it is not
  *  read again until they change). */
@@ -248,10 +249,10 @@ async function doSync(path: string): Promise<FolderSyncStatus> {
 export function syncSummary(folder: LocalFolder, s: FolderSyncStatus): string {
   if (s.failed) return `${folder.path}: ${s.failed}`;
   const parts: string[] = [];
-  if (s.imported) parts.push(translateWith("{0} series updated", s.imported.toLocaleString("en-US")));
-  if (s.removed) parts.push(translateWith("{0} removed", s.removed.toLocaleString("en-US")));
+  if (s.imported) parts.push(translateWith("{0} series updated", numberText(s.imported)));
+  if (s.removed) parts.push(translateWith("{0} removed", numberText(s.removed)));
   const n = s.errors.length;
-  if (n) parts.push(translateWith(n === 1 ? "{0} file not imported (Settings > Local data)" : "{0} files not imported (Settings > Local data)", n.toLocaleString("en-US")));
+  if (n) parts.push(translatePlural(n, { one: "{0} file not imported (Settings > Local data)", other: "{0} files not imported (Settings > Local data)" }, numberText(n)));
   return `${folder.path}: ${parts.join(", ") || translate("no change")}.`;
 }
 

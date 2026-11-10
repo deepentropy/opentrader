@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * SymbolSearchDialog — modal opened from the header's symbol pill.
  *
@@ -136,7 +137,7 @@ export function SymbolSearchDialog(props: Props) {
   function removeSeries(name: string) {
     showConfirm({
       title: "Remove series",
-      text: `Do you really want to remove ${localSymbol(name)}? Its bars are deleted.`,
+      text: translateWith("Do you really want to remove {0}? Its bars are deleted.", localSymbol(name)),
       mainText: "Remove",
       intent: "danger",
       onConfirm: () => {

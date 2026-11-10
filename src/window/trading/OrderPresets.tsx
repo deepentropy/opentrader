@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Order presets of the order ticket (header button, reference app): the menu
  * ("Save order preset…", then the ORDER PRESETS list, each preset with its
@@ -35,8 +36,8 @@ const num = (v: number) => String(Number(v.toFixed(8)));
 
 function exitText(prefix: "TP" | "SL", v: number | undefined, type: OrderPreset["tpPriceType"]): string {
   if (!v) return "";
-  if (type === "balancePct") return `${prefix} ${num(v)} % balance`;
-  if (type === "pricePct") return `${prefix} ${num(v)} % price`;
+  if (type === "balancePct") return translateWith("{0} {1} % balance", prefix, num(v));
+  if (type === "pricePct") return translateWith("{0} {1} % price", prefix, num(v));
   return `${prefix} ${num(v)}`;
 }
 
@@ -150,8 +151,7 @@ function leadingSymbol(title: string): string {
 function confirmRemove(p: OrderPreset) {
   showConfirm({
     title: "Delete this preset?",
-    text: `Doing this will permanently delete your
-"${p.title}" order preset.`,
+    text: translateWith("Doing this will permanently delete your\n\"{0}\" order preset.", p.title),
     mainText: "Delete",
     cancelText: "Cancel",
     intent: "danger",
@@ -244,7 +244,7 @@ export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id
               if (tradingUi.presets().length >= MAX_PRESETS) {
                 showConfirm({
                   title: "You've reached the maximum limit of presets",
-                  text: `Currently, you can create up to ${MAX_PRESETS} presets. To create a new preset, delete an existing one.`,
+                  text: translateWith("Currently, you can create up to {0} presets. To create a new preset, delete an existing one.", MAX_PRESETS),
                   mainText: "Got it",
                   cancelText: null,
                   intent: "neutral",

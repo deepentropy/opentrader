@@ -394,7 +394,10 @@ export function IndicatorLegend(props: Props) {
  *  the number of studies (from two). Shown on the price pane from one study,
  *  on the other panes from two. */
 function LegendToggler(p: { count: number; collapsed: boolean; bgColor?: string; onToggle: () => void }) {
-  const title = () => `${p.collapsed ? "Show" : "Hide"} ${p.count === 1 ? "indicator" : "indicators"} legend`;
+  const title = () =>
+    p.collapsed
+      ? (p.count === 1 ? "Show indicator legend" : "Show indicators legend")
+      : (p.count === 1 ? "Hide indicator legend" : "Hide indicators legend");
   return (
     <div class="ot-ind-legend-toggler-wrap" data-qa-id="legend-toggler-wrapper">
       <button

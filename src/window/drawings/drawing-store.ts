@@ -1,3 +1,4 @@
+import { translate, translatePlural, translateWith } from "../../i18n/translator";
 /*
  * Drawing store of the window: the drawings of every chart, keyed by a SCOPE
  * KEY derived from the sync mode, so the same drawing can be shared at three
@@ -118,7 +119,7 @@ export function createDrawingStore(
     if (isViewKey(key)) {
       // A view: write each scope slice the change touches (one undo entry).
       const slices = splitView(key, next);
-      if (meta !== null) undo.recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: "drawing change" }, slices);
+      if (meta !== null) undo.recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: translate("drawing change") }, slices);
       for (const s of slices) {
         setDrawingStore(s.key, s.after);
         saveDrawings(s.key, s.after);
@@ -126,7 +127,7 @@ export function createDrawingStore(
       return;
     }
     if (meta !== null) {
-      undo.recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: "drawing change" });
+      undo.recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: translate("drawing change") });
     }
     setDrawingStore(key, next);
     saveDrawings(key, next);
@@ -187,7 +188,7 @@ export function createDrawingStore(
     const placed = { id, style: defaultStyleFor(d.kind), ...d } as Drawing;
     if (lockDrawingsMode()) placed.locked = true;
     if (hideDrawingsMode()) placed.hidden = true;
-    setSlice(key, [...drawingsFor(key), placed], { label: `create ${labelForKind(d.kind)}` });
+    setSlice(key, [...drawingsFor(key), placed], { label: translateWith("create {0}", translate(labelForKind(d.kind))) });
     // A chart drawn on is saved even while hidden by a smaller template.
     if (activePaneState().savedWhenHidden === false) patchActivePane({ savedWhenHidden: undefined });
     return id;
@@ -199,7 +200,7 @@ export function createDrawingStore(
       key,
       drawingsFor(key).map((d) => (d.id === next.id ? next : d)),
       // Drag/nudge streams coalesce into one undo entry per gesture.
-      label ? { label } : { label: `change ${labelForKind(next.kind)}`, coalesceId: `${key}:${next.id}` },
+      label ? { label } : { label: translateWith("change {0}", translate(labelForKind(next.kind))), coalesceId: `${key}:${next.id}` },
     );
   }
 
@@ -213,7 +214,7 @@ export function createDrawingStore(
       text:
         rules.length === 1
           ? "This drawing has an alert. Removing the drawing removes the alert too."
-          : `${rules.length} alerts use ${ids.length === 1 ? "this drawing" : "these drawings"}. Removing ${ids.length === 1 ? "it" : "them"} removes the alerts too.`,
+          : translatePlural(ids.length, { one: "{0} alerts use this drawing. Removing it removes the alerts too.", other: "{0} alerts use these drawings. Removing them removes the alerts too." }, rules.length),
       mainText: "Remove",
       cancelText: "Cancel",
       intent: "danger",
@@ -257,7 +258,7 @@ export function createDrawingStore(
     withLockedChoice(key, [id], () => removingDrawings([id], () => {
       const victim = drawingsFor(key).find((d) => d.id === id);
       setSlice(key, drawingsFor(key).filter((d) => d.id !== id), {
-        label: `remove ${victim ? labelForKind(victim.kind) : "drawing"}`,
+        label: translateWith("remove {0}", translate(victim ? labelForKind(victim.kind) : "drawing")),
       });
       setSelectedDrawingIds((cur) => cur.filter((x) => x !== id));
     }));
@@ -272,7 +273,7 @@ export function createDrawingStore(
     setSlice(
       key,
       drawingsFor(key).map((d) => byId.get(d.id) ?? d),
-      { label: `move ${list.length} drawings`, coalesceId: `${key}:group-move` },
+      { label: translateWith("move {0} drawings", list.length), coalesceId: `${key}:group-move` },
     );
   }
 
@@ -282,7 +283,7 @@ export function createDrawingStore(
     withLockedChoice(key, all, (ids) => removingDrawings(ids, () => {
       const set = new Set(ids);
       setSlice(key, drawingsFor(key).filter((d) => !set.has(d.id)), {
-        label: `remove ${ids.length} drawings`,
+        label: translateWith("remove {0} drawings", ids.length),
       });
       setSelectedDrawingIds((cur) => cur.filter((id) => !set.has(id)));
     }));
@@ -310,7 +311,7 @@ export function createDrawingStore(
     } as Drawing;
     // The clone keeps the source's sync scope.
     const scope = isViewKey(key) ? scopeKeys(key).find((k) => (drawingStore[k] ?? []).some((d) => d.id === id)) ?? key : key;
-    setSlice(scope, [...drawingsFor(scope), cloned], { label: `clone ${labelForKind(src.kind)}` });
+    setSlice(scope, [...drawingsFor(scope), cloned], { label: translateWith("clone {0}", translate(labelForKind(src.kind))) });
     setSelectedDrawingId(newId);
   }
 
@@ -332,7 +333,7 @@ export function createDrawingStore(
     }
     const slices = [...added].map(([k, extra]) => ({ key: k, before: drawingStore[k] ?? [], after: [...(drawingStore[k] ?? []), ...extra] }));
     const after = keys.flatMap((k) => slices.find((s) => s.key === k)?.after ?? drawingStore[k] ?? []);
-    undo.recordDrawingChange(key, list, after, { label: "clone line tools" }, isViewKey(key) ? slices : undefined);
+    undo.recordDrawingChange(key, list, after, { label: translate("clone line tools") }, isViewKey(key) ? slices : undefined);
     for (const s of slices) {
       setDrawingStore(s.key, s.after);
       saveDrawings(s.key, s.after);
@@ -431,7 +432,7 @@ export function createDrawingStore(
   function removeAllDrawings() {
     withLockedChoice(activeDrawingKey(), drawings().map((d) => d.id), (ids) => removingDrawings(ids, () => {
       const set = new Set(ids);
-      setActiveDrawings(drawings().filter((d) => !set.has(d.id)), { label: "remove all drawings" });
+      setActiveDrawings(drawings().filter((d) => !set.has(d.id)), { label: translate("remove all drawings") });
       setSelectedDrawingId(null);
     }));
   }
@@ -450,7 +451,7 @@ export function createDrawingStore(
     else if (dir === "forward") j = Math.min(arr.length, i + 1);
     else if (dir === "backward") j = Math.max(0, i - 1);
     arr.splice(j, 0, d);
-    setSlice(key, arr, { label: `reorder ${labelForKind(d.kind)}`, coalesceId: `${key}:order:${id}` });
+    setSlice(key, arr, { label: translateWith("reorder {0}", translate(labelForKind(d.kind))), coalesceId: `${key}:order:${id}` });
   }
 
   /** Object tree drag: the listed drawings (front first) take, in that order,
@@ -458,7 +459,7 @@ export function createDrawingStore(
    *  sits in front of (`over`; null = behind every source). One undo step. */
   function placeDrawingsForSymbol(key: string, ids: string[], over: Record<string, string | null>) {
     const next = placedDrawings(key, ids, over);
-    if (next) setSlice(key, next, { label: "move objects" });
+    if (next) setSlice(key, next, { label: translate("move objects") });
   }
   /** The drawings of `key` with `ids` put in that order (front first) in front of the sources `over` names; null
    *  when nothing moves. */
@@ -497,7 +498,7 @@ export function createDrawingStore(
     if (to === from) return;
     const [d] = display.splice(from, 1);
     display.splice(to, 0, d);
-    setActiveDrawings(display.reverse(), { label: `reorder ${labelForKind(d.kind)}` });
+    setActiveDrawings(display.reverse(), { label: translateWith("reorder {0}", translate(labelForKind(d.kind))) });
   }
 
   return {

@@ -1,3 +1,5 @@
+import { translateWith } from "../../i18n/translator";
+import { dateText } from "../../i18n/format";
 /*
  * GoToDateDialog — the "Go to" date dialog opened by the calendar button next
  * to the date-range tabs in the bottom bar (hotkey Alt+G). Solid port of the
@@ -63,10 +65,10 @@ export function parseYmd(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 export function monthLabel(year: number, month: number): string {
-  return new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+  return dateText(new Date(year, month, 1), { month: "long", year: "numeric" });
 }
 export function ariaDay(d: Date): string {
-  return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return dateText(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 // ─── Date typing rules (the reference app DatePicker 368690) ───────────────────────────────
@@ -246,8 +248,8 @@ export function GoToDateDialog(props: Props) {
   };
   const navLabel = (delta: number) =>
     calView() === "months"
-      ? `${delta < 0 ? "Previous" : "Next"} year, ${viewYear() + delta}`
-      : `${delta < 0 ? "Previous" : "Next"} month, ${monthLabel(viewYear(), viewMonth() + delta)}`;
+      ? translateWith(delta < 0 ? "Previous year, {0}" : "Next year, {0}", viewYear() + delta)
+      : translateWith(delta < 0 ? "Previous month, {0}" : "Next month, {0}", monthLabel(viewYear(), viewMonth() + delta));
 
   // Date fields: block other keys, add the dashes on key release (the reference app).
   const onDateKeyPress = (e: KeyboardEvent) => {

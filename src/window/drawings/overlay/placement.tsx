@@ -139,7 +139,7 @@ export function createPlacement(cx: OverlayCx): PlacementApi {
       // hint on every chart, until dismissed once.
       if (next.length === 1 && (spec.kind === "path" || spec.kind === "polyline")) {
         const key = spec.kind === "path" ? PATH_HINT : POLYLINE_HINT;
-        if (!hintState(key).dismissed()) setLineToolHint({ key, text: `Double-click to finish ${spec.kind}` });
+        if (!hintState(key).dismissed()) setLineToolHint({ key, text: spec.kind === "path" ? "Double-click to finish path" : "Double-click to finish polyline" });
       }
       return;
     }

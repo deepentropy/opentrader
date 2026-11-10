@@ -1,3 +1,4 @@
+import { translatePlural, translateWith } from "../../i18n/translator";
 /*
  * Import trades: a CSV file read into the trade journal. The columns are
  * guessed from the header and can be changed; the preview shows the first
@@ -131,7 +132,7 @@ export function ImportTradesDialog(props: Props) {
       if (r.unknown.length) notes.push(`Unknown symbols, kept without values: ${r.unknown.join(", ")}.`);
       if (r.dropped) notes.push(`${r.dropped} trade(s) left out: exit before entry.`);
       if (result().errors.length) notes.push(`${result().errors.length} row(s) could not be read.`);
-      if (notes.length) showNotice({ title: `${r.added} trades imported`, text: notes.join(" ") });
+      if (notes.length) showNotice({ title: translatePlural(r.added, { one: "{0} trade imported", other: "{0} trades imported" }), text: notes.join(" ") });
     } finally {
       setBusy(false);
     }
@@ -193,7 +194,7 @@ export function ImportTradesDialog(props: Props) {
                   </label>
                   <select class="tj-select" value={mapping()[f.id] ?? ""} onChange={(e) => setField(f.id, e.currentTarget.value)}>
                     <option value="">—</option>
-                    <For each={headers}>{(h, i) => <option value={i()}>{h || `Column ${i() + 1}`}</option>}</For>
+                    <For each={headers}>{(h, i) => <option value={i()}>{h || translateWith("Column {0}", i() + 1)}</option>}</For>
                   </select>
                 </>
               )}

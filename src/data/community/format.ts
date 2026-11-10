@@ -6,7 +6,7 @@
 import { POST_TYPES } from "../../community-shared/contract";
 import { date, dateTime } from "../../community-shared/dates";
 import type { Idea, Post, PostType, SuggestionStatus, TrackRecord } from "./api";
-import { translate, translateWith } from "../../i18n/translator";
+import { translate, translatePlural, translateWith } from "../../i18n/translator";
 
 export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion" };
 export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions" };
@@ -67,8 +67,8 @@ export function age(sec: number, nowMs = Date.now()): string {
 /** "34 ideas · 62% hit", "2 open ideas", "no ideas yet". */
 export function recordLine(r: TrackRecord | null | undefined): string {
   if (!r || (!r.resolved && !r.open)) return translate("no ideas yet");
-  if (!r.resolved) return translateWith(r.open === 1 ? "{0} open idea" : "{0} open ideas", r.open);
-  return translateWith(r.resolved === 1 ? "{0} idea · {1}% hit" : "{0} ideas · {1}% hit", r.resolved, String(r.hit_pct));
+  if (!r.resolved) return translatePlural(r.open, { one: "{0} open idea", other: "{0} open ideas" }, r.open);
+  return translatePlural(r.resolved, { one: "{0} idea · {1}% hit", other: "{0} ideas · {1}% hit" }, r.resolved, String(r.hit_pct));
 }
 
 /** "34 resolved ideas · 62% hit · +0.42R avg". */
@@ -84,7 +84,7 @@ const OUTCOME: Record<string, string> = { target: "Target hit", stopped: "Stoppe
 /** An idea's state in a line: "Open · +0.44R", "Target hit · +2.1R", "Not triggered". */
 export function ideaState(i: Idea): { text: string; color: string } {
   if (i.status === "pending" || i.status === "untriggered") return { text: OUTCOME[i.status], color: FOG };
-  if (i.status === "open") return { text: `Open · ${fmtR(i.result_r)}`, color: INK };
+  if (i.status === "open") return { text: translateWith("Open · {0}", fmtR(i.result_r)), color: INK };
   return { text: `${OUTCOME[i.status]} · ${fmtR(i.result_r)}`, color: i.status === "stopped" ? DOWN : rColor(i.result_r) };
 }
 
@@ -99,12 +99,12 @@ export function outcome(i: Idea): string {
 /** The status line of a post in a list: an idea's state, an answered question, a post-mortem's idea. */
 export function postState(p: Post): { text: string; color: string } | null {
   if (p.idea) return ideaState(p.idea);
-  if (p.suggestion) return { text: translateWith(p.useful_count === 1 ? "{0} · {1} supporter" : "{0} · {1} supporters", translate(STATUS_LABEL[p.suggestion.status]), p.useful_count), color: p.suggestion.status === "shipped" ? UP : INK };
+  if (p.suggestion) return { text: translatePlural(p.useful_count, { one: "{0} · {1} supporter", other: "{0} · {1} supporters" }, translate(STATUS_LABEL[p.suggestion.status]), p.useful_count), color: p.suggestion.status === "shipped" ? UP : INK };
   if (p.type === "question" && p.answer_id) return { text: "Answered", color: INK };
   if (p.type === "postmortem" && p.linked?.status) {
     const s = p.linked.status;
-    const label = s === "target" ? "target hit" : s === "pending" ? "not triggered" : s === "untriggered" ? "not triggered" : s;
-    return { text: `Linked idea: ${label}${p.linked.result_r != null ? ` · ${fmtR(p.linked.result_r)}` : ""}`, color: s === "stopped" ? DOWN : rColor(p.linked.result_r) };
+    const status = s === "target" ? translate("target hit") : s === "pending" || s === "untriggered" ? translate("not triggered") : s;
+    return { text: translateWith("Linked idea: {0}", status + (p.linked.result_r != null ? ` · ${fmtR(p.linked.result_r)}` : "")), color: s === "stopped" ? DOWN : rColor(p.linked.result_r) };
   }
   return null;
 }

@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * List alerts of the watchlists: the app-lifetime evaluation (module
  * singleton, runs whether or not the panel is mounted) and the fire itself.
@@ -107,7 +108,7 @@ createRoot(() => {
         firedAlerts.add(key);
         saveFiredAlerts();
         fireListAlert(
-          `Alert · ${list.name}`,
+          translateWith("Alert · {0}", list.name),
           `${r.short.toUpperCase()} ${cp >= 0 ? "+" : ""}${cp.toFixed(2)}%`,
           list.id,
           r.ticker,

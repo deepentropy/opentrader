@@ -1,3 +1,4 @@
+import { dateText } from "../../i18n/format";
 /*
  * ObjectTreePanel — right-rail "object_tree" tab content.
  *
@@ -84,13 +85,7 @@ function fmtVal(v: number): string {
   return v.toFixed(2);
 }
 function fmtDate(timeSec: number, tz?: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    ...(tz ? { timeZone: tz } : {}),
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "2-digit",
-  }).format(new Date(timeSec * 1000));
+  return dateText(timeSec * 1000, { weekday: "short", day: "2-digit", month: "short", year: "2-digit" }, tz);
 }
 function fmtTime(timeSec: number, tz?: string): string {
   return new Intl.DateTimeFormat("en-US", {

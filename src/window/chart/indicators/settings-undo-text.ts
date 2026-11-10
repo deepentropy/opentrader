@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../../i18n/translator";
 /*
  * The undo text of one change in a study's Settings dialog, by what changed (the reference app's texts): an input
  * ("change <input> property"), a plot's visibility, colour, thickness, plot type or price line, the precision or
@@ -34,15 +35,15 @@ export function settingsUndoText(
   studyTitle: string,
 ): { key: string; label: string } {
   const input = inputs.find((c) => !same(next.inputs[c.id], was.inputs[c.id]));
-  if (input) return { key: `input:${input.id}`, label: `change ${input.title || input.id} property` };
+  if (input) return { key: `input:${input.id}`, label: translateWith("change {0} property", translate(input.title || input.id)) };
   for (const plot of new Set([...Object.keys(was.styles ?? {}), ...Object.keys(next.styles ?? {})])) {
     const a = was.styles?.[plot] ?? {};
     const b = next.styles?.[plot] ?? {};
     if (same(a, b)) continue;
     const hit = STYLE_TEXTS.find(([f]) => !same(a[f], b[f]));
-    return hit ? { key: `style:${plot}:${hit[0]}`, label: hit[1] } : { key: `style:${plot}`, label: `change ${studyTitle} style` };
+    return hit ? { key: `style:${plot}:${hit[0]}`, label: hit[1] } : { key: `style:${plot}`, label: translateWith("change {0} style", translate(studyTitle)) };
   }
   const opt = OPTION_TEXTS.find(([f]) => !same(was.options?.[f], next.options?.[f]));
   if (opt) return { key: `option:${opt[0]}`, label: opt[1] };
-  return { key: "other", label: `change ${studyTitle} style` };
+  return { key: "other", label: translateWith("change {0} style", translate(studyTitle)) };
 }

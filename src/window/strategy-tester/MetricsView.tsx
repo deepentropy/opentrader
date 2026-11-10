@@ -1,3 +1,4 @@
+import { largestUnitText } from "../../i18n/format";
 /*
  * Metrics view (the reference app 3.4.1): Key stats, Performance (equity chart),
  * Performance analysis and Trades analysis with their round sub-tabs.
@@ -24,7 +25,6 @@ import { StreaksChart } from "./StreaksChart";
 import { ResultsByTime } from "./ResultsByTime";
 import { Widget } from "./ReportWidget";
 import { cachedSymbolSessions } from "../../data/session/symbol-sessions";
-import { durationString } from "./format";
 import { translateWith } from "../../i18n/translator";
 
 /** One metric cell: label, value [+ currency] [+ second value]. */
@@ -147,7 +147,7 @@ export function MetricsView(props: ViewProps) {
   const bestDay = createMemo(() => bestEntry(buckets(), "day"));
   const best = createMemo(() => bestEntry(buckets(), "month"));
   const winners = (b: { winRate: number } | undefined) => (b ? `${percent(b.winRate)} winners` : undefined);
-  const duration = (ms: number | null) => (ms == null ? DASH : durationString(ms));
+  const duration = (ms: number | null) => (ms == null ? DASH : largestUnitText(ms));
   const trades = (n: number | null) => (n == null ? DASH : `${Number(n.toFixed(1))} trades`);
 
   const chart = () => <EquityChart report={r()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} symbol={props.symbol} />;

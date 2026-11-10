@@ -38,11 +38,11 @@ export function AgentsTab() {
     if (st() && n !== st()!.port) take(agentServer.setPort(n));
   };
   const setups = (s: AgentServerStatus) => [
-    { id: "claude", label: "Claude Code (terminal)", text: `claude mcp add --transport http opentrader ${s.url} --header "Authorization: Bearer ${s.token}"` },
-    { id: "codex", label: "Codex (~/.codex/config.toml)", text: `[mcp_servers.opentrader]
+    { id: "claude", label: "Claude Code (terminal)", command: `claude mcp add --transport http opentrader ${s.url} --header "Authorization: Bearer ${s.token}"` },
+    { id: "codex", label: "Codex (~/.codex/config.toml)", command: `[mcp_servers.opentrader]
 url = "${s.url}"
 http_headers = { "Authorization" = "Bearer ${s.token}" }` },
-    { id: "json", label: "Other agents (MCP JSON config)", text: JSON.stringify({ mcpServers: { opentrader: { type: "http", url: s.url, headers: { Authorization: `Bearer ${s.token}` } } } }, null, 2) },
+    { id: "json", label: "Other agents (MCP JSON config)", command: JSON.stringify({ mcpServers: { opentrader: { type: "http", url: s.url, headers: { Authorization: `Bearer ${s.token}` } } } }, null, 2) },
   ];
   return (
     <div class="app-settings-network app-settings-agents">
@@ -96,9 +96,9 @@ http_headers = { "Authorization" = "Bearer ${s.token}" }` },
                   <div class="app-settings-agents-setup">
                     <div class="app-settings-agents-setup-head">
                       <span class="app-settings-field-label">{x.label}</span>
-                      <button type="button" class="app-settings-btn" onClick={() => copy(x.id, x.text)}>{copied() === x.id ? "Copied" : "Copy"}</button>
+                      <button type="button" class="app-settings-btn" onClick={() => copy(x.id, x.command)}>{copied() === x.id ? "Copied" : "Copy"}</button>
                     </div>
-                    <pre class="app-settings-code">{shown() ? x.text : x.text.split(s().token).join("•".repeat(12))}</pre>
+                    <pre class="app-settings-code">{shown() ? x.command : x.command.split(s().token).join("•".repeat(12))}</pre>
                   </div>
                 )}
               </For>

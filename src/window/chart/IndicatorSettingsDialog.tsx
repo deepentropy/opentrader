@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * IndicatorSettingsDialog — the study "Settings" modal opened from the studies
  * legend gear (IndicatorLegend -> onSettings). Generic over the indicator
@@ -538,7 +539,7 @@ export function IndicatorSettingsDialog(props: Props) {
     const notes: string[] = [];
     if (file.study && file.study !== title) notes.push(`The file holds the settings of "${file.study}".`);
     if (skipped.length) notes.push(`Not imported (not in this script, or of another type): ${skipped.join(", ")}.`);
-    if (notes.length) showNotice({ title: "Import settings", text: `${notes.join(" ")} Click Ok to apply the other settings.` });
+    if (notes.length) showNotice({ title: "Import settings", text: translateWith("{0} Click Ok to apply the other settings.", notes.join(" ")) });
   };
   const reset = () => {
     const inputs: Record<string, unknown> = {};
@@ -757,7 +758,7 @@ export function IndicatorSettingsDialog(props: Props) {
       inline
       class="settings-dialog ind3-dialog"
       data-qa-id="indicator-properties-dialog"
-      label={`${props.title} settings`}
+      label={translateWith("{0} settings", props.title)}
       title={props.title}
       onClose={ok}
       // Escape / Enter in the bubble phase: popovers (menus, colour panel) take their own Escape first (they stop it

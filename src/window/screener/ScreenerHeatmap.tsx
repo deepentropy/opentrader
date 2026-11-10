@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Screener Heatmap view (the reference app 3.5): every result as a tile, its
  * area by the "Size by" column, its colour by the "Color by" column, grouped
@@ -357,7 +358,7 @@ export function ScreenerHeatmap(props: Props) {
 
   const depthLabel = (d: number) => {
     const sc = colorScale(colorOpt().scale ?? "signed", [], d);
-    return `${legendLabel(sc.centres[0], sc.percent)} to ${legendLabel(sc.centres[sc.centres.length - 1], sc.percent)}`;
+    return translateWith("{0} to {1}", legendLabel(sc.centres[0], sc.percent), legendLabel(sc.centres[sc.centres.length - 1], sc.percent));
   };
 
   return (

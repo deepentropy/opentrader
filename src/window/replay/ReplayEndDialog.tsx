@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * End of a Bar Replay session with trades (end of the data, Jump to
  * real-time): "Congrats, trader!" / "Keep training" with the profit, the win
@@ -81,8 +82,8 @@ function EndDialog(props: { r: SessionResult; top: boolean }) {
         <div class="re-title">{win ? "Congrats, trader!" : "Keep training"}</div>
         <div class="re-text">
           {win
-            ? `Your hard work shows on ${props.r.description} in Bar Replay`
-            : `The session is over and you lost paper money on ${props.r.description} in Bar Replay`}
+            ? translateWith("Your hard work shows on {0} in Bar Replay", props.r.description)
+            : translateWith("The session is over and you lost paper money on {0} in Bar Replay", props.r.description)}
         </div>
         <div class="re-stats">
           <div class="re-stat">

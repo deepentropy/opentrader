@@ -33,7 +33,7 @@ import { toOHLC } from "./helpers";
 import { replayBroker } from "../../../data/trading/replay-broker";
 import type { Bar } from "../../../backtester/types";
 import { type ChartCx } from "./context";
-import { translate } from "../../../i18n/translator";
+import { translate, translateWith } from "../../../i18n/translator";
 
 /** Chart styles Bar Replay does not run on (the reference app: price-based styles and
  *  the profile styles). */
@@ -600,7 +600,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
       const axisH = ts.height();
       const h = cx.host.clientHeight - axisH;
       const fmt = cx.chart.options().localization.timeFormatter;
-      const label = `Re: ${fmt ? fmt(time as Time) : String(time)}`;
+      const label = translateWith("Re: {0}", fmt ? fmt(time as Time) : String(time));
       return { x: left + Math.round(x), plotRight, axisTop: h, axisH, label };
     });
     const dim = () => {

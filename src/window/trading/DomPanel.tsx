@@ -42,7 +42,7 @@ import {
   type DomMarket,
   type DomOrderMark,
 } from "./dom-ladder";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 const CrossIcon = () => (
   <svg width="9" height="9" viewBox="0 0 9 9" aria-hidden="true">
@@ -329,12 +329,12 @@ export function DomPanel() {
     if (plMode() === "percent") return `${((diff / p.avgPrice) * 100).toFixed(2)}%`;
     if (plMode() === "ticks") {
       const n = Math.round(diff / tick());
-      return translateWith(Math.abs(n) === 1 ? "{0} tick" : "{0} ticks", n);
+      return translatePlural(Math.abs(n), { one: "{0} tick", other: "{0} ticks" }, n);
     }
     return `${p.pl.toFixed(2)} ${replayBroker.currency()}`;
   };
   const plTip = () =>
-    !position() ? "Profit/Loss" : plMode() === "money" ? "Show PL in ticks" : plMode() === "ticks" ? "Show PL in percent" : `Show PL in ${replayBroker.currency()}`;
+    !position() ? "Profit/Loss" : plMode() === "money" ? "Show PL in ticks" : plMode() === "ticks" ? "Show PL in percent" : translateWith("Show PL in {0}", replayBroker.currency());
   const plUp = () => (position()?.pl ?? 0) > 0;
   const nextPl = () => setPlMode(plMode() === "money" ? "ticks" : plMode() === "ticks" ? "percent" : "money");
 

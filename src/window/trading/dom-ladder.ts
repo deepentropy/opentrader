@@ -11,7 +11,7 @@
  * re-centres on the market after 2 s (dynamic mode: on every update).
  */
 import type { OrderType, Side, TradingOrder } from "../../data/trading/types";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 /** Row height (px). */
 export const DOM_ROW_H = 20;
@@ -138,8 +138,8 @@ export function sideCounts(orders: TradingOrder[], side: Side): { active: number
 /** The counter text ("" when no order) and its tooltip. */
 export function countText(c: { active: number; inactive: number; qty: number }): { text: string; title: string } {
   if (!c.active && !c.inactive) return { text: "", title: "" };
-  const a = translateWith(c.active === 1 ? "{0} active order x {1}" : "{0} active orders x {1}", c.active, c.qty);
-  const title = c.inactive ? translateWith(c.inactive === 1 ? "{0}, {1} inactive order" : "{0}, {1} inactive orders", a, c.inactive) : a;
+  const a = translatePlural(c.active, { one: "{0} active order x {1}", other: "{0} active orders x {1}" }, c.active, c.qty);
+  const title = c.inactive ? translatePlural(c.inactive, { one: "{0}, {1} inactive order", other: "{0}, {1} inactive orders" }, a, c.inactive) : a;
   return { text: String(c.active), title };
 }
 
@@ -158,14 +158,14 @@ export function contextItems(
   tick: number,
   fmt: (p: number) => string,
 ): { label: string; type: OrderType; price: number | null; limit: number | null }[] {
-  const s = side === "buy" ? "Buy" : "Sell";
-  const head = `${s} ${qtyText} ${ticker} @`;
-  const limit = Number((price + (side === "buy" ? tick : -tick)).toFixed(10));
+  const buy = side === "buy";
+  const limit = Number((price + (buy ? tick : -tick)).toFixed(10));
+  const [at, lim] = [fmt(price), fmt(limit)];
   return [
-    { label: `${head} ${fmt(price)} Stop`, type: "stop", price, limit: null },
-    { label: `${head} ${fmt(price)} Limit`, type: "limit", price, limit: null },
-    { label: `${head} ${fmt(price)} Stop ${fmt(limit)} Limit`, type: "stopLimit", price, limit },
-    { label: `${head} Market`, type: "market", price: null, limit: null },
+    { label: translateWith(buy ? "Buy {0} {1} @ {2} Stop" : "Sell {0} {1} @ {2} Stop", qtyText, ticker, at), type: "stop", price, limit: null },
+    { label: translateWith(buy ? "Buy {0} {1} @ {2} Limit" : "Sell {0} {1} @ {2} Limit", qtyText, ticker, at), type: "limit", price, limit: null },
+    { label: translateWith(buy ? "Buy {0} {1} @ {2} Stop {3} Limit" : "Sell {0} {1} @ {2} Stop {3} Limit", qtyText, ticker, at, lim), type: "stopLimit", price, limit },
+    { label: translateWith(buy ? "Buy {0} {1} @ Market" : "Sell {0} {1} @ Market", qtyText, ticker), type: "market", price: null, limit: null },
   ];
 }
 

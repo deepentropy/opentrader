@@ -1,3 +1,4 @@
+import { dateText } from "../../../i18n/format";
 /*
  * Settings > About: version, update status, notices and funding.
  */
@@ -84,8 +85,7 @@ function FundingBlock() {
   const [status, setStatus] = createSignal<Funding | null>(null);
   onMount(() => void fundingStatus().then(setStatus));
   const money = (n: number, currency: string) => `${Math.round(n)} ${currency}`;
-  const monthName = (m: string) =>
-    new Date(`${m}-01T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const monthName = (m: string) => dateText(new Date(`${m}-01T00:00:00Z`), { month: "long", year: "numeric", timeZone: "UTC" });
   const open = (url: string) => openLink(url, "funding link");
   return (
     <Show when={status()}>
@@ -93,8 +93,7 @@ function FundingBlock() {
         <div class="app-settings-funding">
           <div class="app-settings-funding-title">Support OpenTrader</div>
           <div class="app-settings-funding-text">
-            OpenTrader is free. Market data, servers and development tools cost{" "}
-            {money(s().total, s().currency)} in {monthName(s().month)}.
+            {translateWith("OpenTrader is free. Market data, servers and development tools cost {0} in {1}.", money(s().total, s().currency), monthName(s().month))}
           </div>
           <div class="app-settings-funding-bar">
             <div
@@ -103,9 +102,9 @@ function FundingBlock() {
             />
           </div>
           <div class="app-settings-funding-numbers">
-            <span>{money(s().raised, s().currency)} covered</span>
+            <span>{translateWith("{0} covered", money(s().raised, s().currency))}</span>
             <span>
-              {s().remaining > 0 ? `${money(s().remaining, s().currency)} left to cover` : "Covered, thank you"}
+              {s().remaining > 0 ? translateWith("{0} left to cover", money(s().remaining, s().currency)) : "Covered, thank you"}
             </span>
           </div>
           <div class="app-settings-funding-links">

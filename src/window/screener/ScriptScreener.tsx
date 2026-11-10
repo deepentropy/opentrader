@@ -1,3 +1,4 @@
+import { numberFormat } from "../../i18n/format";
 /*
  * ScriptScreener: one indicator of the Indicators dialog run over a list of
  * symbols (an index of the live table or a watchlist), read on the newest
@@ -59,7 +60,7 @@ import { IndicatorsDialog } from "../header/IndicatorsDialog";
 import { IndicatorSettingsDialog } from "../chart/IndicatorSettingsDialog";
 import { PopDivider, PopItem, PopSearch, PopSectionTitle, Popover, SelectButton } from "./Popover";
 import { ValueInput } from "./FilterEditor";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 /** Pills a new indicator starts with (the reference: its first ten outputs). */
 const MAX_PILLS = 10;
@@ -111,13 +112,13 @@ function initialFilters(e: IndicatorRegistryEntry | undefined, cols: ScriptColum
   return cols.filter((c) => !hidden.has(c.key)).slice(0, MAX_PILLS).map((c) => blankFilter(c, c.key));
 }
 
-const numberFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const numberFmt = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 /** A filter value as typed ("300", "0.5"). */
-const valueFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
+const valueFmt = () => numberFormat({ maximumFractionDigits: 6 });
 function cellText(col: ScriptColumn, v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "—";
-  if (col.kind === "signal") return v === 0 ? "Last bar" : v === 1 ? "1 bar ago" : `${v} bars ago`;
-  return numberFmt.format(v);
+  if (col.kind === "signal") return v === 0 ? "Last bar" : translatePlural(v, { one: "{0} bar ago", other: "{0} bars ago" });
+  return numberFmt().format(v);
 }
 
 export function ScriptScreener(props: Props) {
@@ -314,7 +315,7 @@ export function ScriptScreener(props: Props) {
     const [dontAsk, setDontAsk] = createSignal(false);
     showConfirm({
       title: "Replace indicator?",
-      text: `You're about to replace "${indicatorTitle()}" with another indicator. This will clear all current filters and columns.`,
+      text: translateWith("You're about to replace \"{0}\" with another indicator. This will clear all current filters and columns.", indicatorTitle()),
       mainText: "Replace",
       cancelText: "Cancel",
       intent: "neutral",
@@ -415,8 +416,8 @@ export function ScriptScreener(props: Props) {
   const pillValue = (f: ScriptFilter): string => {
     if (f.op === "true") return "True";
     if (f.op === "trueWithin") return `True within ${f.value} bars`;
-    if (f.op === "between" || f.op === "outside") return `${valueFmt.format(f.value as number)} – ${valueFmt.format(f.value2 as number)}`;
-    return f.other ? titleOf(f.other) : valueFmt.format(f.value as number);
+    if (f.op === "between" || f.op === "outside") return `${valueFmt().format(f.value as number)} – ${valueFmt().format(f.value2 as number)}`;
+    return f.other ? titleOf(f.other) : valueFmt().format(f.value as number);
   };
   let addBtn!: HTMLButtonElement;
   let moreBtn!: HTMLButtonElement;
@@ -473,7 +474,7 @@ export function ScriptScreener(props: Props) {
       {
         kind: "item",
         id: "add",
-        label: `Add ${t} to watchlist`,
+        label: translateWith("Add {0} to watchlist", t),
         disabled: watchlistStore.listHas(watchlistStore.activeId(), symbol) || watchlistStore.listHas(watchlistStore.activeId(), t),
         onSelect: () => watchlistStore.addSymbols([{ ticker: symbol, short: t, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }], null),
       },
@@ -907,7 +908,7 @@ export function ScriptScreener(props: Props) {
             }}
           />
           <PopItem
-            title={translateWith(inactiveCount() === 1 ? "Remove {0} inactive filter" : "Remove {0} inactive filters", inactiveCount())}
+            title={translatePlural(inactiveCount(), { one: "Remove {0} inactive filter", other: "Remove {0} inactive filters" }, inactiveCount())}
             disabled={inactiveCount() === 0}
             onClick={() => {
               setMoreOpen(false);

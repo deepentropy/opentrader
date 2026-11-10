@@ -1,3 +1,4 @@
+import { numberText } from "../../i18n/format";
 /*
  * Import CSV (#266): bar files read into imported series ("LOCAL:<NAME>"
  * symbols, see data/local-series). Opened from the Local tab of the symbol
@@ -24,7 +25,7 @@ import { TIMEZONES } from "../../data/timezones";
 import { showNotice } from "../../components/Dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { Dialog } from "../../components/Dialog";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 type SeedInfo = ReturnType<typeof parseSeedSymbolInfo>;
 /** A bar file to import: its text is read when needed. `text` is set for the
@@ -50,7 +51,7 @@ async function open(bars: PickedFile[], infos: { fileName: string; read: () => P
     try {
       for (const [k, v] of parseSeedSymbolInfo(await f.read())) info.set(k, v);
     } catch {
-      showNotice({ title: "Import CSV", text: `${f.fileName} is not a symbol_info file.` });
+      showNotice({ title: "Import CSV", text: translateWith("{0} is not a symbol_info file.", f.fileName) });
     }
   }
   if (bars.length === 0) {
@@ -128,16 +129,15 @@ function baseText(base: string): string {
   const m = /^(\d+)([SD]?)$/.exec(base);
   if (!m) return base;
   const n = Number(m[1]);
-  const [one, many] = m[2] === "S" ? ["{0} second", "{0} seconds"] : m[2] === "D" ? ["{0} day", "{0} days"] : ["{0} minute", "{0} minutes"];
-  return translateWith(n === 1 ? one : many, n);
+  if (m[2] === "S") return translatePlural(n, { one: "{0} second", other: "{0} seconds" });
+  if (m[2] === "D") return translatePlural(n, { one: "{0} day", other: "{0} days" });
+  return translatePlural(n, { one: "{0} minute", other: "{0} minutes" });
 }
 
 function dateText(sec: number, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(sec * 1000));
 }
 
-/** A count in a phrase: `one` or `many` with the number in `{0}`. */
-const count = (n: number, one: string, many: string) => translateWith(n === 1 ? one : many, n.toLocaleString("en-US"));
 
 type Entry = PickedFile & {
   name: () => string;
@@ -200,7 +200,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
     const n = p.rows.length / ROW;
     const first = dateText(p.rows[0], zone());
     const last = dateText(p.rows[(n - 1) * ROW], zone());
-    return translateWith(p.hasVolume ? "{0} bars of {1}, {2} to {3}" : "{0} bars of {1}, {2} to {3}, no volume", n.toLocaleString("en-US"), baseText(p.base), first, last);
+    return translateWith(p.hasVolume ? "{0} bars of {1}, {2} to {3}" : "{0} bars of {1}, {2} to {3}, no volume", numberText(n), baseText(p.base), first, last);
   };
 
   async function submit() {
@@ -237,7 +237,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         });
         r.imported++;
         names.push(out.series.name);
-        if (out.skipped) r.notes.push(translateWith(out.skipped === 1 ? "{0}: {1} line was not a bar and was left out." : "{0}: {1} lines were not bars and were left out.", out.series.name, out.skipped.toLocaleString("en-US")));
+        if (out.skipped) r.notes.push(translatePlural(out.skipped, { one: "{0}: {1} line was not a bar and was left out.", other: "{0}: {1} lines were not bars and were left out." }, out.series.name, numberText(out.skipped)));
       } catch (err) {
         r.failed.push({ file: e.fileName, message: message(err) });
       }
@@ -285,7 +285,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
               when={preview}
               fallback={
                 <>
-                  <div class="tj-section-title">{count(total, "{0} file", "{0} files")}</div>
+                  <div class="tj-section-title">{translatePlural(total, { one: "{0} file", other: "{0} files" }, numberText(total))}</div>
                   <div class="ls-import-list" data-name="import-series-list">
                     <For each={entries}>
                       {(e) => (
@@ -347,8 +347,8 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         {(r) => (
           <div class="ot-dlg-content tj-import-body" data-name="import-series-result">
             <div class="ls-import-result-head">
-              {translateWith("{0} series imported", r().imported.toLocaleString("en-US"))}
-              <Show when={r().failed.length}>, {count(r().failed.length, "{0} file not imported", "{0} files not imported")}</Show>.
+              {translateWith("{0} series imported", numberText(r().imported))}
+              <Show when={r().failed.length}>, {translatePlural(r().failed.length, { one: "{0} file not imported", other: "{0} files not imported" }, numberText(r().failed.length))}</Show>.
             </div>
             <Show when={r().failed.length}>
               <div class="ls-import-list">
@@ -377,7 +377,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         >
           <Show when={busy() && !preview}>
             <span class="ls-import-progress" data-name="import-progress">
-              {translateWith("Importing {0} of {1}…", done().toLocaleString("en-US"), chosen().length.toLocaleString("en-US"))}
+              {translateWith("Importing {0} of {1}…", numberText(done()), numberText(chosen().length))}
             </span>
           </Show>
           <button type="button" class="ot-dlg-btn is-secondary" onClick={props.onClose}>
@@ -391,7 +391,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
             disabled={!canImport()}
             onClick={() => void submit()}
           >
-            {busy() ? "Importing…" : chosen().length === total ? "Import" : `Import ${chosen().length} of ${total}`}
+            {busy() ? "Importing…" : chosen().length === total ? "Import" : translateWith("Import {0} of {1}", chosen().length, total)}
           </button>
         </Show>
       </div>

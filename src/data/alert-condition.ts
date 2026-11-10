@@ -21,7 +21,7 @@ import { conditionMessage } from "./alert-study-conditions";
 import { tickerOf } from "./symbol-name";
 import { groupThousands } from "../window/chart/price-format";
 import { formatStudyValue } from "./study-format";
-import { translate, translateWith } from "../i18n/translator";
+import { translate, translatePlural, translateWith } from "../i18n/translator";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -235,10 +235,10 @@ export function positionMessage(symbol: string, resolution: string, drawingId: s
   const lv = positionLevelsOf(d, cachedSymbolSessions(symbol)?.mintick ?? 0.01);
   if (!lv) return null;
   const { shown } = positionQty(d.style, lv.entry, Math.abs(lv.entry - lv.stop));
-  const template = d.kind === "long-position"
+  const messageText = d.kind === "long-position"
     ? "{0}, {1} long position, price hits {{position.level}} at {{position.price}}. Qty: {2}. PnL: {{position.pnl}}"
     : "{0}, {1} short position, price hits {{position.level}} at {{position.price}}. Qty: {2}. PnL: {{position.pnl}}";
-  return translateWith(template, tickerOf(symbol) || "—", alertIntervalText(resolution), shown);
+  return translateWith(messageText, tickerOf(symbol) || "—", alertIntervalText(resolution), shown);
 }
 
 /** Rules that read the drawing `id`. */
@@ -597,7 +597,7 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
     const n = rule.bars ?? 1;
     const amount = isPercentOperator(rule.op) ? `${v}%` : alertAmountText(rule.symbol, rule.left, v);
     const label = rule.op === "moving_up_pct" ? OPERATOR_LABELS.moving_up : rule.op === "moving_down_pct" ? OPERATOR_LABELS.moving_down : OPERATOR_LABELS[rule.op];
-    return translateWith(n === 1 ? "{0} {1} {2} in {3} bar" : "{0} {1} {2} in {3} bars", left, translate(label), amount, n);
+    return translatePlural(n, { one: "{0} {1} {2} in {3} bar", other: "{0} {1} {2} in {3} bars" }, left, translate(label), amount, n);
   }
   if (isBandOperator(rule.op) && rule.right.kind === "drawing") {
     const name = messageOperand(rule.right);

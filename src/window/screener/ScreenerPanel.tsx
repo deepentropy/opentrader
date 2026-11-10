@@ -1,3 +1,4 @@
+import { numberText } from "../../i18n/format";
 /*
  * ScreenerPanel: the Stock Screener as a right split-view panel (the reference app
  * Desktop 3.4.1, opened by the right-rail "Screeners" button):
@@ -164,7 +165,7 @@ export function ScreenerPanel(props: Props) {
   const removeScreen = (id: string, name: string) =>
     showConfirm({
       title: "Delete screen",
-      text: `Do you really want to delete "${name}"?`,
+      text: translateWith("Do you really want to delete \"{0}\"?", name),
       mainText: "Delete",
       cancelText: "Cancel",
       intent: "danger",
@@ -638,7 +639,7 @@ export function ScreenerPanel(props: Props) {
               {viewTools()}
               <div class="scr-header-controls">
                 <Show when={!waiting() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
-                  <span class="scr-total">{translateWith("{0} total", (view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US"))}</span>
+                  <span class="scr-total">{translateWith("{0} total", numberText((view() === "heatmap" ? heatTotal() : ctl.total())!))}</span>
                 </Show>
                 <Show when={roomy()}>{refreshButton()}</Show>
                 <button

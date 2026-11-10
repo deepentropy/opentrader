@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Order toasts: "<Type> order placed / executed / modified / cancelled /
  * rejected on [logo SYMBOL]" with a side-coloured "Buy 1" / "Sell 1 at
@@ -18,12 +19,13 @@ import { AlertIcon, CheckIcon, CloseIcon } from "./icons";
 type Kind = "success" | "error" | "info" | "placed";
 type Toast = { id: number; kind: Kind; title: string; symbol: string; side: "buy" | "sell"; pill: string; text?: string };
 
-const VERB: Record<TradingEvent["kind"], string> = {
-  placed: "placed",
-  executed: "executed",
-  modified: "modified",
-  cancelled: "cancelled",
-  rejected: "rejected",
+/** The toast's title by event, `{0}` the order type ("Limit order placed on"). */
+const TOAST_TITLE: Record<TradingEvent["kind"], string> = {
+  placed: "{0} order placed on",
+  executed: "{0} order executed on",
+  modified: "{0} order modified on",
+  cancelled: "{0} order cancelled on",
+  rejected: "{0} order rejected on",
 };
 
 /** Toast of a trading event (exported for tests). */
@@ -31,7 +33,7 @@ export function toastOf(e: TradingEvent): Omit<Toast, "id"> {
   const kind: Kind = e.kind === "rejected" ? "error" : e.kind === "cancelled" ? "info" : e.kind === "executed" ? "success" : "placed";
   return {
     kind,
-    title: `${e.label} order ${VERB[e.kind]} on`,
+    title: translateWith(TOAST_TITLE[e.kind], translate(e.label)),
     symbol: e.symbol,
     side: e.side,
     pill: `${e.side === "buy" ? "Buy" : "Sell"} ${fmtQty(e.qty)}${e.price != null ? ` at ${fmtPrice(e.price)}` : ""}`,

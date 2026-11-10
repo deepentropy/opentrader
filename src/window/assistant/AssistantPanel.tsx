@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * The AI assistant panel (right rail's AI button), laid out as the reference desktop app's (3.5.0, measured over CDP
  * on 04/11/2026, .tmp/ai-panel): an overlay at the window's right (or a split view), its header with "Move overlay to
@@ -199,7 +200,7 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
           ref={area}
           class="asst-input"
           rows={1}
-          placeholder={`Ask anything about ${props.ticker}...`}
+          placeholder={translateWith("Ask anything about {0}...", props.ticker)}
           value={draft()}
           onInput={(e) => {
             setDraft(e.currentTarget.value);

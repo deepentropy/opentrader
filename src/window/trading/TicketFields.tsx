@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * The order ticket's fields: an order price, the quantity, a take profit / stop loss. Each is typed in the type of
  * its label menu, shows its equivalent on the right (a drop-down picks its type) and ⇄ swaps the two.
@@ -20,7 +21,7 @@ export function PriceInput(props: { m: TicketModel; f: PriceField }) {
   const offKey = f === "limitPrice" ? "limitOffset" : "stopOffset";
   const label = () => {
     const base = d().orderType === "stopLimit" ? (f === "stopPrice" ? "Stop price" : "Limit price") : "Price";
-    return offset() ? `${base} offset` : base;
+    return offset() ? translateWith("{0} offset", translate(base)) : base;
   };
   return (
     <div class="trd-tk-field">

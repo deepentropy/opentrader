@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Replay broker: paper trading on the charts in Bar Replay. One account per
  * chart (ReplayAccount); orders go to the focused chart's account, the
@@ -163,7 +164,7 @@ export const replayBroker = createRoot(() => {
     const m = meta(p.symbol);
     if (!m) return { ok: false, reason: "loading", title: "", text: "" };
     if (!m.currency) {
-      return { ok: false, reason: "symbol", title: "", text: `You can’t trade the symbol ${p.symbol} within the Replay session.` };
+      return { ok: false, reason: "symbol", title: "", text: translateWith("You can’t trade the symbol {0} within the Replay session.", p.symbol) };
     }
     return { ok: true, reason: "ok", title: "", text: "" };
   };

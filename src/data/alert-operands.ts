@@ -1,3 +1,4 @@
+import { translateWith } from "../i18n/translator";
 /*
  * Alert operands — how an alert condition names and reads a study, a study's own conditions, a drawing and a
  * compared symbol.
@@ -136,7 +137,7 @@ export function drawingOperand(id: string, o: DrawingOption | undefined, pick: {
   return {
     kind: "drawing",
     drawingId: id,
-    label: lv && lv2 ? `${o?.label} (upper bound: level ${lv.coeff}, lower bound: level ${lv2.coeff})` : lv ? `${o?.label} level ${fibLevelText(lv)}` : o?.label,
+    label: lv && lv2 ? translateWith("{0} (upper bound: level {1}, lower bound: level {2})", o?.label ?? "", lv.coeff, lv2.coeff) : lv ? translateWith("{0} level {1}", o?.label ?? "", fibLevelText(lv)) : o?.label,
     ...(o?.band ? { band: o.band } : {}),
     ...(lv ? { level: lv.coeff } : {}),
     ...(lv2 ? { level2: lv2.coeff } : {}),

@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../../i18n/translator";
 /*
  * Community notifications outside the panel (#208): restores the session at
  * start, asks for new notifications every minute, and pops each new one up in
@@ -18,15 +19,17 @@ const SHOW_MS = 12_000;
 export function noticeTitle(n: Notice): string {
   switch (n.kind) {
     case "reply":
-      return `${n.actor ?? "Someone"} replied${n.comment_id && n.post_title ? ` in "${n.post_title}"` : " to your post"}`;
+      return n.comment_id && n.post_title
+        ? translateWith('{0} replied in "{1}"', n.actor ?? translate("Someone"), n.post_title)
+        : translateWith("{0} replied to your post", n.actor ?? translate("Someone"));
     case "removed":
       return "Moderation decision";
     case "banned":
-      return n.actor ? `Moderation in ${n.actor}` : "Account";
+      return n.actor ? translateWith("Moderation in {0}", n.actor) : "Account";
     case "proposal":
-      return n.actor ? `Community proposal: ${n.actor}` : "Community proposal";
+      return n.actor ? translateWith("Community proposal: {0}", n.actor) : "Community proposal";
     case "idea":
-      return `New idea from ${n.actor ?? "a trader you follow"}`;
+      return n.actor ? translateWith("New idea from {0}", n.actor) : "New idea from a trader you follow";
     case "status":
       return "Suggestion update";
   }

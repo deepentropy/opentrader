@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Floating-toolbar popovers — the color palette, line-width, line-style and
  * templates dropdowns that open from the per-drawing SelectedToolbar. Solid
@@ -147,14 +148,14 @@ export function TemplatesMenu(props: {
     if (toolbar()) {
       showConfirm({
         title: "Delete this template?",
-        text: `Doing this will permanently delete your "${name}" drawing template.`,
+        text: translateWith("Doing this will permanently delete your \"{0}\" drawing template.", name),
         mainText: "Delete",
         cancelText: "Cancel",
         intent: "danger",
         onConfirm: done,
       });
     } else {
-      showConfirm({ text: `Do you really want to delete drawing template '${name}' ?`, onConfirm: done });
+      showConfirm({ text: translateWith("Do you really want to delete drawing template '{0}' ?", name), onConfirm: done });
     }
   };
   return (

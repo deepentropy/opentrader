@@ -355,7 +355,7 @@ export function WatchlistDetail(props: Props) {
     const mm = parts.find((p) => p.type === "minute")?.value ?? "";
     // "GMT+2" — strip the ":00" some platforms append.
     const tz = (parts.find((p) => p.type === "timeZoneName")?.value ?? "").replace(/:00$/, "");
-    return `Last update at ${hh}:${mm} ${tz}`.trimEnd();
+    return translateWith("Last update at {0}", `${hh}:${mm} ${tz}`.trimEnd());
   };
 
   return (

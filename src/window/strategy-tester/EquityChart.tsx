@@ -1,3 +1,4 @@
+import { dateText } from "../../i18n/format";
 /*
  * Performance chart of the Metrics view (the reference app 3.4.1; design doc §3.3
  * and §14.9 - §14.15). A lightweight-charts instance: transparent over
@@ -39,10 +40,10 @@ import { commands } from "../../bindings";
 import { EXCURSION_COLORS, ExcursionSeries, type ExcursionData } from "./excursion-series";
 import { EquityStrip, type StripHover } from "./equity-strip";
 import { equityPoints, reportPeriods, whitespaceTimes, type EquityPoint } from "./equity-data";
-import { DASH, MINUS, money, percent as pct, zoneFormat } from "./format";
+import { DASH, MINUS, money, percent as pct } from "./format";
 import { cachedSymbolSessions } from "../../data/session";
 import { uiTheme } from "../header/chart-settings";
-import { translateAs } from "../../i18n/translator";
+import { translateAs, translateWith } from "../../i18n/translator";
 
 const FONT = `-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif`;
 const UP = "#089981";
@@ -159,7 +160,7 @@ export function EquityChart(props: Props) {
   const zone = () => cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? null;
   const fmtDate = (options: Intl.DateTimeFormatOptions, ms: number) => {
     const z = zone();
-    return z ? zoneFormat("en-US", options, z).format(new Date(ms)) : "";
+    return z ? dateText(ms, options, z) : "";
   };
   const fmt = (v: number) => (settings().percent ? pct(v) : money(v));
 
@@ -390,7 +391,7 @@ export function EquityChart(props: Props) {
     }
     if (vis().buyHold) rows.push({ label: "Buy and hold", color: BUY_HOLD, value: fmt(c.point.buyHold) });
     const date = t.open ? translateAs("Open", "trade") : fmtDate(props.intraday ? WEEKDAY_DATE_TIME : WEEKDAY_DATE, t.exit.time).replace(/(\d{4}) at /, "$1, ");
-    return { title: `Trade ${c.point.tradeIndex + 1} ${t.direction}`, rows, date };
+    return { title: translateWith(t.direction === "short" ? "Trade {0} short" : "Trade {0} long", c.point.tradeIndex + 1), rows, date };
   });
 
   // Snapshot: the chart canvas, local only (Download / Copy / Open in new tab).

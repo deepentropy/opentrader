@@ -20,7 +20,7 @@ import { cachedSymbolSessions } from "../../data/session";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
 import { backtestTable, requestShare } from "../../data/community/share";
 import { shortIntervalLabel } from "../chart/interval-favorites";
-import { translateWith } from "../../i18n/translator";
+import { translate, translateWith } from "../../i18n/translator";
 
 type Props = {
   report: BacktestReport | null;
@@ -48,7 +48,7 @@ export function ReportToolbar(props: Props) {
     const all = r.performance.all;
     requestShare({
       attach: true,
-      title: `${props.strategyName ?? "Strategy"} backtest on ${(props.symbol ?? "").split(":").pop()}`,
+      title: translateWith("{0} backtest on {1}", props.strategyName ?? translate("Strategy"), (props.symbol ?? "").split(":").pop() ?? ""),
       body: backtestTable({
         strategy: props.strategyName ?? "a strategy",
         symbol: (props.symbol ?? "").split(":").pop() ?? "",

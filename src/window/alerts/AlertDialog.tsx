@@ -1,3 +1,5 @@
+import { translateWith } from "../../i18n/translator";
+import { dateText } from "../../i18n/format";
 /*
  * AlertDialog — create or edit a single alert rule.
  *
@@ -137,7 +139,7 @@ const STUDY_FREQUENCIES: { key: AlertFrequency; label: string; desc: string }[] 
 function shortDateTime(ms: number): string {
   const d = new Date(ms);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${dateText(d, { month: "short", day: "numeric" })}, ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** datetime-local value of a time. */
@@ -870,7 +872,7 @@ export function AlertDialog(props: Props) {
     const n = notify.values();
     const on = [n.popup && "Notification", n.toast && "Toasts", n.webhookOn && "Webhook", n.sound && "Sound"].filter(Boolean).join(", ");
     if (!on) return "None";
-    return n.schedule ? `Scheduled: ${on}` : on;
+    return n.schedule ? translateWith("Scheduled: {0}", on) : on;
   };
   const openMessage = () => {
     msg.open(preview(), isCallsOnly());
@@ -939,7 +941,7 @@ export function AlertDialog(props: Props) {
             <Show when={sel() === "value"}>{valueBox(value, (v) => { setFields("boundsEdited", true); setValue(v); }, title)}</Show>
           </div>
           <Show when={sel().startsWith("ind:") && studyPlots(sel().slice(4)).length >= 2}>
-            <AdMenu variant="box" label={`${title} plot`} value={String(plot())} options={plotOptions(sel().slice(4))} onPick={(v) => setPlot(Number(v))} />
+            <AdMenu variant="box" label={translateWith("{0} plot", title)} value={String(plot())} options={plotOptions(sel().slice(4))} onPick={(v) => setPlot(Number(v))} />
           </Show>
         </div>
       </div>

@@ -1,8 +1,9 @@
+import { numberFormat } from "../../i18n/format";
 /*
  * Number / time formatting of the trading panel and order ticket.
  */
 
-const money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Decimals of a price step (0.01 → 2). */
 export function tickDecimals(tick: number | null | undefined): number | null {
@@ -26,8 +27,8 @@ export function fmtQty(v: number | null | undefined): string {
 /** Signed P&L: "+12.34" / "−12.34" (true minus). */
 export function fmtPnl(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  if (v === 0) return money.format(0);
-  return (v > 0 ? "+" : "−") + money.format(Math.abs(v));
+  if (v === 0) return money().format(0);
+  return (v > 0 ? "+" : "−") + money().format(Math.abs(v));
 }
 
 export function fmtPct(v: number | null | undefined): string {

@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Strategies on a chart view: their filled orders as trade marks on the price
  * series, and the Settings dialog config of a strategy study. The trade
@@ -135,7 +136,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
       const long = t.side === "long";
       const pct = t.calc ? ` ${t.calc.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.calc.pnlPct * 100).toFixed(2)}%` : "";
       push(t, t.entryTime, long, on ? (long ? "Long" : "Short") : "");
-      push(t, t.exitTime, !long, on ? `Exit${pct}` : "");
+      push(t, t.exitTime, !long, on ? translateWith("Exit{0}", pct) : "");
     }
     return out;
   }

@@ -1,3 +1,4 @@
+import { dateText } from "../../i18n/format";
 /*
  * Growth and decline tab charts (the reference app modules 17601, 990687 and
  * 392642), side by side from a 930 px report:
@@ -13,7 +14,7 @@ import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMou
 import { LineStyle, createChart, type IChartApi, type IPriceLine, type ISeriesApi, type MouseEventParams, type Time } from "lightweight-charts";
 import type { BacktestReport } from "../../backtester/types";
 import type { EquityPeriod } from "./equity-data";
-import { money, percent, zoneFormat } from "./format";
+import { money, percent } from "./format";
 import { growthComparison } from "./metrics";
 import { HoverBar, PALETTE as P, PrettyPriceScale, chartBase, reportTheme, themed, withAlpha } from "./report-chart-kit";
 import { CountBarsSeries, type CountBarsData } from "./report-series";
@@ -45,7 +46,7 @@ export function AlternatingChart(props: { report: BacktestReport; periods: Equit
   const [tip, setTip] = createSignal<{ anchor: TipAnchor; period: EquityPeriod } | null>(null);
   const pager = usePager({ minBarSpacing: 12 });
   const hasData = () => props.periods.length >= MIN_PERIODS;
-  const date = (ms: number) => zoneFormat("en-US", { month: "short", day: "numeric", year: "numeric" }, props.timeZone).format(new Date(ms));
+  const date = (ms: number) => dateText(ms, { month: "short", day: "numeric", year: "numeric" }, props.timeZone);
 
   const points = () => {
     const c = colors();

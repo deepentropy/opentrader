@@ -1,3 +1,4 @@
+import { translatePlural } from "../../i18n/translator";
 /*
  * Screener Charts view (the reference app 3.5): one small chart per result
  * row, in the table's order, loaded 100 rows at a time as it scrolls.
@@ -403,7 +404,7 @@ export function ChartsToolbar(props: { tabs?: boolean }) {
     <>
       <Btn k="grid" icon="scr-chart-grid" label={gridLabel()} title="Chart grid" />
       <Btn k="type" icon={type().icon} label={type().label} title="Chart type" />
-      <Btn k="ind" icon="scr-chart-indicators" label={indCount() === 1 ? "1 indicator" : indCount() ? `${indCount()} indicators` : "Indicators"} title="Indicators" />
+      <Btn k="ind" icon="scr-chart-indicators" label={indCount() ? translatePlural(indCount(), { one: "{0} indicator", other: "{0} indicators" }) : "Indicators"} title="Indicators" />
       <Show when={props.tabs} fallback={<Btn k="range" label={st().chartRange} title="Date range" />}>
         <div class="scr-chart-range-tabs">
           <SquareTabs

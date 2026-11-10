@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Edits of a chart's content written into its tab: studies (add, remove with
  * the drawings they own, order, settings, indicator templates), compared
@@ -146,7 +147,7 @@ export function createChartEdits(
    *  properties, the agent's set inputs). */
   function patchStudyInputs(tabId: string, paneIndex: number, id: string, patch: Record<string, unknown>) {
     const cur = tabOf(tabId)?.panes[paneIndex]?.indicatorSettings?.[id]?.inputs;
-    editStudySettings(tabId, paneIndex, id, { inputs: { ...cur, ...patch } }, `change ${getIndicatorEntry(id)?.name ?? id} properties`);
+    editStudySettings(tabId, paneIndex, id, { inputs: { ...cur, ...patch } }, translateWith("change {0} properties", translate(getIndicatorEntry(id)?.name ?? id)));
   }
   /** Persist a pane's settled scroll/zoom anchor (its visible logical range).
    *  The saveTabs effect then writes it to localStorage, so the view survives tab
@@ -199,7 +200,7 @@ export function createChartEdits(
     const kept = list.filter((x) => !x.owner || !gone.includes(x.owner));
     const slices = kept.length !== list.length ? d.splitView(key, kept) : [];
     const name = gone.length === 1 ? getIndicatorEntry(gone[0])?.name ?? gone[0] : "indicators";
-    const entry: StudyUndoEntry = { kind: "study", tabId, paneIndex, ids: gone, positions, settings, slices, label: `remove ${name}`, at: Date.now() };
+    const entry: StudyUndoEntry = { kind: "study", tabId, paneIndex, ids: gone, positions, settings, slices, label: translateWith("remove {0}", name), at: Date.now() };
     undo.commit(entry);
   }
 
@@ -271,7 +272,7 @@ export function createChartEdits(
       positions: [pane.indicators.length],
       settings: seed ? { [id]: seed } : {},
       slices: [],
-      label: `insert ${entry?.name ?? typeId}`,
+      label: translateWith("insert {0}", translate(entry?.name ?? typeId)),
       at: Date.now(),
     });
   }
@@ -322,7 +323,7 @@ export function createChartEdits(
       before: { [tab.activePane]: before },
       after: { [tab.activePane]: after },
       slices: [],
-      label: `apply study template ${tpl.name}`,
+      label: translateWith("apply study template {0}", tpl.name),
       at: Date.now(),
     });
     touchIndicatorTemplate(id);
@@ -388,7 +389,7 @@ export function createChartEdits(
       patchTab(tabId, { panes: tabOf(tabId)!.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
     }
     recordRecentSymbol("compare", symbol);
-    changeCompare(tabId, paneIndex, [...cur, entry], `insert ${tickerOf(symbol)}`);
+    changeCompare(tabId, paneIndex, [...cur, entry], translateWith("insert {0}", tickerOf(symbol)));
   }
   /** Watchlist row menu "Add … to compare": each symbol joins the focused
    *  pane on the % scale, in list order. */
@@ -408,7 +409,7 @@ export function createChartEdits(
     const pane = tabOf(tabId)!.panes[paneIndex];
     const kids = withDescendants(pane.indicators, pane.indicatorSettings, [id], getIndicatorEntry).filter((x) => x !== id);
     if (!kids.length) {
-      changeCompare(tabId, paneIndex, cur.filter((c) => c.id !== id), `remove ${tickerOf(gone.symbol)}`);
+      changeCompare(tabId, paneIndex, cur.filter((c) => c.id !== id), translateWith("remove {0}", tickerOf(gone.symbol)));
       return;
     }
     // The studies built on it go with it, in one undo step (with the drawings they owned).
@@ -421,7 +422,7 @@ export function createChartEdits(
     const list = d.drawingsFor(key);
     const kept = list.filter((x) => !x.owner || !kids.includes(x.owner));
     const slices = kept.length !== list.length ? d.splitView(key, kept) : [];
-    undo.commit({ kind: "layout-sources", tabId, before: { [paneIndex]: before }, after: { [paneIndex]: after }, slices, label: `remove ${tickerOf(gone.symbol)}`, at: Date.now() });
+    undo.commit({ kind: "layout-sources", tabId, before: { [paneIndex]: before }, after: { [paneIndex]: after }, slices, label: translateWith("remove {0}", tickerOf(gone.symbol)), at: Date.now() });
   }
   /** Legend eye / Settings → Ok on one compared symbol. */
   function patchCompare(tabId: string, paneIndex: number, id: string, patch: ComparePatch) {

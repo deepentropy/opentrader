@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Bar history of a chart view: scroll-back paging with read-ahead, date-range
  * sync (driver and follower), time sync and the Go to jumps, and the
@@ -181,8 +182,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
       title: kind === "end" ? "Start of history" : "History limit",
       text:
         kind === "end"
-          ? `This is the first bar of ${sym}: there is no older data.`
-          : `Older ${sym} data exists but is not available: history on this interval stops here.`,
+          ? translateWith("This is the first bar of {0}: there is no older data.", sym)
+          : translateWith("Older {0} data exists but is not available: history on this interval stops here.", sym),
       iconPath: HISTORY_END_ICONS[kind],
       onClose: () => {
         historyEndClose = null;

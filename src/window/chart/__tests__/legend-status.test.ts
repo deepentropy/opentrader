@@ -5,7 +5,8 @@ vi.mock("../../../bindings", () => ({ commands: { getSymbolSession: vi.fn() } })
 vi.mock("../../../data/providers", () => ({ defaultExchange: () => "NASDAQ" }));
 
 import { SymbolSessions } from "../../../data/session";
-import { countdownText, durationText, marketStatusAt, sessionTimeline, utcOffsetText, zoneTitle } from "../legend-status";
+import { countdownText, marketStatusAt, sessionTimeline, utcOffsetText, zoneTitle } from "../legend-status";
+import { durationText } from "../../../i18n/format";
 
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000;
 

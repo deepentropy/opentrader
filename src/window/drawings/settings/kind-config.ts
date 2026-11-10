@@ -1,3 +1,4 @@
+import { translateWith } from "../../../i18n/translator";
 /*
  * Per-kind tables of the drawing Settings dialog: which pages a tool has,
  * its Style rows in display order, its Text / Coordinates families, and the
@@ -214,7 +215,7 @@ export const PRICE_SOURCE_LABELS: Record<(typeof VWAP_SOURCES)[number], string> 
 export const QTY_PRECISION_OPTIONS: { value: string; label: string }[] = [
   { value: "default", label: "Default" },
   { value: "0", label: "Integer" },
-  ...Array.from({ length: 10 }, (_, k) => ({ value: String(k + 1), label: k === 0 ? "1 decimal" : `${k + 1} decimals` })),
+  ...Array.from({ length: 10 }, (_, k) => ({ value: String(k + 1), label: k === 0 ? "1 decimal" : translateWith("{0} decimals", k + 1) })),
 ];
 /** Level grid with value + colour, two per line, and a "Levels line"
  *  row (width + style of every level). */

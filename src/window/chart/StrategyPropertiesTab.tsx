@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Strategy Settings > Properties tab (the reference desktop app 3.4.1, design doc
  * §5 and §14.2 - §14.5): GENERAL (Initial capital + currency, Default order
@@ -195,7 +196,7 @@ export function detalizationOptions(interval: string | undefined, synthetic: boo
     { id: "default", label: "Default (4 ticks per bar)", tip: "Runs a simulation using OHLC values" },
     {
       id: "high",
-      label: `High (~${detalizationTicks(interval ?? "1D")} ticks per bar)`,
+      label: translateWith("High (~{0} ticks per bar)", detalizationTicks(interval ?? "1D")),
       tip: "Runs a simulation using lower-timeframe values. The number of ticks may vary due to calculation factors.",
       disabled: synthetic,
       disabledTip: NOT_FOR_BAR_TYPE,

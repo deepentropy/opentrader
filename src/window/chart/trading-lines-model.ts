@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Texts and prices of the chart trading lines (Bar Replay trading): chip
  * labels, the dialog summaries, tick snapping, the default bracket of a
@@ -120,7 +121,7 @@ export function plText(perUnit: number, qty: number, base: number, kind: 'money'
   if (kind === 'money') return fmtPl(perUnit * qty, currency);
   const v = kind === 'ticks' ? Math.round(perUnit / tick) : base ? (perUnit / base) * 100 : 0;
   const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-  return kind === 'ticks' ? `${sign}${Math.abs(v)} ticks` : `${sign}${Math.abs(v).toFixed(2)}%`;
+  return kind === 'ticks' ? translateWith("{0}{1} ticks", sign, Math.abs(v)) : `${sign}${Math.abs(v).toFixed(2)}%`;
 }
 
 /** Take profit / stop loss of a working order at the ticket's default

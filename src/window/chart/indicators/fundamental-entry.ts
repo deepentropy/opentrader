@@ -1,3 +1,4 @@
+import { monthName } from "../../../i18n/format";
 /*
  * Fundamentals metrics as studies: registry entries `fund:<metric>:<period>`
  * (a statement metric on its quarters, years or trailing twelve months) and
@@ -56,11 +57,10 @@ export function formatMetricValue(v: number, kind: MetricKind, currency: string,
   }
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** "Jun '20" of a period end. */
 function periodText(end: string): string {
   const d = new Date(`${end}T00:00:00Z`);
-  return `${MONTHS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(-2)}`;
+  return `${monthName(d.getUTCMonth() + 1)} '${String(d.getUTCFullYear()).slice(-2)}`;
 }
 
 /** Change label: "(+6.81%)" (a percentage metric: the difference in points, "(-5.28%)") or the absolute change. */

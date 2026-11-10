@@ -36,7 +36,7 @@ import { replayEnabled } from "../../../data/replay";
 import { tradingUi } from "../../../data/trading/trading-ui";
 import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
-import { translateWith } from "../../../i18n/translator";
+import { translatePlural, translateWith } from "../../../i18n/translator";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -85,14 +85,14 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
   const nodes: CtxNode[] = [
     { kind: "item", id: "reset", label: "Reset chart view", shortcut: "Alt + R", icon: CtxIcons.reset, onSelect: a.resetView },
     { kind: "separator" },
-    { kind: "item", id: "copy-price", label: `Copy price ${p}`, onSelect: a.copyPrice },
+    { kind: "item", id: "copy-price", label: translateWith("Copy price {0}", p), onSelect: a.copyPrice },
     { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !ctx.canPaste, onSelect: a.paste },
     { kind: "separator" },
-    { kind: "item", id: "alert", label: ctx.alertLabel ?? `Add alert on ${ctx.study ?? sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
+    { kind: "item", id: "alert", label: ctx.alertLabel ?? translateWith("Add alert on {0} at {1}…", ctx.study ?? sym, p), shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
     ...(ctx.study ? [] : [
-      { kind: "item", id: "buy", label: `Buy 1 ${sym} @ ${p} limit`, shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
-      { kind: "item", id: "sell", label: `Sell 1 ${sym} @ ${p} stop`, icon: CtxIcons.sell, onSelect: a.sell },
-      { kind: "item", id: "order", label: `Add order on ${sym} at ${p}…`, shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
+      { kind: "item", id: "buy", label: translateWith("Buy 1 {0} @ {1} limit", sym, p), shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
+      { kind: "item", id: "sell", label: translateWith("Sell 1 {0} @ {1} stop", sym, p), icon: CtxIcons.sell, onSelect: a.sell },
+      { kind: "item", id: "order", label: translateWith("Add order on {0} at {1}…", sym, p), shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
     ] as CtxNode[]),
     { kind: "separator" },
     // The focused chart swaps its place with the next / previous chart.
@@ -131,8 +131,8 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     nodes.push({ kind: "separator" }, { kind: "item", id: "apply-to-layout", label: "Apply these indicators to entire layout", onSelect: a.applyToLayout });
   }
   const removeRows: CtxNode[] = [];
-  if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: translateWith(ctx.drawingCount === 1 ? "Remove {0} drawing" : "Remove {0} drawings", ctx.drawingCount), onSelect: a.removeDrawings });
-  if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: translateWith(ctx.indicatorCount === 1 ? "Remove {0} indicator" : "Remove {0} indicators", ctx.indicatorCount), onSelect: a.removeIndicators });
+  if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: translatePlural(ctx.drawingCount, { one: "Remove {0} drawing", other: "Remove {0} drawings" }, ctx.drawingCount), onSelect: a.removeDrawings });
+  if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: translatePlural(ctx.indicatorCount, { one: "Remove {0} indicator", other: "Remove {0} indicators" }, ctx.indicatorCount), onSelect: a.removeIndicators });
   if (removeRows.length) nodes.push({ kind: "separator" }, ...removeRows);
   nodes.push(
     { kind: "separator" },
@@ -353,14 +353,14 @@ export function createMenus(cx: ChartCx): MenusApi {
       },
     }));
     const nodes: CtxNode[] = [
-      { kind: "item", id: "alert", label: `Add alert on ${sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
+      { kind: "item", id: "alert", label: translateWith("Add alert on {0} at {1}…", sym, p), shortcut: "Alt + A", icon: CtxIcons.alert,
         onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: full, price: last ?? undefined }) },
-      { kind: "item", id: "add-indicator", label: `Add indicator/strategy on ${sym}…`, icon: CtxIcons.addIndicator,
+      { kind: "item", id: "add-indicator", label: translateWith("Add indicator/strategy on {0}…", sym), icon: CtxIcons.addIndicator,
         onSelect: () => emitAppEvent("chart-open-indicators") },
       { kind: "separator" },
       symbolInfoRow(full),
       { kind: "separator" },
-      { kind: "item", id: "copy-price", label: `Copy price ${p}`,
+      { kind: "item", id: "copy-price", label: translateWith("Copy price {0}", p),
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
       { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardContent(), onSelect: pasteClipboard },
       { kind: "separator" },
@@ -369,7 +369,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => cx.edits.toggleSeriesHidden() },
       { kind: "separator" },
-      { kind: "item", id: "watchlist", label: `Add ${sym} to watchlist`, submenu: [
+      { kind: "item", id: "watchlist", label: translateWith("Add {0} to watchlist", sym), submenu: [
         ...listRows,
         { kind: "separator" },
         { kind: "item", id: "wl-create", label: "Create new list…", onSelect: () => promptNewWatchlist((name) => watchlistStore.createListWith(row, name)) },
@@ -436,7 +436,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     if (value != null && fmt) value = roundedPrice(value, (n) => fmt.format(n));
     const plain = !isStrategyId(id) && !hasAlertFunction(entry) && studyConditions(entry, row.inputValues).length === 0;
     const title = studyMenuTitle(row);
-    const label = value != null && plain && fmt ? `Add alert on ${title} at ${fmt.format(value)}…` : `Add alert on ${title}…`;
+    const label = value != null && plain && fmt ? translateWith("Add alert on {0} at {1}…", title, fmt.format(value)) : translateWith("Add alert on {0}…", title);
     return {
       kind: "item", id: "alert", label, shortcut: "Alt + A", icon: CtxIcons.alert,
       onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: value ?? undefined, indicatorId: id }),
@@ -459,7 +459,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       if (p != null) {
         const fmt = cx.series.priceFormatter();
         const v = roundedPrice(p as number, (n) => fmt.format(n));
-        out.push(row(MAIN_SOURCE_ID, `Add alert on ${splitSymbol(props.symbol ?? "").ticker} at ${fmt.format(v)}`, { symbol: props.symbol ?? "", price: v }));
+        out.push(row(MAIN_SOURCE_ID, translateWith("Add alert on {0} at {1}", splitSymbol(props.symbol ?? "").ticker, fmt.format(v)), { symbol: props.symbol ?? "", price: v }));
       }
     }
     for (const r of cx.controller?.getLegend() ?? []) {
@@ -475,7 +475,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       const name = splitTitle(r.title).name;
       // Price in the label for a study with plots (not a strategy).
       const usual = !isStrategyId(r.id) && (getIndicatorEntry(r.id)?.plotConfig?.length ?? 0) > 0;
-      out.push(row(r.id, usual ? `Add alert on ${name} at ${fmt.format(v)}` : `Add alert on ${name}`,
+      out.push(row(r.id, usual ? translateWith("Add alert on {0} at {1}", name, fmt.format(v)) : translateWith("Add alert on {0}", name),
         { symbol: props.symbol ?? "", price: v, indicatorId: r.id }));
     }
     // The compared symbols on that scale (not on a % / indexed scale).
@@ -486,7 +486,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       const p = s.coordinateToPrice(y);
       if (p == null) continue;
       const v = roundedPrice(p as number, c.format);
-      out.push(row(c.id, `Add alert on ${c.description} at ${c.format(v)}`, { symbol: props.symbol ?? "", price: v, compareSymbol: c.symbol }));
+      out.push(row(c.id, translateWith("Add alert on {0} at {1}", c.description, c.format(v)), { symbol: props.symbol ?? "", price: v, compareSymbol: c.symbol }));
     }
     return out;
   }
@@ -499,7 +499,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const v = price ?? c.last;
     const value = v == null ? null : roundedPrice(v, c.format);
     return {
-      kind: "item", id: "alert", label: value != null ? `Add alert on ${c.description} at ${c.format(value)}…` : `Add alert on ${c.description}…`,
+      kind: "item", id: "alert", label: value != null ? translateWith("Add alert on {0} at {1}…", c.description, c.format(value)) : translateWith("Add alert on {0}…", c.description),
       shortcut: "Alt + A", icon: CtxIcons.alert,
       onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: value ?? undefined, compareSymbol: c.symbol }),
     };
@@ -790,7 +790,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const nodes: CtxNode[] = [
       ...alerts,
       ...(alerts.length ? [{ kind: "separator" } as CtxNode] : []),
-      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, shortcut: "Alt + H", icon: <Icon name="draw-horizontal-line" size={18} />,
+      { kind: "item", id: "plus-hline", label: translateWith("Draw horizontal line at {0}", priceStr), shortcut: "Alt + H", icon: <Icon name="draw-horizontal-line" size={18} />,
         onSelect: () => {
           const last = cx.raw.length > 0 ? cx.raw[cx.raw.length - 1] : null;
           if (!last) return;

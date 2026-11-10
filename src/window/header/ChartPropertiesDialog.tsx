@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * ChartPropertiesDialog — the chart "Settings" (series-properties) modal opened
  * from the header gear (`header-toolbar-properties`) and the chart right-click →
@@ -488,7 +489,7 @@ function TemplateMenu(props: {
   };
   const remove = (name: string) => {
     const onRemove = props.onRemove;
-    showConfirm({ text: `Do you really want to delete Chart Template '${name}' ?`, onConfirm: () => onRemove(name) });
+    showConfirm({ text: translateWith("Do you really want to delete Chart Template '{0}' ?", name), onConfirm: () => onRemove(name) });
   };
   return (
     <div

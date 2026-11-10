@@ -1,3 +1,4 @@
+import { translateWith } from "../i18n/translator";
 /*
  * Imported bar series (#266): "LOCAL:<NAME>" symbols whose bars come from a
  * CSV file the user imported, not from the market-data server. The desktop app
@@ -104,7 +105,7 @@ export function localServesResolution(symbol: string, resolution: string): boole
 /** Text of an interval a local symbol has no bars on. */
 export function localIntervalMessage(symbol: string): string {
   const base = localSeriesMeta(symbol)?.base ?? "1D";
-  return `Intervals less than ${base} are not supported for this symbol. Please change the interval to any available one.`;
+  return translateWith("Intervals less than {0} are not supported for this symbol. Please change the interval to any available one.", base);
 }
 
 function toCandles(rows: ArrayLike<number | null>): Candle[] {

@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Undo / redo history of the window (header Undo/Redo + Ctrl+Z / Ctrl+Y):
  * drawing changes, studies removed with the drawings they own, compared
@@ -144,11 +145,11 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
   const canRedo = () => redoStack().length > 0;
   const undoLabel = () => {
     const e = undoStack()[undoStack().length - 1];
-    return e ? `Undo ${e.label}` : "Undo";
+    return e ? translateWith("Undo {0}", translate(e.label)) : "Undo";
   };
   const redoLabel = () => {
     const e = redoStack()[redoStack().length - 1];
-    return e ? `Redo ${e.label}` : "Redo";
+    return e ? translateWith("Redo {0}", translate(e.label)) : "Redo";
   };
   // Bumped by the overlay's pointer-up ("drawing-gesture-end") so two quick
   // drags of the same drawing never coalesce into one undo entry — the time

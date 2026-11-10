@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../i18n/translator";
 /*
  * Stock screener: screen → scan request, and the reference app filter texts
  * (pill label, preset titles). Grammar follows the reference app `/scan` request the
@@ -133,8 +134,8 @@ export function presetTitle(columnId: string, p: Preset): string {
   if ("column" in r) {
     const target = configuredShort(r.column);
     if (p.operation === "abovePercent" || p.operation === "belowPercent") {
-      const word = p.operation === "abovePercent" ? "Above" : "Below";
-      return `${word} ${target} by ${p.offsetRangeId ? OFFSET_LABEL[p.offsetRangeId] : ""}`;
+      const by = p.offsetRangeId ? translate(OFFSET_LABEL[p.offsetRangeId]) : "";
+      return translateWith(p.operation === "abovePercent" ? "Above {0} by {1}" : "Below {0} by {1}", target, by);
     }
     const word = p.operation === "above" || p.operation === "aboveOrEqual" ? "above" : "below";
     if (p.leftParams?.length && r.column.id === columnId) return `${p.leftParams.length} ${word} ${target}`;
@@ -144,20 +145,20 @@ export function presetTitle(columnId: string, p: Preset): string {
     const v = valueText(fmt, r.value);
     switch (p.operation) {
       case "above":
-        return `Above ${v}`;
+        return translateWith("Above {0}", v);
       case "below":
-        return `Below ${v}`;
+        return translateWith("Below {0}", v);
       case "aboveOrEqual":
-        return `${v} and above`;
+        return translateWith("{0} and above", v);
       case "belowOrEqual":
-        return `${v} and below`;
+        return translateWith("{0} and below", v);
       default:
         return v;
     }
   }
-  if (r.left !== null && r.right !== null) return `${valueText(fmt, r.left)} to ${valueText(fmt, r.right)}`;
-  if (r.left !== null) return `${valueText(fmt, r.left)} and above`;
-  return `${valueText(fmt, r.right as number)} and below`;
+  if (r.left !== null && r.right !== null) return translateWith("{0} to {1}", valueText(fmt, r.left), valueText(fmt, r.right));
+  if (r.left !== null) return translateWith("{0} and above", valueText(fmt, r.left));
+  return translateWith("{0} and below", valueText(fmt, r.right as number));
 }
 
 /** The filter a preset produces on a pill (left params synced like the reference app

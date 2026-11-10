@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Alert on a saved stock screen (created from the screener's screen menu, edited from the Alerts panel): the
  * condition (a symbol enters / leaves the screen), the alert name, the sound and the notification. The alert
@@ -23,7 +24,7 @@ export function openScreenAlertDialog(args: { screen: { id: string; title: strin
   const [popup, setPopup] = createSignal(existing?.popup ?? true);
   showConfirm({
     title: existing ? "Edit alert on screen" : "Create alert on screen",
-    text: `Screen: ${screen.title}`,
+    text: translateWith("Screen: {0}", screen.title),
     mainText: existing ? "Save" : "Create",
     cancelText: "Cancel",
     intent: "neutral",

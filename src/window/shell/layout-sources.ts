@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Layout-wide edits of the charts' sources, asked by the chart menus:
  *   - "Add this indicator / strategy / symbol to entire layout" (study and
@@ -231,14 +232,14 @@ export function installLayoutSources(
     const tab = t.activeTab();
     const p = tab.panes[tab.activePane];
     if (!p) return;
-    commit(tab.id, { [tab.activePane]: withSource(p, src, null, isOverlayType, heldIds(tab.id, tab.activePane)) }, [], `paste ${src.title}`);
+    commit(tab.id, { [tab.activePane]: withSource(p, src, null, isOverlayType, heldIds(tab.id, tab.activePane)) }, [], translateWith("paste {0}", src.title));
   }
   /** Chart menu "Move chart" > Forward / Back. */
   function moveChart(back: boolean) {
     const tab = t.activeTab();
     const other = swapTarget(tab.layout, tab.panes.length, tab.activePane, back);
     if (other === null) return;
-    undo.commit({ kind: "chart-swap", tabId: tab.id, a: tab.activePane, b: other, activeBefore: tab.activePane, activeAfter: other, label: "swap charts in the Layout", at: Date.now() });
+    undo.commit({ kind: "chart-swap", tabId: tab.id, a: tab.activePane, b: other, activeBefore: tab.activePane, activeAfter: other, label: translate("swap charts in the Layout"), at: Date.now() });
   }
   const offs = [
     onAppEvent("chart-add-to-layout", (detail) => addToLayout(detail)),

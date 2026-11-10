@@ -37,7 +37,7 @@ import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverl
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 /** Hotkey tools created at once at the cursor (Alt+H/J/V/C). */
 const PLACE_NOW = new Set(["horizontal-line", "horizontal-ray", "vertical-line", "cross-line"]);
@@ -179,8 +179,8 @@ const SYNC_TOOLTIPS: Record<SyncMode, string> = {
 };
 
 /** "1 drawing" / "112 drawings", whole phrases so that each language words its count. */
-const drawingsText = (n: number) => translateWith(n === 1 ? "{0} drawing" : "{0} drawings", n);
-const indicatorsText = (n: number) => translateWith(n === 1 ? "{0} indicator" : "{0} indicators", n);
+const drawingsText = (n: number) => translatePlural(n, { one: "{0} drawing", other: "{0} drawings" }, n);
+const indicatorsText = (n: number) => translatePlural(n, { one: "{0} indicator", other: "{0} indicators" }, n);
 
 export function DrawingToolbar(props: Props) {
   // Which tool each group displays on its toolbar button — per-group MRU
@@ -575,7 +575,7 @@ export function DrawingToolbar(props: Props) {
                                       role="menuitem"
                                       disabled={!impl}
                                       aria-disabled={!impl}
-                                      title={impl ? undefined : `${tool.title} — coming soon`}
+                                      title={impl ? undefined : translateWith("{0} — coming soon", tool.title)}
                                       class={
                                         "drawing-tool-submenu-item" +
                                         (isCurrent() ? " current" : "") +

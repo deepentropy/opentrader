@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Style tab rows of the outputs other than line plots (style-outputs.ts): shapes, characters, arrows, background /
  * bar colours, candles, hlines, fills and drawing groups. Reference layout (its study property page, measured):
@@ -197,7 +198,7 @@ function ColorRow(props: { title: string; color: string; disabled?: boolean; onC
 function PaletteRows(props: { colors: string[]; override?: string[]; disabled?: boolean; onColor: (i: number, c: string) => void }) {
   return (
     <For each={props.colors}>
-      {(c, i) => <ColorRow title={`Color ${i()}`} color={props.override?.[i()] ?? c} disabled={props.disabled} onColor={(x) => props.onColor(i(), x)} />}
+      {(c, i) => <ColorRow title={translateWith("Color {0}", i())} color={props.override?.[i()] ?? c} disabled={props.disabled} onColor={(x) => props.onColor(i(), x)} />}
     </For>
   );
 }

@@ -1,3 +1,4 @@
+import { translate, translateWith } from "../i18n/translator";
 /*
  * The screener's loading wheel text: the share downloaded when every pending download tells its size, else the
  * megabytes read; under it, what is downloading.
@@ -23,7 +24,7 @@ export function wheelText(p: ScreenerProgress | null): WheelText {
   // 100% only once the table is in: the wheel goes away then.
   const label = total ? `${Math.min(99, Math.floor((received / total) * 100))}%` : received > 0 ? `${mb(received)} MB` : "";
   const names = p.downloading.map((d) => NAMES[d] ?? d);
-  const what = names.length ? `Downloading ${names.join(", ")}` : "Preparing the table";
-  const caption = total ? `${what} · ${mb(received)} of ${mb(total)} MB` : what;
+  const what = names.length ? translateWith("Downloading {0}", names.map((n) => translate(n)).join(", ")) : translate("Preparing the table");
+  const caption = total ? translateWith("{0} · {1} of {2} MB", what, mb(received), mb(total)) : what;
   return { label, caption };
 }

@@ -1,3 +1,4 @@
+import { dateText } from "../../i18n/format";
 /*
  * AlertsPanel — right-rail "alerts" tab: the Alerts / Log switch across the
  * header, a toolbar row under it, then the view:
@@ -49,7 +50,7 @@ function loadLogFilters(): LogFilters {
 const pad = (n: number) => String(n).padStart(2, "0");
 const clockTime = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 /** Day group title ("October 22"; the panel writes it in capitals). */
-const dayTitle = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+const dayTitle = (ms: number) => dateText(ms, { month: "long", day: "numeric" });
 const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
 /** Type of an event: a watchlist alert, else that of its rule (price when the rule is gone). */

@@ -1,3 +1,4 @@
+import { numberText } from "../../../i18n/format";
 /*
  * Settings > Local data (#267): folders whose CSV files stay imported series (data/local-folders).
  */
@@ -15,7 +16,7 @@ import {
 import { TIMEZONES } from "../../../data/timezones";
 import { pickFolder } from "./io";
 import { Section } from "./parts";
-import { translate, translateWith } from "../../../i18n/translator";
+import { translate, translatePlural, translateWith } from "../../../i18n/translator";
 
 /** Zones a folder's times may be in: UTC and the chart's cities, one row per zone. */
 const FOLDER_ZONES = TIMEZONES.filter((z) => z.label !== "Exchange").filter((z, i, all) => all.findIndex((y) => y.iana === z.iana) === i);
@@ -28,7 +29,7 @@ function syncTime(ms: number): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-const thousands = (v: number) => v.toLocaleString("en-US");
+const thousands = (v: number) => numberText(v);
 
 export function LocalDataTab() {
   const [zone, setZone] = createSignal("UTC");
@@ -76,7 +77,7 @@ function LocalFolderCard(props: { folder: LocalFolder }) {
     if (!s) return translate("Not synced yet.");
     if (s.failed) return translateWith("Last sync {0}: {1}", syncTime(s.at), s.failed);
     const parts = [
-      translateWith(s.scanned === 1 ? "{0} file" : "{0} files", thousands(s.scanned)),
+      translatePlural(s.scanned, { one: "{0} file", other: "{0} files" }, thousands(s.scanned)),
       translateWith("{0} imported ({1} bars)", thousands(s.imported), thousands(s.bars)),
       translateWith("{0} unchanged", thousands(s.unchanged)),
     ];

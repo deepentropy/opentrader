@@ -124,7 +124,7 @@ export function OakScriptPanel(props: Props) {
     scripts.setCurrentScriptId(id);
     // Back from a built-in to the held script: the id does not change, so log here.
     if (builtin() && s.id === currentScript().id) {
-      log("info", `"${s.name}" opened`);
+      log("info", translateWith("\"{0}\" opened", s.name));
       void compileScript(s.id, s.source);
     }
     setBuiltin(null);
@@ -141,7 +141,7 @@ export function OakScriptPanel(props: Props) {
     const was = builtin();
     setBuiltin({ typeId, name, source });
     setIsStrategy(false);
-    if (was?.typeId !== typeId) log("info", `"${name}" opened`);
+    if (was?.typeId !== typeId) log("info", translateWith("\"{0}\" opened", name));
   }
   if (startBuiltin) onMount(() => void openBuiltin(startBuiltin));
 
@@ -184,7 +184,7 @@ export function OakScriptPanel(props: Props) {
     const b = builtin();
     if (b) {
       props.onAddIndicator(b.typeId);
-      log("info", `"${b.name}" added to chart.`);
+      log("info", translateWith("\"{0}\" added to chart.", b.name));
       return;
     }
     const id = currentScript().id;
@@ -205,7 +205,7 @@ export function OakScriptPanel(props: Props) {
       notifyScriptCompiled(scriptId, meta);
       notifyUserStrategyCompiled(scriptId, meta);
       if (scriptId === currentScript().id) setIsStrategy(!!meta.strategy);
-      log("info", `"${name}" compiled.`);
+      log("info", translateWith("\"{0}\" compiled.", name));
     } catch (err) {
       if (err instanceof OakEngineError) {
         const { line, col } = err.detail;
@@ -224,7 +224,7 @@ export function OakScriptPanel(props: Props) {
     const reason = builtin() ? null : (userScriptFullRunReason(id) ?? userStrategyFullRunReason(id));
     if (reason === fullRun()) return;
     setFullRun(reason);
-    if (reason) log("info", `Live updates recalculate every bar: ${reason}.`);
+    if (reason) log("info", translateWith("Live updates recalculate every bar: {0}.", reason));
   }
   onCleanup(onAppEvent(OAKSCRIPT_UPDATED_EVENT, readFullRun));
   onCleanup(onAppEvent(STRATEGY_UPDATED_EVENT, readFullRun));
@@ -243,7 +243,7 @@ export function OakScriptPanel(props: Props) {
         }
         const s = scripts.loadScript(id);
         if (!s) return;
-        log("info", `"${s.name}" opened`);
+        log("info", translateWith("\"{0}\" opened", s.name));
         void compileScript(id, s.source);
       },
     ),
@@ -335,7 +335,7 @@ export function OakScriptPanel(props: Props) {
     dropUserScriptRuntime(s.id);
     dropUserStrategy(s.id);
     scripts.deleteScript(s.id);
-    log("info", `"${s.name}" deleted.`);
+    log("info", translateWith("\"{0}\" deleted.", s.name));
     // Fall back to the next stored script, or a fresh template.
     const next = scripts.listScripts()[0];
     if (next) openScript(next.id);

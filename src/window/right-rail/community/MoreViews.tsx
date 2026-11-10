@@ -128,7 +128,7 @@ export function AboutView(props: { community: Community; onBack: () => void; onO
                 <div class="cm-about-row">
                   <span>
                     <span class="cm-author">{b.name}</span>
-                    <span class="cm-muted"> · {b.until > 4_000_000_000 ? "permanent" : `until ${date(b.until)}`} · {b.reason}</span>
+                    <span class="cm-muted"> · {b.until > 4_000_000_000 ? "permanent" : translateWith("until {0}", date(b.until))} · {b.reason}</span>
                   </span>
                   <button type="button" class="cm-action" onClick={() => act(() => api.communityBan(id(), b.name, false), refetchBans)}>Unban</button>
                 </div>

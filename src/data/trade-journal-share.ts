@@ -1,3 +1,4 @@
+import { translatePlural, translateWith } from "../i18n/translator";
 /*
  * Trade journal to Community (#248): what a shared trade, or a shared list of
  * trades, carries into the new post. Figures only: the member writes the text.
@@ -20,7 +21,7 @@ const price = (v: number | undefined) => (v === undefined ? "—" : Math.abs(v) 
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? MINUS : ""}${(Math.abs(v) * 100).toFixed(2)}%`;
 const plainPct = (v: number) => `${(Math.abs(v) * 100).toFixed(2)}%`;
 const money = (v: number) => `${v > 0 ? "+" : v < 0 ? MINUS : ""}${num.format(Math.abs(v))}`;
-const tradesText = (n: number) => `${n} trade${n === 1 ? "" : "s"}`;
+const tradesText = (n: number) => translatePlural(n, { one: "{0} trade", other: "{0} trades" });
 const sideText = (t: JournalTrade) => (t.side === "long" ? "Long" : "Short");
 
 /** Dates are read in the chart's zone, a date-only trade in its exchange's (as in the journal). */
@@ -108,7 +109,7 @@ export function shareListSeed(trades: JournalTrade[], timeZone: string, label?: 
   return {
     type: "analysis",
     to: GENERAL,
-    title: `Journal${label ? `, ${label}` : ""}: ${tradesText(trades.length)}`,
+    title: label ? translateWith("Journal, {0}: {1}", label, tradesText(trades.length)) : translateWith("Journal: {0}", tradesText(trades.length)),
     journal: { table: listBody(trades, timeZone, false), withAmounts: listBody(trades, timeZone, true) },
   };
 }

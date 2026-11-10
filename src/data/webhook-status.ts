@@ -1,3 +1,4 @@
+import { translateWith } from "../i18n/translator";
 /*
  * The Alerts log's "Webhook status" line: what an event's webhook came to, in
  * the reference app's words ("Webhook successfully delivered", "Webhook
@@ -43,5 +44,5 @@ export function webhookStatus(w: WebhookOutcome | undefined): WebhookStatus | nu
   if (w.httpCode == null && w.error == null) return null;
   const why = w.error ?? httpError(w.httpCode!);
   const cut = why.length <= MAX_ERROR ? `${why}.` : `${why.slice(0, MAX_ERROR - 1).trim()}…`;
-  return { ok: false, text: `Webhook delivery failed — ${cut}` };
+  return { ok: false, text: translateWith("Webhook delivery failed — {0}", cut) };
 }

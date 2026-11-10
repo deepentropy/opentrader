@@ -1,3 +1,5 @@
+import { translateWith } from "../../../i18n/translator";
+import { monthName } from "../../../i18n/format";
 /*
  * Events of a chart view (Events tab): the Dividends / Splits / Earnings
  * lollipops along the bottom of the price pane, and the card a click on one
@@ -37,11 +39,10 @@ function third(v: number): string {
   return (r < 0 ? MINUS : "") + String(Math.abs(r));
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /** "Jun '25" of a period end (UNIX s, 00:00 UTC). */
 function monthYear(sec: number): string {
   const d = new Date(sec * 1000);
-  return `${MONTHS[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(-2)}`;
+  return `${monthName(d.getUTCMonth() + 1)} '${String(d.getUTCFullYear()).slice(-2)}`;
 }
 
 const ICONS: Record<string, string[]> = {
@@ -116,7 +117,7 @@ export function createEvents(cx: ChartCx): EventsApi {
       return { title: "Dividends", kind: m.kind, rows, groups: [] };
     }
     if (m.kind === "split") {
-      const title = m.to != null && m.from != null ? `Split: ${m.to}/${m.from}` : "Split";
+      const title = m.to != null && m.from != null ? translateWith("Split: {0}/{1}", m.to, m.from) : "Split";
       return { title, kind: m.kind, rows: [{ name: dateText(m.time), value: "" }], groups: [] };
     }
     const rows: Row[] = [{ name: "Date", value: dateText(m.time), icon: m.session ?? undefined }];

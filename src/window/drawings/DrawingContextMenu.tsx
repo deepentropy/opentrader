@@ -1,3 +1,4 @@
+import { translateWith } from "../../i18n/translator";
 /*
  * Right-click context menu of a selected drawing, on the chart's context menu.
  *
@@ -112,7 +113,7 @@ export function DrawingContextMenu(props: Props) {
         onSelect: () => props.onApplyTemplate?.(t),
         onRemove: () => showConfirm({
           title: "Delete this template?",
-          text: `Doing this will permanently delete your "${t.name}" drawing template.`,
+          text: translateWith("Doing this will permanently delete your \"{0}\" drawing template.", t.name),
           mainText: "Delete",
           cancelText: "Cancel",
           intent: "danger",
@@ -251,7 +252,7 @@ export function DrawingContextMenu(props: Props) {
     if (first.length) out.push(...first, SEP);
     if (props.alert) {
       out.push({
-        kind: "item", id: "alert", label: `${props.alert.edit ? "Edit" : "Add"} alert on ${props.alert.name}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
+        kind: "item", id: "alert", label: translateWith(props.alert.edit ? "Edit alert on {0}…" : "Add alert on {0}…", props.alert.name), shortcut: "Alt + A", icon: CtxIcons.alert,
         onSelect: () => props.onAlert?.(),
       }, SEP);
     }
