@@ -1,0 +1,665 @@
+{
+  "Account": {
+    "translation": "Konto"
+  },
+  "Add": {
+    "translation": "Hinzufügen"
+  },
+  "Alert": {
+    "translation": "Alarm",
+    "notes": "'Alarm erstellen'; plural Alarme"
+  },
+  "Alerts": {
+    "translation": "Alarme"
+  },
+  "All charts": {
+    "translation": "Alle Charts"
+  },
+  "Apply": {
+    "translation": "Übernehmen"
+  },
+  "Arrow": {
+    "translation": "Pfeil"
+  },
+  "Auto": {
+    "translation": "Auto"
+  },
+  "Average": {
+    "translation": "Durchschnitt",
+    "notes": "adjective 'durchschnittlich'; 'Ø' in compact table cells"
+  },
+  "Background": {
+    "translation": "Hintergrund"
+  },
+  "Background Color": {
+    "translation": "Hintergrundfarbe"
+  },
+  "Backtest": {
+    "translation": "Backtest",
+    "notes": "kept, usual in German trading software"
+  },
+  "Balance": {
+    "translation": "Kontostand"
+  },
+  "Bar": {
+    "translation": "Balken",
+    "notes": "a chart bar; '{0} Balken' singular and plural"
+  },
+  "Bar Replay": {
+    "translation": "Balken-Replay"
+  },
+  "Bars": {
+    "translation": "Balken"
+  },
+  "Bearish": {
+    "translation": "Bärisch"
+  },
+  "Bullish": {
+    "translation": "Bullisch"
+  },
+  "Buy": {
+    "translation": "Kaufen",
+    "notes": "verb on buttons; 'Kauf' as a noun (side, order type)"
+  },
+  "Calculation": {
+    "translation": "Berechnung"
+  },
+  "Cancel": {
+    "translation": "Abbrechen",
+    "notes": "a dialog; an order is 'stornieren'"
+  },
+  "Candle": {
+    "translation": "Kerze"
+  },
+  "Candles": {
+    "translation": "Kerzen"
+  },
+  "Change": {
+    "translation": "Änderung",
+    "notes": "price change; 'Change|action' is Ändern"
+  },
+  "Chart": {
+    "translation": "Chart",
+    "notes": "der Chart, plural Charts; kept, usual in German trading software"
+  },
+  "Chart syncing": {
+    "translation": "Chart-Synchronisierung"
+  },
+  "Charts": {
+    "translation": "Charts"
+  },
+  "Chg": {
+    "translation": "Änd."
+  },
+  "Clear": {
+    "translation": "Leeren"
+  },
+  "Clone": {
+    "translation": "Klonen"
+  },
+  "Close": {
+    "translation": "Schluss",
+    "notes": "the closing price; 'Close|action' is Schließen"
+  },
+  "Cloud": {
+    "translation": "Wolke"
+  },
+  "Color": {
+    "translation": "Farbe"
+  },
+  "Colors": {
+    "translation": "Farben"
+  },
+  "Commission": {
+    "translation": "Provision"
+  },
+  "Community": {
+    "translation": "Community",
+    "notes": "kept"
+  },
+  "Condition": {
+    "translation": "Bedingung"
+  },
+  "Content": {
+    "translation": "Inhalt"
+  },
+  "Create": {
+    "translation": "Erstellen"
+  },
+  "Crosshair": {
+    "translation": "Fadenkreuz"
+  },
+  "Current": {
+    "translation": "Aktuell"
+  },
+  "Custom": {
+    "translation": "Benutzerdefiniert",
+    "notes": "short 'Eigene(r/s)' before a noun: 'Eigenes Intervall'"
+  },
+  "Data": {
+    "translation": "Daten"
+  },
+  "Date": {
+    "translation": "Datum"
+  },
+  "Day": {
+    "translation": "Tag"
+  },
+  "Days": {
+    "translation": "Tage"
+  },
+  "Default": {
+    "translation": "Standard"
+  },
+  "Delayed": {
+    "translation": "Verzögert"
+  },
+  "Delete": {
+    "translation": "Löschen"
+  },
+  "Display": {
+    "translation": "Anzeige"
+  },
+  "Divergence": {
+    "translation": "Divergenz"
+  },
+  "Download": {
+    "translation": "Herunterladen"
+  },
+  "Downtrend": {
+    "translation": "Abwärtstrend"
+  },
+  "Drawdown": {
+    "translation": "Drawdown",
+    "notes": "kept, usual in German backtest reports"
+  },
+  "Drawing": {
+    "translation": "Zeichnung"
+  },
+  "Drawings": {
+    "translation": "Zeichnungen",
+    "notes": "the tools: 'Zeichentools'"
+  },
+  "Edit": {
+    "translation": "Bearbeiten"
+  },
+  "Enable": {
+    "translation": "Aktivieren"
+  },
+  "Engulfing": {
+    "translation": "Engulfing",
+    "notes": "candlestick pattern names kept: 'Bullish Engulfing' → 'Bullisches Engulfing'"
+  },
+  "Entry": {
+    "translation": "Einstieg"
+  },
+  "Equity": {
+    "translation": "Kapital",
+    "notes": "the equity curve: 'Kapitalkurve'"
+  },
+  "Exit": {
+    "translation": "Ausstieg"
+  },
+  "Extend": {
+    "translation": "Verlängern"
+  },
+  "Factor": {
+    "translation": "Faktor"
+  },
+  "Fill": {
+    "translation": "Füllung",
+    "notes": "a colour fill; an order fill is 'Ausführung'"
+  },
+  "Flag": {
+    "translation": "Markieren",
+    "notes": "'Markierung aufheben' to unflag"
+  },
+  "Fundamentals": {
+    "translation": "Fundamentaldaten"
+  },
+  "Gradient": {
+    "translation": "Farbverlauf"
+  },
+  "Harami": {
+    "translation": "Harami"
+  },
+  "Hide": {
+    "translation": "Ausblenden"
+  },
+  "High": {
+    "translation": "Hoch",
+    "notes": "the bar's high; the on-chart high/low price lines keep 'High'/'Low' ('High|chart')"
+  },
+  "History": {
+    "translation": "Verlauf"
+  },
+  "Holiday": {
+    "translation": "Feiertag"
+  },
+  "Hotkey": {
+    "translation": "Tastenkürzel"
+  },
+  "Hour": {
+    "translation": "Stunde",
+    "notes": "'Std.' in compact places"
+  },
+  "Icon": {
+    "translation": "Icon"
+  },
+  "Idea": {
+    "translation": "Idee"
+  },
+  "Import": {
+    "translation": "Importieren"
+  },
+  "Index": {
+    "translation": "Index",
+    "notes": "a market index; plural Indizes"
+  },
+  "Indicator": {
+    "translation": "Indikator",
+    "notes": "also for 'study'"
+  },
+  "Indicators": {
+    "translation": "Indikatoren"
+  },
+  "Inputs": {
+    "translation": "Eingaben",
+    "notes": "the settings tab"
+  },
+  "Interval": {
+    "translation": "Intervall"
+  },
+  "Label": {
+    "translation": "Label",
+    "notes": "plural Labels; kept, shorter than 'Beschriftung'"
+  },
+  "Labels": {
+    "translation": "Labels"
+  },
+  "Layout": {
+    "translation": "Layout",
+    "notes": "kept"
+  },
+  "Legend": {
+    "translation": "Legende"
+  },
+  "Length": {
+    "translation": "Länge"
+  },
+  "Level": {
+    "translation": "Level",
+    "notes": "plural Level: 'Fib-Level'"
+  },
+  "Lock": {
+    "translation": "Sperren"
+  },
+  "Log": {
+    "translation": "Protokoll",
+    "notes": "'Log|history'"
+  },
+  "Long": {
+    "translation": "Long"
+  },
+  "Lookback": {
+    "translation": "Rückblick"
+  },
+  "Loss": {
+    "translation": "Verlust"
+  },
+  "Low": {
+    "translation": "Tief",
+    "notes": "the bar's low"
+  },
+  "Lower Band": {
+    "translation": "Unteres Band"
+  },
+  "Market closed": {
+    "translation": "Markt geschlossen"
+  },
+  "Market open": {
+    "translation": "Markt geöffnet"
+  },
+  "Message": {
+    "translation": "Nachricht"
+  },
+  "Minute": {
+    "translation": "Minute"
+  },
+  "Minutes": {
+    "translation": "Minuten",
+    "notes": "'Min.' in compact places"
+  },
+  "Mode": {
+    "translation": "Modus"
+  },
+  "Momentum": {
+    "translation": "Momentum"
+  },
+  "Month": {
+    "translation": "Monat"
+  },
+  "Months": {
+    "translation": "Monate"
+  },
+  "Moving Average": {
+    "translation": "Gleitender Durchschnitt",
+    "notes": "the abbreviation MA kept (SMA, EMA)"
+  },
+  "Multiplier": {
+    "translation": "Multiplikator"
+  },
+  "Name": {
+    "translation": "Name"
+  },
+  "Net Profit": {
+    "translation": "Nettogewinn"
+  },
+  "Object Tree": {
+    "translation": "Objektbaum"
+  },
+  "Offset": {
+    "translation": "Versatz"
+  },
+  "Once": {
+    "translation": "Einmal"
+  },
+  "Open": {
+    "translation": "Eröffnung",
+    "notes": "the opening price; 'Open|action' Öffnen, 'Open|trade' Offen"
+  },
+  "Options": {
+    "translation": "Optionen"
+  },
+  "Order": {
+    "translation": "Order",
+    "notes": "die Order, plural Orders; kept, usual with German brokers"
+  },
+  "Orders": {
+    "translation": "Orders"
+  },
+  "Oscillator": {
+    "translation": "Oszillator"
+  },
+  "Other": {
+    "translation": "Andere"
+  },
+  "Overbought": {
+    "translation": "Überkauft"
+  },
+  "Oversold": {
+    "translation": "Überverkauft"
+  },
+  "Pane": {
+    "translation": "Bereich",
+    "notes": "a chart pane: 'Neuer Bereich'"
+  },
+  "Panel": {
+    "translation": "Panel",
+    "notes": "a side or bottom panel, distinct from a pane (Bereich)"
+  },
+  "Percentage": {
+    "translation": "Prozent"
+  },
+  "Period": {
+    "translation": "Periode"
+  },
+  "Pivot": {
+    "translation": "Pivot"
+  },
+  "PnL": {
+    "translation": "G/V",
+    "notes": "Gewinn/Verlust: 'Realisierter G/V'"
+  },
+  "Position": {
+    "translation": "Position"
+  },
+  "Post": {
+    "translation": "Post",
+    "notes": "on the chart (after hours); 'Post|action' is Posten"
+  },
+  "Post-market": {
+    "translation": "Nachbörse"
+  },
+  "Pre-market": {
+    "translation": "Vorbörse"
+  },
+  "Preset": {
+    "translation": "Vorgabe"
+  },
+  "Price": {
+    "translation": "Preis"
+  },
+  "Price scale": {
+    "translation": "Preisskala"
+  },
+  "Profit": {
+    "translation": "Gewinn"
+  },
+  "Quantity": {
+    "translation": "Menge"
+  },
+  "Real-time": {
+    "translation": "Echtzeit"
+  },
+  "Redo": {
+    "translation": "Wiederholen"
+  },
+  "Regular": {
+    "translation": "Regulär",
+    "notes": "the regular session"
+  },
+  "Remove": {
+    "translation": "Entfernen",
+    "notes": "'Löschen' for delete"
+  },
+  "Replay": {
+    "translation": "Replay",
+    "notes": "kept"
+  },
+  "Reset": {
+    "translation": "Zurücksetzen"
+  },
+  "Resistance": {
+    "translation": "Widerstand"
+  },
+  "Reward": {
+    "translation": "Chance",
+    "notes": "'Chance/Risiko-Verhältnis'"
+  },
+  "Ribbon": {
+    "translation": "Fächer"
+  },
+  "Right": {
+    "translation": "Rechts"
+  },
+  "Risk": {
+    "translation": "Risiko"
+  },
+  "Save": {
+    "translation": "Speichern"
+  },
+  "Scale": {
+    "translation": "Skala"
+  },
+  "Scan": {
+    "translation": "Scannen",
+    "notes": "verb; 'Scan|action' too"
+  },
+  "Screen": {
+    "translation": "Filter",
+    "notes": "a saved screener screen"
+  },
+  "Screener": {
+    "translation": "Screener",
+    "notes": "kept, usual in German trading software"
+  },
+  "Script": {
+    "translation": "Skript"
+  },
+  "Search": {
+    "translation": "Suchen"
+  },
+  "Seconds": {
+    "translation": "Sekunden",
+    "notes": "'Sek.' in compact places"
+  },
+  "Select": {
+    "translation": "Auswählen"
+  },
+  "Sell": {
+    "translation": "Verkaufen",
+    "notes": "verb on buttons; 'Verkauf' as a noun"
+  },
+  "Series": {
+    "translation": "Reihe",
+    "notes": "an imported data series"
+  },
+  "Session": {
+    "translation": "Session",
+    "notes": "kept, usual in German trading software; 'Handelszeiten' for trading hours"
+  },
+  "Settings": {
+    "translation": "Einstellungen"
+  },
+  "Setup": {
+    "translation": "Einrichtung"
+  },
+  "Short": {
+    "translation": "Short"
+  },
+  "Show": {
+    "translation": "Anzeigen"
+  },
+  "Signal": {
+    "translation": "Signal"
+  },
+  "Signals": {
+    "translation": "Signale"
+  },
+  "Slippage": {
+    "translation": "Slippage"
+  },
+  "Smoothing": {
+    "translation": "Glättung"
+  },
+  "Snapshot": {
+    "translation": "Snapshot"
+  },
+  "Sound": {
+    "translation": "Ton"
+  },
+  "Source": {
+    "translation": "Quelle"
+  },
+  "Standard Deviation": {
+    "translation": "Standardabweichung"
+  },
+  "Status line": {
+    "translation": "Statuszeile"
+  },
+  "Stop Loss": {
+    "translation": "Stop-Loss"
+  },
+  "Strategy": {
+    "translation": "Strategie"
+  },
+  "Strategy Tester": {
+    "translation": "Strategietester"
+  },
+  "Study": {
+    "translation": "Indikator"
+  },
+  "Style": {
+    "translation": "Stil"
+  },
+  "Support": {
+    "translation": "Unterstützung"
+  },
+  "Symbol": {
+    "translation": "Symbol"
+  },
+  "Symbols": {
+    "translation": "Symbole"
+  },
+  "Table": {
+    "translation": "Tabelle"
+  },
+  "Take Profit": {
+    "translation": "Take-Profit"
+  },
+  "Template": {
+    "translation": "Vorlage"
+  },
+  "Theme": {
+    "translation": "Design"
+  },
+  "Threshold": {
+    "translation": "Schwelle"
+  },
+  "Ticker": {
+    "translation": "Ticker",
+    "notes": "kept"
+  },
+  "Ticks": {
+    "translation": "Ticks"
+  },
+  "Time zone": {
+    "translation": "Zeitzone"
+  },
+  "Timeframe": {
+    "translation": "Zeitrahmen"
+  },
+  "Trade": {
+    "translation": "Trade",
+    "notes": "a strategy or journal trade; plural Trades"
+  },
+  "Trade journal": {
+    "translation": "Trade-Journal"
+  },
+  "Trades": {
+    "translation": "Trades"
+  },
+  "Trading": {
+    "translation": "Trading"
+  },
+  "Trend": {
+    "translation": "Trend"
+  },
+  "Trigger": {
+    "translation": "Auslöser"
+  },
+  "Type": {
+    "translation": "Typ"
+  },
+  "Undo": {
+    "translation": "Rückgängig",
+    "notes": "the undo history: 'Rückgängig: {0}'"
+  },
+  "Update": {
+    "translation": "Aktualisieren"
+  },
+  "Upper Band": {
+    "translation": "Oberes Band"
+  },
+  "Uptrend": {
+    "translation": "Aufwärtstrend"
+  },
+  "Volume": {
+    "translation": "Volumen"
+  },
+  "Volume Profile": {
+    "translation": "Volumenprofil"
+  },
+  "Watchlist": {
+    "translation": "Watchlist",
+    "notes": "kept, plural Watchlists"
+  },
+  "Week": {
+    "translation": "Woche"
+  },
+  "Width": {
+    "translation": "Stärke",
+    "notes": "line width; 'Breite' for a box or a column"
+  }
+}
