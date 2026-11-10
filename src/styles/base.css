@@ -49,7 +49,7 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background-clip: content-box;
-  background-color: var(--color-scroll-bg, #3d3d3d);
+  background-color: var(--color-scroll-bg);
   border: 1px solid transparent;
   border-radius: 3px;
 }
@@ -93,6 +93,32 @@ html.theme-dark {
   --ot-strong: #f2f2f2;
   --ot-text-max: #fff;
   --ot-text-inverse: #0f0f0f;
+}
+
+/* Shadows, backdrops and tints the components share. Both themes use the
+ * same values today; a light-theme tweak goes here, not in each component.
+ * Shadow numbers are the black's opacity in percent, tint numbers the
+ * colour's (red #f23645, blue #2962ff, green #089981, white). */
+:root {
+  --ot-shadow-20: rgba(0, 0, 0, 0.2);
+  --ot-shadow-35: rgba(0, 0, 0, 0.35);
+  --ot-shadow-40: rgba(0, 0, 0, 0.4);
+  --ot-shadow-45: rgba(0, 0, 0, 0.45);
+  --ot-shadow-50: rgba(0, 0, 0, 0.5);
+  --ot-shadow-60: rgba(0, 0, 0, 0.6);
+  /* Behind a modal dialog. */
+  --ot-backdrop: rgba(0, 0, 0, 0.5);
+  --ot-tint-red-12: rgba(242, 54, 69, 0.12);
+  --ot-tint-red-15: rgba(242, 54, 69, 0.15);
+  --ot-tint-red-20: rgba(242, 54, 69, 0.2);
+  --ot-tint-blue-8: rgba(41, 98, 255, 0.08);
+  --ot-tint-blue-15: rgba(41, 98, 255, 0.15);
+  --ot-tint-blue-16: rgba(41, 98, 255, 0.16);
+  --ot-tint-blue-55: rgba(41, 98, 255, 0.55);
+  --ot-tint-green-60: rgba(8, 153, 129, 0.6);
+  --ot-tint-white-6: rgba(255, 255, 255, 0.06);
+  --ot-tint-white-10: #ffffff1a;
+  --ot-tint-white-12: rgba(255, 255, 255, 0.12);
 }
 
 /* Chart-pane tokens — referenced by ChartView.tsx through getComputedStyle. */
@@ -146,8 +172,8 @@ html.theme-dark {
   gap: 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #ff9800;
-  color: #0f0f0f;
+  background: var(--color-tan-orange-500);
+  color: var(--color-cold-gray-900);
   font-size: 13px;
   line-height: 18px;
   white-space: nowrap;
@@ -156,8 +182,8 @@ html.theme-dark {
   border: 0;
   border-radius: 4px;
   padding: 4px 10px;
-  background: #0f0f0f;
-  color: #fff;
+  background: var(--color-cold-gray-900);
+  color: var(--color-white);
   font: inherit;
   font-weight: 600;
   white-space: nowrap;
@@ -176,11 +202,11 @@ html.theme-dark {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #ff9800;
-  color: #0f0f0f;
+  background: var(--color-tan-orange-500);
+  color: var(--color-cold-gray-900);
   font-size: 13px;
   line-height: 18px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px var(--ot-shadow-40);
 }
 .ot-server-busy a {
   color: inherit;
