@@ -30,6 +30,10 @@
  * toggles, trash) separated by a single 1px line via `.group + .group::before`.
  * Padding inside each section: 6px top + 6px bottom on the first; subsequent
  * sections drop the top padding so the separator sits flush. */
+/* Pushes the favorites toggle to the bottom of the rail. */
+.drawing-toolbar-spacer {
+  flex: 1 1 auto;
+}
 .drawing-toolbar-section {
   display: flex;
   flex-direction: column;
@@ -283,7 +287,7 @@
  * colour #dbdbdb), NOT blue. Matches the grey treatment used for the selected
  * drawing tool and armed favourite, so nothing in the drawing UI reads blue. */
 .drawing-tool-submenu-fav.favorited {
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
 }
 .drawing-tool-submenu-fav svg {
   display: block;

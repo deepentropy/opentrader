@@ -89,7 +89,7 @@ export function TimeAxisLabel(props: { x: number; h: number; time: import("light
       {(g) => (
         <g pointer-events="none">
           <path d={g().path} fill={props.color} />
-          <text x={g().tx} y={g().ty} font-size={String(g().fs)} font-family={g().font} fill={textOnColor(props.color)} dominant-baseline="central" style={{ "white-space": "pre" }}>
+          <text x={g().tx} y={g().ty} font-size={String(g().fs)} font-family={g().font} fill={textOnColor(props.color)} dominant-baseline="central" class="ot-svg-pre">
             {g().text}
           </text>
         </g>
@@ -108,7 +108,7 @@ export function PriceAxisLabel(props: { x: number; w: number; y: number; text: s
   return (
     <g pointer-events="none">
       <rect x={props.x} y={top()} width={props.w} height={h()} rx={2} fill={props.color} />
-      <text x={props.x + PRICE_LABEL_TEXT_X} y={top() + h() / 2} font-size={String(props.fontSize)} font-family={props.fontFamily} fill={textOnColor(props.color)} dominant-baseline="central" style={{ "white-space": "pre" }}>
+      <text x={props.x + PRICE_LABEL_TEXT_X} y={top() + h() / 2} font-size={String(props.fontSize)} font-family={props.fontFamily} fill={textOnColor(props.color)} dominant-baseline="central" class="ot-svg-pre">
         {props.text}
       </text>
     </g>

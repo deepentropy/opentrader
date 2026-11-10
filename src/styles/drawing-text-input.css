@@ -4,21 +4,24 @@
  * anchor; commits on Enter or blur, cancels on Escape (see DrawingsOverlay).
  */
 .ot-drawing-text-input {
+  position: absolute;
+  /* Over the drawings layer (5). */
+  z-index: 6;
   min-width: 80px;
   padding: 3px 6px;
-  font-family: var(--font-family-base, sans-serif);
+  font-family: var(--font-family-base);
   font-size: 13px;
   line-height: 16px;
-  color: var(--color-main-text, #d1d4dc);
-  background-color: var(--ot-chart-bg, #0f0f0f);
-  border: 1px solid var(--ot-blue, #2962ff);
+  color: var(--color-main-text);
+  background-color: var(--ot-chart-bg);
+  border: 1px solid var(--color-brand);
   border-radius: 4px;
   outline: none;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 6px var(--ot-shadow-40);
 }
 
 .ot-drawing-text-input::placeholder {
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary);
 }
 
 /* Table cell editor: an unframed multi-line field laid over the active

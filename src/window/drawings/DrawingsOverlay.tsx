@@ -237,17 +237,14 @@ export function DrawingsOverlay(props: OverlayProps) {
       data-no-translate
       width="100%"
       height="100%"
+      class="ot-drawings-layer"
       style={{
-        position: "absolute",
-        top: "0",
         left: `${props.leftInset ?? 0}px`,
         width: `calc(100% - ${props.leftInset ?? 0}px)`,
-        height: "100%",
         "pointer-events":
           armedSpec() || regionTool() || cmode() === "eraser"
             ? "auto"
             : "none",
-        "z-index": 5,
         cursor: svgCursor(),
       }}
       on:wheel={{ handleEvent: forwardWheel, passive: false }}

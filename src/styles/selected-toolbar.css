@@ -14,9 +14,9 @@
   background-color: var(--color-bg-primary);
   border-radius: 6px;
   color: var(--color-text-primary);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   user-select: none;
-  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, sans-serif);
+  font-family: var(--font-family-base);
 }
 
 .selected-toolbar-content {
@@ -77,7 +77,7 @@
 }
 
 .selected-toolbar-btn.active {
-  color: var(--color-toolbar-button-text-active, #2962ff);
+  color: var(--color-toolbar-button-text-active);
 }
 
 /* Armed favourite on the favorites toolbar — match the left toolbar's selected
@@ -86,7 +86,7 @@
  * highlights must read identically. Scoped to `.favorites-toolbar-btn` and
  * placed after the blue `.active` rule so source order wins. */
 .favorites-toolbar-btn.active {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
   color: inherit;
 }
 
@@ -189,7 +189,7 @@
   background-color: var(--color-bg-primary);
   border: 1px solid var(--color-divider);
   border-radius: 6px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 8px var(--ot-shadow-50);
   padding: 8px;
   cursor: default;
 }
@@ -217,7 +217,7 @@
   box-sizing: border-box;
 }
 .dt-menu-row:hover { background-color: var(--color-bg-primary-hover); }
-.dt-menu-row.selected { color: var(--color-toolbar-button-text-active, #2962ff); }
+.dt-menu-row.selected { color: var(--color-toolbar-button-text-active); }
 .dt-menu-preview {
   display: inline-flex;
   align-items: center;
@@ -240,7 +240,7 @@
   min-width: 22px;
   height: 22px;
   border-radius: 4px;
-  color: grey;
+  color: var(--color-cold-gray-500);
   visibility: hidden;
 }
 .dt-templates-item:hover .dt-templates-del { visibility: visible; }
@@ -280,7 +280,7 @@
 .dt-menu-shortcut {
   margin-left: auto;
   font-size: 12px;
-  color: var(--color-cold-gray-400, #868993);
+  color: var(--color-cold-gray-400);
   white-space: nowrap;
 }
 .dt-menu-subarrow {

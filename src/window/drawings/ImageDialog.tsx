@@ -105,7 +105,7 @@ export function ImageDialog(props: {
               ref={fileInput}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              style={{ display: "none" }}
+              class="image-dialog-file-input"
               onChange={(e) => { void take(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }}
             />
           </div>

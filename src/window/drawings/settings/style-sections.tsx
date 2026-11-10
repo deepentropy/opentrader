@@ -119,10 +119,10 @@ export function GannStyleRows(props: {
           <CheckField variant="drawing" checked={st().showLabels !== false} onChange={(v) => props.patchStyle({ showLabels: v })} label="Ranges and ratio" />
           <div class="drawing-settings-row-inputs drawing-settings-text-format">
             <NativeSelect class="drawing-settings-select" value={String(st().labelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().labelFontSize ?? 12))} onChange={(v) => props.patchStyle({ labelFontSize: Number(v) })} />
-            <button type="button" class={"drawing-settings-text-toggle" + (st().bold ? " active" : "")} style={{ "font-weight": 700 }} aria-pressed={!!st().bold} title="Bold" onClick={() => props.patchStyle({ bold: !st().bold })}>
+            <button type="button" class={"drawing-settings-text-toggle is-bold" + (st().bold ? " active" : "")} aria-pressed={!!st().bold} title="Bold" onClick={() => props.patchStyle({ bold: !st().bold })}>
               B
             </button>
-            <button type="button" class={"drawing-settings-text-toggle" + (st().italic ? " active" : "")} style={{ "font-style": "italic" }} aria-pressed={!!st().italic} title="Italic" onClick={() => props.patchStyle({ italic: !st().italic })}>
+            <button type="button" class={"drawing-settings-text-toggle is-italic" + (st().italic ? " active" : "")} aria-pressed={!!st().italic} title="Italic" onClick={() => props.patchStyle({ italic: !st().italic })}>
               I
             </button>
           </div>

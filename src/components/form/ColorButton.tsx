@@ -119,8 +119,8 @@ export function ColorButton(props: {
       >
         <span
           class="drawing-settings-color-swatch-fill"
-          // Mixed-colour placeholder: red / teal split along the diagonal.
-          style={props.mixed ? { background: "linear-gradient(to top right, #f7525f 50%, #22ab94 50%)" } : { "--swatch-color": props.color }}
+          classList={{ "is-mixed": !!props.mixed }}
+          style={props.mixed ? undefined : { "--swatch-color": props.color }}
         />
       </button>
       {panel()}

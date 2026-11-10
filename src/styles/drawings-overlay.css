@@ -1,0 +1,26 @@
+/*
+ * The drawings layer over the chart (window/drawings/DrawingsOverlay.tsx and
+ * overlay/): the SVG's fixed placement; its left inset, width, pointer events
+ * and cursor follow the chart and the armed tool, so they stay inline.
+ */
+.ot-drawings-layer {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 5;
+}
+
+/* A drawing's hit area: only its painted shapes take the pointer. */
+.ot-drawing-hit {
+  pointer-events: visiblePainted;
+}
+
+/* Text kept as typed (runs of spaces, multi-line labels). */
+.ot-svg-pre {
+  white-space: pre;
+}
+
+/* A placed font icon may draw past its box. */
+.drawing-font-icon-box {
+  overflow: visible;
+}

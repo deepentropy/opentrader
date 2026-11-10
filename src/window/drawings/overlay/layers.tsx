@@ -60,7 +60,8 @@ export function createLayers(cx: OverlayCx): LayersApi {
                     <g
                       data-drawing-id={d.id}
                       transform={v().f.top ? `translate(0 ${v().f.top})` : undefined}
-                      style={{ "pointer-events": "visiblePainted", cursor }}
+                      class="ot-drawing-hit"
+                      style={{ cursor }}
                       onPointerEnter={() => setHoveredId(d.id)}
                       onPointerLeave={() => setHoveredId((cur) => (cur === d.id ? null : cur))}
                     >

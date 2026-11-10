@@ -28,6 +28,7 @@
 @import "./styles/selected-toolbar.css";
 @import "./styles/drawing-settings.css";
 @import "./styles/drawing-text-input.css";
+@import "./styles/drawings-overlay.css";
 @import "./styles/color-panel.css";
 @import "./styles/rail-panel.css";
 @import "./styles/panel-header.css";

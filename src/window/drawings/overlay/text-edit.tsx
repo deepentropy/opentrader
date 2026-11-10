@@ -106,12 +106,7 @@ export function createTextEdit(cx: OverlayCx): TextEditApi {
             value={te().value}
             maxLength={te().level != null ? 50 : undefined}
             placeholder={TEXT_PLACEHOLDER[te().kind] ?? "Text"}
-            style={{
-              position: "absolute",
-              left: `${te().pos.x}px`,
-              top: `${te().pos.y - 12}px`,
-              "z-index": 6,
-            }}
+            style={{ left: `${te().pos.x}px`, top: `${te().pos.y - 12}px` }}
             onInput={(e) => {
               const cur = textEdit();
               if (cur) setTextEdit({ ...cur, value: e.currentTarget.value });

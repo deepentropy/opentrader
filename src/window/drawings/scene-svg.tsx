@@ -133,7 +133,7 @@ export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string, 
           <text
             x={it.x} y={it.y} text-anchor={it.anchor} dominant-baseline={it.baseline}
             font-size={String(it.size)} font-weight={it.weight} font-style={it.fontStyle} font-family={it.family}
-            fill={it.fill} opacity={it.opacity} style={it.pre ? { "white-space": "pre" } : undefined} clip-path={clipUrl(it.clip)} pointer-events={pe(it.inert)}
+            fill={it.fill} opacity={it.opacity} class={it.pre ? "ot-svg-pre" : undefined} clip-path={clipUrl(it.clip)} pointer-events={pe(it.inert)}
           >
             {it.text}
           </text>
@@ -158,7 +158,7 @@ export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string, 
           ? it.glyph
           : `<span style="font-size:${it.size - 4}px;line-height:${it.size}px">${it.glyph}</span>`;
         return (
-          <foreignObject x={it.x} y={it.y} width={it.size} height={it.size} style={{ overflow: "visible" }} pointer-events={pe(it.inert)}>
+          <foreignObject class="drawing-font-icon-box" x={it.x} y={it.y} width={it.size} height={it.size} pointer-events={pe(it.inert)}>
             {/* eslint-disable-next-line */}
             <div class="drawing-font-icon-glyph" style={{ color: it.color }} innerHTML={html} />
           </foreignObject>

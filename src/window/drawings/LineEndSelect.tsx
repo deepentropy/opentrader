@@ -15,7 +15,7 @@ const END_OPTIONS: ReadonlyArray<readonly [0 | 1, string]> = [[0, "Normal"], [1,
 
 function EndIcon(props: { value: 0 | 1; mirrored: boolean }) {
   return (
-    <svg width="28" height="28" fill="none" style={{ transform: props.mirrored ? "scaleX(-1)" : undefined }} aria-hidden="true">
+    <svg width="28" height="28" fill="none" classList={{ "is-mirrored": props.mirrored }} aria-hidden="true">
       <path stroke="currentColor" d={END_ICONS[props.value]} />
     </svg>
   );

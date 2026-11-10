@@ -949,7 +949,7 @@ export function DrawingToolbar(props: Props) {
 
       {/* Flex spacer — pushes the favorites toggle to the very bottom of the
        *  rail; the toggle sits below Remove with a gap, not a separator. */}
-      <div style={{ flex: "1 1 auto" }} />
+      <div class="drawing-toolbar-spacer" />
 
       {/* Show / hide the floating favorite-drawing-tools toolbar (bottom of the
        *  rail). Mirrors the same `favoritesToolbarVisible` signal as the

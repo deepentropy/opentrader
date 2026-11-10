@@ -30,10 +30,10 @@
   z-index: 101;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-primary, #1f1f1f);
-  color: var(--color-main-text, #dbdbdb);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-  font-family: var(--font-family-base, sans-serif);
+  background: var(--color-bg-primary);
+  color: var(--color-main-text);
+  box-shadow: 0 6px 24px var(--ot-shadow-50);
+  font-family: var(--font-family-base);
   font-size: 14px;
   overflow: hidden;
 }
@@ -45,7 +45,7 @@
   height: 48px;
   flex-shrink: 0;
   padding: 6px 6px 3px;
-  border-bottom: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border-bottom: 1px solid var(--color-toolbar-divider-background);
 }
 
 .font-icon-picker-cat {
@@ -54,7 +54,7 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-size: 16px;
   cursor: pointer;
   padding: 0;
@@ -66,8 +66,8 @@
 .font-icon-picker-cat:hover { color: var(--ot-text-max); }
 
 .font-icon-picker-cat.active {
-  color: var(--color-ot-blue-500, #2962ff);
-  border-bottom-color: var(--color-ot-blue-500, #2962ff);
+  color: var(--color-ot-blue-500);
+  border-bottom-color: var(--color-ot-blue-500);
 }
 
 /* ── Scrollable glyph list (middle) ─────────────────────────────────────── */
@@ -83,7 +83,7 @@
   font-weight: 400;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--color-cold-gray-500, #808080);
+  color: var(--color-cold-gray-500);
 }
 
 .font-icon-picker-grid {
@@ -107,7 +107,7 @@
 .font-icon-picker-cell {
   background: transparent;
   border: none;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-size: 20px;
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -120,7 +120,7 @@
   line-height: 1;
 }
 
-.font-icon-picker-cell:hover { background: var(--color-bg-primary-hover, #2e2e2e); }
+.font-icon-picker-cell:hover { background: var(--color-bg-primary-hover); }
 
 /* Inline SVG glyph wrapper.  Icons inherit the cell colour via
    fill="currentColor"; stickers carry their own colours.  Emoji/icon glyphs
@@ -148,14 +148,14 @@
   height: 48px;
   flex-shrink: 0;
   padding: 0 6px 4px;
-  border-top: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border-top: 1px solid var(--color-toolbar-divider-background);
 }
 
 .font-icon-picker-tab {
   background: transparent;
   border: none;
   border-top: 2px solid transparent;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-size: 16px;
   cursor: pointer;
   padding: 0 12px;
@@ -164,8 +164,8 @@
 .font-icon-picker-tab:hover { color: var(--ot-text-max); }
 
 .font-icon-picker-tab.active {
-  color: var(--color-ot-blue-500, #2962ff);
-  border-top-color: var(--color-ot-blue-500, #2962ff);
+  color: var(--color-ot-blue-500);
+  border-top-color: var(--color-ot-blue-500);
 }
 
 /* Placed font-icon glyph on the chart overlay (inside an SVG foreignObject). */
