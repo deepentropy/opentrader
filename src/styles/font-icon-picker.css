@@ -22,10 +22,10 @@
  * tool submenus use. */
 .font-icon-picker {
   position: absolute;
-  inset-inline-start: 100%;
+  left: 100%; /* physical: the toolbar stays on the left right to left (#290) */
   top: 0;
   bottom: 0;
-  margin-inline-start: 1px;
+  margin-left: 1px;
   width: 354px;
   z-index: 101;
   display: flex;

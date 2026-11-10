@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import {
   endEdge,
   endSide,
+  fractionFromStart,
   inlineSign,
   isRtl,
   leftFromStart,
@@ -95,6 +96,14 @@ describe("reading direction (#290), right to left: mirrored", () => {
     const r = { ...box, top: 40, bottom: 74 };
     expect(anchorPoint(r)).toEqual({ x: 180, y: 74, endX: false, endY: false });
     expect(anchorPoint(r, { align: "end" })).toEqual({ x: 100, y: 74, endX: true, endY: false });
+  });
+});
+
+describe("fractionFromStart (#290)", () => {
+  it("measures a slider from its left edge, from its right edge right to left", () => {
+    expect(fractionFromStart(125, { left: 100, right: 200 })).toBe(0.25);
+    setDir("rtl");
+    expect(fractionFromStart(125, { left: 100, right: 200 })).toBe(0.75);
   });
 });
 

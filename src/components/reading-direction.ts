@@ -83,6 +83,15 @@ export function startAlignedClamped(r: Horizontal, width: number, windowWidth: n
 }
 
 /**
+ * How far along a horizontal track a pointer is, from its start edge (0) to its end edge (1), not clamped: a slider
+ * that fills from the right right to left (its track mirrored with `ot-flip-rtl`).
+ */
+export function fractionFromStart(clientX: number, r: Horizontal): number {
+  const width = Math.max(1, r.right - r.left);
+  return isRtl() ? (r.right - clientX) / width : (clientX - r.left) / width;
+}
+
+/**
  * A physical side given as "start" or "end" (or already physical) on the page's direction: a tooltip or a popover
  * placed beside its anchor on the end side.
  */

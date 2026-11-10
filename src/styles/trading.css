@@ -96,7 +96,7 @@ html.theme-light {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-inline-start: 4px solid var(--color-bg-secondary);
+  border-left: 4px solid var(--color-bg-secondary); /* physical: the ticket stays left of the rail (#290) */
   background: var(--ot-chart-bg);
   color: var(--trd-text-secondary);
   font-family: var(--trd-font);
@@ -470,7 +470,7 @@ html.theme-light {
 /* ─── Toasts ─── */
 .trd-toasts {
   position: fixed;
-  inset-inline-start: 64px;
+  left: 64px; /* physical: by the drawing toolbar, which stays left right to left (#290) */
   bottom: 48px;
   z-index: 250;
   display: flex;

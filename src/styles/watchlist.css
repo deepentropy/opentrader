@@ -271,7 +271,7 @@
   position: absolute;
   bottom: 0;
   width: 2px;
-  margin-inline-start: -1px;
+  margin-left: -1px; /* physical: centred on the `left` set from code */
   background-color: var(--color-ot-blue-a900);
   z-index: 50;
   pointer-events: none;

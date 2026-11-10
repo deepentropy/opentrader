@@ -9,6 +9,7 @@ import { createSignal, onCleanup, Show } from "solid-js";
 import { IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { saveDrawingImage } from "./image-store";
 import { DialogClose, createDialogKeys } from "../../components/Dialog";
+import { fractionFromStart } from "../../components/reading-direction";
 
 export type ImageDialogResult = { name: string; width: number; height: number; transparency: number };
 
@@ -141,13 +142,13 @@ export function TransparencySlider(props: { value: number; onChange: (t: number)
   const setFrom = (clientX: number) => {
     if (!track) return;
     const r = track.getBoundingClientRect();
-    const f = Math.max(0, Math.min(1, (clientX - r.left) / Math.max(1, r.width)));
+    const f = Math.max(0, Math.min(1, fractionFromStart(clientX, r)));
     props.onChange(Math.round(100 - 100 * f));
   };
   return (
     <div
       ref={track}
-      class={"ot-transparency" + (props.class ? ` ${props.class}` : "")}
+      class={"ot-transparency ot-flip-rtl" + (props.class ? ` ${props.class}` : "")}
       role="slider"
       aria-label="Transparency"
       aria-valuemin={0}

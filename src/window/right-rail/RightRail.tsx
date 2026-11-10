@@ -181,8 +181,8 @@ export function RightRail(props: Props) {
   return (
     <div
       ref={containerRef}
-      class="right-rail-container"
-      style={{ display: "flex", "flex-direction": "row", position: "relative", "--ot-rail-width": `${shownWidth()}px` }}
+      class="right-rail-container ot-panel-row"
+      style={{ display: "flex", position: "relative", "--ot-rail-width": `${shownWidth()}px` }}
     >
       <div class="rail-width-handle" role="separator" aria-orientation="vertical" onPointerDown={beginWidthResize} />
       <Show when={props.activeTab && fits()}>

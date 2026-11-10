@@ -39,7 +39,7 @@
   content: "";
   position: absolute;
   top: calc(50% - 2px);
-  inset-inline-start: 1px;
+  left: 1px; /* physical: toward the panel, which stays left of the strip (#290) */
   width: 4px;
   height: 4px;
   border-radius: 50%;

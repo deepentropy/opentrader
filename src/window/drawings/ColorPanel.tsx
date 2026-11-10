@@ -16,6 +16,7 @@ import { createSignal, For, Show } from "solid-js";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { COLOR_ROWS } from "./palette";
 import * as kv from "../../data/kv";
+import { fractionFromStart } from "../../components/reading-direction";
 import { applyOpacity, hexToRgb, parseColor } from "lightweight-charts-drawing/core/color";
 
 // Color helpers (hex or rgba() values) live in the drawing core.
@@ -106,7 +107,7 @@ export function ColorPanel(props: Props) {
   const trackFromEvent = (e: PointerEvent) => {
     if (!trackEl) return;
     const r = trackEl.getBoundingClientRect();
-    setOpacityBoth(((e.clientX - r.left) / r.width) * 100);
+    setOpacityBoth(fractionFromStart(e.clientX, r) * 100);
   };
   const onTrackDown = (e: PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -176,7 +177,7 @@ export function ColorPanel(props: Props) {
         <div class="cp-opacity">
           <div
             ref={trackEl}
-            class="cp-opacity-track"
+            class="cp-opacity-track ot-flip-rtl"
             role="slider"
             aria-label="Opacity"
             aria-valuemin={0}

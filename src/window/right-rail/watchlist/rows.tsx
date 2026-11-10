@@ -175,7 +175,8 @@ export function createRows(cx: WatchlistCx): RowsApi {
           const cell = () => cellFor(r, c.key);
           return (
             <div class={`watchlist-cell ${cell().tint ?? ""}`} style={{ "text-align": "end" }}>
-              {cell().text}
+              {/* A value: kept whole right to left (styles/rtl.css). */}
+              <span class="ot-value">{cell().text}</span>
             </div>
           );
         }}

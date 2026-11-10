@@ -1,0 +1,127 @@
+/*
+ * Right to left (#290). The page's direction is the language's (<html dir>); the styles use start and end, so a
+ * component mirrors by itself: its rows, menus, dialogs, switches. What this file adds is what must NOT simply
+ * mirror, as the reference behaves in Arabic and Hebrew:
+ *
+ * - the panels keep their places: drawing toolbar on the left, chart in the middle, order ticket, right rail,
+ *   screener and assistant on the right. Their rows lay out in reverse, which right to left is left to right,
+ *   while each panel still reads right to left inside;
+ * - the chart keeps its left-to-right geometry (price scale on the right, time running left to right, the legend
+ *   in the top-left corner); the text over it (legend rows, menus, the floating toolbar) reads right to left;
+ * - values stay whole: prices, percentages, volumes, times and key combinations are isolated left-to-right runs.
+ *
+ * `:dir(rtl)` follows the `dir` attribute, not the CSS direction set here, so it keeps matching inside the chart.
+ */
+
+/* ---- Panel arrangement --------------------------------------------------------------------------------------- */
+
+/* App rows (header + chart | screener | assistant; drawing toolbar | chart | ticket | right rail), the right rail
+   (panel | tab strip), and a side panel docked at the right (resize seam | panel). */
+.ot-panel-row:dir(rtl),
+.scr-split:not(.is-bottom):dir(rtl) {
+  flex-direction: row-reverse;
+}
+
+/* The drawing toolbar is a strip at the left edge: its tool arrows and flyouts face the chart on its right. The
+   flyouts' contents read right to left. */
+.drawing-toolbar:dir(rtl) {
+  direction: ltr;
+}
+.drawing-toolbar .ot-popover:dir(rtl),
+.drawing-toolbar .font-icon-picker:dir(rtl) {
+  direction: rtl;
+}
+
+/* ---- Chart ---------------------------------------------------------------------------------------------------- */
+
+/* The chart and what is drawn or placed over it keep their left-to-right layout. */
+.chart-grid:dir(rtl) {
+  direction: ltr;
+}
+/* Text read over the chart: the legend's rows (series and studies), its menus and popovers, the floating toolbar
+   of a selected drawing, the event cards and hints, the unsupported-interval card. */
+.chart-grid .ot-legend-item:dir(rtl),
+.chart-grid .ot-ind-legend-row:dir(rtl),
+.chart-grid .ot-chart-ctx-menu:dir(rtl),
+.chart-grid .ot-popover:dir(rtl),
+.chart-grid .selected-toolbar:dir(rtl),
+.chart-grid .ot-event-card:dir(rtl),
+.chart-grid .chart-event-hint:dir(rtl),
+.chart-grid .ot-interval-unsupported:dir(rtl) {
+  direction: rtl;
+}
+/* Each O / H / L / C and its value stay one Latin unit; the row of them runs right to left. */
+.ot-legend-value-item:dir(rtl),
+.ot-ind-legend-val:dir(rtl) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---- Controls ------------------------------------------------------------------------------------------------- */
+
+/* Switches: on moves the knob toward the end side. Track and knob are symmetric, so the whole switch is mirrored. */
+.ind3-switch:dir(rtl),
+.header-menu-switch:dir(rtl),
+.profile-menu-toggle:dir(rtl),
+.switch-view:dir(rtl),
+.trd-switch:dir(rtl),
+.wl-settings-switch:dir(rtl),
+.ot-replay-switch:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+/* The native select's chevron (a background image) at the end side. */
+.drawing-settings-select:dir(rtl) {
+  padding: 0 8px 0 26px;
+  background-position: left 4px center;
+}
+
+/* A watchlist column's divider at its end edge (the drag follows: watchlist/columns.tsx). */
+.watchlist-col-resize:dir(rtl) {
+  right: auto;
+  left: -12px;
+}
+
+/* The screener's sticky symbol column: its shadow fades toward the end side. */
+.scr-table-scroll.is-scrolled-x .scr-td-symbol:dir(rtl)::before,
+.scr-table-scroll.is-scrolled-x .scr-th-symbol:dir(rtl)::before {
+  transform: scaleX(-1);
+}
+
+/* ---- Values inside right-to-left text ------------------------------------------------------------------------ */
+
+/* Shown values: kept whole wherever they sit in a right-to-left sentence or row ("-5.81%", not "5.81%-"; the
+   reference marks prices and percentages, volumes too here). Each is isolated and takes its direction from its own
+   text: a number runs left to right, a translated word (a rating, a sector) right to left. Western digits always:
+   the formats don't change with the direction. `ot-value` is the class for a value element. */
+.ot-value:dir(rtl),
+.watchlist-tile-last:dir(rtl),
+.watchlist-tile-change:dir(rtl),
+.watchlist-tile-pct:dir(rtl),
+.watchlist-detail-price:dir(rtl),
+.watchlist-detail-ext-price:dir(rtl),
+.watchlist-detail-change:dir(rtl),
+.watchlist-detail-stat-value:dir(rtl),
+.scr-td > span:dir(rtl),
+.st-value:dir(rtl),
+.st-change:dir(rtl) {
+  unicode-bidi: plaintext;
+}
+.ot-legend-value-value:dir(rtl),
+.ot-legend-change:dir(rtl) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Key combinations read as typed ("Ctrl + /", not "/ + Ctrl"). */
+.ot-tooltip-hotkey-block:dir(rtl),
+.ot-chart-ctx-shortcut:dir(rtl),
+.drawing-tool-submenu-hotkey:dir(rtl),
+.header-menu-hotkey:dir(rtl),
+.profile-menu-hotkey:dir(rtl),
+.ot-menu-item__hotkey:dir(rtl),
+.dt-menu-shortcut:dir(rtl),
+.tab-menu-item-hotkey:dir(rtl) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

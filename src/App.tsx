@@ -694,8 +694,9 @@ function App() {
       </div>
       {/* Main layout (header toolbar + chart area) | screener split view.
           The split view takes its width from the right; in its fullscreen
-          mode the main layout is hidden (kept mounted). */}
-      <div class="flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0, position: "relative" }}>
+          mode the main layout is hidden (kept mounted). The panels keep their
+          places right to left (ot-panel-row, styles/rtl.css). */}
+      <div class="ot-panel-row flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0, position: "relative" }}>
       <div
         class="flex flex-1 flex-col"
         style={{
@@ -745,7 +746,7 @@ function App() {
           Mirrors the mock's `.chart-area` (App.tsx) so the right rail spans
           the full height and the bottom bar lives inside the chart-pane. */}
       <div
-        class="flex flex-1 flex-row"
+        class="ot-panel-row flex flex-1 flex-row"
         style={{
           "min-height": 0,
           "min-width": 0,

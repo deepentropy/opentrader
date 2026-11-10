@@ -119,7 +119,8 @@ export function ScreenerTable(props: Props) {
   let lastReset = props.resetKey;
   const onScroll = () => {
     setScrollTop(scroller.scrollTop);
-    setScrolledX(scroller.scrollLeft > 0);
+    // Right to left, scrollLeft runs from 0 to negative values.
+    setScrolledX(Math.abs(scroller.scrollLeft) > 0);
     const r = range();
     props.ctl.setVisible(r.first, Math.max(r.first, r.last));
   };

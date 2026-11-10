@@ -23,7 +23,7 @@
 .scr-split.is-overlay {
   position: absolute;
   top: 0;
-  inset-inline-end: 0;
+  right: 0; /* physical: at the window's right edge right to left too (#290) */
   bottom: 0;
   z-index: 20;
   height: auto;

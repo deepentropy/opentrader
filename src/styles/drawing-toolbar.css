@@ -140,7 +140,8 @@
 .drawing-tool-submenu {
   position: absolute;
   top: 0;
-  inset-inline-start: calc(100% + 1px);
+  /* Physical: the toolbar stays on the left right to left too (#290). */
+  left: calc(100% + 1px);
   /* Flyouts are content-sized per group (190px for Annotation up to 354px for
    * Icons); 190 is the floor so short menus shrink. */
   min-width: 190px;

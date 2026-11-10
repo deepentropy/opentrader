@@ -6,6 +6,7 @@
  */
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import * as kv from "../../../data/kv";
+import { inlineSign } from "../../../components/reading-direction";
 import { COL_WIDTHS_KEY, DEFAULT_COL_W, DEFAULT_SYMBOL_W, MAX_COL_W, MIN_COL_W, SYMBOL_COL_KEY, loadColWidths } from "./prefs";
 import { type WatchlistCx } from "./context";
 import { setWatchlistNeed, tableWidth } from "./need-width";
@@ -67,7 +68,8 @@ export function createColumns(cx: WatchlistCx): ColumnsApi {
     resizing = true;
     showGuide(handle);
     const onMove = (ev: PointerEvent) => {
-      const w = Math.max(min, Math.min(max, startW + (ev.clientX - startX)));
+      // The divider is at the column's end edge: the left one right to left.
+      const w = Math.max(min, Math.min(max, startW + (ev.clientX - startX) * inlineSign()));
       setColWidths((prev) => ({ ...prev, [key]: w }));
       showGuide(handle);
     };

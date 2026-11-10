@@ -90,7 +90,7 @@
  * slides in from the left and fades out, 0.5 s each. */
 .alert-toasts {
   position: fixed;
-  inset-inline-start: 56px;
+  left: 56px; /* physical: by the drawing toolbar, which stays left right to left (#290); slides in from it */
   bottom: 0;
   z-index: 400;
   box-sizing: border-box;
