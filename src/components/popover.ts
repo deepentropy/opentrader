@@ -7,14 +7,16 @@
  */
 import { onCleanup, onMount } from "solid-js";
 import { fitToWindow } from "./menu-fit";
+import { endEdge, startEdge } from "./reading-direction";
 
-/** A point is the popover's corner (`endX` / `endY`: its right / bottom edge, a menu opened left of or above it). */
+/** A point is the popover's start corner (`endX` / `endY`: its end / bottom edge, a menu opened toward the start
+ *  side or above it). Start and end follow the reading direction (fitToWindow). */
 export type PopoverPoint = { x: number; y: number; endX?: boolean; endY?: boolean };
 
 export type PopoverPlacement = {
   /** Under the anchor (default) or above it. */
   side?: "below" | "above";
-  /** Left edges aligned (default) or right edges. */
+  /** Start edges aligned (default) or end edges: left or right, right or left right to left. */
   align?: "start" | "end";
   /** Space between the anchor and the popover, px. */
   gap?: number;
@@ -50,7 +52,7 @@ export function anchorPoint(r: { left: number; right: number; top: number; botto
   const gap = p.gap ?? 0;
   const end = p.align === "end";
   const above = p.side === "above";
-  return { x: end ? r.right : r.left, y: above ? r.top - gap : r.bottom + gap, endX: end, endY: above };
+  return { x: end ? endEdge(r) : startEdge(r), y: above ? r.top - gap : r.bottom + gap, endX: end, endY: above };
 }
 
 /** Wires a popover; returns the ref for the popover element. */

@@ -21,6 +21,7 @@ import { type Drawing, type LineStyle } from "lightweight-charts-drawing/core/ty
 import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault, type DrawingTemplate } from "./templates";
 import { Icon } from "../../components/Icon";
+import { startEdge } from "../../components/reading-direction";
 import { ColorPopover, FontSizePopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
 import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, type Group } from "./toolbar-groups";
 import * as kv from "../../data/kv";
@@ -689,7 +690,8 @@ export function SelectedToolbar(props: Props) {
             aria-expanded={openPopover() === "more"}
             onClick={(e) => {
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setMoreAt({ x: r.left, y: r.bottom });
+              // Under the button, start edges aligned (fitToWindow).
+              setMoreAt({ x: startEdge(r), y: r.bottom });
               toggle("more");
             }}
           >

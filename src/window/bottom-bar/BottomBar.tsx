@@ -13,6 +13,7 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { createPopover } from "../../components/popover";
+import { isRtl } from "../../components/reading-direction";
 import { Tooltip } from "../../components/Tooltip";
 import { TimezoneMenu } from "./TimezoneMenu";
 import { SessionMenu, type SessionId } from "./SessionMenu";
@@ -433,7 +434,8 @@ function RangesMenu(props: {
   onMount(() => {
     const r = root.getBoundingClientRect();
     setPos({
-      left: Math.min(props.anchor.left, window.innerWidth - r.width - 8),
+      // Start edges aligned (right edges right to left), 8 px inside the window's end edge.
+      left: isRtl() ? Math.max(8, props.anchor.right - r.width) : Math.min(props.anchor.left, window.innerWidth - r.width - 8),
       top: Math.max(8, props.anchor.top - r.height - 4),
     });
   });

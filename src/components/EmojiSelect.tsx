@@ -12,6 +12,7 @@ import { Tooltip } from "./Tooltip";
 import { EMOJI_GROUPS } from "./emoji-groups";
 import { EmojiImage } from "./emoji-images";
 import { createPopover } from "../components/popover";
+import { startAlignedClamped } from "./reading-direction";
 
 export { separateEmoji } from "./emoji-images";
 
@@ -185,7 +186,7 @@ function EmojiPicker(props: { anchor: HTMLElement; recent: string[]; onSelect: (
   const r = props.anchor.getBoundingClientRect();
   const W = 354;
   const H = 330;
-  const left = Math.max(0, Math.min(r.left, window.innerWidth - W));
+  const left = startAlignedClamped(r, W, window.innerWidth);
   const top = r.bottom + H <= window.innerHeight ? r.bottom : Math.max(0, r.top - H);
   // Scrolling marks the group at the top of the list; a tab click scrolls to its group.
   let jumping = false;

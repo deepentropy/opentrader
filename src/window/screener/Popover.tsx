@@ -4,7 +4,8 @@
  * 32px rows (48px with a description line), 6px row radius, hover #2e2e2e,
  * selected #f2f2f2 / #0f0f0f text, 11px #8c8c8c section titles.
  *
- * The popover opens under its anchor, left aligned, with no gap, and is
+ * The popover opens under its anchor, start aligned (left, right in right to
+ * left), with no gap, and is
  * clamped into the window. Outside press and Escape close it; a press on the
  * anchor is left to the anchor (so the anchor toggles).
  */
@@ -12,6 +13,7 @@ import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { createPopover } from "../../components/popover";
+import { startAlignedLeft } from "../../components/reading-direction";
 
 type PopoverProps = {
   anchor: HTMLElement | undefined;
@@ -20,7 +22,7 @@ type PopoverProps = {
   /** Fixed width (px); otherwise the content decides. */
   width?: number;
   maxHeight?: number;
-  /** Extra x/y offset from the anchor's bottom-left corner. */
+  /** Extra x/y offset from the anchor's bottom start corner (x toward the end side). */
   offset?: { x: number; y: number };
   children: JSX.Element;
 };
@@ -38,11 +40,10 @@ export function Popover(props: PopoverProps) {
     el.style.maxHeight = `${Math.min(max, H)}px`;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    let x = r.left + (props.offset?.x ?? 0);
+    const x = startAlignedLeft(r, w, W, props.offset?.x ?? 0);
     let y = r.bottom + (props.offset?.y ?? 0);
-    if (x + w > W) x = Math.max(0, r.right - w);
     if (y + h > H) y = Math.max(0, Math.min(H - h, r.top - h));
-    el.style.left = `${Math.max(0, x)}px`;
+    el.style.left = `${x}px`;
     el.style.top = `${Math.max(0, y)}px`;
   };
 

@@ -10,6 +10,7 @@
  */
 import { onMount, For, Show, createSignal } from "solid-js";
 import { createPopover } from "../../components/popover";
+import { menuLeftAt } from "../../components/reading-direction";
 import { Icon, type IconName } from "../../components/Icon";
 import { LINK_PALETTE, type LinkChannel, type LinkColor, type TabLinkingState } from "./tab-linking";
 import { translateAs } from "../../i18n/translator";
@@ -61,9 +62,9 @@ export function TabContextMenu(props: Props) {
   onMount(() => {
     // Clamp into the viewport after first paint.
     const r = root.getBoundingClientRect();
-    let left = a.x;
+    // At the pointer, opening toward the end side (left, right to left).
+    const left = menuLeftAt(a.x, r.width, window.innerWidth, 4);
     let top = a.y;
-    if (left + r.width > window.innerWidth - 4) left = Math.max(4, window.innerWidth - r.width - 4);
     if (top + r.height > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 4);
     setPos({ left, top });
   });

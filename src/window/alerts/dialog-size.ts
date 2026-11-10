@@ -9,10 +9,12 @@
  *  - when the content changes (another view, a row shown or hidden) the
  *    height follows it at once; a dialog that grows is moved back into the
  *    window if it would cross an edge, one that shrinks stays where it is
- *    (top left kept).
+ *    (top left kept, top right right to left).
  * The soft minimum, hard minimum / maximum and the guards are CSS custom
  * properties of the dialog element (see alert-dialog.css).
  */
+
+import { isRtl } from "../../components/reading-direction";
 
 export type DialogLimits = {
   /** Soft minimum of the body (the window can make the dialog smaller). */
@@ -53,6 +55,11 @@ export function keepInWindow(box: DialogBox, lim: DialogLimits, winW: number, wi
   const maxX = Math.max(winW - box.width - lim.guardX, lim.guardX);
   const maxY = Math.max(winH - box.height - lim.guardY, lim.guardY);
   return { ...box, x: clamp(box.x, lim.guardX, maxX), y: clamp(box.y, lim.guardY, maxY) };
+}
+
+/** The box at a new size, its start corner kept: top left, top right right to left (the dialog reads right to left). */
+export function resizedBox(box: DialogBox, width: number, height: number, rtl: boolean): DialogBox {
+  return { ...box, x: rtl ? box.x + box.width - width : box.x, width, height };
 }
 
 function cssPx(style: CSSStyleDeclaration, name: string): number | null {
@@ -114,8 +121,8 @@ export function attachDialogSize(dialog: HTMLElement): () => void {
     const capped = height < full;
     const width = dialog.getBoundingClientRect().width;
     if (!box) apply(keepInWindow(centredBox(width, height, lim, winW, winH), lim, winW, winH), capped);
-    else if (full > lastFull) apply(keepInWindow({ ...box, width, height }, lim, winW, winH), capped);
-    else if (full < lastFull || height !== box.height) apply({ ...box, width, height }, capped);
+    else if (full > lastFull) apply(keepInWindow(resizedBox(box, width, height, isRtl()), lim, winW, winH), capped);
+    else if (full < lastFull || height !== box.height) apply(resizedBox(box, width, height, isRtl()), capped);
     lastFull = full;
   };
   const schedule = () => {

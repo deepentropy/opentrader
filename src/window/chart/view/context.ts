@@ -175,6 +175,7 @@ export type ChartViewProps = {
 };
 
 /** An open chart menu: position, rows, and how it is anchored. */
+/** `endX`: x is the menu's end edge (fitToWindow, start and end follow the reading direction). */
 export type ChartMenuState = { x: number; y: number; nodes: CtxNode[]; endX?: boolean; endY?: boolean; corner?: boolean };
 
 /** State and functions ChartView itself owns. */

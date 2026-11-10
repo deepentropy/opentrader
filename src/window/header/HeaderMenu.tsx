@@ -40,6 +40,7 @@ import {
 import { getLayout, OPEN_LAYOUT_PREFIX, toggleFavoriteLayout } from "../../data/layout-store";
 import type { HeaderMenuDef } from "./header-menus/registry";
 import { createPopover } from "../../components/popover";
+import { isRtl } from "../../components/reading-direction";
 
 type Props = {
   /** Whether the active symbol has bars on an interval row (false: greyed; an economic series below D). */
@@ -85,10 +86,18 @@ export function HeaderMenu(props: Props) {
 
   // Positioning — below the anchor, horizontally flipped if it would overflow
   // the viewport's right edge (buttons at x > 1300 with a 428px-wide menu).
+  // Right to left the same, mirrored: right edges aligned, flipped at the
+  // viewport's left edge.
   createEffect(() => {
     const a = props.anchor;
     const w = props.menu.width;
     const margin = 4;
+    if (isRtl()) {
+      let right = a.right;
+      if (right - w - margin < 0) right = Math.min(window.innerWidth - margin, a.left + w);
+      setPos({ top: a.bottom + 2, left: right - w });
+      return;
+    }
     let left = a.left;
     const overflow = left + w - window.innerWidth + margin;
     if (overflow > 0) left = Math.max(margin, a.right - w);

@@ -10,12 +10,14 @@ import { Show, createSignal, type JSX } from "solid-js";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { ColorPanel } from "../../window/drawings/ColorPanel";
 import { createPopover } from "../popover";
+import { startAlignedClamped } from "../reading-direction";
 
 /** Fixed host of the colour panel under its trigger. */
 function ColorPanelHost(props: { anchor: () => HTMLElement | undefined; class: string; onDismiss: () => void; children: JSX.Element }) {
   const popover = createPopover(props.anchor, { onClose: props.onDismiss, placement: false });
   const r = props.anchor()?.getBoundingClientRect();
-  const left = Math.max(8, Math.min(r?.left ?? 0, window.innerWidth - 258));
+  // 250 px wide, start edges aligned, 8 px inside the window.
+  const left = startAlignedClamped(r ?? { left: 0, right: 0 }, 250, window.innerWidth, 8);
   const top = Math.min((r?.bottom ?? 0) + 4, window.innerHeight - 120);
   return (
     <div ref={popover} class={props.class} style={{ position: "fixed", left: `${left}px`, top: `${top}px`, "max-height": `${window.innerHeight - top - 8}px` }}>

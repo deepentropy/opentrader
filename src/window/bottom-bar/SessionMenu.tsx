@@ -7,6 +7,7 @@
 import { For, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { createPopover } from "../../components/popover";
+import { isRtl } from "../../components/reading-direction";
 // Canonical session type lives in the data layer (where the filtering happens);
 // re-exported here so existing importers (BottomBar) keep their import path.
 import type { SessionId } from "../../data/datafeed";
@@ -33,7 +34,8 @@ export function SessionMenu(props: Props) {
       const popH = popupRef.offsetHeight;
       const popW = popupRef.offsetWidth;
       const M = 4;
-      let left = Math.round(props.anchor.right - popW);
+      // End edges aligned with the button (left edges right to left).
+      let left = Math.round(isRtl() ? props.anchor.left : props.anchor.right - popW);
       let top = Math.round(props.anchor.top - popH - M);
       if (left < M) left = M;
       if (left + popW > window.innerWidth - M) left = window.innerWidth - popW - M;

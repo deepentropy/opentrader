@@ -10,6 +10,7 @@ import { MAIN_SOURCE_ID } from "../object-tree-sources";
 import { statusLineInputs } from "../indicators/indicator-options";
 import { crosshairLockTime, setCrosshairLockTime } from "../crosshair-lock";
 import { Icon } from "../../../components/Icon";
+import { isRtl } from "../../../components/reading-direction";
 import { clipboardSource, hasClipboardContent, pasteAllAsNew } from "../../drawings/clipboard";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { chartTemplates } from "../../header/chart-templates";
@@ -268,10 +269,12 @@ export function createMenus(cx: ChartCx): MenusApi {
     nodes.push({ kind: "separator" });
     nodes.push(moreScaleSettingsNode());
     // Corner button: the menu opens above the button, flush with its outer
-    // edge (right edge on a right scale, left edge on a left one).
+    // edge (right edge on a right scale, left edge on a left one). The chart
+    // keeps its sides right to left: the physical edge is the menu's end
+    // edge, or its start edge right to left (fitToWindow).
     if (corner) {
       const left = (targetSide ?? t.scalesPlacement) === "left";
-      setCtxMenu({ x: left ? corner.left : corner.right, y: corner.top, endX: !left, endY: true, corner: true, nodes });
+      setCtxMenu({ x: left ? corner.left : corner.right, y: corner.top, endX: left === isRtl(), endY: true, corner: true, nodes });
       return;
     }
     setCtxMenu({ x: e.clientX, y: e.clientY, nodes });

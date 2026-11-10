@@ -38,6 +38,7 @@ import type { WatchList } from "../../data/watchlist-store";
 /** The 7 flag colours, in `data-color` order. */
 import { FLAG_COLORS, flagOf } from "../../data/symbol-flags";
 import { createPopover } from "../../components/popover";
+import { isRtl, menuLeftAt } from "../../components/reading-direction";
 import { translateWith } from "../../i18n/translator";
 
 const ICON_PLUS =
@@ -65,9 +66,9 @@ function useMenuShell(
   onMount(() => {
     const root = rootRef();
     const r = root.getBoundingClientRect();
-    let left = getXY().x;
+    // At the pointer, opening toward the end side (left, right to left).
+    const left = menuLeftAt(getXY().x, r.width, window.innerWidth, 4);
     let top = getXY().y;
-    if (left + r.width > window.innerWidth - 4) left = Math.max(4, window.innerWidth - r.width - 4);
     if (top + r.height > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 4);
     setPos({ left, top });
     window.addEventListener("scroll", onClose, true);
@@ -122,7 +123,8 @@ export function WatchlistContextMenu(props: Props) {
   const [listsOpen, setListsOpen] = createSignal(false);
   // The menu lives in the right rail — flip the submenu to the LEFT whenever
   // a right-side opening would leave the viewport (the default layout always
-  // would: root right edge ≈ innerWidth).
+  // would: root right edge ≈ innerWidth). Right to left it opens on the left
+  // (the end side) unless that would leave the viewport.
   const [listsLeft, setListsLeft] = createSignal(false);
 
   const sym = () => props.row?.short ?? "";
@@ -181,7 +183,7 @@ export function WatchlistContextMenu(props: Props) {
         class="watchlist-ctx-submenu"
         onPointerEnter={(e) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          setListsLeft(r.right + 320 > window.innerWidth - 4);
+          setListsLeft(isRtl() ? r.left - 320 >= 4 : r.right + 320 > window.innerWidth - 4);
           setListsOpen(true);
         }}
         onPointerLeave={() => setListsOpen(false)}
@@ -196,7 +198,7 @@ export function WatchlistContextMenu(props: Props) {
         >
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_LIST_ADD} />
           <span class="ot-menu-item__label">{multi() ? "Add all selected to" : translateWith("Add {0} to watchlist", sym())}</span>
-          <span class="ot-menu-item__submenu-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
+          <span class="ot-menu-item__submenu-arrow ot-flip-rtl" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
         </button>
         <Show when={listsOpen()}>
           <div

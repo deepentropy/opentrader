@@ -17,6 +17,7 @@ import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { currentLanguage, currentLanguageLabel, menuLanguages, setLanguage } from "../../i18n/language";
 import { createPopover } from "../../components/popover";
+import { isRtl, startAlignedClamped } from "../../components/reading-direction";
 
 type Row =
   | { type: "sep" }
@@ -82,13 +83,23 @@ export function ProfileMenu(props: Props) {
     on: { target: "window", capture: false },
   });
 
+  // Under the button, start edges aligned (right edges right to left), 8 px inside the window.
+  const menuLeft = () => startAlignedClamped(props.anchor, 260, window.innerWidth, 8);
+  // The language list beside the menu on the end side.
+  const languagesSide = () => {
+    const r = root.getBoundingClientRect();
+    return isRtl()
+      ? { right: `${Math.round(document.documentElement.clientWidth - r.left)}px` }
+      : { left: `${Math.round(r.right)}px` };
+  };
+
   return (
     <div
       ref={(el) => { root = el; popover(el); }}
       class="ot-popover profile-menu"
       role="menu"
       aria-label="Main menu"
-      style={{ position: "fixed", left: `${Math.round(Math.max(8, Math.min(props.anchor.left, window.innerWidth - 260 - 8)))}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
+      style={{ position: "fixed", left: `${Math.round(menuLeft())}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
     >
       {/* Update downloaded: the reference app's "Relaunch to update" row, above Settings. */}
       <Show when={updateReady()}>
@@ -152,7 +163,7 @@ export function ProfileMenu(props: Props) {
             role="menu"
             aria-label="Language"
             data-no-translate
-            style={{ position: "fixed", left: `${Math.round(root.getBoundingClientRect().right)}px`, top: `${Math.round(row().getBoundingClientRect().top)}px` }}
+            style={{ position: "fixed", ...languagesSide(), top: `${Math.round(row().getBoundingClientRect().top)}px` }}
           >
             <For each={menuLanguages()}>
               {(l) => (
@@ -163,7 +174,8 @@ export function ProfileMenu(props: Props) {
                   class={`profile-menu-language${currentLanguage() === l.id ? " is-current" : ""}`}
                   onClick={() => void setLanguage(l.id)}
                 >
-                  {l.name}
+                  {/* Each name in its own language, so in its own direction. */}
+                  <bdi dir={l.direction}>{l.name}</bdi>
                 </button>
               )}
             </For>

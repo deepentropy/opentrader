@@ -87,7 +87,7 @@ export function MenuRows(props: { rows: MenuRow[]; onClose: () => void }) {
           </button>
         );
         return r.disabled ? (
-          <Tooltip text={r.disabled} side="right">
+          <Tooltip text={r.disabled} side="end">
             {row}
           </Tooltip>
         ) : (

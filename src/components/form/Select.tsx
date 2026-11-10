@@ -8,14 +8,19 @@
  */
 import { For, Show, createSignal, onMount, type JSX } from "solid-js";
 import { createPopover } from "../popover";
+import { isRtl } from "../reading-direction";
 import { CheckBox } from "./CheckBox";
 import { Chevron } from "./glyphs";
 
-type Anchor = { left: number; top: number; bottom: number; width: number };
+type Anchor = { left: number; right: number; top: number; bottom: number; width: number };
 const anchorOf = (el: HTMLElement): Anchor => {
   const r = el.getBoundingClientRect();
-  return { left: r.left, top: r.top, bottom: r.bottom, width: r.width };
+  return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
 };
+
+/** The menu's start edge on the trigger's: its left, its right right to left (the menu may be wider). */
+const startOf = (a: Anchor): JSX.CSSProperties =>
+  isRtl() ? { right: `${document.documentElement.clientWidth - a.right}px` } : { left: `${a.left}px` };
 
 function OptionsMenu(props: {
   anchor: Anchor;
@@ -38,7 +43,7 @@ function OptionsMenu(props: {
       ref={(el) => { ref = el; popover(el); }}
       class="cp3-menu"
       role={props.role ?? "listbox"}
-      style={{ left: `${props.anchor.left}px`, top: `${top()}px`, "min-width": `${props.anchor.width}px` }}
+      style={{ ...startOf(props.anchor), top: `${top()}px`, "min-width": `${props.anchor.width}px` }}
     >
       {props.children}
     </div>

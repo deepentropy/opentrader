@@ -10,6 +10,7 @@
 import { createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { createPopover } from "../../components/popover";
 import { fitMenuRef } from "../../components/menu-fit";
+import { endEdge, inlineSign } from "../../components/reading-direction";
 import { contextMenuShown } from "./menu-escape";
 
 // ── Menu model ──
@@ -154,7 +155,7 @@ const CheckGlyph = () => (
 
 // The submenu chevron (a 10×16 glyph in the trailing cell).
 const SubmenuArrow = () => (
-  <svg viewBox="0 0 10 16" width="6" height="10" class="ot-chart-ctx-arrow" aria-hidden="true">
+  <svg viewBox="0 0 10 16" width="6" height="10" class="ot-chart-ctx-arrow ot-flip-rtl" aria-hidden="true">
     <path fill="currentColor" d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
   </svg>
 );
@@ -162,7 +163,7 @@ const SubmenuArrow = () => (
 type Props = {
   x: number;
   y: number;
-  /** (x, y) is the menu's right / bottom edge (a menu opened above its anchor). */
+  /** (x, y) is the menu's end / bottom edge (a menu opened above its anchor); see fitToWindow. */
   endX?: boolean;
   endY?: boolean;
   nodes: CtxNode[];
@@ -214,7 +215,8 @@ export function ChartContextMenu(props: Props) {
             if (n.submenu) {
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
               setOpenSub(n.id);
-              setSubPos({ left: r.right - 2, top: r.top - 6 });
+              // Beside the row on the end side, overlapping it by 2 px.
+              setSubPos({ left: endEdge(r) - 2 * inlineSign(), top: r.top - 6 });
             } else if (!isSub) {
               setOpenSub(null);
             }

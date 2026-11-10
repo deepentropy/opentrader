@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centredBox, fitHeight, keepInWindow, type DialogLimits } from "../dialog-size";
+import { centredBox, fitHeight, keepInWindow, resizedBox, type DialogLimits } from "../dialog-size";
 
 const LIM: DialogLimits = { softMinBody: 170, minBody: null, maxBody: null, guardX: 0, guardY: 0 };
 
@@ -30,5 +30,15 @@ describe("alert dialog place", () => {
   });
   it("a dialog taller than the window sits at the top guard", () => {
     expect(keepInWindow({ x: 0, y: 300, width: 480, height: 1200 }, { ...LIM, guardY: 10 }, 1920, 998)).toMatchObject({ y: 10 });
+  });
+});
+
+describe("alert dialog resized (#290)", () => {
+  const box = { x: 700, y: 100, width: 480, height: 300 };
+  it("keeps its top left, left to right", () => {
+    expect(resizedBox(box, 400, 350, false)).toEqual({ x: 700, y: 100, width: 400, height: 350 });
+  });
+  it("keeps its top right, right to left", () => {
+    expect(resizedBox(box, 400, 350, true)).toEqual({ x: 780, y: 100, width: 400, height: 350 });
   });
 });

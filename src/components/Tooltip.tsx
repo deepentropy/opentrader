@@ -14,8 +14,11 @@
  */
 import { createSignal, onCleanup, Show, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
+import { physicalSide } from "./reading-direction";
 
-export type TooltipSide = "top" | "bottom" | "left" | "right";
+/** Where the tooltip sits against its anchor; "start" / "end" follow the reading direction (left / right, right /
+ *  left right to left). The panels at a fixed side (drawing toolbar, right rail tabs) use left / right. */
+export type TooltipSide = "top" | "bottom" | "left" | "right" | "start" | "end";
 
 interface Props {
   text: string;
@@ -77,7 +80,7 @@ export function Tooltip(props: Props) {
   };
   onCleanup(clear);
 
-  const side = () => props.side ?? "right";
+  const side = () => physicalSide(props.side ?? "right");
   const hasHotkey = () => !!(props.hotkey || props.hotkeyText);
   const width = () => props.width ?? "normal";
 
