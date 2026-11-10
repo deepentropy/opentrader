@@ -58,8 +58,8 @@
 
 /* Active header action (e.g. Settings popover open). */
 .watchlist .ot-icon-button.is-active {
-  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
-  color: var(--color-main-text, #dbdbdb);
+  background-color: var(--color-toolbar-button-background-hover);
+  color: var(--color-main-text);
 }
 
 .watchlist-name-label {
@@ -110,9 +110,9 @@
   font: inherit;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-main-text, #dbdbdb);
-  background: var(--color-input-background, var(--ot-chart-bg, #0f0f0f));
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  color: var(--color-main-text);
+  background: var(--ot-chart-bg);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 4px;
   outline: none;
 }
@@ -149,7 +149,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border: 1px solid var(--color-toolbar-divider-background);
 }
 .watchlist-tab.active .watchlist-tab-round {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
@@ -164,10 +164,10 @@
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .watchlist-tab.active .watchlist-tab-initial {
-  color: var(--color-cold-gray-800, #2e2e2e);
+  color: var(--color-cold-gray-800);
 }
 .watchlist-tab .watchlist-flag {
   display: inline-flex;
@@ -197,10 +197,10 @@
   align-items: center;
   padding: 0 12px 0 0;
   gap: 4px;
-  border-bottom: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-bottom: 1px solid var(--color-divider-line-primary);
   /* Labels are --color-text-secondary (#8c8c8c): the header CELL computes
    * #dbdbdb, but the label inside it overrides to text-secondary. */
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary);
   font-size: 14px;
   font-weight: 400;
   line-height: 18px;
@@ -251,7 +251,7 @@
   bottom: 0;
   left: calc(50% - 0.5px);
   width: 1px;
-  background-color: var(--color-border, #3d3d3d);
+  background-color: var(--color-border);
   display: none;
 }
 .watchlist-column-headers:hover .watchlist-col-resize::before {
@@ -260,7 +260,7 @@
 .watchlist-col-resize:hover::before {
   left: calc(50% - 1px);
   width: 2px;
-  background-color: var(--color-brand, #2962ff);
+  background-color: var(--color-brand);
 }
 
 /* Guide under a hovered or dragged divider: 2px blue-a900 (#132042) dark,
@@ -271,12 +271,12 @@
   bottom: 0;
   width: 2px;
   margin-left: -1px;
-  background-color: var(--color-ot-blue-a900, #132042);
+  background-color: var(--color-ot-blue-a900);
   z-index: 50;
   pointer-events: none;
 }
 html.theme-light .watchlist-col-guide {
-  background-color: var(--color-ot-blue-50, #e3effd);
+  background-color: var(--color-ot-blue-50);
 }
 
 /* Flag-sort button (12px gutter, 26px tall) with the row flag glyph at 12×13
@@ -300,14 +300,14 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-cold-gray-700, #4a4a4a);
+  color: var(--color-cold-gray-700);
   cursor: default;
 }
 .watchlist-column-flag-btn:hover {
-  color: var(--color-cold-gray-600, #636363);
+  color: var(--color-cold-gray-600);
 }
 .watchlist-column-flag-btn:focus-visible {
-  outline: 2px solid var(--color-ot-blue-500, #2962ff);
+  outline: 2px solid var(--color-ot-blue-500);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -353,13 +353,13 @@ html.theme-light .watchlist-col-guide {
   justify-content: flex-end;
 }
 .watchlist-column-label:hover {
-  color: var(--color-active-hover-text, #dbdbdb);
+  color: var(--color-active-hover-text);
 }
 .watchlist-column-label.sorted {
-  color: var(--color-brand, #2962ff);
+  color: var(--color-brand);
 }
 .watchlist-column-label.sorted:hover {
-  color: var(--color-brand-hover, #1e53e5);
+  color: var(--color-brand-hover);
 }
 .watchlist-sort-arrow {
   display: inline-flex;
@@ -368,7 +368,7 @@ html.theme-light .watchlist-col-guide {
   height: 18px;
   margin: 0 -3px;
   visibility: hidden;
-  color: var(--color-brand, #2962ff);
+  color: var(--color-brand);
 }
 .watchlist-sort-arrow svg {
   width: 18px;
@@ -395,11 +395,11 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary);
   cursor: default;
 }
 .watchlist-sort-reset:hover {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .watchlist-sort-reset svg {
   display: block;
@@ -436,14 +436,14 @@ html.theme-light .watchlist-col-guide {
   /* Rows are separated with a 1 px #2e2e2e line. NOT
    * --color-toolbar-divider-background — that token drifted to #4a4a4a and
    * made the list read as a ruled table. */
-  border-bottom: 1px solid var(--color-border-table, #2e2e2e);
+  border-bottom: 1px solid var(--color-border-table);
   cursor: default;
 }
 
 /* Row hover = #2e2e2e (table-divider token); the selected blue
  * wins, so hover excludes .selected. */
 .watchlist-row:hover:not(.selected) {
-  background-color: var(--color-border-table, #2e2e2e);
+  background-color: var(--color-border-table);
 }
 
 .watchlist-row.selected {
@@ -451,7 +451,7 @@ html.theme-light .watchlist-col-guide {
    * ring, no fill. The #142e61 blue fill is for a TRANSIENT click-selection,
    * a separate state not modelled yet. */
   background-color: transparent;
-  box-shadow: inset 0 0 0 2px var(--color-default-gray, #8c8c8c);
+  box-shadow: inset 0 0 0 2px var(--color-default-gray);
   border-radius: 4px;
   border-bottom-color: transparent;
 }
@@ -467,12 +467,12 @@ html.theme-light .watchlist-col-guide {
 .watchlist-row.drop-before,
 .watchlist-tile.drop-before,
 .watchlist-group.drop-before {
-  box-shadow: inset 0 2px 0 0 var(--color-brand, #2962ff);
+  box-shadow: inset 0 2px 0 0 var(--color-brand);
 }
 .watchlist-row.drop-after,
 .watchlist-tile.drop-after,
 .watchlist-group.drop-after {
-  box-shadow: inset 0 -2px 0 0 var(--color-brand, #2962ff);
+  box-shadow: inset 0 -2px 0 0 var(--color-brand);
 }
 
 .watchlist-cell {
@@ -524,12 +524,12 @@ html.theme-light .watchlist-col-guide {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #ff9800;
+  background-color: var(--color-tan-orange-500);
 }
 
 /* Market fully closed (overnight / weekend) — muted grey instead of amber. */
 .watchlist-status-dot.closed {
-  background-color: var(--color-default-gray, #8c8c8c);
+  background-color: var(--color-default-gray);
 }
 
 .watchlist-last {
@@ -570,10 +570,10 @@ html.theme-light .watchlist-col-guide {
   cursor: default;
 }
 .watchlist-group:hover {
-  background-color: var(--color-border-table, #2e2e2e);
+  background-color: var(--color-border-table);
 }
 .watchlist-group.selected {
-  background-color: var(--color-list-item-bg-selected, #142e61);
+  background-color: var(--color-list-item-bg-selected);
 }
 
 .watchlist-group-expand {
@@ -586,7 +586,7 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #808080;
+  color: var(--color-cold-gray-500);
   cursor: default;
   transition: transform 0.12s ease;
 }
@@ -605,7 +605,7 @@ html.theme-light .watchlist-col-guide {
   min-width: 0;
   font-size: 11px;
   line-height: 16px;
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
@@ -632,9 +632,9 @@ html.theme-light .watchlist-col-guide {
   font-size: 11px;
   line-height: 16px;
   text-transform: uppercase;
-  color: var(--color-main-text, #dbdbdb);
-  background: var(--color-input-background, var(--ot-chart-bg, #0f0f0f));
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  color: var(--color-main-text);
+  background: var(--ot-chart-bg);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 4px;
   padding: 0 6px;
   outline: none;
@@ -653,18 +653,18 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   border: 0;
   border-radius: 4px;
-  background-color: var(--color-border-table, #2e2e2e);
-  color: var(--color-default-gray, #8c8c8c);
+  background-color: var(--color-border-table);
+  color: var(--color-default-gray);
   cursor: default;
 }
 .watchlist-group:hover .watchlist-group-delete {
   display: flex;
 }
 .watchlist-group.highlighted {
-  background-color: var(--color-list-item-bg-highlighted, #132042);
+  background-color: var(--color-list-item-bg-highlighted);
 }
 .watchlist-group-delete:hover {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .watchlist-group-delete svg {
   display: block;
@@ -694,7 +694,7 @@ html.theme-light .watchlist-col-guide {
   padding: 0 12px;
   border: 0;
   background: transparent;
-  color: var(--color-popup-element-text, #dbdbdb);
+  color: var(--color-popup-element-text);
   font: inherit;
   font-size: 14px;
   line-height: 18px;
@@ -703,7 +703,7 @@ html.theme-light .watchlist-col-guide {
   -webkit-app-region: no-drag;
 }
 .wl-settings-item:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .wl-settings-label {
   flex: 1;
@@ -725,7 +725,7 @@ html.theme-light .watchlist-col-guide {
   width: 38px;
   height: 20px;
   border-radius: 20px;
-  border: 1px solid var(--color-default-gray, #8c8c8c);
+  border: 1px solid var(--color-default-gray);
   box-sizing: border-box;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -745,7 +745,7 @@ html.theme-light .watchlist-col-guide {
   height: 14px;
   margin-top: -7px;
   border-radius: 50%;
-  background-color: var(--color-default-gray, #8c8c8c);
+  background-color: var(--color-default-gray);
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
 .wl-settings-switch.on .wl-settings-switch-thumb {
@@ -765,7 +765,7 @@ html.theme-light .watchlist-col-guide {
   border-radius: 3px;
   border: 1px solid var(--ot-strong);
   box-sizing: border-box;
-  color: var(--color-cold-gray-800, #2e2e2e);
+  color: var(--color-cold-gray-800);
 }
 .wl-settings-check.checked {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
@@ -819,7 +819,7 @@ html.theme-light .watchlist-col-guide {
 }
 .watchlist-tile-header-symbol {
   /* Muted grey to match the table-view column titles + the "Sort by" label. */
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .watchlist-sortby {
   display: inline-flex;
@@ -830,12 +830,12 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   font: inherit;
   font-size: 14px;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   cursor: default;
   -webkit-app-region: no-drag;
 }
 .watchlist-sortby:hover {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .watchlist-sortby-arrow {
   display: inline-flex;
@@ -846,7 +846,7 @@ html.theme-light .watchlist-col-guide {
   height: 4px;
 }
 .watchlist-sortby.is-active {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 
 /* "Sort by" dropdown — anchored under the tile-header button. */
@@ -861,10 +861,10 @@ html.theme-light .watchlist-col-guide {
   z-index: 70;
   min-width: 168px;
   padding: 4px;
-  background-color: var(--color-popup-background, #1e222d);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  background-color: var(--color-popup-background);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--ot-shadow-50);
 }
 .watchlist-sort-item {
   display: flex;
@@ -874,7 +874,7 @@ html.theme-light .watchlist-col-guide {
   padding: 6px 8px;
   border: 0;
   background: transparent;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font: inherit;
   font-size: 13px;
   text-align: left;
@@ -882,10 +882,10 @@ html.theme-light .watchlist-col-guide {
   cursor: default;
 }
 .watchlist-sort-item:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .watchlist-sort-item:disabled {
-  color: var(--color-text-disabled, #4a4a4a);
+  color: var(--color-text-disabled);
   background-color: transparent;
 }
 .watchlist-sort-item-icon {
@@ -901,7 +901,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-sort-separator {
   height: 1px;
   margin: 4px -4px;
-  background-color: var(--color-divider-line-primary, #3d3d3d);
+  background-color: var(--color-divider-line-primary);
 }
 
 /* Two-line tile row. */
@@ -916,7 +916,7 @@ html.theme-light .watchlist-col-guide {
   cursor: default;
 }
 .watchlist-tile:hover:not(.selected) {
-  background-color: var(--color-border-table, #2e2e2e);
+  background-color: var(--color-border-table);
 }
 .watchlist-tile.selected {
   background-color: var(--color-list-item-bg-selected);
@@ -926,7 +926,7 @@ html.theme-light .watchlist-col-guide {
  * --color-list-item-bg-highlighted (#132042 dark). */
 .watchlist-row.highlighted,
 .watchlist-tile.highlighted {
-  background-color: var(--color-list-item-bg-highlighted, #132042);
+  background-color: var(--color-list-item-bg-highlighted);
 }
 .watchlist-tile > .watchlist-logo {
   flex-shrink: 0;
@@ -946,12 +946,12 @@ html.theme-light .watchlist-col-guide {
 }
 .watchlist-tile-ticker {
   font-size: 14px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .watchlist-tile-last {
   margin-left: auto;
   font-size: 14px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-variant-numeric: tabular-nums;
 }
 .watchlist-tile-line--sub {
@@ -963,7 +963,7 @@ html.theme-light .watchlist-col-guide {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .watchlist-tile-change,
 .watchlist-tile-pct {
@@ -1019,14 +1019,14 @@ html.theme-light .watchlist-col-guide {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   cursor: default;
 }
 .watchlist-row:hover .watchlist-row-remove {
   display: flex;
 }
 .watchlist-row-remove:hover {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
 }
 .watchlist-row-remove svg {
   display: block;
@@ -1050,7 +1050,7 @@ html.theme-light .watchlist-col-guide {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--color-content-primary-neutral, #6a6d78);
+  color: var(--color-content-primary-neutral);
 }
 
 /* Active-list marker inside a menu row (flag 14×12 or 16px Twemoji). */
@@ -1077,7 +1077,7 @@ html.theme-light .watchlist-col-guide {
   height: 16px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 
 /* Trailing favourite star (18×18) on recently-used rows — toggles the list's
@@ -1087,12 +1087,12 @@ html.theme-light .watchlist-col-guide {
   align-items: center;
   margin-left: auto;
   padding-left: 12px;
-  color: var(--color-content-primary-neutral, #6a6d78);
+  color: var(--color-content-primary-neutral);
   cursor: pointer;
   border-radius: 4px;
 }
 .watchlist-menu-star:hover {
-  color: var(--color-toolbar-button-text, #f0f3fa);
+  color: var(--color-toolbar-button-text);
 }
 /* Favourited — filled near-white, matching the manager dialog's star. */
 .watchlist-menu-star.is-on {
@@ -1112,7 +1112,7 @@ html.theme-light .watchlist-col-guide {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--ot-backdrop);
 }
 .wl-dialog {
   width: 360px;
@@ -1120,11 +1120,11 @@ html.theme-light .watchlist-col-guide {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-popup-background, #1e222d);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  background-color: var(--color-popup-background);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  color: var(--color-main-text, #dbdbdb);
+  box-shadow: 0 8px 24px var(--ot-shadow-50);
+  color: var(--color-main-text);
   overflow: hidden;
 }
 .wl-dialog--narrow {
@@ -1161,17 +1161,17 @@ html.theme-light .watchlist-col-guide {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
   font: inherit;
   font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
 .wl-lm-tab:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .wl-lm-tab.active {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
   color: var(--ot-text-max);
   font-weight: 600;
 }
@@ -1193,7 +1193,7 @@ html.theme-light .watchlist-col-guide {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .wl-lm-list {
   flex: 1;
@@ -1205,7 +1205,7 @@ html.theme-light .watchlist-col-guide {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 
 /* Row: star · flag · name · rename · … · count · copy/delete. */
@@ -1216,15 +1216,15 @@ html.theme-light .watchlist-col-guide {
   height: 32px;
   padding: 0 6px;
   border-radius: 4px;
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
   font-size: 14px;
   cursor: default;
 }
 .wl-lm-row:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .wl-lm-row.active {
-  background-color: var(--color-list-item-bg-selected, #142e61);
+  background-color: var(--color-list-item-bg-selected);
 }
 /* Favourite star — leftmost; grey + hover-only when off, accent + always on. */
 .wl-lm-star {
@@ -1236,7 +1236,7 @@ html.theme-light .watchlist-col-guide {
   justify-content: center;
   border: 0;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   cursor: pointer;
   opacity: 0;
 }
@@ -1297,7 +1297,7 @@ html.theme-light .watchlist-col-guide {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   cursor: pointer;
   opacity: 0;
 }
@@ -1306,8 +1306,8 @@ html.theme-light .watchlist-col-guide {
   opacity: 1;
 }
 .wl-lm-action:hover {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
-  color: var(--color-toolbar-button-text, #f0f3fa);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
+  color: var(--color-toolbar-button-text);
 }
 .wl-lm-action:disabled {
   opacity: 0;
@@ -1317,7 +1317,7 @@ html.theme-light .watchlist-col-guide {
   opacity: 0.35;
 }
 .wl-lm-action-danger:hover {
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 .wl-lm-confirm {
   display: flex;
@@ -1333,7 +1333,7 @@ html.theme-light .watchlist-col-guide {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-bottom: 1px solid var(--color-divider-line-primary);
 }
 .wl-dialog-title {
   font-size: 15px;
@@ -1347,13 +1347,13 @@ html.theme-light .watchlist-col-guide {
   height: 28px;
   border: 0;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   border-radius: 4px;
   cursor: default;
 }
 .wl-dialog-close:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
-  color: var(--color-main-text, #dbdbdb);
+  background-color: var(--color-popup-element-background-hover);
+  color: var(--color-main-text);
 }
 .wl-dialog-search {
   padding: 10px 14px;
@@ -1365,14 +1365,14 @@ html.theme-light .watchlist-col-guide {
   padding: 0 10px;
   font: inherit;
   font-size: 14px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 6px;
   outline: none;
 }
 .wl-dialog-input:focus {
-  border-color: var(--color-accent, #2962ff);
+  border-color: var(--color-brand);
 }
 .wl-dialog-list {
   flex: 1;
@@ -1396,10 +1396,10 @@ html.theme-light .watchlist-col-guide {
   cursor: default;
 }
 .wl-dialog-row:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .wl-dialog-row.active {
-  background-color: var(--color-list-item-bg-selected, #142e61);
+  background-color: var(--color-list-item-bg-selected);
 }
 .wl-dialog-row-marker {
   display: inline-flex;
@@ -1420,7 +1420,7 @@ html.theme-light .watchlist-col-guide {
 .wl-dialog-initial {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .wl-dialog-row-name {
   flex: 0 1 auto;
@@ -1441,12 +1441,12 @@ html.theme-light .watchlist-col-guide {
   text-align: right;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .wl-dialog-empty {
   padding: 16px 14px;
   font-size: 13px;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 
 /* Column header row — SYMBOLS sits over the count column. */
@@ -1456,7 +1456,7 @@ html.theme-light .watchlist-col-guide {
   gap: 10px;
   height: 26px;
   padding: 2px 14px;
-  border-bottom: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-bottom: 1px solid var(--color-divider-line-primary);
 }
 .wl-dialog-colhead .wl-dialog-row-count {
   font-size: 11px;
@@ -1472,7 +1472,7 @@ html.theme-light .watchlist-col-guide {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 
 /* Per-row action buttons — always visible (grey), brightening on hover. */
@@ -1493,26 +1493,26 @@ html.theme-light .watchlist-col-guide {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   cursor: pointer;
 }
 .wl-dialog-rename-btn {
   flex-shrink: 0;
 }
 .wl-dialog-action:hover {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
-  color: var(--color-toolbar-button-text, #f0f3fa);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
+  color: var(--color-toolbar-button-text);
 }
 .wl-dialog-action:disabled {
   opacity: 0.35;
   cursor: default;
 }
 .wl-dialog-action-danger:hover {
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 /* A lit favourite star — accent colour. */
 .wl-dialog-action.is-on {
-  color: var(--color-accent, #2962ff);
+  color: var(--color-brand);
 }
 
 /* Inline delete confirmation, shown in place of the row's name + actions. */
@@ -1522,7 +1522,7 @@ html.theme-light .watchlist-col-guide {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-toolbar-button-text, #f0f3fa);
+  color: var(--color-toolbar-button-text);
 }
 .wl-dialog-confirm-actions {
   display: inline-flex;
@@ -1533,21 +1533,21 @@ html.theme-light .watchlist-col-guide {
 .wl-dialog-confirm-btn {
   height: 24px;
   padding: 0 10px;
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 4px;
   background: transparent;
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
 .wl-dialog-confirm-btn:hover {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 .wl-dialog-confirm-yes {
-  border-color: var(--color-falling, #f23645);
-  color: #fff;
-  background-color: var(--color-falling, #f23645);
+  border-color: var(--color-falling);
+  color: var(--color-white);
+  background-color: var(--color-falling);
 }
 .wl-dialog-confirm-yes:hover {
   background-color: #d8303e;
@@ -1558,9 +1558,9 @@ html.theme-light .watchlist-col-guide {
   min-width: 0;
   height: 26px;
   padding: 0 6px;
-  border: 1px solid var(--color-accent, #2962ff);
+  border: 1px solid var(--color-brand);
   border-radius: 4px;
-  background: var(--color-input-background, #1e222d);
+  background: #1e222d;
   color: inherit;
   font: inherit;
   font-size: 14px;
@@ -1575,7 +1575,7 @@ html.theme-light .watchlist-col-guide {
 .wl-dialog-text {
   margin: 0;
   font-size: 13px;
-  color: var(--color-text-secondary, #b2b5be);
+  color: var(--color-text-secondary);
   line-height: 1.4;
 }
 .wl-dialog-field {
@@ -1590,14 +1590,14 @@ html.theme-light .watchlist-col-guide {
 }
 .wl-dialog-suffix {
   font-size: 13px;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .wl-dialog-footer {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  border-top: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-top: 1px solid var(--color-divider-line-primary);
 }
 .wl-dialog-spacer {
   flex: 1;
@@ -1605,33 +1605,33 @@ html.theme-light .watchlist-col-guide {
 .wl-dialog-btn {
   height: 32px;
   padding: 0 14px;
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 6px;
   background: transparent;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: default;
 }
 .wl-dialog-btn:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .wl-dialog-btn--primary {
-  background-color: var(--color-accent, #2962ff);
-  border-color: var(--color-accent, #2962ff);
-  color: #fff;
+  background-color: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-white);
 }
 .wl-dialog-btn--primary:hover {
   filter: brightness(1.08);
-  background-color: var(--color-accent, #2962ff);
+  background-color: var(--color-brand);
 }
 .wl-dialog-btn--danger {
   border-color: transparent;
-  color: var(--color-falling, #f23645);
+  color: var(--color-falling);
 }
 .wl-dialog-btn--danger:hover {
-  background-color: rgba(242, 54, 69, 0.12);
+  background-color: var(--ot-tint-red-12);
 }
 
 /* Transient toast — share confirmation / alert firing. */
@@ -1642,11 +1642,11 @@ html.theme-light .watchlist-col-guide {
   z-index: 210;
   max-width: 300px;
   padding: 10px 14px;
-  background-color: var(--color-popup-background, #1e222d);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  background-color: var(--color-popup-background);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  color: var(--color-main-text, #dbdbdb);
+  box-shadow: 0 6px 18px var(--ot-shadow-45);
+  color: var(--color-main-text);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -1703,7 +1703,7 @@ html.theme-light .watchlist-col-guide {
   cursor: default;
 }
 .watchlist-ctx-flag-swatch:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .watchlist-ctx-flag-dot {
   display: block;
@@ -1712,7 +1712,7 @@ html.theme-light .watchlist-col-guide {
   border-radius: 50%;
 }
 .watchlist-ctx-flag-swatch.selected .watchlist-ctx-flag-dot {
-  box-shadow: 0 0 0 2px var(--color-bg-primary, #1f1f1f), 0 0 0 3.5px currentColor;
+  box-shadow: 0 0 0 2px var(--color-bg-primary), 0 0 0 3.5px currentColor;
 }
 
 /* "Add … to watchlist" submenu — touches its row (no gap, so slow hover
@@ -1770,13 +1770,13 @@ html.theme-light .watchlist-col-guide {
   width: 300px;
   opacity: 0.5;
   pointer-events: none;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-size: 14px;
 }
 .watchlist-drag-item {
   padding: 6px 16px;
   line-height: 16px;
-  background-color: var(--color-list-item-bg-selected, #142e61);
+  background-color: var(--color-list-item-bg-selected);
 }
 .watchlist-drag-item--section {
   display: flex;
@@ -1785,6 +1785,6 @@ html.theme-light .watchlist-col-guide {
   height: 30px;
   padding-block: 0;
   padding-inline: 16px 8px;
-  border-top: 6px solid var(--color-pane-bg, #0f0f0f);
+  border-top: 6px solid var(--color-pane-bg);
   font-size: 11px;
 }

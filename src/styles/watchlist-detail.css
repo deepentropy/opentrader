@@ -14,7 +14,7 @@
   cursor: row-resize;
 }
 .rail-detail-resizer:hover {
-  background: var(--color-accent, #2962ff);
+  background: var(--color-brand);
   opacity: 0.4;
 }
 
@@ -27,7 +27,7 @@
   /* Separator = border-top: 4px solid var(--color-divider-hover). The wider band reads as a soft
    * inset gutter between the watchlist and its detail pane, matching the
    * chart-area/chart-pane seams. */
-  border-top: 4px solid var(--color-widget-border, #2e2e2e);
+  border-top: 4px solid var(--color-widget-border);
   color: var(--color-toolbar-button-text);
   font-size: 13px;
 }
@@ -87,8 +87,8 @@
   height: 22px;
 }
 .watchlist-detail-action.is-active {
-  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
-  color: var(--color-main-text, #dbdbdb);
+  background-color: var(--color-toolbar-button-background-hover);
+  color: var(--color-main-text);
 }
 
 /* Header popovers (Settings checkboxes, Add-note editor). */
@@ -99,10 +99,10 @@
   z-index: 70;
   min-width: 200px;
   padding: 6px;
-  background-color: var(--color-popup-background, #1e222d);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  background-color: var(--color-popup-background);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--ot-shadow-50);
 }
 .watchlist-detail-popover-title {
   padding: 4px 8px 6px;
@@ -110,7 +110,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 .watchlist-detail-check {
   display: flex;
@@ -118,15 +118,15 @@
   gap: 8px;
   padding: 6px 8px;
   font-size: 13px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   border-radius: 4px;
   cursor: default;
 }
 .watchlist-detail-check:hover {
-  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+  background-color: var(--color-popup-element-background-hover);
 }
 .watchlist-detail-check input {
-  accent-color: var(--color-accent, #2962ff);
+  accent-color: var(--color-brand);
 }
 .watchlist-detail-note-popover {
   min-width: 240px;
@@ -139,14 +139,14 @@
   padding: 8px;
   font: inherit;
   font-size: 13px;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border: 1px solid var(--color-divider-line-primary);
   border-radius: 6px;
   outline: none;
 }
 .watchlist-detail-note-input:focus {
-  border-color: var(--color-accent, #2962ff);
+  border-color: var(--color-brand);
 }
 /* Saved-note block under the price/market-state. */
 .watchlist-detail-note {
@@ -154,9 +154,9 @@
   padding: 8px 10px;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--color-main-text, #dbdbdb);
-  background-color: rgba(41, 98, 255, 0.08);
-  border-left: 2px solid var(--color-accent, #2962ff);
+  color: var(--color-main-text);
+  background-color: var(--ot-tint-blue-8);
+  border-left: 2px solid var(--color-brand);
   border-radius: 4px;
   white-space: pre-wrap;
   cursor: text;
@@ -184,7 +184,7 @@
   font-weight: 400;
   /* The descriptions row runs at line-height 22px. */
   line-height: 22px;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -196,12 +196,12 @@
 .watchlist-detail-dot {
   flex-shrink: 0;
   margin: 0 6px 0 3px;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-exchange {
   font-weight: 400;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   flex-shrink: 0;
 }
 
@@ -216,7 +216,7 @@
 }
 
 .watchlist-detail-link:hover {
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   text-decoration: underline;
 }
 
@@ -225,7 +225,7 @@
  * explains why it's inert. */
 .watchlist-detail-link--disabled,
 .watchlist-detail-link--disabled:hover {
-  color: var(--color-content-primary-neutral, #6a6d78);
+  color: var(--color-content-primary-neutral);
   cursor: default;
   text-decoration: none;
   opacity: 0.7;
@@ -255,7 +255,7 @@
   font-size: 28px;
   font-weight: 600;
   line-height: 36px;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -264,7 +264,7 @@
   margin-bottom: 2px;
   font-size: 12px;
   font-weight: 400;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-change {
@@ -277,8 +277,8 @@
 /* Price change uses the symbol-change greens/reds (up rgb(34,171,148)
  * #22ab94, down rgb(247,82,95) #f7525f) — distinct from the performance grid's
  * #089981 / #f23645. */
-.watchlist-detail-change.up { color: var(--color-symbol-change-positive, #22ab94); }
-.watchlist-detail-change.down { color: var(--color-symbol-change-negative, #f7525f); }
+.watchlist-detail-change.up { color: var(--color-symbol-change-positive); }
+.watchlist-detail-change.down { color: var(--color-symbol-change-negative); }
 
 /* Last-update text — now INLINE on the state row after the status
  * ("— Market closed  Last update at …" on one line).
@@ -286,7 +286,7 @@
 .watchlist-detail-regular-update {
   font-size: 13px;
   line-height: 18px;
-  color: #707070;
+  color: var(--color-cold-gray-550);
 }
 
 /* Secondary pre/post-market price line, under the last-update. Smaller, left-
@@ -302,7 +302,7 @@
 .watchlist-detail-ext-price {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 .watchlist-detail-ext-row .watchlist-detail-currency {
   margin-bottom: 1px;
@@ -329,8 +329,8 @@
   color: var(--color-text-secondary);
 }
 /* Post-market reads in accent blue; pre-market reads warm (the sun). */
-.watchlist-detail-state.is-extended { color: var(--color-accent, #2962ff); }
-.watchlist-detail-state.is-pre { color: #ffa726; } /* pre-market amber rgb(255,167,38) */
+.watchlist-detail-state.is-extended { color: var(--color-brand); }
+.watchlist-detail-state.is-pre { color: var(--color-tan-orange-400); } /* pre-market amber rgb(255,167,38) */
 .watchlist-detail-state-icon {
   display: inline-flex;
   align-items: center;
@@ -338,7 +338,7 @@
 .watchlist-detail-state-icon svg { display: block; width: 14px; height: 14px; }
 /* The closed state is prefixed with a dash glyph ("— Market closed"). */
 .watchlist-detail-state-dash { color: inherit; }
-.watchlist-detail-last-time { color: #707070; }
+.watchlist-detail-last-time { color: var(--color-cold-gray-550); }
 
 .watchlist-detail-range {
   display: grid;
@@ -352,21 +352,21 @@
 .watchlist-detail-range-label {
   text-align: center;
   font-size: 11px;
-  color: #9c9c9c;
+  color: var(--color-cold-gray-400);
 }
 
 .watchlist-detail-range-low,
 .watchlist-detail-range-high {
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-section-heading {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--color-widget-border, #2e2e2e);
+  border-top: 1px solid var(--color-widget-border);
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-stat-row {
@@ -383,7 +383,7 @@
   flex: 1;
   min-width: 0;
   font-weight: 400;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -394,7 +394,7 @@
   margin-left: auto;
   text-align: right;
   font-weight: 600;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-perf-grid {
@@ -415,7 +415,7 @@
 .watchlist-detail-perf-value {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .watchlist-detail-perf-value.up { color: var(--color-success); }
@@ -423,12 +423,12 @@
 
 .watchlist-detail-perf-period {
   font-size: 11px;
-  color: var(--color-text-secondary, #9c9c9c);
+  color: var(--color-text-secondary);
 }
 
 .watchlist-detail-link-strong {
   font-weight: 600;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   text-decoration: none;
 }
 
@@ -446,7 +446,7 @@
   margin: 6px 0 0;
   font-size: 13px;
   font-weight: 400;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
@@ -473,12 +473,12 @@
   margin-right: 2px;
   border: 0;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   border-radius: 4px;
   flex-shrink: 0;
 }
 .watchlist-detail-collapse:hover {
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 .watchlist-detail-collapse svg {
   transition: transform 0.12s ease;
@@ -490,7 +490,7 @@
   height: 24px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--color-white);
   object-fit: contain;
 }
 
@@ -505,11 +505,11 @@
   margin-left: 4px;
   border: 0;
   background: transparent;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
   border-radius: 4px;
   vertical-align: middle;
 }
 .watchlist-detail-copy:hover {
-  color: var(--color-text-primary, #dbdbdb);
-  background: var(--color-toolbar-button-background-hover, #2e2e2e);
+  color: var(--color-text-primary);
+  background: var(--color-toolbar-button-background-hover);
 }
