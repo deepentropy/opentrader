@@ -28,25 +28,35 @@ export function setDictionary(d: Dictionary, textRules: readonly ((text: string)
   drawn.clear();
 }
 
+/** A URL (an example address in a placeholder) is never translated. */
+const URL_TEXT = /^[a-z][a-z\d+.-]*:\/\/\S+$/i;
+
+/** A trimmed text the translator looks up: words, not numbers, symbols, single letters or a URL. */
+export function translatable(core: string): boolean {
+  return core.length >= 2 && /[A-Za-z]{2}/.test(core) && !URL_TEXT.test(core);
+}
+
+/** The translation of a trimmed text, undefined when neither the dictionary nor a rule has it. */
+export function lookUp(core: string, d: Dictionary = dictionary): string | undefined {
+  const to = d[core];
+  if (to !== undefined) return to;
+  // "Save…" with "Save" in the dictionary, and the other way round.
+  const end = ENDINGS.exec(core);
+  if (end) {
+    const base = d[core.slice(0, -end[1].length)];
+    if (base !== undefined) return base + end[1];
+  }
+  const rewritten = rules.reduce((t, rule) => rule(t), core);
+  return rewritten === core ? undefined : rewritten;
+}
+
 /** The translation of a text, its spaces around kept; the text itself when the dictionary doesn't have it. */
 export function translate(text: string, d: Dictionary = dictionary): string {
   const core = text.trim();
-  if (core.length < 2 || !/[A-Za-z]{2}/.test(core) || d === EMPTY) return text;
-  let to = d[core];
-  if (to === undefined) {
-    // "Save…" with "Save" in the dictionary, and the other way round.
-    const end = ENDINGS.exec(core);
-    if (end) {
-      const base = d[core.slice(0, -end[1].length)];
-      if (base !== undefined) to = base + end[1];
-    }
-    if (to === undefined) {
-      const rewritten = rules.reduce((t, rule) => rule(t), core);
-      if (rewritten === core) return text;
-      to = rewritten;
-    }
-  }
-  return core === text ? to : text.replace(core, () => to as string);
+  if (d === EMPTY || !translatable(core)) return text;
+  const to = lookUp(core, d);
+  if (to === undefined) return text;
+  return core === text ? to : text.replace(core, () => to);
 }
 
 /** A language other than English is on (the code that translates text itself can skip the work otherwise). */
