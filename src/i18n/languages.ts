@@ -40,6 +40,9 @@ export type Formats = {
    * when absent ("2 Stunden und 16 Minuten").
    */
   durationJoin?: { daysHours: string; hoursMinutes: string };
+  /** The language writes its nouns with a capital (German): a word the code puts in lowercase inside a text, as
+   *  English does ("SMA 9 close", "Value, line"), keeps the dictionary's capital ("SMA 9 Schluss"). */
+  capitalNouns?: boolean;
 };
 
 export type LanguageEntry = {
@@ -162,6 +165,7 @@ export const LANGUAGES: readonly LanguageEntry[] = [
       shortMonths: ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"],
       calendarWeekdays: ["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."],
       numberMarks: { group: ".", decimal: ",", unitSpace: "\u202f" },
+      capitalNouns: true,
     },
     direction: "ltr",
   },

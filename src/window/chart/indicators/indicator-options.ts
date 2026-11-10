@@ -13,6 +13,7 @@ import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { isScaleKey, type ScaleKey } from "../scales/scale-layout";
 import { formatted, translate, translating } from "../../../i18n/translator";
+import { lowerWord } from "../../../i18n/format";
 
 export type IndicatorOptions = {
   /** "Default" or "0".."8" decimals (precision select). */
@@ -128,7 +129,7 @@ const SOURCE_TEXT: Record<string, string> = {
 export function sourceValueText(v: string): string {
   const label = SOURCE_TEXT[v];
   if (!label || !translating()) return v;
-  return translate(label).toLocaleLowerCase(document.documentElement.lang || undefined);
+  return lowerWord(translate(label));
 }
 
 /** The input values shown after a study title in the status line: every

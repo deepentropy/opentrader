@@ -20,6 +20,7 @@ import {
   englishNumber,
   leftNumber,
   localNumber,
+  lowerWord,
   monthName,
   numberText,
   quarterText,
@@ -113,6 +114,8 @@ describe("German formats (#294)", () => {
     expect(translate("Mid")).toBe("Mittel");
     expect(translateAs("Mid", "profile")).toBe("Mitte");
     expect(translateAs("O", "legend")).toBe("O");
+    // Nouns keep their capital where the code lowercases a word ("SMA 9 Schluss", not "schluss").
+    expect(lowerWord(translate("Close"))).toBe("Schluss");
     // "5%", not "5 %" ("{0} {1} % price" keeps the English text's space).
     const spaced = new RegExp(`\\d[ ${NBSP}${NNBSP}]%`);
     expect(Object.values(de).filter((v) => typeof v === "string" && spaced.test(v))).toEqual([]);
@@ -153,6 +156,7 @@ describe("Spanish formats (#292)", () => {
     expect(translate("Trade")).toBe("Operar");
     expect(translateAs("Trade", "economy")).toBe("Comercio");
     expect(translateAs("Mid", "profile")).toBe("Medio");
+    expect(lowerWord(translate("Close"))).toBe("cierre");
   });
 });
 

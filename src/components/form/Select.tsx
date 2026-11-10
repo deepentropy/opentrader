@@ -12,7 +12,7 @@ import { isRtl } from "../reading-direction";
 import { CheckBox } from "./CheckBox";
 import { Chevron } from "./glyphs";
 import { translate } from "../../i18n/translator";
-import { listText } from "../../i18n/format";
+import { listText, lowerWord } from "../../i18n/format";
 
 type Anchor = { left: number; right: number; top: number; bottom: number; width: number };
 const anchorOf = (el: HTMLElement): Anchor => {
@@ -149,8 +149,7 @@ function multiSummary(options: string[], on: string[]): string {
   const picked = options.filter((o) => on.includes(o));
   if (picked.length === 0) return translate("Hidden");
   // Translated here, the words joined: the control shows the text as it is (data-no-translate).
-  const lang = document.documentElement.lang || "en";
-  return listText(picked.map((o, i) => (i === 0 ? translate(o) : translate(o).toLocaleLowerCase(lang))));
+  return listText(picked.map((o, i) => (i === 0 ? translate(o) : lowerWord(translate(o)))));
 }
 
 /** Check-list select: toggling an option keeps the menu open. */

@@ -35,6 +35,13 @@ export function listText(items: readonly string[]): string {
   return items.join(activeFormats().listSeparator ?? ", ");
 }
 
+/** A translated word put in lowercase inside a text, as English writes it ("SMA 9 close", "Value, line"); as the
+ *  dictionary gives it in a language writing its nouns with a capital ("SMA 9 Schluss"). */
+export function lowerWord(word: string): string {
+  const f = activeFormats();
+  return f.capitalNouns ? word : word.toLocaleLowerCase(f.dateLocale);
+}
+
 /** A number formatter of the interface language, one per (locale, options). */
 export function numberFormat(options: Intl.NumberFormatOptions = {}): Intl.NumberFormat {
   const locale = activeFormats().numberLocale;
