@@ -44,7 +44,7 @@
   color: var(--color-popup-element-secondary-text);
 }
 .header-menu-row.is-toggle .header-menu-switch {
-  margin-left: auto;
+  margin-inline-start: auto;
   flex: 0 0 auto;
   width: 32px;
   height: 18px;
@@ -99,7 +99,7 @@
   outline: none;
   color: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -182,10 +182,10 @@
 }
 .header-menu[data-menu-id="layout-setup"] .header-menu-row.has-variants .header-menu-label {
   flex: 0 0 22px;
-  padding-left: 4px;
+  padding-inline-start: 4px;
   font-size: 13px;
   color: var(--color-popup-element-hint-text);
-  text-align: left;
+  text-align: start;
   white-space: nowrap;
 }
 /* Compact single-line tile rows — desktop tile glyphs are ~21×19, so the tiles
@@ -238,7 +238,7 @@
   flex: 0 0 auto;
   color: var(--color-popup-element-hint-text);
   font-size: 12px;
-  padding-left: 16px;
+  padding-inline-start: 16px;
 }
 
 /* ── Interval menu (reference measures, 01/10/2026) ──────────────────────
@@ -276,10 +276,10 @@
 .header-menu[data-menu-id="chart-interval"] .header-menu-star {
   flex: 0 0 24px;
   height: 24px;
-  margin-right: 2px;
+  margin-inline-end: 2px;
 }
 .header-menu[data-menu-id="chart-interval"] .header-menu-remove {
-  margin-right: 0;
+  margin-inline-end: 0;
 }
 .header-menu[data-menu-id="chart-interval"] .header-menu-divider {
   margin: 6px 0;

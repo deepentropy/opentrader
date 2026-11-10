@@ -14,7 +14,8 @@
   align-items: center;
   gap: 4px;
   min-height: 28px;
-  padding: 2px 8px 2px 0;
+  padding-block: 2px;
+  padding-inline: 0 8px;
   background: transparent;
   border: 0;
   outline: 0;
@@ -56,8 +57,8 @@
 }
 
 .ot-menu-item__hotkey {
-  margin-left: auto;
-  padding-left: 12px;
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
   color: var(--color-content-primary-neutral);
   font-size: 11px;
   white-space: nowrap;

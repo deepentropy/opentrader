@@ -37,8 +37,8 @@
   position: absolute;
   top:    var(--ot-tb-pill-top,    var(--ot-tb-pill-inset, 2px));
   bottom: var(--ot-tb-pill-bottom, var(--ot-tb-pill-inset, 2px));
-  left:   var(--ot-tb-pill-left,   var(--ot-tb-pill-inset, 2px));
-  right:  var(--ot-tb-pill-right,  var(--ot-tb-pill-inset, 2px));
+  inset-inline-start:   var(--ot-tb-pill-left,   var(--ot-tb-pill-inset, 2px));
+  inset-inline-end:  var(--ot-tb-pill-right,  var(--ot-tb-pill-inset, 2px));
   border-radius: var(--ot-tb-pill-radius, 6px);
   background-color: transparent;
   z-index: -1;

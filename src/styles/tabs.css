@@ -63,7 +63,8 @@
   border-radius: 4px 4px 0 0;
   cursor: default;
   grid-template-areas: "layout-icon title close";
-  padding: 0 8px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 8px;
   background-color: transparent;
 }
 
@@ -242,7 +243,7 @@
 
 .tab-panel-divider {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 8px;
   bottom: 8px;
   width: 1px;
@@ -347,7 +348,8 @@ html.theme-dark .data-delay-badge.is-realtime {
   align-items: center;
   box-sizing: border-box;
   height: 28px;
-  margin: 0 4px 0 0;
+  margin-block: 0;
+  margin-inline: 0 4px;
   padding: 0 7px;
   border: 1px solid var(--color-container-fill-primary-success);
   border-radius: 6px;
@@ -373,7 +375,8 @@ html.theme-dark .data-delay-badge.is-realtime {
 
 /* Web version: the same green button, a link to the desktop app download. */
 .get-desktop-app-button {
-  margin: 0 8px 0 0;
+  margin-block: 0;
+  margin-inline: 0 8px;
   text-decoration: none;
   cursor: pointer;
 }
@@ -386,7 +389,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   flex-flow: row nowrap;
   align-items: stretch;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 }
 .window-control {
   -webkit-app-region: no-drag;
@@ -510,7 +513,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   color: var(--color-content-primary-neutral);
   font-size: 11px;
   flex-shrink: 0;
-  padding-left: 16px;
+  padding-inline-start: 16px;
 }
 
 /* ── Tab syncing (colour link) widget ──────────────────────────────────── */
@@ -573,7 +576,7 @@ html.theme-dark .data-delay-badge.is-realtime {
   background-color: var(--color-container-fill-primary-neutral-light);
   position: relative;
   transition: background-color 120ms ease-out;
-  margin-left: 12px;
+  margin-inline-start: 12px;
   flex-shrink: 0;
 }
 .switch-view .switch-thumb {

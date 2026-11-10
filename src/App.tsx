@@ -799,8 +799,7 @@ function App() {
             // 4px gutters framing the chart on the left (drawing toolbar) and
             // right (watchlist rail) — same #2e2e2e seam as the top. Bottom is
             // the window edge (no gutter). Mirrors mock `.chart-pane`.
-            "border-left": "4px solid var(--color-widget-border)",
-            "border-right": "4px solid var(--color-widget-border)",
+            "border-inline": "4px solid var(--color-widget-border)",
             // Painted so the 2px seam above the bottom bar (its margin-top)
             // and the rounded chart-card corners show the window background.
             "background-color": "var(--color-widget-border)",

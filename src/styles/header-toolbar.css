@@ -39,7 +39,7 @@
  * of the toolbar.  It uses the same DOM section structure as the left side;
  * the auto margin pushes it right (the DOM has 7 sections, not 8). */
 .header-toolbar-section:has([data-name="layout-setup"]) {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Indicator-template favorite ("S" for Scalping, etc.) — renders as a
@@ -136,7 +136,8 @@
 /* Wide icon+text buttons (Indicators / Alert / Replay) get extra side
  * padding so the icon and label breathe. */
 .header-toolbar-btn.is-iconText {
-  padding: 0 10px 0 8px;
+  padding-block: 0;
+  padding-inline: 8px 10px;
   gap: 6px;
 }
 
@@ -149,7 +150,7 @@
 .header-toolbar-btn.is-chevron {
   min-width: 24px;
   padding: 0 2px;
-  margin-left: -2px;
+  margin-inline-start: -2px;
   color: var(--color-content-primary-neutral);
 }
 .header-toolbar-btn.is-chevron:hover:not(.is-disabled) {
@@ -207,7 +208,8 @@
 .header-toolbar-widget.is-symbol {
   height: 28px;
   min-width: 128px;
-  padding: 0 30px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 30px;
   background-color: var(--color-container-fill-primary-neutral-light);
   border-radius: 14px;
   border: none;
@@ -285,7 +287,7 @@
   border: none;
   outline: none;
   color: inherit;
-  text-align: left;
+  text-align: start;
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -334,7 +336,7 @@
   border-radius: 4px;
   outline: none;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -350,7 +352,7 @@
   color: var(--color-content-primary-success);
 }
 .update-app-menu-item > span:last-child {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   color: var(--color-content-secondary-neutral-bold);
 }
 
@@ -366,7 +368,7 @@
   outline: none;
   color: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: default;
   -webkit-app-region: no-drag;
 }
@@ -416,7 +418,7 @@
   outline: none;
   color: var(--color-popup-element-text);
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: default;
 }
 .profile-menu-language:hover {

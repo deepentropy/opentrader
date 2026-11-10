@@ -47,7 +47,8 @@
 .symbol-search-header {
   height: 68px;
   flex-shrink: 0;
-  padding: 0 17px 0 20px;
+  padding-block: 0;
+  padding-inline: 20px 17px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -241,7 +242,7 @@
 .symbol-search-type-menu {
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
+  inset-inline-start: 0;
   z-index: 20;
   min-width: 180px;
   max-height: 320px;
@@ -256,7 +257,7 @@
 .symbol-search-type-option {
   display: block;
   width: 100%;
-  text-align: left;
+  text-align: start;
   padding: 7px 10px;
   border: 0;
   border-radius: 4px;
@@ -306,7 +307,10 @@
 .symbol-search-filter-pill-main {
   padding: 0 12px;
   gap: 4px;
-  border-radius: 8px 0 0 8px;
+  border-start-start-radius: 8px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 8px;
   color: var(--color-black) !important;
   font-size: 14px;
   font-weight: 600;
@@ -315,8 +319,11 @@
   width: 28px;
   justify-content: center;
   padding: 0;
-  border-radius: 0 8px 8px 0;
-  border-left: 1px solid var(--color-cold-gray-200) !important;
+  border-start-start-radius: 0;
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
+  border-end-start-radius: 0;
+  border-inline-start: 1px solid var(--color-cold-gray-200) !important;
 }
 .symbol-search-filter-pill button:hover {
   background-color: rgb(224, 224, 224);
@@ -383,13 +390,14 @@
 }
 .symbol-search-panel-search-icon {
   position: absolute;
-  left: 14px;
+  inset-inline-start: 14px;
   color: var(--color-cold-gray-400);
 }
 .symbol-search-panel-input {
   flex: 1;
   height: 100%;
-  padding: 8px 16px 8px 47px;
+  padding-block: 8px;
+  padding-inline: 47px 16px;
   border: 0;
   outline: none;
   background: transparent;
@@ -409,7 +417,8 @@
 .symbol-search-panel-group {
   height: 24px;
   margin-top: 24px;
-  padding: 0 0 8px 20px;
+  padding-block: 0 8px;
+  padding-inline: 20px 0;
   box-sizing: border-box;
   font-size: 11px;
   letter-spacing: 0.4px;
@@ -424,7 +433,8 @@
 }
 .symbol-search-panel-item {
   height: 46px;
-  padding: 0 0 0 8px;
+  padding-block: 0;
+  padding-inline: 8px 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -434,7 +444,7 @@
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .symbol-search-panel-item:hover {
@@ -563,30 +573,31 @@
 }
 .symbol-search-list:not(.is-compare) .symbol-search-info-cell {
   gap: 0;
-  padding: 0 24px 0 20px;
+  padding-block: 0;
+  padding-inline: 20px 24px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-marker {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 14px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-logo {
   width: 24px;
   height: 24px;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-desc-cell {
   display: block;
-  padding-right: 24px;
+  padding-inline-end: 24px;
   line-height: 39px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-exchange-cell {
-  padding-right: 20px;
+  padding-inline-end: 20px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-actions-cell {
   width: auto;
-  margin-left: 0;
-  padding-right: 12px;
+  margin-inline-start: 0;
+  padding-inline-end: 12px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-row.is-active-symbol > .symbol-search-cell::after {
   content: "";
@@ -595,16 +606,21 @@
   z-index: 1;
   pointer-events: none;
   border: 2px solid var(--ot-strong);
-  border-left-width: 0;
-  border-right-width: 0;
+  border-inline-width: 0;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-row.is-active-symbol > .symbol-search-cell:first-child::after {
-  border-left-width: 2px;
-  border-radius: 4px 0 0 4px;
+  border-inline-start-width: 2px;
+  border-start-start-radius: 4px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 4px;
 }
 .symbol-search-list:not(.is-compare) .symbol-search-row.is-active-symbol > .symbol-search-cell:last-child::after {
-  border-right-width: 2px;
-  border-radius: 0 4px 4px 0;
+  border-inline-end-width: 2px;
+  border-start-start-radius: 0;
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+  border-end-start-radius: 0;
 }
 
 .symbol-search-row.is-highlighted {
@@ -758,13 +774,13 @@
  * exchange cell's 20px end padding; each action is 28px + 8px end margin. */
 .symbol-search-list.is-watchlist .symbol-search-row {
   grid-template-columns: max-content minmax(0, 1fr) auto auto;
-  padding-right: 12px;
+  padding-inline-end: 12px;
 }
 .symbol-search-actions-cell {
   display: flex;
   align-items: center;
   width: 36px;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   overflow: visible;
 }
 /* The rows share one grid: the column is two actions wide as soon as one
@@ -913,7 +929,7 @@ html.theme-light .symbol-search-row.is-flashed {
   width: 24px;
   height: 24px;
   flex: none;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 .cmp-search-titles { min-width: 0; }
 .cmp-search-ticker {
@@ -942,7 +958,7 @@ html.theme-light .symbol-search-row.is-flashed {
   gap: 0 8px;
   align-items: center;
   align-content: center;
-  text-align: right;
+  text-align: end;
 }
 .cmp-search-exchange .symbol-search-exchange-source { grid-area: ex; justify-content: flex-end; height: 21px; margin: 0; font-size: 14px; line-height: 21px; color: var(--color-text-primary); }
 .cmp-search-exchange .symbol-search-market-type { grid-area: type; height: 17px; margin: 0; line-height: 17px; }
@@ -970,5 +986,5 @@ html.theme-light .symbol-search-row.is-flashed {
 .cmp-search-check {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-inline-start: 16px;
 }

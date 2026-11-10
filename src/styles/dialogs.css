@@ -34,7 +34,8 @@
   font-size: 14px;
 }
 .ot-dlg-title {
-  margin: 0 49px 0 40px;
+  margin-block: 0;
+  margin-inline: 40px 49px;
   font-size: 20px;
   font-weight: 600;
   line-height: 24px;
@@ -49,7 +50,7 @@
   all: unset;
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   width: 34px;
   height: 34px;
   display: inline-flex;
@@ -91,7 +92,8 @@
   flex: 1;
   min-width: 0;
   height: 28px;
-  padding: 0 2px 0 5px;
+  padding-block: 0;
+  padding-inline: 5px 2px;
   border: 0;
   outline: none;
   background: transparent;
@@ -115,8 +117,7 @@
 .ot-dlg-list-btn.is-open svg { transform: rotate(180deg); }
 .ot-dlg-suggestions {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   top: 100%;
   z-index: 1;
   max-height: 245px;
@@ -180,13 +181,13 @@
 
 /* Emoji button at the start of a name field, and its picker (reference app). */
 /* The picker opens under the wrap, 2 px left of the button (reference). */
-.ot-emoji-select { display: inline-flex; flex: none; margin-left: -2px; }
+.ot-emoji-select { display: inline-flex; flex: none; margin-inline-start: -2px; }
 .ot-emoji-select-btn {
   all: unset;
   box-sizing: border-box;
   width: 28px;
   height: 28px;
-  margin-left: 2px;
+  margin-inline-start: 2px;
   padding: 0 4px;
   display: inline-flex;
   align-items: center;
@@ -241,8 +242,7 @@
 .ot-emoji-tab.is-active::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   bottom: -4px;
   height: 4px;
   background: var(--color-brand);
@@ -256,7 +256,8 @@
 .ot-emoji-group-title {
   box-sizing: border-box;
   height: 30px;
-  padding: 6px 6px 0 18px;
+  padding-block: 6px 0;
+  padding-inline: 18px 6px;
   color: var(--color-popup-element-secondary-text);
   font-size: 11px;
   line-height: 24px;
@@ -283,4 +284,4 @@
 .ot-emoji-cell:hover { background: var(--color-popup-menu-item-hover-bg); }
 html.theme-dark .ot-emoji-picker { background: #131313; }
 html.theme-dark .ot-emoji-tabs { border-bottom-color: #464646; }
-.ot-leading-emoji { margin-right: 2px; }
+.ot-leading-emoji { margin-inline-end: 2px; }

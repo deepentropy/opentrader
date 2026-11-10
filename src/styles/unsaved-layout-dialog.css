@@ -31,7 +31,8 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-  margin: 40px 0 40px 40px;
+  margin-block: 40px;
+  margin-inline: 40px 0;
   color: var(--color-text-primary);
 }
 
@@ -117,7 +118,8 @@
   box-sizing: border-box;
   width: 34px;
   height: 34px;
-  margin: 8px 8px 0 -2px;
+  margin-block: 8px 0;
+  margin-inline: -2px 8px;
   border-radius: 8px;
   color: var(--color-text-primary);
   cursor: default;

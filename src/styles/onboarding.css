@@ -141,10 +141,10 @@
   bottom: 20px;
 }
 .onboarding-navigation-button.prev {
-  left: 20px;
+  inset-inline-start: 20px;
 }
 .onboarding-navigation-button.next {
-  right: 20px;
+  inset-inline-end: 20px;
 }
 .onboarding-btn {
   box-sizing: border-box;
