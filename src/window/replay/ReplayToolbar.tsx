@@ -51,11 +51,11 @@ import {
   type TimingMode,
 } from "../../data/replay";
 
-const TIMING: Record<TimingMode, { button: string; item: string; icon: string }> = {
-  bar: { button: "Select bar", item: "Bar", icon: "replay-select-bar" },
-  date: { button: "Select date", item: "Date…", icon: "replay-select-date" },
-  first: { button: "Select first available date", item: "First available date", icon: "replay-select-first" },
-  random: { button: "Select random bar", item: "Random bar", icon: "replay-select-random" },
+const TIMING: Record<TimingMode, { label: string; menuLabel: string; icon: string }> = {
+  bar: { label: "Select bar", menuLabel: "Bar", icon: "replay-select-bar" },
+  date: { label: "Select date", menuLabel: "Date…", icon: "replay-select-date" },
+  first: { label: "Select first available date", menuLabel: "First available date", icon: "replay-select-first" },
+  random: { label: "Select random bar", menuLabel: "Random bar", icon: "replay-select-random" },
 };
 
 type MenuId = "start" | "speed" | "interval";
@@ -224,7 +224,7 @@ export function ReplayToolbar() {
       <div class="ot-replay-toolbar__controls">
         <div class="ot-replay-toolbar__group">
           <ToolButton
-            title={timing().button}
+            title={timing().label}
             class={`ot-replay-start${width() > 463 ? " has-text" : ""}`}
             pressed={mainPressed()}
             disabled={mainDisabled()}
@@ -232,7 +232,7 @@ export function ReplayToolbar() {
           >
             <Icon name={timing().icon} size={28} />
             <Show when={width() > 463}>
-              <span class="ot-replay-btn__text">{timing().button}</span>
+              <span class="ot-replay-btn__text">{timing().label}</span>
             </Show>
           </ToolButton>
           <ToolButton
@@ -311,7 +311,7 @@ export function ReplayToolbar() {
                         onClick={() => pick(id)}
                       >
                         <Icon name={TIMING[id].icon} size={28} />
-                        <span>{TIMING[id].item}</span>
+                        <span>{TIMING[id].menuLabel}</span>
                       </button>
                     </Show>
                   )}

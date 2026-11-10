@@ -118,8 +118,9 @@ const QA: MetricPeriod[] = ["FQ", "FY"];
 const Q: MetricPeriod[] = ["FQ"];
 const A: MetricPeriod[] = ["FY"];
 
-function m(tab: MetricTab, depth: 0 | 1, key: string, name: string, periods: MetricPeriod[], kind: MetricKind, value: MetricDef["value"], extra: Partial<MetricDef> = {}): MetricDef {
-  return { key, name, tab, depth, periods, kind, value, ...extra };
+/** `title`: the metric's name, an interface text (the catalog reads it, the page translates it). */
+function m(tab: MetricTab, depth: 0 | 1, key: string, title: string, periods: MetricPeriod[], kind: MetricKind, value: MetricDef["value"], extra: Partial<MetricDef> = {}): MetricDef {
+  return { key, name: title, tab, depth, periods, kind, value, ...extra };
 }
 const item = (key: string) => (g: ItemGetter) => g(key);
 const negItem = (key: string) => (g: ItemGetter) => neg(g(key));

@@ -19,6 +19,19 @@ import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from
 
 export type IntervalsVisibilityMode = "all" | "current" | "currentAndAbove" | "currentAndBelow";
 
+/** The visibility rows' units as shown. */
+export const VIS_UNIT_LABELS = { seconds: "Seconds", minutes: "Minutes", hours: "Hours", days: "Days", weeks: "Weeks", months: "Months" } as const;
+
+/** Visibility rows with a range (units and maxima). */
+export const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, number]> = [
+  ["seconds", VIS_UNIT_LABELS.seconds, 59],
+  ["minutes", VIS_UNIT_LABELS.minutes, 59],
+  ["hours", VIS_UNIT_LABELS.hours, 24],
+  ["days", VIS_UNIT_LABELS.days, 366],
+  ["weeks", VIS_UNIT_LABELS.weeks, 52],
+  ["months", VIS_UNIT_LABELS.months, 12],
+];
+
 type UnitKey = "ticks" | "seconds" | "minutes" | "hours" | "days" | "weeks" | "months" | "ranges";
 const UNITS: UnitKey[] = ["ticks", "seconds", "minutes", "hours", "days", "weeks", "months", "ranges"];
 

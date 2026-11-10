@@ -248,7 +248,7 @@ function MiniChart(props: { ticker: string; name: string | null; flag: FlagColor
           )}
         </Show>
         <span class="ot-ticker-logo ot-ticker-logo--md" aria-hidden="true">{props.ticker.charAt(0)}</span>
-        <span class="scr-ticker-chip" title={props.name ? `${props.ticker} − ${props.name}` : props.ticker}>{props.ticker}</span>
+        <span class="scr-ticker-chip" data-no-translate title={props.name ? `${props.ticker} − ${props.name}` : props.ticker}>{props.ticker}</span>
         <Show when={screenerSettings().chartName && props.name}>
           <span class="scr-chart-name">{props.name}</span>
         </Show>

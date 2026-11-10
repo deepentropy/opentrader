@@ -311,7 +311,7 @@ export function FilterPills(props: Props) {
                   <Show when={l.flag}>
                     <span class="scr-item-flag" style={{ color: FLAG_HEX[l.flag!] }}><Icon name="scr-flag" /></span>
                   </Show>
-                  <span class="scr-item-text"><span class="scr-item-title">{l.name}</span></span>
+                  <span class="scr-item-text"><span class="scr-item-title" data-no-translate>{l.name}</span></span>
                   <span class="scr-item-right"><span class="scr-item-count">{watchlistTickers(l.id)?.length ?? 0}</span></span>
                 </div>
               )}

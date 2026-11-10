@@ -258,7 +258,8 @@ export function ScreenerTable(props: Props) {
     return (
       <td class="scr-td" classList={{ "is-right": def?.align !== "left" }} title={def?.cellText ? text() : undefined}>
         <Show when={rating()}>{(r) => <RatingIcon rating={r()} />}</Show>
-        <span class={rating() ? `scr-rating scr-rating-${RATING_CLASS[rating()!]}` : tone()}>{text()}</span>
+        {/* A text column (index, sector, industry, exchange) shows data. */}
+        <span class={rating() ? `scr-rating scr-rating-${RATING_CLASS[rating()!]}` : tone()} data-no-translate={def?.fmt === "text" || undefined}>{text()}</span>
         <Show when={unit()}>
           <span class="scr-currency"> {unit()}</span>
         </Show>
@@ -350,7 +351,7 @@ export function ScreenerTable(props: Props) {
                           <span class="ot-ticker-logo ot-ticker-logo--md scr-row-logo" aria-hidden="true">{ticker().charAt(0)}</span>
                         </Show>
                         <Show when={screenerSettings().showSymbol}>
-                          <span class="scr-ticker-chip" title={desc() ? `${ticker()} − ${desc()}` : ticker()}>{ticker()}</span>
+                          <span class="scr-ticker-chip" data-no-translate title={desc() ? `${ticker()} − ${desc()}` : ticker()}>{ticker()}</span>
                         </Show>
                         <Show when={screenerSettings().showName}>
                           <span class="scr-ticker-name" title={typeof desc() === "string" ? `${ticker()} − ${desc()}` : ticker()}>{desc() ?? ticker()}</span>

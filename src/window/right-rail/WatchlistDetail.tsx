@@ -473,7 +473,7 @@ export function WatchlistDetail(props: Props) {
             span. */}
         <Show when={econ()}>
           <div class="watchlist-detail-row">
-            <span class="watchlist-detail-company">{i()?.name ?? DASH}</span>
+            <span class="watchlist-detail-company" data-no-translate>{i()?.name ?? DASH}</span>
           </div>
           <div class="watchlist-detail-row">
             <span class="watchlist-detail-exchange">{i()?.exchange ?? DASH}</span>
@@ -483,7 +483,7 @@ export function WatchlistDetail(props: Props) {
           </div>
           <div class="watchlist-detail-price-row">
             <span class="watchlist-detail-price">{econValue(s()?.last)}</span>
-            <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
+            <span class="watchlist-detail-currency" data-no-translate>{i()?.currency ?? ""}</span>
             <span class={`watchlist-detail-change${changeSign()}`}>{econChange(s()?.change)}</span>
             <Show when={local()}>
               <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
@@ -495,7 +495,7 @@ export function WatchlistDetail(props: Props) {
         </Show>
         <Show when={!econ()}>
         <div class="watchlist-detail-row">
-          <span class="watchlist-detail-company">{i()?.name ?? DASH}</span>
+          <span class="watchlist-detail-company" data-no-translate>{i()?.name ?? DASH}</span>
           <Show when={i()?.exchange}>
             <span class="watchlist-detail-dot" aria-hidden="true">·</span>
             <span class="watchlist-detail-exchange">{exchangeName(i()?.exchange)}</span>
@@ -504,8 +504,8 @@ export function WatchlistDetail(props: Props) {
         {/* Sector / industry — no screener to navigate to in this port, so they
             render as greyed-out, non-interactive labels rather than dead links. */}
         <div class="watchlist-detail-row watchlist-detail-tags">
-          <span class="watchlist-detail-link watchlist-detail-link--disabled" aria-disabled="true" title="Sector screener not available">{toTitleCase(i()?.sector)}</span>
-          <span class="watchlist-detail-link watchlist-detail-link--disabled" aria-disabled="true" title="Industry screener not available">{toTitleCase(i()?.industry)}</span>
+          <span class="watchlist-detail-link watchlist-detail-link--disabled" aria-disabled="true" title="Sector screener not available"><span data-no-translate>{toTitleCase(i()?.sector)}</span></span>
+          <span class="watchlist-detail-link watchlist-detail-link--disabled" aria-disabled="true" title="Industry screener not available"><span data-no-translate>{toTitleCase(i()?.industry)}</span></span>
         </div>
 
         {/* Price line — big 28px price, then currency, ±change and ±change% all
@@ -513,7 +513,7 @@ export function WatchlistDetail(props: Props) {
             badge: our data is delayed.) */}
         <div class="watchlist-detail-price-row">
           <span class="watchlist-detail-price">{localNumber(fmtPrice(s()?.last))}</span>
-          <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
+          <span class="watchlist-detail-currency" data-no-translate>{i()?.currency ?? ""}</span>
           <span class={`watchlist-detail-change${changeSign()}`}>{localNumber(fmtSignedPrice(s()?.change))}</span>
           <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
         </div>
@@ -551,7 +551,7 @@ export function WatchlistDetail(props: Props) {
         <Show when={sessionActive() && extPrice() != null}>
           <div class="watchlist-detail-ext-row">
             <span class="watchlist-detail-ext-price">{localNumber(fmtPrice(extPrice()))}</span>
-            <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
+            <span class="watchlist-detail-currency" data-no-translate>{i()?.currency ?? ""}</span>
             <span class={`watchlist-detail-change${extSign()}`}>{localNumber(fmtSignedPrice(extChange()))}</span>
             <span class={`watchlist-detail-change${extSign()}`}>{fmtSignedPercent(s()?.extChangePercent)}</span>
           </div>
@@ -621,6 +621,7 @@ export function WatchlistDetail(props: Props) {
             >
               <a
                 class="watchlist-detail-stat-value watchlist-detail-link-strong"
+                data-no-translate
                 href={i()!.homepageUrl!}
                 target="_blank"
                 rel="noreferrer"
@@ -653,7 +654,7 @@ export function WatchlistDetail(props: Props) {
             </span>
           </div>
           <Show when={i()?.description}>
-            <p class="watchlist-detail-description">{i()!.description}</p>
+            <p class="watchlist-detail-description" data-no-translate>{i()!.description}</p>
           </Show>
         </Show>
         </Show>

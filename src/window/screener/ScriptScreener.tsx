@@ -754,7 +754,7 @@ export function ScriptScreener(props: Props) {
                           )}
                         </Show>
                         <span class="ot-ticker-logo ot-ticker-logo--md scr-row-logo" aria-hidden="true">{ticker.charAt(0)}</span>
-                        <span class="scr-ticker-chip">{ticker}</span>
+                        <span class="scr-ticker-chip" data-no-translate>{ticker}</span>
                         <span class="sscr-name" title={r.error ?? names().get(ticker)}>
                           {r.error ? r.error : names().get(ticker) ?? ""}
                         </span>

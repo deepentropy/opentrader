@@ -23,6 +23,8 @@ import { BucketBarsSeries, PairBarsSeries, type BucketBarsData } from "./report-
 import { ChartTip, DetailSwitch, Legend, PagedChart, Widget, signOf, usePager, type TipAnchor, type TipRow } from "./ReportWidget";
 
 const DETAIL_LABEL: Record<BucketDetail, string> = { day: "Daily", week: "Weekly", quarter: "Quarterly", year: "Yearly" };
+/** The Periodical chart's title by its detail, each written whole. */
+const PNL_TITLE: Record<BucketDetail, string> = { day: "Daily PnL", week: "Weekly PnL", quarter: "Quarterly PnL", year: "Yearly PnL" };
 
 /** Axis label of a bucket: "Q3 '20", "2020", else "Jul 5". */
 function tickLabel(sec: number, d: BucketDetail): string {
@@ -168,7 +170,7 @@ const periodicalColors = (): Colors =>
   );
 
 const PERIODICAL: Config = {
-  title: (d) => `${DETAIL_LABEL[d]} PnL`,
+  title: (d) => PNL_TITLE[d],
   data: periodicals,
   defaultDetail: "day",
   minBarSpacing: 20,

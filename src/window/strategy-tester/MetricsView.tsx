@@ -1,4 +1,4 @@
-import { largestUnitText } from "../../i18n/format";
+import { largestUnitText, monthName, numberText, weekdayText } from "../../i18n/format";
 /*
  * Metrics view (the reference app 3.4.1): Key stats, Performance (equity chart),
  * Performance analysis and Trades analysis with their round sub-tabs.
@@ -16,7 +16,7 @@ import type { BacktestReport } from "../../backtester/types";
 import { EquityChart } from "./EquityChart";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { DASH, compact, count, money, percent, ratio, tone } from "./format";
-import { MONTHS, bestEntry, cagr, derivedPerformance, distribution, entryBuckets, growthPeriods, growthStats, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
+import { bestEntry, cagr, derivedPerformance, distribution, entryBuckets, growthPeriods, growthStats, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
 import { BenchmarkChart, PeriodicalChart } from "./PeriodicalCharts";
 import { MarginChart } from "./MarginChart";
 import { AlternatingChart, GrowthComparison } from "./GrowthCharts";
@@ -25,7 +25,7 @@ import { StreaksChart } from "./StreaksChart";
 import { ResultsByTime } from "./ResultsByTime";
 import { Widget } from "./ReportWidget";
 import { cachedSymbolSessions } from "../../data/session/symbol-sessions";
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 
 /** One metric cell: label, value [+ currency] [+ second value]. */
 function Cell(props: { label: string; value: string; currency?: string; change?: string; tone?: string }): JSX.Element {
@@ -45,7 +45,6 @@ function Cell(props: { label: string; value: string; currency?: string; change?:
   );
 }
 
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 /** Entry hour bucket, 24-hour clock ("14:00"). */
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
@@ -70,8 +69,8 @@ function RoundTabs<T extends string>(props: { tabs: readonly T[]; value: T; onCh
   );
 }
 
-const PERF_TABS = ["Breakdown", "Periodical", "Benchmarking", "Margin usage", "Growth and decline"] as const;
-const TRADE_TABS = ["Distribution", "Streaks", "Time patterns"] as const;
+const PERF_TAB_LABELS = ["Breakdown", "Periodical", "Benchmarking", "Margin usage", "Growth and decline"] as const;
+const TRADE_TAB_LABELS = ["Distribution", "Streaks", "Time patterns"] as const;
 
 type ViewProps = {
   report: BacktestReport;
@@ -129,8 +128,8 @@ export function MetricsView(props: ViewProps) {
   const cur = () => r().currency;
   const perf = () => r().performance;
   const cap = () => r().properties.initialCapital;
-  const [perfTab, setPerfTab] = createSignal<(typeof PERF_TABS)[number]>("Breakdown");
-  const [tradeTab, setTradeTab] = createSignal<(typeof TRADE_TABS)[number]>("Distribution");
+  const [perfTab, setPerfTab] = createSignal<(typeof PERF_TAB_LABELS)[number]>("Breakdown");
+  const [tradeTab, setTradeTab] = createSignal<(typeof TRADE_TAB_LABELS)[number]>("Distribution");
 
   const total = createMemo(() => totalPnl(r()));
   const dist = createMemo(() => distribution(r()));
@@ -146,9 +145,9 @@ export function MetricsView(props: ViewProps) {
   const bestHour = createMemo(() => bestEntry(buckets(), "hour"));
   const bestDay = createMemo(() => bestEntry(buckets(), "day"));
   const best = createMemo(() => bestEntry(buckets(), "month"));
-  const winners = (b: { winRate: number } | undefined) => (b ? `${percent(b.winRate)} winners` : undefined);
+  const winners = (b: { winRate: number } | undefined) => (b ? translateWith("{0} winners", percent(b.winRate)) : undefined);
   const duration = (ms: number | null) => (ms == null ? DASH : largestUnitText(ms));
-  const trades = (n: number | null) => (n == null ? DASH : `${Number(n.toFixed(1))} trades`);
+  const trades = (n: number | null) => (n == null ? DASH : translatePlural(n, { one: "{0} trade", other: "{0} trades" }, numberText(Number(n.toFixed(1)))));
 
   const chart = () => <EquityChart report={r()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} symbol={props.symbol} />;
 
@@ -164,7 +163,7 @@ export function MetricsView(props: ViewProps) {
 
       <h2 class="st-view-title">Performance analysis</h2>
       <div class="st-section">
-        <RoundTabs tabs={PERF_TABS} value={perfTab()} onChange={setPerfTab} />
+        <RoundTabs tabs={PERF_TAB_LABELS} value={perfTab()} onChange={setPerfTab} />
         <Show when={perfTab() === "Breakdown"}>
           <div class="st-cells">
             <Cell label="Gross profit" value={money(perf().all.grossProfit)} currency={cur()} change={percent(perf().all.grossProfitPercent)} />
@@ -231,7 +230,7 @@ export function MetricsView(props: ViewProps) {
 
       <h2 class="st-view-title">Trades analysis</h2>
       <div class="st-section">
-        <RoundTabs tabs={TRADE_TABS} value={tradeTab()} onChange={setTradeTab} />
+        <RoundTabs tabs={TRADE_TAB_LABELS} value={tradeTab()} onChange={setTradeTab} />
         <Show when={tradeTab() === "Distribution"}>
           <div class="st-cells">
             <Cell label="Expectancy" value={money(perf().all.avgTrade)} currency={cur()} change={percent(perf().all.avgTradePercent)} />
@@ -258,8 +257,8 @@ export function MetricsView(props: ViewProps) {
         <Show when={tradeTab() === "Time patterns"}>
           <div class="st-cells">
             <Cell label="Best hour for entries" value={bestHour() ? hourLabel(bestHour()!.index) : DASH} change={winners(bestHour())} />
-            <Cell label="Best day for entries" value={bestDay() ? WEEKDAYS[bestDay()!.index] : DASH} change={winners(bestDay())} />
-            <Cell label="Best month for entries" value={best() ? MONTHS[best()!.index] : DASH} change={winners(best())} />
+            <Cell label="Best day for entries" value={bestDay() ? weekdayText(bestDay()!.index) : DASH} change={winners(bestDay())} />
+            <Cell label="Best month for entries" value={best() ? monthName(best()!.index + 1, "long") : DASH} change={winners(best())} />
             <Cell label="Average trade duration" value={perf().all.avgBarsInTrade == null ? DASH : `${Math.round(perf().all.avgBarsInTrade!)} bars`} />
           </div>
           <div class="st-chart-area">
@@ -322,7 +321,8 @@ function ProfitsAndLosses(props: { report: BacktestReport }) {
         <For each={rows()}>
           {(row, i) => (
             <div class="st-pnl-row" classList={{ "is-first": i() === 0 }}>
-              <span class="st-pnl-label" title={row.label}>{row.label}</span>
+              {/* A signal's row: the script's entry id, not interface text. */}
+              <span class="st-pnl-label" title={row.label} data-no-translate={(by() === "signal" && i() > 0) || undefined}>{row.label}</span>
               {bar(row)}
               <span class={`st-pnl-value ${tone(row.pnl)}`}>
                 {money(row.pnl, true)}

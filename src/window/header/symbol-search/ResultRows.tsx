@@ -83,9 +83,9 @@ export function compareRow(ctx: RowContext, row: FilteredRow, i: () => number) {
         </For>
       </div>
       <div class="symbol-search-cell symbol-search-exchange-cell cmp-search-exchange">
-        <div class="symbol-search-market-type">{row.marketType}</div>
+        <div class="symbol-search-market-type" data-i18n-sense="market">{row.marketType}</div>
         <div class="symbol-search-exchange-source">
-          <span class="symbol-search-exchange" title={row.exchangeTooltip ?? row.exchange}>{row.exchange}</span>
+          <span class="symbol-search-exchange" data-no-translate title={row.exchangeTooltip ?? row.exchange}>{row.exchange}</span>
         </div>
         <Show when={rowFlag(row)}>
           <span class="symbol-search-flag" aria-hidden="true">
@@ -145,17 +145,17 @@ export function ResultRow(props: { ctx: RowContext; row: FilteredRow; i: () => n
             />
           </Show>
         </span>
-        <div class="symbol-search-title-cell">
+        <div class="symbol-search-title-cell" data-no-translate>
           {renderHighlighted(row.ticker, row.titleHighlight)}
         </div>
       </div>
 
-      <div class="symbol-search-cell symbol-search-desc-cell">
+      <div class="symbol-search-cell symbol-search-desc-cell" data-no-translate>
         {renderHighlighted(row.description, row.descriptionHighlight)}
       </div>
 
       <div class="symbol-search-cell symbol-search-exchange-cell">
-        <div class="symbol-search-market-type">
+        <div class="symbol-search-market-type" data-i18n-sense="market">
           {/* Economic series: no type label (reference). */}
           {row.marketType === "economic" ? "" : row.marketType}
         </div>
@@ -169,6 +169,7 @@ export function ResultRow(props: { ctx: RowContext; row: FilteredRow; i: () => n
           </Show>
           <span
             class="symbol-search-exchange"
+            data-no-translate
             title={row.exchangeTooltip ?? row.exchange}
           >
             {row.exchange}

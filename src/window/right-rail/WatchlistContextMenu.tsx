@@ -149,7 +149,7 @@ export function WatchlistContextMenu(props: Props) {
       <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(rows()))}>
         <span class="ot-menu-item__icon" aria-hidden="true" />
         <span class="ot-menu-item__label">{multi() ? "Flag/Unflag all selected" : translateWith("Flag/Unflag {0}", sym())}</span>
-        <span class="ot-menu-item__hotkey">Alt + ↵</span>
+        <span class="ot-menu-item__hotkey" data-no-translate>Alt + ↵</span>
       </button>
 
       {/* Inline flag-colour row — the 7 swatches render as a menu row. */}

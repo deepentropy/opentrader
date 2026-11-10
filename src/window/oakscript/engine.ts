@@ -16,6 +16,7 @@ import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
 import type { BacktestOutput } from "../../backtester/worker-types";
 import { intrabarsRef } from "../../backtester/intrabars";
+import { translateWith } from "../../i18n/translator";
 import { SentRuns } from "../../backtester/live-runs";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
@@ -97,7 +98,7 @@ export class OakEngine {
         this.pending.delete(msg.id);
         // Watchdog: only a terminate can stop a busy-looping script.
         this.restart(`Script did not finish within ${Math.round(timeoutMs / 1000)}s and was stopped.`);
-        reject(new OakEngineError({ message: `Timed out after ${Math.round(timeoutMs / 1000)}s.` }, true));
+        reject(new OakEngineError({ message: translateWith("Timed out after {0}s.", Math.round(timeoutMs / 1000)) }, true));
       }, timeoutMs);
       this.pending.set(msg.id, { resolve, reject, timer });
       worker.postMessage(msg);

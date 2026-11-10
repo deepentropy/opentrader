@@ -17,7 +17,10 @@
  *   component that shows them. Only the fields in TEXT_FIELDS, so ids, values, keys, event names and kv keys are not
  *   read. Within those fields, a value starting in lowercase is not a text of its own: an id (`"log"`, `"chart-1"`);
  *   nor is an id starting with a digit (`"1d"`) or a colour (`"#2962ff"`).
- * - The values of a constant named as a text map (`const TYPE_LABEL = { idea: "Idea" }`, `TAB_TITLES`, `RATING_TEXT`),
+ * - A select's choices in an object: `options: ["Left", "Right"]`, or `options: SESSION_OPTIONS` naming a list of
+ *   the file (a constant ending in `_OPTIONS`), with the same exceptions.
+ * - The values of a constant named as a text map (`const TYPE_LABEL = { idea: "Idea" }`, `TAB_TITLES`, `RATING_TEXT`)
+ *   or a list of texts (`const SUGGESTION_TEXTS = ["What can you do?"]`),
  *   with the same exceptions.
  * - What a variable or function named for a text holds or returns (`const menuTitle = …`, `statusText(i)`), and the
  *   strings a file passes to its own functions' text parameters (`popular("1", "Most capitalized")`). A string written
@@ -53,6 +56,8 @@ const TEXT_FIELDS = new Set([
   "header",
   "desc",
   "mainText",
+  // A column's or a metric's short title ("Mkt cap").
+  "short",
   "cancelText",
   "closeLabel",
   "menuLabel",
@@ -68,7 +73,7 @@ const SYMBOL_FIELDS = new Set(["ticker", "symbolName"]);
  * `statusText`. Its shown strings are read (the branches of a condition, what an arrow function or a `return` gives),
  * and for a parameter the strings given to it by the calls in the same file (`popular("1", "Most capitalized")`).
  */
-const TEXT_NAME = /^(?:label|title|text|tip|tooltip|caption|message|description)s?$|[a-z0-9](?:Label|Title|Text|Tip|Tooltip|Caption|Message|Description)s?$/;
+const TEXT_NAME = /^(?:label|title|short|text|tip|tooltip|caption|message|description)s?$|[a-z0-9](?:Label|Title|Text|Tip|Tooltip|Caption|Message|Description)s?$/;
 
 /** A component's prop listing the choices it shows. */
 const OPTIONS = "options";
@@ -113,6 +118,8 @@ function senseOf(node: ts.Node, sf: ts.SourceFile): string | undefined {
 function shownLeaves(e: ts.Expression): ts.Expression[] {
   if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e)) return shownLeaves(e.expression);
   if (ts.isConditionalExpression(e)) return [...shownLeaves(e.whenTrue), ...shownLeaves(e.whenFalse)];
+  // A text given as a function: `title: () => "Strategy vs benchmark"`, `label={(m) => (m === "count" ? "Count" : "Amount")}`.
+  if (ts.isArrowFunction(e) && !ts.isBlock(e.body)) return shownLeaves(e.body);
   if (ts.isBinaryExpression(e)) {
     const op = e.operatorToken.kind;
     if (op === ts.SyntaxKind.AmpersandAmpersandToken) return shownLeaves(e.right);
@@ -155,6 +162,22 @@ function inTextMap(obj: ts.Node): boolean {
   let n = obj.parent;
   while (ts.isAsExpression(n) || ts.isSatisfiesExpression(n) || ts.isParenthesizedExpression(n)) n = n.parent;
   return ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && TEXT_MAP.test(n.name.text);
+}
+
+/** A constant listing a select's choices: `SESSION_OPTIONS`. */
+const OPTIONS_LIST = /_OPTIONS$/;
+
+/** The array a constant of the file holds (`const SESSION_OPTIONS = ["Regular", "Extended"]`). */
+function optionsList(sf: ts.SourceFile, name: string): ts.Expression | undefined {
+  let found: ts.Expression | undefined;
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === name && n.initializer) found = n.initializer;
+    else ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  while (found && (ts.isAsExpression(found) || ts.isSatisfiesExpression(found) || ts.isParenthesizedExpression(found))) found = found.expression;
+  return found;
 }
 
 /** The name of the function called (`translateWith`, `i18n.translateWith`). */
@@ -238,6 +261,12 @@ function visitShown(sf: ts.SourceFile, onShown: (e: ts.Expression, all: boolean)
       else if (value && TEXT_FIELDS.has(name) && component) onShown(value, false);
       else if (value && name === OPTIONS && component && ts.isArrayLiteralExpression(value)) for (const v of value.elements) onShown(v, false);
     } else if (ts.isPropertyAssignment(node) && TEXT_FIELDS.has(propertyName(node.name) ?? "") && !isSymbol(node.parent)) onShown(node.initializer, false);
+    else if (ts.isPropertyAssignment(node) && propertyName(node.name) === OPTIONS) {
+      // A select's choices: `options: ["Left", "Right"]`, or a list of the file named for them (`VISIBILITY_OPTIONS`).
+      const list = ts.isIdentifier(node.initializer) && OPTIONS_LIST.test(node.initializer.text) ? optionsList(sf, node.initializer.text) : node.initializer;
+      if (list && ts.isArrayLiteralExpression(list)) for (const v of list.elements) onShown(v, false);
+    }
+    else if (ts.isArrayLiteralExpression(node) && inTextMap(node)) for (const v of node.elements) onShown(v, false);
     else if (ts.isPropertyAssignment(node) && inTextMap(node.parent)) {
       // A pair ("Annual", "FY") is two texts.
       const values = ts.isArrayLiteralExpression(node.initializer) ? node.initializer.elements : [node.initializer];

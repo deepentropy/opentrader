@@ -59,6 +59,10 @@ from the code, the built-in studies and `src/i18n/tools/run-time-texts.ts`.
   `translatePlural(n, { one: "{0} bar", other: "{0} bars" })`, dates and numbers through `src/i18n/format.ts`; never
   join words to values (`"Undo " + name`, a test fails). A word with two meanings takes a sense (`data-i18n-sense`,
   `translateAs`). Then `npm run i18n:extract` and add the new entries to each dictionary.
+- Not interface text: data (tickers, company and script names, exchanges, hotkeys, what the user wrote, legal notices
+  kept verbatim) is shown in an element with `data-no-translate`; a text the code already wrote in the language (words
+  translated one by one and joined with values, dates of `format.ts`) goes through `formatted()`. Neither is looked
+  up, so neither is reported as left in English.
 - A language: one entry in `src/i18n/languages.ts` (name, plural locale, formats, direction, `partial` while it is
   being translated) and its `<lang>.json`; `src/i18n/glossary/<lang>.json` holds its terms.
 - `npm run i18n:report` gives each language's coverage; `npm run i18n:missing -- <lang>` writes the missing texts with
@@ -69,6 +73,8 @@ from the code, the built-in studies and `src/i18n/tools/run-time-texts.ts`.
   accented, a third longer and between markers ⟦…⟧: text without them is left in English. With the dev app running
   with CDP, `npm run i18n:walk -- 9231` walks its screens, menus, dialogs and panels in it and writes the English left
   on screen, the cut text and the misses to `.tmp/i18n-walk/` (report.md, screenshots), then puts the app back.
+  `--language=en-XB` or `--language=fr` walks another language (`.tmp/i18n-walk/<lang>/`), `--all-shots` keeps a
+  screenshot of every state to check by eye.
 - Right to left: the page's `dir` is the language's. CSS uses start/end (`margin-inline-start`, `inset-inline-end`,
   `text-align: start`); left/right only for what keeps its side: the panels' places and their outer edges and resize
   handles, the chart and what sits over it (`src/styles/rtl.css` holds those rules). Code that places a menu or

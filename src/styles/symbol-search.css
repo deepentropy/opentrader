@@ -163,13 +163,18 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  overflow: hidden;
+  /* A row longer than the dialog (a language with longer names) scrolls, its bar hidden. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
 
 /* Round-tab pills — height 28, padding 0 11px, border-radius 14px,
  * font-size 14, font-weight 400.  Unselected has cold-gray-750 background (not
  * transparent); selected is light cold-gray-50 with dark text. */
 .symbol-search-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
   height: 28px;
   padding: 0 11px;
   display: inline-flex;

@@ -134,6 +134,7 @@ export function ControlView(props: {
                 options={c.c === "select" ? c.options : [v.value]}
                 width={selectWidth(props.rowId, c)}
                 disabled={props.disabled || (c.c === "select" && c.disabled)}
+                data={c.c === "select" && c.data}
                 onPick={(o) => props.onChange({ kind: "select", value: o })}
               />
             );

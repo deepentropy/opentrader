@@ -38,6 +38,21 @@ const COLUMNS: { name: OptionalCol; on: boolean; width: string; align: "start" |
   { name: "Duration (bars)", on: false, width: "minmax(110px, 0.7fr)", align: "end", half: false },
 ];
 
+/** The columns' headings (their names above are the code's). */
+const COLUMN_LABELS: Record<OptionalCol, string> = {
+  "Date and time": "Date and time",
+  Signal: "Signal",
+  Price: "Price",
+  Size: "Size",
+  "Net PnL": "Net PnL",
+  Return: "Return",
+  Commission: "Commission",
+  "Favorable excursion": "Favorable excursion",
+  "Adverse excursion": "Adverse excursion",
+  "Cumulative PnL": "Cumulative PnL",
+  "Duration (bars)": "Duration (bars)",
+};
+
 type Props = {
   report: BacktestReport;
   intraday: boolean;
@@ -72,7 +87,7 @@ export function TradesView(props: Props) {
   const numbered = createMemo(() => props.report.trades.map((t, i) => ({ t, n: i + 1 })));
   const ordered = createMemo(() => (desc() ? numbered().slice().reverse() : numbered()));
   const cols = () => COLUMNS.filter((c) => shown().has(c.name));
-  const label = (name: OptionalCol) => (name === "Signal" && props.signalLabel ? props.signalLabel : name);
+  const label = (name: OptionalCol) => (name === "Signal" && props.signalLabel ? props.signalLabel : COLUMN_LABELS[name]);
   const template = () => ["minmax(150px, 1.4fr)", "46px", "72px", ...cols().map((c) => c.width)].join(" ");
 
   onMount(() => {

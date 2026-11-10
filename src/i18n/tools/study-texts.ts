@@ -47,6 +47,29 @@ export function studyTexts(registry: readonly StudyEntry[]): FoundText[] {
   return registry.filter((e) => BUILT_IN.has(e.group)).flatMap(textsOf).filter((t) => /[a-z]/.test(t.text));
 }
 
+/**
+ * The texts of a built-in strategy's script (src/backtester/builtins): its name and short title (`strategy('Bar
+ * up/down strategy', { shorttitle: 'Bar up/dn str' })`), its inputs' titles and options. As for the studies, the
+ * texts with a lowercase letter; not the titles written as a variable name ("fastLength").
+ */
+export function strategyTexts(file: string, source: string): FoundText[] {
+  const out: FoundText[] = [];
+  const at = `strategies: ${file.replace(/^.*\//, "").replace(/\.ts$/, "")}`;
+  const add = (text: string, what: string) => {
+    if (/[a-z]/.test(text) && !/^[a-z]+[A-Z]\w*$/.test(text)) out.push({ text, at: `${at} ${what}` });
+  };
+  // A quoted string: 'Max intraday loss (%)'.
+  const str = /'((?:[^'\\]|\\.)*)'/.source;
+  const each = (text: string, re: RegExp, what: string) => {
+    for (const m of text.matchAll(re)) add(m[1], what);
+  };
+  each(source, new RegExp(String.raw`\bstrategy\(\s*` + str, "g"), "name");
+  each(source, new RegExp(String.raw`\bshorttitle:\s*` + str, "g"), "short title");
+  each(source, new RegExp(String.raw`\binput\.\w+\(\s*[^,()]*,\s*` + str, "g"), "input");
+  for (const m of source.matchAll(/\boptions:\s*\[([^\]]*)\]/g)) each(m[1], new RegExp(str, "g"), "option");
+  return out;
+}
+
 /** Every study's texts: a dictionary may have them. */
 export function knownStudyTexts(registry: readonly StudyEntry[]): Set<string> {
   return new Set(registry.flatMap(textsOf).map((t) => t.text));

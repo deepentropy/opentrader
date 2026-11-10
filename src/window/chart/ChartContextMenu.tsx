@@ -225,7 +225,7 @@ export function ChartContextMenu(props: Props) {
         >
           <span class="ot-chart-ctx-icon">{leading()}</span>
           <span class="ot-chart-ctx-label">{n.label}</span>
-          {n.shortcut && <span class="ot-chart-ctx-shortcut">{n.shortcut}</span>}
+          {n.shortcut && <span class="ot-chart-ctx-shortcut" data-no-translate>{n.shortcut}</span>}
           {n.submenu && <SubmenuArrow />}
           {n.onRemove && (
             <button

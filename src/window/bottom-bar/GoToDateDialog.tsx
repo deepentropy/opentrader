@@ -1,4 +1,4 @@
-import { translateWith } from "../../i18n/translator";
+import { formatted, translateWith } from "../../i18n/translator";
 import { calendarWeekdays, dateText } from "../../i18n/format";
 /*
  * GoToDateDialog — the "Go to" date dialog opened by the calendar button next
@@ -69,7 +69,7 @@ export function parseYmd(s: string): Date | null {
 /** The calendar's head: "November 2026", "Novembre 2026" (a title: its first letter upper case). */
 export function monthLabel(year: number, month: number): string {
   const text = dateText(new Date(year, month, 1), { month: "long", year: "numeric" });
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  return formatted(text.charAt(0).toUpperCase() + text.slice(1));
 }
 export function ariaDay(d: Date): string {
   return dateText(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -438,7 +438,7 @@ export function GoToDateDialog(props: Props) {
                 </div>
 
                 <Show when={calView() === "days"}>
-                  <div class="goto-dialog-cal-sub-header" aria-hidden="true">
+                  <div class="goto-dialog-cal-sub-header" aria-hidden="true" data-no-translate>
                     <For each={weekdayHeads()}>{(w) => <span>{w}</span>}</For>
                   </div>
                 </Show>

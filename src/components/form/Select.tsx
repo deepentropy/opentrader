@@ -11,6 +11,8 @@ import { createPopover } from "../popover";
 import { isRtl } from "../reading-direction";
 import { CheckBox } from "./CheckBox";
 import { Chevron } from "./glyphs";
+import { translate } from "../../i18n/translator";
+import { listText } from "../../i18n/format";
 
 type Anchor = { left: number; right: number; top: number; bottom: number; width: number };
 const anchorOf = (el: HTMLElement): Anchor => {
@@ -63,6 +65,8 @@ export function SelectControl(props: {
   display?: string;
   /** Option text when the options are ids (default: the option itself). */
   labelOf?: (o: string) => string;
+  /** The options are data, not interface words (date format samples): not translated. */
+  data?: boolean;
   onPick: (v: string) => void;
 }) {
   let btn: HTMLButtonElement | undefined;
@@ -79,7 +83,7 @@ export function SelectControl(props: {
         disabled={props.disabled}
         onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
       >
-        <span class="cp3-select-value">{props.display ?? props.labelOf?.(props.value) ?? props.value}</span>
+        <span class="cp3-select-value" data-no-translate={props.data || undefined}>{props.display ?? props.labelOf?.(props.value) ?? props.value}</span>
         <span class="cp3-select-caret"><Chevron /></span>
       </button>
       <Show when={anchor()} keyed>
@@ -94,7 +98,7 @@ export function SelectControl(props: {
                   class={`cp3-menu-item${o === props.value ? " is-selected" : ""}${props.disabledOptions?.includes(o) ? " is-disabled" : ""}`}
                   onClick={() => { if (props.disabledOptions?.includes(o)) return; props.onPick(o); setAnchor(null); }}
                 >
-                  <span class="cp3-menu-title">{props.labelOf?.(o) ?? o}</span>
+                  <span class="cp3-menu-title" data-no-translate={props.data || undefined}>{props.labelOf?.(o) ?? o}</span>
                   <Show when={props.optionTag?.(o)}>
                     {(tag) => <span class="cp3-menu-tag">{tag()}</span>}
                   </Show>
@@ -143,8 +147,10 @@ export function MenuSelect(props: { display: string; width: number; role: "listb
  *  reads "Hidden". */
 function multiSummary(options: string[], on: string[]): string {
   const picked = options.filter((o) => on.includes(o));
-  if (picked.length === 0) return "Hidden";
-  return picked.map((o, i) => (i === 0 ? o : o.toLowerCase())).join(", ");
+  if (picked.length === 0) return translate("Hidden");
+  // Translated here, the words joined: the control shows the text as it is (data-no-translate).
+  const lang = document.documentElement.lang || "en";
+  return listText(picked.map((o, i) => (i === 0 ? translate(o) : translate(o).toLocaleLowerCase(lang))));
 }
 
 /** Check-list select: toggling an option keeps the menu open. */
@@ -164,7 +170,7 @@ export function MultiCheckSelect(props: { options: string[]; on: string[]; width
         aria-expanded={!!anchor()}
         onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
       >
-        <span class="cp3-select-value">{multiSummary(props.options, props.on)}</span>
+        <span class="cp3-select-value" data-no-translate>{multiSummary(props.options, props.on)}</span>
         <span class="cp3-select-caret"><Chevron /></span>
       </button>
       <Show when={anchor()} keyed>

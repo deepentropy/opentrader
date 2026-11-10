@@ -593,7 +593,7 @@ export function DrawingToolbar(props: Props) {
                                         {tool.title}
                                       </span>
                                       <Show when={tool.hotkey}>
-                                        <span class="drawing-tool-submenu-hotkey">
+                                        <span class="drawing-tool-submenu-hotkey" data-no-translate>
                                           {tool.hotkey}
                                         </span>
                                       </Show>

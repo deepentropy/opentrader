@@ -21,7 +21,7 @@ import { conditionMessage } from "./alert-study-conditions";
 import { tickerOf } from "./symbol-name";
 import { groupThousands } from "../window/chart/price-format";
 import { formatStudyValue } from "./study-format";
-import { translate, translatePlural, translateWith } from "../i18n/translator";
+import { formatted, translate, translatePlural, translateWith } from "../i18n/translator";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -578,6 +578,11 @@ export function alertAmountText(symbol: string | undefined, left: Operand, v: nu
 /** Human-readable condition: "Price Crossing Up 150", "Price Moving Up 1%
  *  in 3 bars", "Price Entering Channel (Upper Bound: 12, Lower Bound: 10)". */
 export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" | "bars"> & { right2?: Operand; symbol?: string }): string {
+  // Its words translated one by one, joined with the values: shown as it is.
+  return formatted(conditionText(rule));
+}
+
+function conditionText(rule: Pick<AlertRule, "left" | "op" | "right" | "bars"> & { right2?: Operand; symbol?: string }): string {
   // A study's own condition: "MACD (close, 12, 26, 9): Rising to falling".
   if (rule.op === "alert_condition") {
     const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
@@ -668,6 +673,10 @@ export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "r
  *  message the study declares; for a script's alert() calls, the condition
  *  (each fire has the call's message). */
 export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand; and?: AlertCondition[] }): string {
+  return formatted(alertMessageText(rule));
+}
+
+function alertMessageText(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand; and?: AlertCondition[] }): string {
   // Several conditions: each one's message, joined by " AND " (empty ones left out).
   if (rule.and?.length) {
     return ruleConditions(rule)

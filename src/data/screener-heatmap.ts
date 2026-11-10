@@ -28,10 +28,11 @@ export type HeatOption = {
 };
 
 const R1D = { resolution: "TimeResolution1D" };
-const perf = (interval: string, short: string): HeatOption => ({
-  id: `Perf${short}`,
-  short: `Perf %, ${short}`,
-  valueShort: `Perf %, ${short}`,
+/** A performance option: `label` written whole ("Perf %, 1W"). */
+const perf = (interval: string, period: string, label: string): HeatOption => ({
+  id: `Perf${period}`,
+  short: label,
+  valueShort: label,
   column: { id: "Performance", params: { interval } },
   group: 1,
   scale: "signed",
@@ -40,14 +41,19 @@ const perf = (interval: string, short: string): HeatOption => ({
 /** Volume and turnover of the day, the current week and the current month. */
 const PERIODS = ["1D", "1W", "1M"] as const;
 
+/** The size options by period, each written whole. */
+const VOLUME_LABELS = { "1D": "Vol, 1D", "1W": "Vol, 1W", "1M": "Vol, 1M" } as const;
+const TURNOVER_LABELS = { "1D": "Price × vol, 1D", "1W": "Price × vol, 1W", "1M": "Price × vol, 1M" } as const;
+const BETA_LABELS = { "1Y": "Beta, 1Y", "3Y": "Beta, 3Y", "5Y": "Beta, 5Y" } as const;
+
 export const HEAT_SIZE: HeatOption[] = [
   { id: "MarketCap", short: "Mkt cap", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 0, type: "stock" },
   { id: "AUM", short: "AUM", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 0, type: "etf" },
   ...PERIODS.map((r): HeatOption => ({
-    id: r === "1D" ? "Volume" : `Volume${r}`, short: `Vol, ${r}`, valueShort: `Vol, ${r}`, column: { id: "Volume", params: { resolution: `TimeResolution${r}` } }, group: 1,
+    id: r === "1D" ? "Volume" : `Volume${r}`, short: VOLUME_LABELS[r], valueShort: VOLUME_LABELS[r], column: { id: "Volume", params: { resolution: `TimeResolution${r}` } }, group: 1,
   })),
   ...PERIODS.map((r): HeatOption => ({
-    id: r === "1D" ? "VolumePrice" : `VolumePrice${r}`, short: `Price × vol, ${r}`, valueShort: `Price × vol, ${r}`,
+    id: r === "1D" ? "VolumePrice" : `VolumePrice${r}`, short: TURNOVER_LABELS[r], valueShort: TURNOVER_LABELS[r],
     column: { id: "VolumePrice", params: { resolution: `TimeResolution${r}` } }, group: 2,
   })),
   { id: "Mono", short: "Mono size", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 3, mono: true, type: "stock" },
@@ -56,17 +62,17 @@ export const HEAT_SIZE: HeatOption[] = [
 
 export const HEAT_COLOR: HeatOption[] = [
   { id: "Change", short: "Chg %, 1D", valueShort: "Chg %, 1D", column: { id: "Change", params: R1D }, group: 0, scale: "signed" },
-  perf("Interval1W", "1W"),
-  perf("Interval1M", "1M"),
-  perf("Interval3M", "3M"),
-  perf("Interval6M", "6M"),
-  perf("IntervalYTD", "YTD"),
-  perf("Interval1Y", "1Y"),
+  perf("Interval1W", "1W", "Perf %, 1W"),
+  perf("Interval1M", "1M", "Perf %, 1M"),
+  perf("Interval3M", "3M", "Perf %, 3M"),
+  perf("Interval6M", "6M", "Perf %, 6M"),
+  perf("IntervalYTD", "YTD", "Perf %, YTD"),
+  perf("Interval1Y", "1Y", "Perf %, 1Y"),
   { id: "RelativeVolume", short: "Rel vol", valueShort: "Rel vol", column: { id: "RelativeVolume", params: R1D }, group: 2, scale: "relVol", type: "stock" },
   { id: "Volatility", short: "Volatility, 1D", valueShort: "Volatility, 1D", column: { id: "Volatility", params: { interval: "Interval1D" } }, group: 2, scale: "volatility" },
   { id: "Gap", short: "Gap %", valueShort: "Gap %", column: { id: "Gap", params: R1D }, group: 2, scale: "gap", type: "stock" },
   ...(["1Y", "3Y", "5Y"] as const).map((y): HeatOption => ({
-    id: `Beta${y}`, short: `Beta, ${y}`, valueShort: `Beta, ${y}`, column: { id: "Beta", params: { interval: `Interval${y}` } }, group: 3, scale: "beta", type: "etf",
+    id: `Beta${y}`, short: BETA_LABELS[y], valueShort: BETA_LABELS[y], column: { id: "Beta", params: { interval: `Interval${y}` } }, group: 3, scale: "beta", type: "etf",
   })),
 ];
 

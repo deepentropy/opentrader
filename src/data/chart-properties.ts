@@ -56,7 +56,7 @@ const DOWN_PROJ = PROJECTION_COLORS.down;
  *   slider      — Transparency slider (value = transparency 0–100).
  * Line style enum everywhere: 0 solid, 1 dashed, 2 dotted (menu order). */
 export type Control =
-  | { c: 'select'; value: string; options: string[]; disabled?: boolean }
+  | { c: 'select'; value: string; options: string[]; disabled?: boolean; data?: boolean }
   | { c: 'color'; color: string; noOpacity?: boolean; width?: number; style?: number }
   | { c: 'colorPair'; up: string; down: string; noOpacity?: boolean }
   | { c: 'lineColor'; type: 'Solid' | 'Gradient'; color: string; start: string; end: string; width: number; style: number }
@@ -125,7 +125,7 @@ export const PRECISION_OPTIONS = [
   "13 decimals", "14 decimals", "15 decimals",
   "1/2", "1/4", "1/8", "1/16", "1/32", "1/64", "1/128", "1/320",
 ];
-const VISIBILITY = ["Visible on mouse over", "Always visible", "Always invisible"];
+const VISIBILITY_OPTIONS = ["Visible on mouse over", "Always visible", "Always invisible"];
 const DATE_FORMAT = [
   "Mon Q3 '97", "Mon Q3 1997", "Mon 29 Sep '97", "Mon Sep '97", "Mon Sep 29, 1997",
   "Mon Sep 1997", "Mon Sep 29", "Mon 29 Sep", "Mon 1997-09-29", "Mon 97-09-29",
@@ -136,10 +136,10 @@ const FONT_SIZES = ["8", "10", "11", "12", "14", "16", "18", "20", "22", "24", "
 /** Sounds of order executions (reference app order; factory: Alarm Clock). */
 export const ORDER_SOUNDS = ['Thin', '3 Notes Reverb', 'Alarm Clock', 'Beep-beep', 'Calling', 'Chirpy', 'Fault', 'Hand Bell'];
 /** Profit and loss value of positions / brackets. */
-export const PL_DISPLAY = ['Money', 'Ticks', '%'];
+export const PL_DISPLAY_OPTIONS = ['Money', 'Ticks', '%'];
 /** Base price sources, in menu order. */
 export const PRICE_SOURCES = ["Open", "High", "Low", "Close", "(H + L)/2", "(H + L + C)/3", "(O + H + L + C)/4"];
-const BOX_METHODS = ["ATR", "Traditional", "Percentage LTP"];
+const BOX_METHOD_OPTIONS = ["ATR", "Traditional", "Percentage LTP"];
 /** Session select: Regular / Extended. A "24 hours" option would need
  *  overnight (Blue Ocean) bars, which the market data does not carry — the
  *  same two sessions as the bottom-bar session menu. */
@@ -200,7 +200,7 @@ const num = (value: number | string, min: number, max: number, step = 1, int = f
  *  The method select is labelled "Box size assignment method" for every type,
  *  each size field visible only for its method. */
 const boxInputs = (sizeLabel: 'Box size' | 'Reversal amount', sizeDefault: number): FormItem[] => [
-  row({ id: 'Style', label: 'Box size assignment method', controls: [{ c: 'select', value: 'ATR', options: BOX_METHODS }] }),
+  row({ id: 'Style', label: 'Box size assignment method', controls: [{ c: 'select', value: 'ATR', options: BOX_METHOD_OPTIONS }] }),
   row({ label: sizeLabel, controls: [num(sizeDefault, 0.000001, 1e9, 0.01)], visibleWhen: { id: 'Style', values: ['Traditional'] } }),
   row({ label: 'ATR length', controls: [num(14, 1, 100, 1, true)], visibleWhen: { id: 'Style', values: ['ATR'] } }),
   row({ label: 'Percentage', controls: [num(1, 0, 100, 0.01, false, '%')], visibleWhen: { id: 'Style', values: ['Percentage LTP'] } }),
@@ -368,8 +368,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   // ── Scales and lines ─────────────────────────────────────────────────────
   scales: [
     section('Price Scale'),
-    row({ label: 'Currency and Unit', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY }] }),
-    row({ label: 'Scale modes (A and L)', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY }] }),
+    row({ label: 'Currency and Unit', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY_OPTIONS }] }),
+    row({ label: 'Scale modes (A and L)', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY_OPTIONS }] }),
     // Value = the pane's live price/bar ratio (seeded by the dialog host).
     row({ cb: true, checked: false, label: 'Lock price to bar ratio', controls: [{ c: 'input', value: '', disabled: true, num: { min: 0, max: 1e12, step: 0.0000001 } }] }),
     // Price scale menu "Scale price chart only" (chart property
@@ -392,7 +392,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ label: 'Bid and ask', controls: [{ c: 'multicheck', options: ['Value', 'Line'], on: ['Value', 'Line'] }, { c: 'color', color: '#2962FF' }, { c: 'color', color: '#F7525F' }] }),
     section('Time Scale'),
     row({ cb: true, checked: true, label: 'Day of week on labels' }),
-    row({ label: 'Date format', controls: [{ c: 'select', value: "Mon 29 Sep '97", options: DATE_FORMAT }] }),
+    row({ label: 'Date format', controls: [{ c: 'select', value: "Mon 29 Sep '97", options: DATE_FORMAT, data: true }] }),
     row({ label: 'Time hours format', controls: [{ c: 'select', value: '24-hours', options: ['24-hours', '12-hours'] }] }),
     row({ cb: true, checked: false, label: 'Save chart left edge position when changing interval' }),
   ],
@@ -415,8 +415,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ label: 'Text', controls: [{ c: 'color', color: 'rgb(184, 184, 184)' }, { c: 'select', value: '12', options: FONT_SIZES }] }),
     row({ label: 'Lines', controls: [{ c: 'color', color: 'rgba(242, 242, 242, 0)' }] }),
     section('Buttons'),
-    row({ label: 'Navigation', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY }] }),
-    row({ label: 'Pane', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY }] }),
+    row({ label: 'Navigation', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY_OPTIONS }] }),
+    row({ label: 'Pane', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY_OPTIONS }] }),
     section('Margins'),
     row({ label: 'Top', controls: [num(10, 0, 25, 1, true, '%')] }),
     row({ label: 'Bottom', controls: [num(8, 0, 25, 1, true, '%')] }),
@@ -438,8 +438,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Reverse position button', indent: true, child: true, parent: 'Positions and orders', desc: 'Adds the reverse button next to the open position on the chart' }),
     row({ cb: true, checked: true, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order' }),
     row({ cb: true, checked: true, label: 'Profit and loss value', info: true }),
-    row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
-    row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
+    row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY_OPTIONS }] }),
+    row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY_OPTIONS }] }),
     row({ cb: true, checked: true, label: 'Execution marks', info: true, card: { art: 'executions', title: 'See every fill', text: 'An arrow marks the bar where each order was filled: up for a buy, down for a sell.' } }),
     row({ cb: true, checked: false, label: 'Execution labels', indent: true, child: true, parent: 'Execution marks' }),
     row({ cb: true, checked: true, label: 'Extended price lines across the entire chart width' }),

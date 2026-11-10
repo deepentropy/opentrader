@@ -26,10 +26,12 @@ import { groupChannels } from "../../data/link-groups";
 import { activePaneOf, clampMoveIndex, tabTitle, tickerInitial, type TabChart } from "./tabs";
 import { tickerOf } from "../../data/symbol-name";
 import { DEFAULT_TAB_TITLE_PARTS, type TabTitlePartState } from "./tab-title";
+import { localNumber } from "../../i18n/format";
 
 const PRICE_PARTS = new Set(["priceChangeIcon", "lastPrice", "priceChange"]);
-const fmtTabPrice = (n: number): string => n.toFixed(2);
-const fmtTabPct = (n: number): string => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}%`;
+// In the marks of the interface language ("545,18", "+2,75%").
+const fmtTabPrice = (n: number): string => localNumber(n.toFixed(2));
+const fmtTabPct = (n: number): string => localNumber(`${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}%`);
 
 type Props = {
   tabs: TabChart[];
@@ -298,7 +300,7 @@ export function TabPanel(props: Props) {
                           case "symbolLogo":
                             return <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(tickerOf(activePaneOf(tab).symbol))}</span></span>;
                           case "ticker":
-                            return <span class="tab-part tab-part-ticker">{tickerOf(activePaneOf(tab).symbol)}</span>;
+                            return <span class="tab-part tab-part-ticker" data-no-translate>{tickerOf(activePaneOf(tab).symbol)}</span>;
                           case "priceChangeIcon":
                             return (
                               <Show when={quote()}>
@@ -308,19 +310,26 @@ export function TabPanel(props: Props) {
                           case "lastPrice":
                             return (
                               <Show when={quote()}>
-                                {(q) => <span class="tab-part tab-part-last">{fmtTabPrice(q().last)}</span>}
+                                {(q) => <span class="tab-part tab-part-last ot-value">{fmtTabPrice(q().last)}</span>}
                               </Show>
                             );
                           case "priceChange":
                             return (
                               <Show when={quote()?.changePercent != null}>
-                                <span class={`tab-part tab-part-change ${quoteDir()}`}>{fmtTabPct(quote()!.changePercent!)}</span>
+                                <span class={`tab-part tab-part-change ot-value ${quoteDir()}`}>{fmtTabPct(quote()!.changePercent!)}</span>
                               </Show>
                             );
                           case "layoutName":
                             // Shows the SAVED layout's name; unsaved charts
                             // fall back to the interval-derived label.
-                            return <span class="tab-part tab-part-layout">/ {tab.savedLayoutName ?? "Unnamed"}</span>;
+                            return (
+                              <span class="tab-part tab-part-layout">
+                                /{" "}
+                                <Show when={tab.savedLayoutName} fallback={<>Unnamed</>}>
+                                  {(name) => <span data-no-translate>{name()}</span>}
+                                </Show>
+                              </span>
+                            );
                           default:
                             return null;
                         }

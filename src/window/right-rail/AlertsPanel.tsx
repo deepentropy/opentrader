@@ -195,7 +195,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
                     {(e) => (
                       <div data-name="alert-log-item" class="alerts-panel-item">
                         <Show when={logFilters().name && e.name}>
-                          <div class="alerts-panel-item-text alerts-panel-item-name">{e.name}</div>
+                          <div class="alerts-panel-item-text alerts-panel-item-name" data-no-translate>{e.name}</div>
                         </Show>
                         <Show when={logFilters().message}>
                           <div class="alerts-panel-item-text">{e.message}</div>

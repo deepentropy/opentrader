@@ -143,8 +143,8 @@ export function ProfileMenu(props: Props) {
               >
                 <span class="profile-menu-icon"><Show when={item().icon}>{(ic) => <Icon name={ic()} size={18} />}</Show></span>
                 <span class="profile-menu-label">{item().label}</span>
-                <Show when={item().value}><span class="profile-menu-value">{item().value}</span></Show>
-                <Show when={item().hotkey}><span class="profile-menu-hotkey">{item().hotkey}</span></Show>
+                <Show when={item().value}><span class="profile-menu-value" data-no-translate>{item().value}</span></Show>
+                <Show when={item().hotkey}><span class="profile-menu-hotkey" data-no-translate>{item().hotkey}</span></Show>
                 <Show when={item().toggle}>
                   <span class={`profile-menu-toggle${drawingPanelVisible() ? " is-on" : ""}`} aria-hidden="true">
                     <span class="profile-menu-toggle-knob" />

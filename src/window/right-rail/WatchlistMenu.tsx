@@ -109,7 +109,7 @@ export function WatchlistMenu(props: Props) {
         <Show when={a.icon}>{(icon) => <span innerHTML={icon()} />}</Show>
       </span>
       <span class="ot-menu-item__label apply-overflow-tooltip">{a.label}</span>
-      <Show when={a.shortcut}><span class="ot-menu-item__hotkey">{a.shortcut}</span></Show>
+      <Show when={a.shortcut}><span class="ot-menu-item__hotkey" data-no-translate>{a.shortcut}</span></Show>
     </button>
   );
 

@@ -260,7 +260,7 @@ export function ChartLegend(props: Props) {
                     </span>
                   </Show>
                   <Show when={props.showTitle ?? true}>
-                    <span class="ot-legend-symbol">{titleText()}</span>
+                    <span class="ot-legend-symbol" data-no-translate>{titleText()}</span>
                   </Show>
                 </span>
               </Tooltip>
@@ -271,6 +271,7 @@ export function ChartLegend(props: Props) {
                     class="ot-legend-title-piece ot-legend-dot ot-legend-with-action"
                     onMouseDown={(e) => { if (props.onChangeSymbol) e.stopPropagation(); }}
                     onClick={(e) => { if (!props.onChangeSymbol) return; e.stopPropagation(); props.onChangeSymbol(); }}
+                    data-no-translate
                   >
                     {props.description}
                   </span>
@@ -287,11 +288,11 @@ export function ChartLegend(props: Props) {
               </Tooltip>
               <Show
                 when={EXCHANGE_TITLES[props.exchange.toUpperCase()]}
-                fallback={<span class="ot-legend-title-piece ot-legend-dot">{props.exchange}</span>}
+                fallback={<span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>}
               >
                 {(t) => (
                   <Tooltip text={t()} side="bottom">
-                    <span class="ot-legend-title-piece ot-legend-dot">{props.exchange}</span>
+                    <span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>
                   </Tooltip>
                 )}
               </Show>

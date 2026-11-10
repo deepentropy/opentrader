@@ -409,7 +409,9 @@ export function ObjectTreePanel(props: Props) {
             <span class="ot-ticker-logo ot-ticker-logo--sm">{s.title.trim().charAt(0).toUpperCase()}</span>
           </Show>
         </span>
-        <span class="object-tree-row-label">{s.title}</span>
+        {/* The symbol, or a study's short title and inputs (written by the chart): not looked up, kept whole right to
+            left ("SMA (9, close)"). */}
+        <span class="object-tree-row-label ot-value" data-no-translate>{s.title}</span>
         <span class="object-tree-row-actions">
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { translateWith } from "../../i18n/translator";
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * Strategy Settings > Properties tab (the reference desktop app 3.4.1, design doc
  * §5 and §14.2 - §14.5): GENERAL (Initial capital + currency, Default order
@@ -39,8 +39,10 @@ type Props = {
 
 const CURRENCIES = ["Same as chart", "USD", "EUR", "AUD", "GBP", "NZD", "CAD", "CHF"];
 /** Order size units; the cash unit is titled with the strategy currency. */
-const qtyTypes = (currency: string): [QtyType, string][] => [["fixed", "Quantity"], ["cash", currency], ["percent_of_equity", "% of equity"]];
-const COMMISSION_TYPES: [CommissionType, string][] = [["percent", "Percent"], ["cash_per_contract", "Per contract"], ["cash_per_order", "Fixed"]];
+const QTY_TYPE_LABELS = { fixed: "Quantity", percent_of_equity: "% of equity" } as const;
+const qtyTypes = (currency: string): [QtyType, string][] => [["fixed", QTY_TYPE_LABELS.fixed], ["cash", currency], ["percent_of_equity", QTY_TYPE_LABELS.percent_of_equity]];
+const COMMISSION_TYPE_LABELS: Record<CommissionType, string> = { percent: "Percent", cash_per_contract: "Per contract", cash_per_order: "Fixed" };
+const COMMISSION_TYPES: [CommissionType, string][] = [["percent", COMMISSION_TYPE_LABELS.percent], ["cash_per_contract", COMMISSION_TYPE_LABELS.cash_per_contract], ["cash_per_order", COMMISSION_TYPE_LABELS.cash_per_order]];
 /** Chart types whose bars are synthetic (the reference app's list). */
 export const SYNTHETIC_STYLES = ["ha", "renko", "pb", "kagi", "pnf", "range"];
 const NOT_FOR_BAR_TYPE = "Not available for current bar type";
@@ -325,7 +327,7 @@ export function StrategyPropertiesTab(props: Props) {
         <Info text="Sets how much borrowed capital is used for a short position relative to your own funds" />
       </Row>
       <Row label="Slippage">
-        <NumberField value={String(p().slippage)} width={126} suffix="ticks" noSpin num={{ min: 0, max: 1_000_000, step: 1, int: true }} onChange={(v) => { const n = num(v); if (n !== null) props.onChange({ slippage: Math.round(n) }); }} />
+        <NumberField value={String(p().slippage)} width={126} suffix={translate("ticks")} noSpin num={{ min: 0, max: 1_000_000, step: 1, int: true }} onChange={(v) => { const n = num(v); if (n !== null) props.onChange({ slippage: Math.round(n) }); }} />
         <Info text="Defines how many ticks will be added to the execution price of market and stop orders" />
       </Row>
       <Row label="Limit order execution">

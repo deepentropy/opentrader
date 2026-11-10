@@ -1,4 +1,5 @@
 import { dateFormat, dateText, localNumber, numberFormat } from "../../i18n/format";
+import { formatted } from "../../i18n/translator";
 /*
  * Strategy Tester number / date formats, as the reference app 3.4.1 renders them
  * (.tmp/backtester/design/doc §3.1): thousands ",", 2 decimals for money
@@ -74,11 +75,11 @@ export function tradeDate(ms: number, intraday: boolean, timeZone: string): stri
   const date = dateText(d, { month: "short", day: "numeric", year: "numeric" }, timeZone);
   if (!intraday) return date;
   const time = zoneFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }, timeZone).format(d);
-  return `${date} ${time}`;
+  return formatted(`${date} ${time}`);
 }
 
 /** Testing period pill: "Jul 25, 2018 — Sep 29, 2026", in `timeZone`. */
 export function dateRange(fromMs: number, toMs: number, timeZone: string): string {
   const f = dateFormat({ month: "short", day: "numeric", year: "numeric" }, timeZone);
-  return `${f.format(new Date(fromMs))} ${DASH} ${f.format(new Date(toMs))}`;
+  return formatted(`${f.format(new Date(fromMs))} ${DASH} ${f.format(new Date(toMs))}`);
 }

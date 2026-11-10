@@ -45,7 +45,7 @@ export function AboutTab() {
 function EconomicDataNotice() {
   return (
     <div class="app-settings-about-notice">
-      <div>{ECONOMIC_DATA_NOTICE}</div>
+      <div data-no-translate>{ECONOMIC_DATA_NOTICE}</div>
       <div>
         By using the economic series in OpenTrader you agree to the{" "}
         <a class="app-settings-about-link" href={ECONOMIC_DATA_TERMS_URL} onClick={(e) => { e.preventDefault(); openLink(ECONOMIC_DATA_TERMS_URL, "terms"); }}>

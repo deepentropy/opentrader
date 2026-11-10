@@ -37,7 +37,7 @@ import { replayEnabled } from "../../../data/replay";
 import { tradingUi } from "../../../data/trading/trading-ui";
 import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
-import { translatePlural, translateWith } from "../../../i18n/translator";
+import { formatted, translatePlural, translateWith } from "../../../i18n/translator";
 import { localNumber } from "../../../i18n/format";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
@@ -424,7 +424,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     if (inputs) return `${name} ${inputs}`;
     const entry = getIndicatorEntry(row.id);
     const list = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ", (v) => cx.sourceInputText(v)) : "";
-    return list ? `${name} (${list})` : name;
+    return list ? formatted(`${name} (${list})`) : name;
   }
   /** "Add alert on <study>…" row of the study menu; `price` = at the pointer (right click), else its last value. */
   function studyAlertRow(id: string, price?: number | null): Extract<CtxNode, { kind: "item" }> | null {

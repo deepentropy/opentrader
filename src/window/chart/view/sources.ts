@@ -1,4 +1,4 @@
-import { translateWith } from "../../../i18n/translator";
+import { formatted, translateWith } from "../../../i18n/translator";
 /*
  * Sources of a chart view and their order: study selection requests, the
  * drawing order of the series (Object tree), drawings painted behind a series,
@@ -288,7 +288,7 @@ export function createSources(cx: ChartCx): SourcesApi {
       out.push({
         id,
         kind: row.compare ? "compare" : "study",
-        title: inputs ? `${row.title} (${inputs})` : row.title,
+        title: inputs ? formatted(`${row.title} (${inputs})`) : row.title,
         hidden: row.eyeHidden,
         pane: row.pane,
       });

@@ -247,8 +247,8 @@ export function IndicatorsDialog(props: Props) {
       const mine: IndicatorRow[] = listScripts().map((m) => {
         const strategy = !!loadScript(m.id)?.meta?.strategy;
         return strategy
-          ? { name: m.name, indicatorId: userStrategyId(m.id), scriptType: "strategy" as const }
-          : { name: m.name, indicatorId: userIndicatorId(m.id) };
+          ? { name: m.name, indicatorId: userStrategyId(m.id), scriptType: "strategy" as const, authored: true }
+          : { name: m.name, indicatorId: userIndicatorId(m.id), authored: true };
       });
       if (mine.length) return { kind: "filtered", filters: typeFilters(mine) };
     }
@@ -530,7 +530,7 @@ export function IndicatorsDialog(props: Props) {
                                 </svg>
                               </span>
                             </Tooltip>
-                            <span class="indicators-name">
+                            <span class="indicators-name" data-no-translate={row.authored || undefined}>
                               <For each={highlightParts(row.name, query())}>
                                 {(part) => (part.hit ? <span class="indicators-hit">{part.text}</span> : part.text)}
                               </For>
@@ -549,7 +549,7 @@ export function IndicatorsDialog(props: Props) {
                             fallback={
                               <div class="indicators-cell indicators-author-cell">
                                 <Show when={row.author}>
-                                  <span class="indicators-author">{row.author}</span>
+                                  <span class="indicators-author" data-no-translate>{row.author}</span>
                                 </Show>
                               </div>
                             }

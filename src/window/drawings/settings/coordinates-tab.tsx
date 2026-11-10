@@ -10,7 +10,22 @@ import { DialogRow } from "./controls";
 import { DecimalInput } from "../../../components/form";
 import { ownNumberMarks, shownNumber, typedNumber } from "../../../i18n/format";
 import { COORD_MODES } from "./kind-config";
+import { translate } from "../../../i18n/translator";
 import { type SettingsCx } from "./context";
+
+/** What an anchor's row edits, as its label names it ("#1 (price, bar)"). */
+function coordModeText(mode: (typeof COORD_MODES)[string]): string {
+  switch (mode) {
+    case "price":
+      return translate("price");
+    case "bar":
+      return translate("bar");
+    case "price, bar":
+      return translate("price, bar");
+    default:
+      return translate("vertical position %, bar");
+  }
+}
 
 export function coordinatesTab(cx: SettingsCx): JSX.Element {
   const { kind, patchStyle, priceDigits, props } = cx;
@@ -68,7 +83,7 @@ export function coordinatesTab(cx: SettingsCx): JSX.Element {
           return (
             <div class="drawing-settings-row">
               <div class="drawing-settings-row-label drawing-settings-coord-label">
-                #{i() + 1} ({mode()})
+                #{i() + 1} ({coordModeText(mode())})
               </div>
               <div class="drawing-settings-row-inputs">
                 <Show when={mode() === "vertical position %, bar"}>

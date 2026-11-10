@@ -1,5 +1,5 @@
-import { translateWith } from "../../i18n/translator";
-import { dateText } from "../../i18n/format";
+import { translate, translateWith } from "../../i18n/translator";
+import { dateText, listText } from "../../i18n/format";
 /*
  * AlertDialog — create or edit a single alert rule.
  *
@@ -871,8 +871,10 @@ export function AlertDialog(props: Props) {
   /** The Notifications row: what notifies, "Scheduled: …" with a schedule other than 24/7, else "None". */
   const notificationsText = () => {
     const n = notify.values();
-    const on = [n.popup && "Notification", n.toast && "Toasts", n.webhookOn && "Webhook", n.sound && "Sound"].filter(Boolean).join(", ");
-    if (!on) return "None";
+    // Each word translated here: the row shows them joined (data-no-translate).
+    const words = [n.popup && translate("Notification"), n.toast && translate("Toasts"), n.webhookOn && translate("Webhook"), n.sound && translate("Sound")];
+    const on = listText(words.filter((w): w is string => !!w));
+    if (!on) return translate("None");
     return n.schedule ? translateWith("Scheduled: {0}", on) : on;
   };
   const openMessage = () => {
@@ -1267,14 +1269,14 @@ export function AlertDialog(props: Props) {
               <div class="ad-row ad-row--text">
                 <span class="ad-label">Message</span>
                 <button type="button" class="ad-link" data-name="alert-message-button" onClick={openMessage}>
-                  <span class="ad-link-text">{isCallsOnly() ? msg.values().name || preview() : <>{msg.values().name ? `${msg.values().name}: ` : ""}{msg.values().message || preview()}</>}</span>
+                  <span class="ad-link-text">{isCallsOnly() ? msg.values().name || preview() : <>{msg.values().name ? <span data-no-translate>{`${msg.values().name}: `}</span> : ""}{msg.values().message || preview()}</>}</span>
                   {arrow("m7 4.5 4 4.5-4 4.5", true)}
                 </button>
               </div>
               <div class="ad-row ad-row--text">
                 <span class="ad-label">Notifications</span>
                 <button type="button" class="ad-link" data-name="alert-notifications-button" onClick={openNotifications}>
-                  <span class="ad-link-text">{notificationsText()}</span>
+                  <span class="ad-link-text" data-no-translate>{notificationsText()}</span>
                   {arrow("m7 4.5 4 4.5-4 4.5", true)}
                 </button>
               </div>

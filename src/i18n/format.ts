@@ -8,7 +8,7 @@
  * English ("1 234,5") has them put in by `localNumber` where the text is shown (the chart's scales and legends, the
  * watchlist, the screener).
  */
-import { activeFormats, translate, translatePlural, translateWith } from "./translator";
+import { activeFormats, formatted, translate, translatePlural, translateWith } from "./translator";
 
 const dateFormats = new Map<string, Intl.DateTimeFormat>();
 const numberFormats = new Map<string, Intl.NumberFormat>();
@@ -27,7 +27,12 @@ export function dateFormat(options: Intl.DateTimeFormatOptions, timeZone?: strin
 
 /** A date written out in the interface language: `dateText(ms, { month: "short", day: "numeric", year: "numeric" })`. */
 export function dateText(date: Date | number, options: Intl.DateTimeFormatOptions, timeZone?: string): string {
-  return dateFormat(options, timeZone).format(date);
+  return formatted(dateFormat(options, timeZone).format(date));
+}
+
+/** Words listed in the interface language: "Notification, Sound" (no "and"; "通知、声音" in Chinese). */
+export function listText(items: readonly string[]): string {
+  return items.join(activeFormats().listSeparator ?? ", ");
 }
 
 /** A number formatter of the interface language, one per (locale, options). */
@@ -110,14 +115,20 @@ export function leftNumber(text: string): string {
 
 /** The weekday heads of a calendar, Monday first: the language's, or `english` ("Mo", "Tu"…). */
 export function calendarWeekdays<T extends string>(english: readonly T[]): readonly string[] {
-  return activeFormats().calendarWeekdays ?? english;
+  return (activeFormats().calendarWeekdays ?? english).map(formatted);
 }
 
 /** The short name of a month (1 to 12): "Oct", 10月. */
 export function monthName(month: number, width: "short" | "long" = "short"): string {
   const own = width === "short" ? activeFormats().shortMonths : undefined;
-  if (own) return own[month - 1];
+  if (own) return formatted(own[month - 1]);
   return dateText(Date.UTC(2000, month - 1, 1), { month: width, timeZone: "UTC" });
+}
+
+/** The name of a day of the week (0 Sunday to 6 Saturday): "Wednesday", "mercredi". */
+export function weekdayText(day: number): string {
+  // 2023-01-01 was a Sunday.
+  return dateText(Date.UTC(2023, 0, 1 + day), { weekday: "long", timeZone: "UTC" });
 }
 
 /** Calendar parts of a date, as the chart reads them (`partsOf`). */
@@ -151,7 +162,7 @@ function fillPattern(pattern: string, p: DateParts): string {
 /** The chart's date label in its default format, with or without the day of the week: "Mon 26 Oct '26". */
 export function chartDateText(p: DateParts, withWeekday: boolean): string {
   const f = activeFormats();
-  return fillPattern(withWeekday ? f.chartWeekdayDate : f.chartDate, p);
+  return formatted(fillPattern(withWeekday ? f.chartWeekdayDate : f.chartDate, p));
 }
 
 /** The short weekday prefix of a chart date label in another format ("Mon 2026-10-26"). */

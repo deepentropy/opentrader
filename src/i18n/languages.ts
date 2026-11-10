@@ -27,6 +27,8 @@ export type Formats = {
    * and the decimal sign, and the space before a K / M / B / T letter. The English text as it is when absent.
    */
   numberMarks?: { group: string; decimal: string; unitSpace: string };
+  /** Between the words of a list ("Value, line"): ", " when absent. */
+  listSeparator?: string;
 };
 
 export type LanguageEntry = {
@@ -66,7 +68,7 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     dictionary: () => import("./zh-Hans.json"),
     pluralLocale: "zh",
     // Numbers grouped as in English.
-    formats: { dateLocale: "zh-CN", numberLocale: "en-US", chartDate: "{yyyy}年{M}月{d}日", chartWeekdayDate: "{yyyy}年{M}月{d}日 {wd}" },
+    formats: { dateLocale: "zh-CN", numberLocale: "en-US", chartDate: "{yyyy}年{M}月{d}日", chartWeekdayDate: "{yyyy}年{M}月{d}日 {wd}", listSeparator: "、" },
     direction: "ltr",
   },
   {
@@ -74,7 +76,7 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     name: "繁體中文",
     dictionary: () => import("./zh-Hant.json"),
     pluralLocale: "zh",
-    formats: { dateLocale: "zh-TW", numberLocale: "en-US", chartDate: "{yyyy}年{M}月{d}日", chartWeekdayDate: "{yyyy}年{M}月{d}日 {wd}" },
+    formats: { dateLocale: "zh-TW", numberLocale: "en-US", chartDate: "{yyyy}年{M}月{d}日", chartWeekdayDate: "{yyyy}年{M}月{d}日 {wd}", listSeparator: "、" },
     direction: "ltr",
   },
   {

@@ -15,6 +15,8 @@
  * runtime (see `offered*` helpers), so the UI never offers a column or filter
  * the backend cannot serve.
  */
+import { formatted, translate } from "../i18n/translator";
+import { listText } from "../i18n/format";
 
 export type ColumnRef = { id: string; params: Record<string, string> };
 
@@ -229,8 +231,7 @@ const YOY = (v: "YoYTTM" | "YoYAnnual", field: string): ParamDef[] => {
 };
 /** A number filter (the reference filter configs of these columns were not captured: no presets). */
 const NUM_FILTER: ColumnDef["filter"] = { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] };
-type FundSpec = [id: string, title: string, short: string, category: Category, fmt: Fmt, source: string | ParamDef[], financial?: boolean];
-const fund = ([id, title, short, category, fmt, source, financial]: FundSpec): ColumnDef => ({
+const fund = (id: string, title: string, short: string, category: Category, fmt: Fmt, source: string | ParamDef[], financial?: boolean): ColumnDef => ({
   id,
   title,
   short,
@@ -242,82 +243,82 @@ const fund = ([id, title, short, category, fmt, source, financial]: FundSpec): C
   ...(typeof source === "string" ? { field: source } : { params: source }),
   ...(fmt === "text" || fmt === "date" ? {} : { filter: NUM_FILTER }),
 });
-const FUNDAMENTALS: ColumnDef[] = ([
+const FUNDAMENTALS: ColumnDef[] = [
   // Security info
-  ["RecentFiscalPeriod", "Recent fiscal period", "Fiscal period", "securityInfo", "text", FP(["current", "f.fiscal_period"])],
-  ["FiscalPeriodEndDate", "Fiscal period end date", "Fiscal period end", "securityInfo", "date", FP(["current", "f.fiscal_period_end"])],
+  fund("RecentFiscalPeriod", "Recent fiscal period", "Fiscal period", "securityInfo", "text", FP(["current", "f.fiscal_period"])),
+  fund("FiscalPeriodEndDate", "Fiscal period end date", "Fiscal period end", "securityInfo", "date", FP(["current", "f.fiscal_period_end"])),
   // Financials: income statement, balance sheet, cash flow
-  ["TotalRevenue", "Total revenue", "Revenue", "financials", "money", FP(["ttm", "f.revenue_ttm"], ["fy", "f.revenue_fy"]), true],
-  ["GrossProfit", "Gross profit", "Gross profit", "financials", "money", FP(["ttm", "f.gross_profit_ttm"]), true],
-  ["OperatingIncome", "Operating income", "Op income", "financials", "money", FP(["ttm", "f.operating_income_ttm"]), true],
-  ["NetIncome", "Net income", "Net income", "financials", "money", FP(["ttm", "f.net_income_ttm"]), true],
-  ["Ebitda", "EBITDA", "EBITDA", "financials", "money", FP(["ttm", "f.ebitda_ttm"]), true],
-  ["EpsDiluted", "Earnings per share diluted", "EPS dil", "financials", "price", FP(["ttm", "f.eps_dil_ttm"]), true],
-  ["BasicEps", "Basic earnings per share", "EPS basic", "financials", "price", FP(["ttm", "f.eps_basic_ttm"]), true],
-  ["TotalAssets", "Total assets", "Total assets", "financials", "money", FP(["fq", "f.total_assets_fq"]), true],
-  ["TotalCurrentAssets", "Total current assets", "Current assets", "financials", "money", FP(["fq", "f.current_assets_fq"]), true],
-  ["CashNShortTermInvest", "Cash and short-term investments", "Cash on hand", "financials", "money", FP(["fq", "f.cash_fq"]), true],
-  ["TotalLiabilities", "Total liabilities", "Total liabilities", "financials", "money", FP(["fq", "f.total_liabilities_fq"]), true],
-  ["TotalDebt", "Total debt", "Total debt", "financials", "money", FP(["fq", "f.total_debt_fq"]), true],
-  ["NetDebt", "Net debt", "Net debt", "financials", "money", FP(["fq", "f.net_debt_fq"]), true],
-  ["TotalEquity", "Total equity", "Total equity", "financials", "money", FP(["fq", "f.total_equity_fq"]), true],
-  ["CashFromOperating", "Cash flow from operating activities", "Operating CF", "financials", "money", FP(["ttm", "f.cfo_ttm"]), true],
-  ["CashFromInvesting", "Cash flow from investing activities", "Investing CF", "financials", "money", FP(["ttm", "f.cfi_ttm"]), true],
-  ["CashFromFinancing", "Cash flow from financing activities", "Financing CF", "financials", "money", FP(["ttm", "f.cff_ttm"]), true],
-  ["FreeCashFlow", "Free cash flow", "FCF", "financials", "money", FP(["ttm", "f.fcf_ttm"]), true],
-  ["CapitalExpenditures", "Capital expenditures", "CapEx", "financials", "money", FP(["ttm", "f.capex_ttm"]), true],
+  fund("TotalRevenue", "Total revenue", "Revenue", "financials", "money", FP(["ttm", "f.revenue_ttm"], ["fy", "f.revenue_fy"]), true),
+  fund("GrossProfit", "Gross profit", "Gross profit", "financials", "money", FP(["ttm", "f.gross_profit_ttm"]), true),
+  fund("OperatingIncome", "Operating income", "Op income", "financials", "money", FP(["ttm", "f.operating_income_ttm"]), true),
+  fund("NetIncome", "Net income", "Net income", "financials", "money", FP(["ttm", "f.net_income_ttm"]), true),
+  fund("Ebitda", "EBITDA", "EBITDA", "financials", "money", FP(["ttm", "f.ebitda_ttm"]), true),
+  fund("EpsDiluted", "Earnings per share diluted", "EPS dil", "financials", "price", FP(["ttm", "f.eps_dil_ttm"]), true),
+  fund("BasicEps", "Basic earnings per share", "EPS basic", "financials", "price", FP(["ttm", "f.eps_basic_ttm"]), true),
+  fund("TotalAssets", "Total assets", "Total assets", "financials", "money", FP(["fq", "f.total_assets_fq"]), true),
+  fund("TotalCurrentAssets", "Total current assets", "Current assets", "financials", "money", FP(["fq", "f.current_assets_fq"]), true),
+  fund("CashNShortTermInvest", "Cash and short-term investments", "Cash on hand", "financials", "money", FP(["fq", "f.cash_fq"]), true),
+  fund("TotalLiabilities", "Total liabilities", "Total liabilities", "financials", "money", FP(["fq", "f.total_liabilities_fq"]), true),
+  fund("TotalDebt", "Total debt", "Total debt", "financials", "money", FP(["fq", "f.total_debt_fq"]), true),
+  fund("NetDebt", "Net debt", "Net debt", "financials", "money", FP(["fq", "f.net_debt_fq"]), true),
+  fund("TotalEquity", "Total equity", "Total equity", "financials", "money", FP(["fq", "f.total_equity_fq"]), true),
+  fund("CashFromOperating", "Cash flow from operating activities", "Operating CF", "financials", "money", FP(["ttm", "f.cfo_ttm"]), true),
+  fund("CashFromInvesting", "Cash flow from investing activities", "Investing CF", "financials", "money", FP(["ttm", "f.cfi_ttm"]), true),
+  fund("CashFromFinancing", "Cash flow from financing activities", "Financing CF", "financials", "money", FP(["ttm", "f.cff_ttm"]), true),
+  fund("FreeCashFlow", "Free cash flow", "FCF", "financials", "money", FP(["ttm", "f.fcf_ttm"]), true),
+  fund("CapitalExpenditures", "Capital expenditures", "CapEx", "financials", "money", FP(["ttm", "f.capex_ttm"]), true),
   // Valuation (price ratios computed with the live price)
-  ["PriceToEarnings", "Price to earnings ratio", "P/E", "valuation", "number", "f.pe"],
-  ["PriceToEarningsToGrowth", "Price to earning to growth", "PEG", "valuation", "number", FP(["ttm", "f.peg"])],
-  ["PriceToSales", "Price to sales ratio", "P/S", "valuation", "number", "f.ps"],
-  ["PriceToBook", "Price to book ratio", "P/B", "valuation", "number", "f.pb"],
-  ["PriceToCashFlow", "Price to cash flow ratio", "P/CF", "valuation", "number", "f.pcf"],
-  ["PriceToFreeCashFlow", "Price to free cash flow ratio", "P/FCF", "valuation", "number", "f.pfcf"],
-  ["PriceToCashRatio", "Price to cash ratio", "Price/cash", "valuation", "number", "f.pcash"],
-  ["Ev", "Enterprise value", "EV", "valuation", "money", "f.ev", true],
-  ["EvToRevenue", "Enterprise value to revenue ratio", "EV/revenue", "valuation", "number", FP(["ttm", "f.ev_revenue"])],
-  ["EvToEbit", "Enterprise value to EBIT ratio", "EV/EBIT", "valuation", "number", FP(["ttm", "f.ev_ebit"])],
-  ["EvToEbitda", "Enterprise value to EBITDA ratio", "EV/EBITDA", "valuation", "number", FP(["ttm", "f.ev_ebitda"])],
-  ["MarketCapPerf", "Market capitalization performance %", "Mkt cap perf %", "valuation", "change",
-    [{ key: "interval", title: "Date Range", default: "Interval1Y", options: [{ value: "Interval1Y", label: "1 year", short: "1Y", field: "f.market_cap_perf_1y" }] }]],
+  fund("PriceToEarnings", "Price to earnings ratio", "P/E", "valuation", "number", "f.pe"),
+  fund("PriceToEarningsToGrowth", "Price to earning to growth", "PEG", "valuation", "number", FP(["ttm", "f.peg"])),
+  fund("PriceToSales", "Price to sales ratio", "P/S", "valuation", "number", "f.ps"),
+  fund("PriceToBook", "Price to book ratio", "P/B", "valuation", "number", "f.pb"),
+  fund("PriceToCashFlow", "Price to cash flow ratio", "P/CF", "valuation", "number", "f.pcf"),
+  fund("PriceToFreeCashFlow", "Price to free cash flow ratio", "P/FCF", "valuation", "number", "f.pfcf"),
+  fund("PriceToCashRatio", "Price to cash ratio", "Price/cash", "valuation", "number", "f.pcash"),
+  fund("Ev", "Enterprise value", "EV", "valuation", "money", "f.ev", true),
+  fund("EvToRevenue", "Enterprise value to revenue ratio", "EV/revenue", "valuation", "number", FP(["ttm", "f.ev_revenue"])),
+  fund("EvToEbit", "Enterprise value to EBIT ratio", "EV/EBIT", "valuation", "number", FP(["ttm", "f.ev_ebit"])),
+  fund("EvToEbitda", "Enterprise value to EBITDA ratio", "EV/EBITDA", "valuation", "number", FP(["ttm", "f.ev_ebitda"])),
+  fund("MarketCapPerf", "Market capitalization performance %", "Mkt cap perf %", "valuation", "change",
+    [{ key: "interval", title: "Date Range", default: "Interval1Y", options: [{ value: "Interval1Y", label: "1 year", short: "1Y", field: "f.market_cap_perf_1y" }] }]),
   // Growth
-  ["RevenueGrowth", "Revenue growth %", "Revenue growth", "growth", "change", YOY("YoYTTM", "f.revenue_growth_ttm_yoy")],
-  ["EpsDilutedGrowth", "Earnings per share diluted growth %", "EPS dil growth", "growth", "change", YOY("YoYTTM", "f.eps_dil_growth_ttm_yoy")],
-  ["EbitdaGrowth", "EBITDA growth %", "EBITDA growth %", "growth", "change", YOY("YoYTTM", "f.ebitda_growth_ttm_yoy")],
-  ["TotalDebtGrowth", "Total debt growth %", "Total debt growth %", "growth", "change", YOY("YoYAnnual", "f.total_debt_growth_fy_yoy")],
+  fund("RevenueGrowth", "Revenue growth %", "Revenue growth", "growth", "change", YOY("YoYTTM", "f.revenue_growth_ttm_yoy")),
+  fund("EpsDilutedGrowth", "Earnings per share diluted growth %", "EPS dil growth", "growth", "change", YOY("YoYTTM", "f.eps_dil_growth_ttm_yoy")),
+  fund("EbitdaGrowth", "EBITDA growth %", "EBITDA growth %", "growth", "change", YOY("YoYTTM", "f.ebitda_growth_ttm_yoy")),
+  fund("TotalDebtGrowth", "Total debt growth %", "Total debt growth %", "growth", "change", YOY("YoYAnnual", "f.total_debt_growth_fy_yoy")),
   // Margins and ratios
-  ["GrossMargin", "Gross margin %", "Gross margin", "margins", "percent", FP(["ttm", "f.gross_margin_ttm"])],
-  ["OperatingMargin", "Operating margin %", "Op margin %", "margins", "percent", FP(["ttm", "f.operating_margin_ttm"])],
-  ["PreTaxMargin", "Pretax margin %", "Pretax margin", "margins", "percent", FP(["ttm", "f.pretax_margin_ttm"])],
-  ["NetMargin", "Net margin %", "Net margin %", "margins", "percent", FP(["ttm", "f.net_margin_ttm"])],
-  ["FreeCashFlowMargin", "Free cash flow margin %", "FCF margin", "margins", "percent", FP(["ttm", "f.fcf_margin_ttm"])],
-  ["ReturnOnAssets", "Return on assets %", "ROA", "margins", "percent", FP(["ttm", "f.roa_ttm"], ["fy", "f.roa_fy"])],
-  ["ReturnOnEquity", "Return on equity %", "ROE", "margins", "percent", FP(["ttm", "f.roe_ttm"], ["fy", "f.roe_fy"])],
-  ["ReturnOnInvestedCapital", "Return on invested capital %", "ROIC", "margins", "percent", FP(["ttm", "f.roic_ttm"], ["fy", "f.roic_fy"])],
-  ["ResearchNDevelopmentRatio", "Research and development ratio", "R&D ratio", "margins", "percent", FP(["ttm", "f.rnd_ratio_ttm"])],
-  ["SellingGeneralNAdminExpensesRatio", "Selling, general, and admin expenses ratio", "SG&A ratio", "margins", "percent", FP(["ttm", "f.sga_ratio_ttm"])],
-  ["CurrentRatio", "Current ratio", "Current ratio", "margins", "number", FP(["fq", "f.current_ratio_fq"])],
-  ["QuickRatio", "Quick ratio", "Quick ratio", "margins", "number", FP(["fq", "f.quick_ratio_fq"])],
-  ["DebtToEquityRatio", "Debt to equity ratio", "Debt/equity", "margins", "number", FP(["fq", "f.debt_to_equity_fq"])],
-  ["CashToDebt", "Cash to debt ratio", "Cash/debt", "margins", "number", FP(["fq", "f.cash_to_debt_fq"])],
-  ["RevenuePerShare", "Revenue per share", "Revenue per share", "margins", "price", FP(["ttm", "f.revenue_ps_ttm"]), true],
-  ["OperatingCashFlowPerShare", "Operating cash flow per share", "Op cash flow per share", "margins", "price", FP(["ttm", "f.ocf_ps_ttm"]), true],
-  ["FreeCashFlowPerShare", "Free cash flow per share", "FCF per share", "margins", "price", FP(["ttm", "f.fcf_ps_ttm"]), true],
-  ["EBITPerShare", "EBIT per share", "EBIT per share", "margins", "price", FP(["ttm", "f.ebit_ps_ttm"]), true],
-  ["EBITDAPerShare", "EBITDA per share", "EBITDA per share", "margins", "price", FP(["ttm", "f.ebitda_ps_ttm"]), true],
-  ["BookPerShare", "Book value per share", "Book per share", "margins", "price", FP(["fq", "f.book_ps_fq"]), true],
-  ["TotalDebtPerShare", "Total debt per share", "Total debt per share", "margins", "price", FP(["fq", "f.debt_ps_fq"]), true],
-  ["CashPerShare", "Cash per share", "Cash per share", "margins", "price", FP(["fq", "f.cash_ps_fq"]), true],
-  ["RevenuePerEmployee", "Revenue per employee", "Revenue/employees", "margins", "money", FP(["fy", "f.revenue_per_employee_fy"]), true],
-  ["NumberOfEmployees", "Number of employees", "Employees", "margins", "volume", FP(["fy", "f.employees"])],
+  fund("GrossMargin", "Gross margin %", "Gross margin", "margins", "percent", FP(["ttm", "f.gross_margin_ttm"])),
+  fund("OperatingMargin", "Operating margin %", "Op margin %", "margins", "percent", FP(["ttm", "f.operating_margin_ttm"])),
+  fund("PreTaxMargin", "Pretax margin %", "Pretax margin", "margins", "percent", FP(["ttm", "f.pretax_margin_ttm"])),
+  fund("NetMargin", "Net margin %", "Net margin %", "margins", "percent", FP(["ttm", "f.net_margin_ttm"])),
+  fund("FreeCashFlowMargin", "Free cash flow margin %", "FCF margin", "margins", "percent", FP(["ttm", "f.fcf_margin_ttm"])),
+  fund("ReturnOnAssets", "Return on assets %", "ROA", "margins", "percent", FP(["ttm", "f.roa_ttm"], ["fy", "f.roa_fy"])),
+  fund("ReturnOnEquity", "Return on equity %", "ROE", "margins", "percent", FP(["ttm", "f.roe_ttm"], ["fy", "f.roe_fy"])),
+  fund("ReturnOnInvestedCapital", "Return on invested capital %", "ROIC", "margins", "percent", FP(["ttm", "f.roic_ttm"], ["fy", "f.roic_fy"])),
+  fund("ResearchNDevelopmentRatio", "Research and development ratio", "R&D ratio", "margins", "percent", FP(["ttm", "f.rnd_ratio_ttm"])),
+  fund("SellingGeneralNAdminExpensesRatio", "Selling, general, and admin expenses ratio", "SG&A ratio", "margins", "percent", FP(["ttm", "f.sga_ratio_ttm"])),
+  fund("CurrentRatio", "Current ratio", "Current ratio", "margins", "number", FP(["fq", "f.current_ratio_fq"])),
+  fund("QuickRatio", "Quick ratio", "Quick ratio", "margins", "number", FP(["fq", "f.quick_ratio_fq"])),
+  fund("DebtToEquityRatio", "Debt to equity ratio", "Debt/equity", "margins", "number", FP(["fq", "f.debt_to_equity_fq"])),
+  fund("CashToDebt", "Cash to debt ratio", "Cash/debt", "margins", "number", FP(["fq", "f.cash_to_debt_fq"])),
+  fund("RevenuePerShare", "Revenue per share", "Revenue per share", "margins", "price", FP(["ttm", "f.revenue_ps_ttm"]), true),
+  fund("OperatingCashFlowPerShare", "Operating cash flow per share", "Op cash flow per share", "margins", "price", FP(["ttm", "f.ocf_ps_ttm"]), true),
+  fund("FreeCashFlowPerShare", "Free cash flow per share", "FCF per share", "margins", "price", FP(["ttm", "f.fcf_ps_ttm"]), true),
+  fund("EBITPerShare", "EBIT per share", "EBIT per share", "margins", "price", FP(["ttm", "f.ebit_ps_ttm"]), true),
+  fund("EBITDAPerShare", "EBITDA per share", "EBITDA per share", "margins", "price", FP(["ttm", "f.ebitda_ps_ttm"]), true),
+  fund("BookPerShare", "Book value per share", "Book per share", "margins", "price", FP(["fq", "f.book_ps_fq"]), true),
+  fund("TotalDebtPerShare", "Total debt per share", "Total debt per share", "margins", "price", FP(["fq", "f.debt_ps_fq"]), true),
+  fund("CashPerShare", "Cash per share", "Cash per share", "margins", "price", FP(["fq", "f.cash_ps_fq"]), true),
+  fund("RevenuePerEmployee", "Revenue per employee", "Revenue/employees", "margins", "money", FP(["fy", "f.revenue_per_employee_fy"]), true),
+  fund("NumberOfEmployees", "Number of employees", "Employees", "margins", "volume", FP(["fy", "f.employees"])),
   // Dividends
-  ["DividendsPerShare", "Dividends per share", "Div per share", "dividends", "price", FP(["fy", "f.dps_fy"], ["fq", "f.dps_fq"]), true],
-  ["DividendsYieldForward", "Dividend yield % (indicated)", "Div yield % (indicated)", "dividends", "percent", "f.div_yield_indicated"],
-  ["DividendPayoutRatio", "Dividend payout ratio %", "Div payout ratio %", "dividends", "percent", FP(["ttm", "f.payout_ratio_ttm"])],
-  ["DividendsPerShareGrowth", "Dividends per share growth %", "DPS growth %", "dividends", "change", YOY("YoYAnnual", "f.dps_growth_fy_yoy")],
-  ["ContinuousDivPayout", "Continuous dividend payout", "Cont div payout", "dividends", "integer", "f.cont_div_payout"],
-  ["ContinuousDivGrowth", "Continuous dividend growth", "Cont div growth", "dividends", "integer", "f.cont_div_growth"],
-] as FundSpec[]).map(fund);
+  fund("DividendsPerShare", "Dividends per share", "Div per share", "dividends", "price", FP(["fy", "f.dps_fy"], ["fq", "f.dps_fq"]), true),
+  fund("DividendsYieldForward", "Dividend yield % (indicated)", "Div yield % (indicated)", "dividends", "percent", "f.div_yield_indicated"),
+  fund("DividendPayoutRatio", "Dividend payout ratio %", "Div payout ratio %", "dividends", "percent", FP(["ttm", "f.payout_ratio_ttm"])),
+  fund("DividendsPerShareGrowth", "Dividends per share growth %", "DPS growth %", "dividends", "change", YOY("YoYAnnual", "f.dps_growth_fy_yoy")),
+  fund("ContinuousDivPayout", "Continuous dividend payout", "Cont div payout", "dividends", "integer", "f.cont_div_payout"),
+  fund("ContinuousDivGrowth", "Continuous dividend growth", "Cont div growth", "dividends", "integer", "f.cont_div_growth"),
+];
 
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
@@ -639,11 +640,11 @@ export function paramShorts(col: ColumnRef): string[] {
   return out;
 }
 
-/** "EMA, 50" / "High, 1M" / "Chg %": the reference app configured short title. */
+/** "EMA, 50" / "High, 1M" / "Chg %": the reference app configured short title, in the interface language. */
 export function configuredShort(col: ColumnRef): string {
   const def = COLUMN_BY_ID[col.id];
   if (!def) return col.id;
-  return [def.short, ...paramShorts(col)].join(", ");
+  return formatted(listText([translate(def.short), ...paramShorts(col).map((s) => translate(s))]));
 }
 
 /** "Price change %, 1 day": the reference app configured long title (header tooltip). */
@@ -651,12 +652,12 @@ export function configuredLong(col: ColumnRef): string {
   const def = COLUMN_BY_ID[col.id];
   if (!def) return col.id;
   const p = fullParams(def, col.params);
-  const parts = [def.title];
+  const parts = [translate(def.title)];
   for (const pd of def.params ?? []) {
     const opt = optionOf(pd, p[pd.key]);
-    if (opt) parts.push(opt.label);
+    if (opt) parts.push(translate(opt.label));
   }
-  return parts.join(", ");
+  return formatted(listText(parts));
 }
 
 export function sameColumn(a: ColumnRef, b: ColumnRef): boolean {

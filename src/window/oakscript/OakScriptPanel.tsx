@@ -598,7 +598,7 @@ export function OakScriptPanel(props: Props) {
                 <span class="oak-panel__status-item">{translateWith("Line {0}, Col {1}", c().line, c().col)}</span>
               )}
             </Show>
-            <span class="oak-panel__status-item">{ENGINE_LABEL}</span>
+            <span class="oak-panel__status-item" data-no-translate>{ENGINE_LABEL}</span>
           </div>
         </footer>
       </Show>

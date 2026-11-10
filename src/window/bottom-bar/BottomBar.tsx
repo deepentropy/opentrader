@@ -284,7 +284,7 @@ export function BottomBar(props: Props) {
                 aria-expanded={!!tzAnchor()}
                 onClick={(e) => setTzAnchor(tzAnchor() ? null : e.currentTarget.getBoundingClientRect())}
               >
-                <div class="bottom-bar-tab-text">{clock()}</div>
+                <div class="bottom-bar-tab-text ot-value" data-no-translate>{clock()}</div>
               </button>
             </Tooltip>
           </div>

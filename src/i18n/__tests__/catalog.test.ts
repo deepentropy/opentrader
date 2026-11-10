@@ -8,23 +8,23 @@ import type { Dictionary } from "../translator";
 import { buildCatalog, checkDictionary, type Catalog } from "../tools/catalog";
 import { RUN_TIME_TEXTS } from "../tools/run-time-texts";
 import { joinedTexts, staticTexts } from "../tools/scan";
-import { scanned } from "../tools/sources";
-import { knownStudyTexts, studyTexts, type StudyEntry } from "../tools/study-texts";
+import { builtInStrategy, scanned } from "../tools/sources";
+import { knownStudyTexts, strategyTexts, studyTexts, type StudyEntry } from "../tools/study-texts";
 
 const catalog = catalogJson as Catalog;
 
-const SOURCES = Object.entries(
+const ALL_SOURCES = Object.entries(
   import.meta.glob(["../../**/*.{ts,tsx}"], { query: "?raw", import: "default", eager: true }) as Record<string, string>,
-)
-  .map(([path, source]) => ({ file: path.replace(/^(\.\.\/)+/, "src/"), source }))
-  .filter((f) => scanned(f.file));
+).map(([path, source]) => ({ file: path.replace(/^(\.\.\/)+/, "src/"), source }));
+const SOURCES = ALL_SOURCES.filter((f) => scanned(f.file));
+const STRATEGY_TEXTS = ALL_SOURCES.filter((f) => builtInStrategy(f.file)).flatMap((f) => strategyTexts(f.file, f.source));
 
 const DICTIONARIES = import.meta.glob("../*.json", { import: "default", eager: true }) as Record<string, Dictionary>;
 const registry = indicatorRegistry as unknown as StudyEntry[];
 
 describe("the English catalog (#288)", () => {
   it("is the catalog of the code, the built-in studies and the run-time texts (npm run i18n:extract)", () => {
-    const fresh = buildCatalog(SOURCES.flatMap((f) => staticTexts(f.file, f.source)), studyTexts(registry), RUN_TIME_TEXTS);
+    const fresh = buildCatalog(SOURCES.flatMap((f) => staticTexts(f.file, f.source)), [...studyTexts(registry), ...STRATEGY_TEXTS], RUN_TIME_TEXTS);
     const shape = (c: Catalog) => Object.fromEntries(Object.entries(c).map(([k, e]) => [k, { plural: e.plural, sense: e.sense }]));
     expect(shape(catalog), "src/i18n/catalog.json is out of date: npm run i18n:extract").toEqual(shape(fresh));
   });

@@ -22,7 +22,7 @@ import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, kindDefaultOverride, saveKindDefault } from "./templates";
 import { TemplatesMenu } from "./DrawingStylePopovers";
 import { getTickerInfo } from "../../data/datafeed";
-import { INPUTS_KINDS, NO_COORDINATES_KINDS, NO_STYLE_KINDS, POSITION_KINDS, TEXT_BOX_KINDS, TEXT_KINDS, type Tab } from "./settings/kind-config";
+import { INPUTS_KINDS, NO_COORDINATES_KINDS, NO_STYLE_KINDS, POSITION_KINDS, TEXT_BOX_KINDS, TEXT_KINDS, TAB_LABELS, type Tab } from "./settings/kind-config";
 import { type SettingsCx, type SettingsDialogProps } from "./settings/context";
 import { inputsTab } from "./settings/inputs-tab";
 import { styleTab } from "./settings/style-tab";
@@ -190,7 +190,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 class={"drawing-settings-tab" + (activeTab() === tab ? " selected" : "")}
                 onClick={() => setActiveTab(tab)}
               >
-                {tab}
+                {TAB_LABELS[tab]}
               </button>
             )}
           </For>

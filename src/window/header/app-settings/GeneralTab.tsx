@@ -86,7 +86,7 @@ export function GeneralTab(props: { themeSetting: ThemeSetting; onThemeChange: (
       <Section label="DOWNLOADS">
         <div class="app-settings-path-row">
           {/* Files are saved to the system download folder. */}
-          <span class="app-settings-path">{downloadPath() ?? ""}</span>
+          <span class="app-settings-path" data-no-translate>{downloadPath() ?? ""}</span>
           {/* Needs an OS folder picker (Tauri dialog plugin) — not wired here. */}
           <button type="button" class="app-settings-btn" disabled title="Choosing a folder needs the OS file dialog, which isn't wired up yet"><span data-i18n-sense="action">Change</span></button>
         </div>

@@ -118,7 +118,7 @@ export function DateTimeInput(props: Props) {
                 <span class="goto-dialog-cal-monthbtn"><span>{monthLabel(view().y, view().m)}</span></span>
                 <button type="button" class="goto-dialog-cal-nav is-next" aria-label="Next month" onClick={() => step(1)}><ChevronIcon /></button>
               </div>
-              <div class="goto-dialog-cal-sub-header" aria-hidden="true">
+              <div class="goto-dialog-cal-sub-header" aria-hidden="true" data-no-translate>
                 <For each={weekdayHeads()}>{(w) => <span>{w}</span>}</For>
               </div>
               <div class="goto-dialog-cal-view-month">

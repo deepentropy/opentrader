@@ -7,6 +7,7 @@ import { createSignal, For, type JSX } from "solid-js";
 import { DEFAULT_VISIBILITY, type Drawing, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import { CheckField } from "../../../components/form";
 import { type SettingsCx } from "./context";
+import { VIS_UNITS } from "../../chart/interval-visibility-mode";
 
 export function visibilityTab(cx: SettingsCx): JSX.Element {
   const { props } = cx;
@@ -27,14 +28,7 @@ export function visibilityTab(cx: SettingsCx): JSX.Element {
         label="Ticks"
       />
       <For
-        each={[
-          ["seconds", "Seconds", 59],
-          ["minutes", "Minutes", 59],
-          ["hours", "Hours", 24],
-          ["days", "Days", 366],
-          ["weeks", "Weeks", 52],
-          ["months", "Months", 12],
-        ] as ReadonlyArray<readonly [keyof IntervalVisibility, string, number]>}
+        each={VIS_UNITS}
       >
         {([key, label, max]) => (
           <UnitVisibilityRow

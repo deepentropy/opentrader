@@ -417,7 +417,7 @@ export function AlertRulesList(props: {
               onContextMenu={(e) => { e.preventDefault(); setRowMenu({ item: i, x: e.clientX, y: e.clientY }); }}
             >
               <Show when={filters().name && itemName(i)}>
-                <div class="alerts-panel-item-text alerts-panel-item-name" data-name="alert-item-name">{itemName(i)}</div>
+                <div class="alerts-panel-item-text alerts-panel-item-name" data-name="alert-item-name" data-no-translate>{itemName(i)}</div>
               </Show>
               <Show when={filters().message}>
                 <div class="alerts-panel-item-text" data-name="alert-item-description">{itemMessage(i)}</div>

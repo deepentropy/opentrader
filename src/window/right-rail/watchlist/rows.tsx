@@ -86,7 +86,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
       />
       <Show
         when={renaming() === g.name}
-        fallback={<span class="watchlist-group-label">{g.name}</span>}
+        fallback={<span class="watchlist-group-label" data-no-translate>{g.name}</span>}
       >
         <input
           class="watchlist-group-rename"
@@ -163,7 +163,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
         <Show when={settings().logo}>
           <span class="ot-ticker-logo ot-ticker-logo--sm watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
         </Show>
-        <span class="watchlist-ticker">{primaryLabel(r)}</span>
+        <span class="watchlist-ticker" data-no-translate>{primaryLabel(r)}</span>
         <Show when={dotClass(r)}>
           {(c) => <span class={c()} aria-hidden="true" />}
         </Show>

@@ -9,6 +9,7 @@
 
 import { partsOf, type Parts } from "lightweight-charts-drawing/core/time";
 import { chartDateText, chartWeekday, monthName } from "../../i18n/format";
+import { formatted } from "../../i18n/translator";
 
 /** The default date format: the interface language writes it its own way (i18n/format). */
 const DEFAULT_KEY = "dd MMM 'yy";
@@ -55,11 +56,11 @@ export function formatChartTime(sec: number, timeZone: string, intraday: boolean
   const key = dateFormatKey(fmt.dateFormat);
   const dayOfWeek = fmt.dayOfWeek !== false;
   const withDay = key === DEFAULT_KEY ? chartDateText(p, dayOfWeek) : dayOfWeek ? `${chartWeekday(p.wd)} ${formatDate(key, p)}` : formatDate(key, p);
-  if (!intraday) return withDay;
+  if (!intraday) return formatted(withDay);
   const time = fmt.timeFormat === "12-hours"
     ? new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hour12: true }).format(new Date(sec * 1000))
     : seconds ? `${p.hh}:${p.mi}:${p.ss}` : `${p.hh}:${p.mi}`;
-  return `${withDay}   ${time}`;
+  return formatted(`${withDay}   ${time}`);
 }
 
 /** Time-axis tick label: Year "2026", Month "Sep", DayOfMonth "23", Time

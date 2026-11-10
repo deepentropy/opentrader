@@ -32,13 +32,13 @@ async function loadTools() {
 
 const tools = await loadTools();
 
-function sourceFiles(dir = join(ROOT, "src"), out = []) {
+function sourceFiles(dir = join(ROOT, "src"), out = [], read = tools.scanned) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) sourceFiles(path, out);
+    if (statSync(path).isDirectory()) sourceFiles(path, out, read);
     else {
       const rel = relative(ROOT, path).replace(/\\/g, "/");
-      if (tools.scanned(rel)) out.push(rel);
+      if (read(rel)) out.push(rel);
     }
   }
   return out.sort();
@@ -46,8 +46,10 @@ function sourceFiles(dir = join(ROOT, "src"), out = []) {
 
 async function extractCatalog() {
   const code = sourceFiles().flatMap((f) => tools.staticTexts(f, readFileSync(join(ROOT, f), "utf8")));
+  const strategies = sourceFiles(join(ROOT, "src"), [], tools.builtInStrategy).flatMap((f) => tools.strategyTexts(f, readFileSync(join(ROOT, f), "utf8")));
   const { indicatorRegistry } = await import("lightweight-charts-indicators");
-  return { catalog: tools.buildCatalog(code, tools.studyTexts(indicatorRegistry), tools.RUN_TIME_TEXTS), registry: indicatorRegistry };
+  const studies = [...tools.studyTexts(indicatorRegistry), ...strategies];
+  return { catalog: tools.buildCatalog(code, studies, tools.RUN_TIME_TEXTS), registry: indicatorRegistry };
 }
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));

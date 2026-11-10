@@ -13,6 +13,7 @@
  * one (live-runs.ts).
  */
 import { intrabarsRef } from './intrabars';
+import { translateWith } from '../i18n/translator';
 import { SentRuns } from './live-runs';
 import BacktestWorkerCtor from './worker?worker';
 import type { BacktestError, BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
@@ -116,7 +117,7 @@ export class BacktestClient {
         const timer = setTimeout(() => {
           this.pending.delete(id);
           this.restart(`The backtest did not finish within ${RUN_TIMEOUT_MS / 1000}s and was stopped.`);
-          reject(new BacktestFailed({ message: `Timed out after ${RUN_TIMEOUT_MS / 1000}s.` }));
+          reject(new BacktestFailed({ message: translateWith('Timed out after {0}s.', RUN_TIMEOUT_MS / 1000) }));
         }, RUN_TIMEOUT_MS);
         this.pending.set(id, { channel, resolve, reject, timer, resend: sent && !whole ? () => send(true) : undefined });
         worker.postMessage({ id, ...req, ...(sent ? { bars: sent.bars, live: sent.live } : {}) } satisfies BacktestRequest);

@@ -1,4 +1,4 @@
-import { translateWith } from "../../i18n/translator";
+import { translate, translateWith } from "../../i18n/translator";
 /*
  * The AI assistant panel (right rail's AI button), laid out as the reference desktop app's (3.5.0, measured over CDP
  * on 04/11/2026, .tmp/ai-panel): an overlay at the window's right (or a split view), its header with "Move overlay to
@@ -22,14 +22,14 @@ import "../../styles/screener.css";
 import "../../styles/community.css";
 import "../../styles/assistant.css";
 
-/** Suggestions of an empty chat: things the tools can do here. */
+/** Suggestions of an empty chat: things the tools can do here, in the interface language (sent as shown). */
 const suggestions = (ticker: string) => [
-  "What can you do?",
-  `Show ${ticker} on the daily chart with RSI and two moving averages`,
-  "Make a watchlist of the biggest semiconductor stocks",
-  "Find US stocks up more than 5% today on heavy volume",
-  `Set an alert when ${ticker} crosses its last close +3%`,
-  `What does the Community say about ${ticker}?`,
+  translate("What can you do?"),
+  translateWith("Show {0} on the daily chart with RSI and two moving averages", ticker),
+  translate("Make a watchlist of the biggest semiconductor stocks"),
+  translate("Find US stocks up more than 5% today on heavy volume"),
+  translateWith("Set an alert when {0} crosses its last close +3%", ticker),
+  translateWith("What does the Community say about {0}?", ticker),
 ];
 
 export function AssistantPanel(props: { ticker: string }) {

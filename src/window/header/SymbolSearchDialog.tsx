@@ -18,6 +18,7 @@ import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 import { flagUrl } from "../../data/country-flags";
 import { ECONOMIC_DATA_NOTICE } from "../../data/economic-notice";
 import { Tooltip } from "../../components/Tooltip";
+import { isRtl } from "../../components/reading-direction";
 import { CheckBox } from "../../components/form";
 import type { ComparePlacement } from "../shell/tabs";
 import { createPopover } from "../../components/popover";
@@ -280,7 +281,17 @@ export function SymbolSearchDialog(props: Props) {
 
         {/* Category tabs (compare mode: only while searching) */}
         <Show when={!compareHome()}>
-        <div class="symbol-search-tabs" role="tablist">
+        {/* Longer names (another language) scroll the row: the wheel moves it sideways. */}
+        <div
+          class="symbol-search-tabs"
+          role="tablist"
+          onWheel={(e) => {
+            const row = e.currentTarget;
+            if (!e.deltaY || row.scrollWidth <= row.clientWidth) return;
+            row.scrollLeft += isRtl() ? -e.deltaY : e.deltaY;
+            e.preventDefault();
+          }}
+        >
           <For each={CATEGORIES}>
             {(c) => (
               <button
@@ -364,7 +375,7 @@ export function SymbolSearchDialog(props: Props) {
         <Show when={economy()}>
           <div class="symbol-search-filters">
             <FilterChip
-              all="All countries"
+              placeholder="All countries"
               value={econCountry()}
               label={econCountry() ? econCountryName(econCountry()!) : undefined}
               icon={flagUrl(econCountry() ?? undefined)}
@@ -375,8 +386,8 @@ export function SymbolSearchDialog(props: Props) {
                 setCountryPanel(true);
               }}
             />
-            <FilterChip all="All sources" value={econSource()} options={sources()} onPick={setEconSource} />
-            <FilterChip all="All categories" value={econCategory()} options={ECONOMIC_CATEGORIES} onPick={setEconCategory} />
+            <FilterChip placeholder="All sources" value={econSource()} options={sources()} dataOptions onPick={setEconSource} />
+            <FilterChip placeholder="All categories" sense="economy" value={econCategory()} options={ECONOMIC_CATEGORIES} onPick={setEconCategory} />
           </div>
         </Show>
 
@@ -396,8 +407,8 @@ export function SymbolSearchDialog(props: Props) {
                       <div class="symbol-search-row cmp-search-row is-added" data-role="added-symbol-item" data-symbol-name={a.symbol} role="option">
                         {compareInfo(ticker, a.description || cat()?.description || "", cat()?.logoSrc)}
                         <div class="symbol-search-cell symbol-search-exchange-cell cmp-search-exchange">
-                          <div class="symbol-search-market-type">{cat()?.marketType ?? ""}</div>
-                          <div class="symbol-search-exchange-source"><span class="symbol-search-exchange">{exchange}</span></div>
+                          <div class="symbol-search-market-type" data-i18n-sense="market">{cat()?.marketType ?? ""}</div>
+                          <div class="symbol-search-exchange-source"><span class="symbol-search-exchange" data-no-translate>{exchange}</span></div>
                           <Show when={rowFlag({ exchange })}>
                             {(src) => <span class="symbol-search-flag" aria-hidden="true"><img src={src()} alt="" /></span>}
                           </Show>
@@ -472,8 +483,8 @@ export function SymbolSearchDialog(props: Props) {
           when={props.watchlist}
           fallback={
             <Show when={!props.compare}>
-              <div class="symbol-search-footer">
-                {/* Economy: the notice the economic data source's terms require. */}
+              {/* Economy: the notice the economic data source's terms require, verbatim (not translated). */}
+              <div class="symbol-search-footer" data-no-translate={category() === "economy" || undefined}>
                 {category() === "economy"
                   ? ECONOMIC_DATA_NOTICE
                   : category() === "local"

@@ -117,7 +117,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The layout's name gives way first, with an ellipsis (a longer translation of "Unnamed"). */
 .tab-title .tab-part-layout {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--color-content-primary-neutral);
 }
 .tab-title .tab-part-last {

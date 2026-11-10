@@ -108,7 +108,7 @@ export function pillTexts(f: Filter): PillTexts {
   if (f.operation === "abovePercent" || f.operation === "belowPercent") {
     const target = "column" in r ? configuredShort(r.column) : "value" in r ? `${String(r.value)}${u}` : "";
     const label = f.offsetRangeId ? OFFSET_LABEL[f.offsetRangeId] : "";
-    return { primary, value: `${target} by ${label}`, operation: f.operation === "abovePercent" ? "Above" : "Below" };
+    return { primary, value: translateWith("{0} by {1}", target, translate(label)), operation: f.operation === "abovePercent" ? "Above" : "Below" };
   }
   if ("column" in r) return { primary, value: configuredShort(r.column), icon: pillOperation(f) };
   if ("value" in r) {
@@ -116,7 +116,7 @@ export function pillTexts(f: Filter): PillTexts {
     return f.operation === "equal" ? { primary, value } : { primary, value, icon: pillOperation(f) };
   }
   if (r.left !== null && r.right !== null) {
-    const value = `${valueText(fmt, r.left)} to ${valueText(fmt, r.right)}${u}`;
+    const value = translateWith("{0} to {1}", valueText(fmt, r.left), `${valueText(fmt, r.right)}${u}`);
     return f.operation === "outside" ? { primary, value, operation: FILTER_OPS.outside.label } : { primary, value };
   }
   // Open range: shown as ≥ / ≤.

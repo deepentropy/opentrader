@@ -413,7 +413,8 @@ function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => 
                   <span class="scr-item-logo">{label[0]}</span>
                 </Show>
                 <span class="scr-item-text">
-                  <span class="scr-item-title">
+                  {/* Index names, sectors and industries are data, not interface text. */}
+                  <span class="scr-item-title" data-no-translate={(codes() || !!fromData()) || undefined}>
                     <Show when={codes()}>
                       {v}
                       <span class="scr-item-sep"> • </span>

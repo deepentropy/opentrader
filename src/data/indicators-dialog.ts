@@ -25,11 +25,11 @@ import { builtinStrategyRows, strategyRows } from '../window/chart/indicators/st
 import { METRICS, type MetricPeriod, type MetricTab } from './fundamental-metrics';
 
 /** Fundamentals sub-tabs, in the reference order. */
-const FUNDAMENTAL_TABS: [MetricTab, string][] = [
-  ['income', 'Income statement'],
-  ['balance', 'Balance sheet'],
-  ['cashflow', 'Cash flow'],
-  ['statistics', 'Statistics'],
+const FUNDAMENTAL_TABS: { tab: MetricTab; label: string }[] = [
+  { tab: 'income', label: 'Income statement' },
+  { tab: 'balance', label: 'Balance sheet' },
+  { tab: 'cashflow', label: 'Cash flow' },
+  { tab: 'statistics', label: 'Statistics' },
 ];
 
 /** `disabled`: listed greyed, not selectable (no backing service). */
@@ -94,6 +94,8 @@ export type IndicatorRow = {
   boosts?: string;
   /** Strategy rows show the reference app's strategy marker icon after the name. */
   scriptType?: 'strategy';
+  /** A community or user script: its name is its author's, not interface text (not translated). */
+  authored?: boolean;
   /** Short title (e.g. "RSI"); the search ranks it before the name. */
   shortName?: string;
   /** Fundamentals metric row (search results): its metric and periods (one button per period on hover). */
@@ -188,7 +190,7 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   ] },
   // Built-In > Fundamentals — the metrics computed from the companies'
   // financial statements (data/fundamental-metrics.ts).
-  'fundamentals': { kind: 'fundamentals', subtabs: FUNDAMENTAL_TABS.map(([tab, label]) => ({
+  'fundamentals': { kind: 'fundamentals', subtabs: FUNDAMENTAL_TABS.map(({ tab, label }) => ({
     label,
     metrics: METRICS.filter((m) => m.tab === tab).map((m) => ({ key: m.key, name: m.name, depth: m.depth, periods: m.periods })),
   })) },
@@ -198,8 +200,8 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   'community': {
     kind: 'filtered',
     filters: typeFilters([
-      ...COMMUNITY_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })),
-      ...strategyRows().map((r) => ({ name: r.name, indicatorId: r.id, author: r.author, scriptType: 'strategy' as const })),
+      ...COMMUNITY_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id, authored: true })),
+      ...strategyRows().map((r) => ({ name: r.name, indicatorId: r.id, author: r.author, scriptType: 'strategy' as const, authored: true })),
     ]),
   },
 };

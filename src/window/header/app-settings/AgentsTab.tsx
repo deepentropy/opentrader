@@ -98,7 +98,7 @@ http_headers = { "Authorization" = "Bearer ${s.token}" }` },
                       <span class="app-settings-field-label">{x.label}</span>
                       <button type="button" class="app-settings-btn" onClick={() => copy(x.id, x.command)}>{copied() === x.id ? "Copied" : "Copy"}</button>
                     </div>
-                    <pre class="app-settings-code">{shown() ? x.command : x.command.split(s().token).join("•".repeat(12))}</pre>
+                    <pre class="app-settings-code" data-no-translate>{shown() ? x.command : x.command.split(s().token).join("•".repeat(12))}</pre>
                   </div>
                 )}
               </For>

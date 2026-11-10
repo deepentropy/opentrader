@@ -12,6 +12,8 @@ export const TABS = ["Style", "Text", "Coordinates", "Visibility"] as const;
 /** Page order: Inputs (tools with study-like inputs), Style, Text,
  *  Coordinates, Visibility. */
 export type Tab = (typeof TABS)[number] | "Inputs";
+/** The tabs' names as shown (the ids above are the code's). */
+export const TAB_LABELS: Record<Tab, string> = { Inputs: "Inputs", Style: "Style", Text: "Text", Coordinates: "Coordinates", Visibility: "Visibility" };
 export const INPUTS_KINDS = new Set<string>(["ghost-feed", "regression-trend", "long-position", "short-position", "anchored-vwap", "fixed-range-volume-profile", "anchored-volume-profile"]);
 /** Tools whose dialog has no Style page (Text is their first page). */
 export const NO_STYLE_KINDS = new Set<string>(["text", "callout", "comment"]);

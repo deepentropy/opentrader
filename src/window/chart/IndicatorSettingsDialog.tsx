@@ -250,15 +250,8 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
   );
 }
 
-/** Visibility rows with a range (units and maxima). */
-export const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, number]> = [
-  ["seconds", "Seconds", 59],
-  ["minutes", "Minutes", 59],
-  ["hours", "Hours", 24],
-  ["days", "Days", 366],
-  ["weeks", "Weeks", 52],
-  ["months", "Months", 12],
-];
+import { VIS_UNITS } from "./interval-visibility-mode";
+export { VIS_UNITS };
 
 /** Full-width 34 px check row (Style-tab output / input options). */
 function checkRow(label: string, checked: () => boolean, toggle: () => void) {

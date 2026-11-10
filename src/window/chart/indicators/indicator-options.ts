@@ -12,6 +12,7 @@
 import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { isScaleKey, type ScaleKey } from "../scales/scale-layout";
+import { formatted, translate, translating } from "../../../i18n/translator";
 
 export type IndicatorOptions = {
   /** "Default" or "0".."8" decimals (precision select). */
@@ -114,6 +115,22 @@ export function precisionDigits(p: string): number | null {
 // One formatter: the status line is rebuilt on every crosshair move.
 const inputNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
 
+/** The price sources as a source input's select names them. */
+const SOURCE_TEXT: Record<string, string> = {
+  open: "Open", high: "High", low: "Low", close: "Close", volume: "Volume",
+  hl2: "(H + L)/2", hlc3: "(H + L + C)/3", ohlc4: "(O + H + L + C)/4", hlcc4: "(H + L + C + C)/4",
+};
+
+/**
+ * A price source in a status line: its Pine name in English ("close", "hl2"), in another language the name its
+ * input's select gives it, translated and in lowercase as the English is ("clôture", "(H + L)/2").
+ */
+export function sourceValueText(v: string): string {
+  const label = SOURCE_TEXT[v];
+  if (!label || !translating()) return v;
+  return translate(label).toLocaleLowerCase(document.documentElement.lang || undefined);
+}
+
 /** The input values shown after a study title in the status line: every
  *  input except bool / colour (bool, color, time and text_area inputs are
  *  hidden by default) and the inputs whose `display` leaves the status line
@@ -133,8 +150,9 @@ export function statusLineInputs(
     if (display === "none" || display === "data_window") continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
-    const named = cfg.type === "source" && typeof v === "string" ? sourceText?.(v) ?? null : null;
+    const named = cfg.type === "source" && typeof v === "string" ? (sourceText?.(v) ?? sourceValueText(v)) : null;
     out.push(named ?? (typeof v === "number" ? inputNumberFormat.format(v) : String(v)));
   }
-  return out.join(separator);
+  // Values and names already in the interface language: shown as they are.
+  return formatted(out.join(separator));
 }

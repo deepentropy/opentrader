@@ -116,7 +116,7 @@ function LocalFolderCard(props: { folder: LocalFolder }) {
       />
       <div class="app-settings-local-status" data-name="local-folder-status">
         <Show when={progress()} fallback={statusText()}>
-          {(p) => `Syncing: ${thousands(p().done)} of ${thousands(p().total)} files…`}
+          {(p) => translateWith("Syncing: {0} of {1} files…", thousands(p().done), thousands(p().total))}
         </Show>
       </div>
       <Show when={!progress() && errors().length > 0}>

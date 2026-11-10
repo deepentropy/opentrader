@@ -34,9 +34,14 @@ export const caretIcon = () => (
  *  `onOpen` for a chip that opens its own panel. Set, it turns into a light
  *  pill with a reset button. */
 export function FilterChip(props: {
-  all: string;
+  /** Shown while nothing is picked ("All sources"), and the menu's first row. */
+  placeholder: string;
   value: string | null;
   options: string[];
+  /** The options are data (agencies), not interface words: not translated. */
+  dataOptions?: boolean;
+  /** The sense of the options' words (`data-i18n-sense`): "Money" is a category of economic series here. */
+  sense?: string;
   onPick: (v: string | null) => void;
   label?: string;
   icon?: string;
@@ -56,7 +61,7 @@ export function FilterChip(props: {
         when={props.value}
         fallback={
           <button type="button" class="symbol-search-filter" aria-haspopup="listbox" aria-expanded={open()} onClick={toggle}>
-            <span>{props.all}</span>
+            <span>{props.placeholder}</span>
             {caretIcon()}
           </button>
         }
@@ -66,7 +71,7 @@ export function FilterChip(props: {
             <Show when={props.icon}>
               <span class="symbol-search-filter-flag" aria-hidden="true"><img src={props.icon} alt="" /></span>
             </Show>
-            <span>{props.label ?? props.value}</span>
+            <span data-no-translate={(props.dataOptions && !props.label) || undefined} data-i18n-sense={props.sense}>{props.label ?? props.value}</span>
           </button>
           <button type="button" class="symbol-search-filter-reset" aria-label="Reset" onClick={() => pick(null)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="14" height="14">
@@ -76,13 +81,13 @@ export function FilterChip(props: {
         </div>
       </Show>
       <Show when={open()}>
-        <div class="symbol-search-type-menu symbol-search-filter-menu" role="listbox">
+        <div class="symbol-search-type-menu symbol-search-filter-menu" role="listbox" data-i18n-sense={props.sense}>
           <button type="button" role="option" aria-selected={!props.value} class={"symbol-search-type-option" + (!props.value ? " selected" : "")} onClick={() => pick(null)}>
-            {props.all}
+            {props.placeholder}
           </button>
           <For each={props.options}>
             {(o) => (
-              <button type="button" role="option" aria-selected={o === props.value} class={"symbol-search-type-option" + (o === props.value ? " selected" : "")} onClick={() => pick(o)}>
+              <button type="button" role="option" aria-selected={o === props.value} class={"symbol-search-type-option" + (o === props.value ? " selected" : "")} data-no-translate={props.dataOptions || undefined} onClick={() => pick(o)}>
                 {o}
               </button>
             )}
