@@ -51,12 +51,14 @@ function englishTexts() {
   if (MARKED_LANGUAGE) return [];
   const d = JSON.parse(readFileSync(join(ROOT, "src", "i18n", `${LANGUAGE}.json`), "utf8"));
   const texts = new Set();
+  // A word the language writes like another English text is its own ("Profile", German for "Profiles").
+  const own = new Set(Object.values(d).flatMap((v) => (typeof v === "object" ? Object.values(v) : [v])));
   for (const key of Object.keys(CATALOG)) {
     const word = key.includes("|") ? key.slice(0, key.lastIndexOf("|")) : key;
     const to = d[key] ?? d[word];
     const shown = typeof to === "object" ? to?.other : to;
     // A text the language writes as English does ("OK", "RSI") is not left in English; nor a template's.
-    if (shown !== undefined && shown !== word && !/\{\d+\}/.test(word) && /[a-z]{2}/.test(word)) texts.add(word);
+    if (shown !== undefined && shown !== word && !own.has(word) && !/\{\d+\}/.test(word) && /[a-z]{2}/.test(word)) texts.add(word);
   }
   return [...texts];
 }
