@@ -1,0 +1,554 @@
+{
+  "Add": {
+    "translation": "添加",
+    "notes": "in 50 of the 51 texts holding the term"
+  },
+  "Alert": {
+    "translation": "警报",
+    "notes": "in 51 of the 54 texts holding the term"
+  },
+  "Alerts": {
+    "translation": "警报",
+    "notes": "in 14 of the 14 texts holding the term"
+  },
+  "All charts": {
+    "translation": "所有图表",
+    "notes": "in 5 of the 6 texts holding the term"
+  },
+  "Apply": {
+    "translation": "应用",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Arrow": {
+    "translation": "箭头",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Auto": {
+    "translation": "自动",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Average": {
+    "translation": "平均",
+    "notes": "in 51 of the 57 texts holding the term"
+  },
+  "Background": {
+    "translation": "背景",
+    "notes": "in 26 of the 27 texts holding the term"
+  },
+  "Background Color": {
+    "translation": "背景颜色",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Bearish": {
+    "translation": "看跌",
+    "notes": "in 75 of the 75 texts holding the term"
+  },
+  "Bullish": {
+    "translation": "看涨",
+    "notes": "in 73 of the 73 texts holding the term"
+  },
+  "Buy": {
+    "translation": "买入",
+    "notes": "in 23 of the 24 texts holding the term"
+  },
+  "Calculation": {
+    "translation": "计算",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Cancel": {
+    "translation": "取消",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "Chart": {
+    "translation": "图表",
+    "notes": "in 87 of the 88 texts holding the term"
+  },
+  "Chart syncing": {
+    "translation": "图表同步",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Charts": {
+    "translation": "图表",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Cloud": {
+    "translation": "云",
+    "notes": "in 7 of the 8 texts holding the term"
+  },
+  "Color": {
+    "translation": "颜色",
+    "notes": "in 87 of the 98 texts holding the term"
+  },
+  "Colors": {
+    "translation": "颜色",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "Community": {
+    "translation": "社区",
+    "notes": "in 16 of the 16 texts holding the term"
+  },
+  "Condition": {
+    "translation": "条件",
+    "notes": "in 13 of the 14 texts holding the term"
+  },
+  "Content": {
+    "translation": "内容",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Create": {
+    "translation": "创建",
+    "notes": "in 14 of the 17 texts holding the term"
+  },
+  "Current": {
+    "translation": "当前",
+    "notes": "in 18 of the 21 texts holding the term"
+  },
+  "Custom": {
+    "translation": "自定义",
+    "notes": "in 19 of the 19 texts holding the term"
+  },
+  "Data": {
+    "translation": "数据",
+    "notes": "in 45 of the 45 texts holding the term"
+  },
+  "Date": {
+    "translation": "日期",
+    "notes": "in 18 of the 20 texts holding the term"
+  },
+  "Day": {
+    "translation": "日",
+    "notes": "in 25 of the 29 texts holding the term"
+  },
+  "Days": {
+    "translation": "日",
+    "notes": "in 7 of the 8 texts holding the term"
+  },
+  "Default": {
+    "translation": "默认",
+    "notes": "in 14 of the 14 texts holding the term"
+  },
+  "Delete": {
+    "translation": "删除",
+    "notes": "in 25 of the 25 texts holding the term"
+  },
+  "Display": {
+    "translation": "显示",
+    "notes": "in 18 of the 18 texts holding the term"
+  },
+  "Divergence": {
+    "translation": "背离",
+    "notes": "in 16 of the 18 texts holding the term"
+  },
+  "Download": {
+    "translation": "下载",
+    "notes": "in 9 of the 9 texts holding the term"
+  },
+  "Downtrend": {
+    "translation": "下降趋势",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Drawdown": {
+    "translation": "回撤",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Drawing": {
+    "translation": "绘图",
+    "notes": "in 40 of the 40 texts holding the term"
+  },
+  "Edit": {
+    "translation": "编辑",
+    "notes": "in 10 of the 11 texts holding the term"
+  },
+  "Enable": {
+    "translation": "启用",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Engulfing": {
+    "translation": "吞没",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Entry": {
+    "translation": "入场",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "Extend": {
+    "translation": "延伸",
+    "notes": "in 14 of the 15 texts holding the term"
+  },
+  "Factor": {
+    "translation": "因子",
+    "notes": "in 5 of the 6 texts holding the term"
+  },
+  "Fill": {
+    "translation": "填充",
+    "notes": "in 27 of the 32 texts holding the term"
+  },
+  "Gradient": {
+    "translation": "渐变",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Harami": {
+    "translation": "孕线",
+    "notes": "in 9 of the 9 texts holding the term"
+  },
+  "Hide": {
+    "translation": "隐藏",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "History": {
+    "translation": "历史",
+    "notes": "in 6 of the 7 texts holding the term"
+  },
+  "Icon": {
+    "translation": "图标",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Idea": {
+    "translation": "观点",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Import": {
+    "translation": "导入",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "Index": {
+    "translation": "指数",
+    "notes": "in 20 of the 24 texts holding the term"
+  },
+  "Indicator": {
+    "translation": "指标",
+    "notes": "in 53 of the 53 texts holding the term"
+  },
+  "Indicators": {
+    "translation": "指标",
+    "notes": "in 20 of the 20 texts holding the term"
+  },
+  "Inputs": {
+    "translation": "输入",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Interval": {
+    "translation": "周期",
+    "notes": "in 32 of the 32 texts holding the term"
+  },
+  "Label": {
+    "translation": "标签",
+    "notes": "in 45 of the 45 texts holding the term"
+  },
+  "Labels": {
+    "translation": "标签",
+    "notes": "in 22 of the 22 texts holding the term"
+  },
+  "Length": {
+    "translation": "长度",
+    "notes": "in 107 of the 108 texts holding the term"
+  },
+  "Lock": {
+    "translation": "锁定",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Lookback": {
+    "translation": "回看",
+    "notes": "in 9 of the 9 texts holding the term"
+  },
+  "Lower Band": {
+    "translation": "下轨",
+    "notes": "in 13 of the 13 texts holding the term"
+  },
+  "Message": {
+    "translation": "消息",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Minute": {
+    "translation": "分钟",
+    "notes": "in 23 of the 23 texts holding the term"
+  },
+  "Minutes": {
+    "translation": "分钟",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Mode": {
+    "translation": "模式",
+    "notes": "in 20 of the 20 texts holding the term"
+  },
+  "Momentum": {
+    "translation": "动量",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Month": {
+    "translation": "月",
+    "notes": "in 27 of the 27 texts holding the term"
+  },
+  "Months": {
+    "translation": "月",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Moving Average": {
+    "translation": "移动平均线",
+    "notes": "in 25 of the 28 texts holding the term"
+  },
+  "Multiplier": {
+    "translation": "倍数",
+    "notes": "in 18 of the 18 texts holding the term"
+  },
+  "Name": {
+    "translation": "名称",
+    "notes": "in 26 of the 30 texts holding the term"
+  },
+  "Offset": {
+    "translation": "偏移",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Once": {
+    "translation": "一次",
+    "notes": "in 7 of the 8 texts holding the term"
+  },
+  "Options": {
+    "translation": "选项",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Oscillator": {
+    "translation": "振荡器",
+    "notes": "in 21 of the 22 texts holding the term"
+  },
+  "Other": {
+    "translation": "其他",
+    "notes": "in 6 of the 7 texts holding the term"
+  },
+  "Overbought": {
+    "translation": "超买",
+    "notes": "in 16 of the 16 texts holding the term"
+  },
+  "Oversold": {
+    "translation": "超卖",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Pane": {
+    "translation": "窗格",
+    "notes": "in 13 of the 13 texts holding the term"
+  },
+  "Percentage": {
+    "translation": "百分比",
+    "notes": "in 11 of the 13 texts holding the term"
+  },
+  "Period": {
+    "translation": "周期",
+    "notes": "in 29 of the 31 texts holding the term"
+  },
+  "Pivot": {
+    "translation": "枢轴",
+    "notes": "in 29 of the 29 texts holding the term"
+  },
+  "Preset": {
+    "translation": "预设",
+    "notes": "in 14 of the 14 texts holding the term"
+  },
+  "Real-time": {
+    "translation": "实时",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Regular": {
+    "translation": "常规",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Remove": {
+    "translation": "移除",
+    "notes": "in 35 of the 37 texts holding the term"
+  },
+  "Replay": {
+    "translation": "回放",
+    "notes": "in 26 of the 26 texts holding the term"
+  },
+  "Reset": {
+    "translation": "重置",
+    "notes": "in 12 of the 13 texts holding the term"
+  },
+  "Resistance": {
+    "translation": "阻力",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Right": {
+    "translation": "右",
+    "notes": "in 28 of the 29 texts holding the term"
+  },
+  "Risk": {
+    "translation": "风险",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Scale": {
+    "translation": "坐标",
+    "notes": "in 26 of the 27 texts holding the term"
+  },
+  "Scan": {
+    "translation": "扫描",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Screener": {
+    "translation": "筛选器",
+    "notes": "in 8 of the 8 texts holding the term"
+  },
+  "Search": {
+    "translation": "搜索",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Seconds": {
+    "translation": "秒",
+    "notes": "in 9 of the 9 texts holding the term"
+  },
+  "Select": {
+    "translation": "选择",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Sell": {
+    "translation": "卖出",
+    "notes": "in 20 of the 20 texts holding the term"
+  },
+  "Session": {
+    "translation": "时段",
+    "notes": "in 29 of the 31 texts holding the term"
+  },
+  "Settings": {
+    "translation": "设置",
+    "notes": "in 65 of the 65 texts holding the term"
+  },
+  "Setup": {
+    "translation": "设置",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Show": {
+    "translation": "显示",
+    "notes": "in 87 of the 90 texts holding the term"
+  },
+  "Signal": {
+    "translation": "信号",
+    "notes": "in 43 of the 43 texts holding the term"
+  },
+  "Signals": {
+    "translation": "信号",
+    "notes": "in 11 of the 11 texts holding the term"
+  },
+  "Smoothing": {
+    "translation": "平滑",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Sound": {
+    "translation": "声音",
+    "notes": "in 6 of the 7 texts holding the term"
+  },
+  "Source": {
+    "translation": "来源",
+    "notes": "in 16 of the 18 texts holding the term"
+  },
+  "Standard Deviation": {
+    "translation": "标准差",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Stop Loss": {
+    "translation": "止损",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Strategy": {
+    "translation": "策略",
+    "notes": "in 17 of the 18 texts holding the term"
+  },
+  "Style": {
+    "translation": "样式",
+    "notes": "in 12 of the 13 texts holding the term"
+  },
+  "Symbol": {
+    "translation": "交易品种",
+    "notes": "in 70 of the 76 texts holding the term"
+  },
+  "Symbols": {
+    "translation": "交易品种",
+    "notes": "in 22 of the 23 texts holding the term"
+  },
+  "Table": {
+    "translation": "表格",
+    "notes": "in 19 of the 21 texts holding the term"
+  },
+  "Take Profit": {
+    "translation": "止盈",
+    "notes": "in 6 of the 6 texts holding the term"
+  },
+  "Template": {
+    "translation": "模板",
+    "notes": "in 16 of the 16 texts holding the term"
+  },
+  "Threshold": {
+    "translation": "阈值",
+    "notes": "in 21 of the 21 texts holding the term"
+  },
+  "Ticker": {
+    "translation": "代码",
+    "notes": "in 13 of the 14 texts holding the term"
+  },
+  "Ticks": {
+    "translation": "跳动",
+    "notes": "in 13 of the 13 texts holding the term"
+  },
+  "Time zone": {
+    "translation": "时区",
+    "notes": "in 5 of the 6 texts holding the term"
+  },
+  "Timeframe": {
+    "translation": "时间周期",
+    "notes": "in 19 of the 20 texts holding the term"
+  },
+  "Trade": {
+    "translation": "交易",
+    "notes": "in 46 of the 49 texts holding the term"
+  },
+  "Trades": {
+    "translation": "交易",
+    "notes": "in 22 of the 22 texts holding the term"
+  },
+  "Trading": {
+    "translation": "交易",
+    "notes": "in 15 of the 15 texts holding the term"
+  },
+  "Trend": {
+    "translation": "趋势",
+    "notes": "in 33 of the 33 texts holding the term"
+  },
+  "Trigger": {
+    "translation": "触发",
+    "notes": "in 10 of the 10 texts holding the term"
+  },
+  "Type": {
+    "translation": "类型",
+    "notes": "in 25 of the 25 texts holding the term"
+  },
+  "Update": {
+    "translation": "更新",
+    "notes": "in 21 of the 22 texts holding the term"
+  },
+  "Upper Band": {
+    "translation": "上轨",
+    "notes": "in 9 of the 9 texts holding the term"
+  },
+  "Uptrend": {
+    "translation": "上升趋势",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Volume": {
+    "translation": "成交量",
+    "notes": "in 63 of the 66 texts holding the term"
+  },
+  "Volume Profile": {
+    "translation": "成交量分布",
+    "notes": "in 7 of the 7 texts holding the term"
+  },
+  "Watchlist": {
+    "translation": "自选列表",
+    "notes": "in 16 of the 16 texts holding the term"
+  },
+  "Week": {
+    "translation": "周",
+    "notes": "in 7 of the 8 texts holding the term"
+  },
+  "Width": {
+    "translation": "宽度",
+    "notes": "in 10 of the 11 texts holding the term"
+  }
+}

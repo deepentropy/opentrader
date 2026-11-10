@@ -52,6 +52,8 @@ async function extractCatalog() {
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const dictionaryPath = (id) => join(I18N, `${id}.json`);
+/** A language just added may have no dictionary file yet: nothing translated. */
+const readDictionary = (id) => (existsSync(dictionaryPath(id)) ? readJson(dictionaryPath(id)) : {});
 const translated = () => tools.LANGUAGES.filter((l) => l.dictionary);
 const language = (id) => {
   const l = translated().find((x) => x.id === id);
@@ -83,7 +85,7 @@ async function report() {
   const known = tools.knownStudyTexts(indicatorRegistry);
   console.log(`catalog: ${Object.keys(catalog).length} texts`);
   for (const l of translated()) {
-    const d = readJson(dictionaryPath(l.id));
+    const d = readDictionary(l.id);
     const p = tools.checkDictionary(catalog, d, categoriesOf(l), known);
     const extra = Object.keys(d).filter((k) => !(k in catalog) && known.has(k)).length;
     console.log(
@@ -99,7 +101,7 @@ async function prune() {
   const { indicatorRegistry } = await import("lightweight-charts-indicators");
   const known = tools.knownStudyTexts(indicatorRegistry);
   for (const l of translated()) {
-    const d = readJson(dictionaryPath(l.id));
+    const d = readDictionary(l.id);
     const { obsolete } = tools.checkDictionary(catalog, d, categoriesOf(l), known);
     for (const k of obsolete) delete d[k];
     writeDictionary(l.id, d);
@@ -120,7 +122,7 @@ function glossaryHits(glossary, text) {
 function missing(id, file) {
   const l = language(id);
   const catalog = readJson(CATALOG);
-  const d = readJson(dictionaryPath(l.id));
+  const d = readDictionary(l.id);
   const glossaryPath = join(I18N, "glossary", `${l.id}.json`);
   const glossary = existsSync(glossaryPath) ? readJson(glossaryPath) : {};
   const categories = categoriesOf(l);
@@ -149,14 +151,16 @@ function merge(id, file) {
   const l = language(id);
   if (!file) throw new Error("npm run i18n:merge -- <lang> <file>");
   const catalog = readJson(CATALOG);
-  const d = readJson(dictionaryPath(l.id));
+  const d = readDictionary(l.id);
   const filled = readJson(file);
   const categories = categoriesOf(l);
   const errors = [];
   let merged = 0;
   for (const [key, entry] of Object.entries(filled)) {
-    const to = typeof entry === "object" && entry !== null && "translation" in entry ? entry.translation : entry;
-    const forms = typeof to === "string" ? [to] : Object.values(to ?? {});
+    const given = typeof entry === "object" && entry !== null && "translation" in entry ? entry.translation : entry;
+    // A form left empty falls back to "other".
+    const to = typeof given === "string" ? given : Object.fromEntries(Object.entries(given ?? {}).filter(([, f]) => f));
+    const forms = typeof to === "string" ? [to] : Object.values(to);
     if (forms.every((f) => !f)) continue;
     if (!(key in catalog)) errors.push(`not in the catalog: ${JSON.stringify(key)}`);
     else if (forms.some((f) => !f || tools.valuesOf(f).join(" ") !== tools.valuesOf(key).join(" "))) errors.push(`values differ from the English: ${JSON.stringify(key)}`);

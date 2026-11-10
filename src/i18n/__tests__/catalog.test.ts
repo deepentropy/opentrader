@@ -35,6 +35,13 @@ describe("the English catalog (#288)", () => {
 
 describe("the dictionaries (#288)", () => {
   const known = knownStudyTexts(registry);
+  it("each glossary is a registered language's, each term translated", () => {
+    const glossaries = import.meta.glob("../glossary/*.json", { import: "default", eager: true }) as Record<string, Record<string, { translation?: string }>>;
+    for (const [path, terms] of Object.entries(glossaries)) {
+      expect(LANGUAGES.some((l) => path.endsWith(`/${l.id}.json`)), path).toBe(true);
+      expect(Object.entries(terms).filter(([, t]) => !t.translation).map(([term]) => term), path).toEqual([]);
+    }
+  });
   for (const l of LANGUAGES.filter((x) => x.dictionary)) {
     const d = DICTIONARIES[`../${l.id}.json`];
     const categories = new Intl.PluralRules(l.pluralLocale).resolvedOptions().pluralCategories;

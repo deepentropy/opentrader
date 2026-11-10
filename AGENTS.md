@@ -48,3 +48,20 @@ too, put its body in `opentrader_core::commands`, add its name to `SERVED` there
 - Do not name market-data providers in code, docs or issues.
 - Dates shown to the user: dd/mm/yyyy.
 - Commit only the files you changed (no `git add -A`): other work may be in the tree.
+
+## Languages
+
+The components keep their English text; `src/i18n/translator.ts` translates the page as it appears from a dictionary
+keyed by the English text (`src/i18n/<lang>.json`). `src/i18n/catalog.json` lists every text to translate, generated
+from the code, the built-in studies and `src/i18n/tools/run-time-texts.ts`.
+
+- A text: write it whole. Values go through `translateWith("{0} bars of {1}", n, sym)`, counts through
+  `translatePlural(n, { one: "{0} bar", other: "{0} bars" })`, dates and numbers through `src/i18n/format.ts`; never
+  join words to values (`"Undo " + name`, a test fails). A word with two meanings takes a sense (`data-i18n-sense`,
+  `translateAs`). Then `npm run i18n:extract` and add the new entries to each dictionary.
+- A language: one entry in `src/i18n/languages.ts` (name, plural locale, formats, direction, `partial` while it is
+  being translated) and its `<lang>.json`; `src/i18n/glossary/<lang>.json` holds its terms.
+- `npm run i18n:report` gives each language's coverage; `npm run i18n:missing -- <lang>` writes the missing texts with
+  their context and glossary terms to `.tmp/i18n/<lang>-missing.json`, `npm run i18n:merge -- <lang> <file>` merges
+  the filled file back (checked); `npm run i18n:prune` removes the entries the catalog lost. In the dev build,
+  `window.__i18nMisses()` lists the texts left in English on screen.
