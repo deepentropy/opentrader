@@ -11,6 +11,7 @@
 import type { SymbolSessions } from "../../data/session";
 import { cachedSymbolSessions, localDay, localToUtc, weekdayOf, zoneOffsetFinder } from "../../data/session";
 import { zoneCity } from "../../data/symbol-info";
+import { translateWith } from "../../i18n/translator";
 
 export type MarketStatusKind = "open" | "pre" | "post" | "closed" | "holiday";
 
@@ -51,18 +52,19 @@ export const REPLAY_STATUS_TEXT = {
   on: { title: "Replay mode", color: "var(--color-content-secondary-accent)", text: "You're in Replay mode. You're in Replay mode. You're in Replay mode." },
 } as const;
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many: string) => translateWith(n === 1 ? `{0} ${one}` : `{0} ${many}`, n);
 
 /** Remaining time as the reference app words it: "2 hours and 28 minutes",
- *  "1 day and 3 hours", "5 minutes", "less than 1 minute". */
+ *  "1 day and 3 hours", "5 minutes", "less than 1 minute"; in the interface
+ *  language (built from whole phrases, so a translation can reorder them). */
 export function durationText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const days = Math.floor(s / 86400);
   const hours = Math.floor((s - days * 86400) / 3600);
   const minutes = Math.floor((s - days * 86400 - hours * 3600) / 60);
-  if (days === 0 && hours === 0 && minutes === 0) return "less than 1 minute";
-  if (days > 0) return `${plural(days, "day", "days")} and ${plural(hours, "hour", "hours")}`;
-  if (hours > 0) return `${plural(hours, "hour", "hours")} and ${plural(minutes, "minute", "minutes")}`;
+  if (days === 0 && hours === 0 && minutes === 0) return translateWith("less than 1 minute");
+  if (days > 0) return translateWith("{0} and {1}", plural(days, "day", "days"), plural(hours, "hour", "hours"));
+  if (hours > 0) return translateWith("{0} and {1}", plural(hours, "hour", "hours"), plural(minutes, "minute", "minutes"));
   return plural(minutes, "minute", "minutes");
 }
 
@@ -86,20 +88,20 @@ export function countdownText(s: SymbolSessions, sec: number): string | null {
     const end = s.regular.at(sec)?.end;
     if (end == null) return null;
     const toPost = s.postmarket?.contains(end) ?? false;
-    return `${toPost ? "It'll go to post-market trading in" : "It'll close in"} ${left(end)}.`;
+    return translateWith(toPost ? "It'll go to post-market trading in {0}." : "It'll close in {0}.", left(end) as string);
   }
   if (kind === "pre") {
     const next = s.regular.currentOrNext(sec)?.start;
-    return next == null ? null : `It’ll open fully in ${left(next)}.`;
+    return next == null ? null : translateWith("It’ll open fully in {0}.", left(next) as string);
   }
   if (kind === "post") {
     const end = s.postmarket?.at(sec)?.end;
-    return end == null ? null : `It'll close in ${left(end)}.`;
+    return end == null ? null : translateWith("It'll close in {0}.", left(end) as string);
   }
   const reg = s.regular.currentOrNext(sec)?.start ?? null;
   const pre = s.premarket?.currentOrNext(sec)?.start ?? null;
-  if (pre !== null && (reg === null || pre <= reg)) return `It'll open for pre-market trading in ${left(pre)}.`;
-  return reg === null ? null : `It'll open in ${left(reg)}.`;
+  if (pre !== null && (reg === null || pre <= reg)) return translateWith("It'll open for pre-market trading in {0}.", left(pre) as string);
+  return reg === null ? null : translateWith("It'll open in {0}.", left(reg) as string);
 }
 
 
