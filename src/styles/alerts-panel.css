@@ -16,16 +16,16 @@
 
 .alerts-panel-tabs.ot-segmented-control {
   border-radius: 8px;
-  background-color: var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
 }
 .alerts-panel-tabs .ot-segmented-control__segment {
   border-radius: 5px;
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
 }
 .alerts-panel-tabs .ot-segmented-control__segment.selected {
-  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
+  background-color: var(--color-container-fill-primary-neutral-normal);
   color: var(--ot-text-max);
-  box-shadow: 0 0 6px 0 rgb(0 0 0);
+  box-shadow: 0 0 6px 0 var(--color-black);
 }
 
 /* ── Toolbar row ── */
@@ -37,7 +37,7 @@
   height: 39px;
   padding: 0 8px;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+  border-bottom: 1px solid var(--color-toolbar-divider-background);
 }
 .alerts-panel-subheader-right {
   margin-left: auto;
@@ -49,7 +49,7 @@
   width: 38px;
   height: 38px;
   border-radius: 6px;
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
 }
 
 /* Filters applied, on the Options button's top-right corner. */
@@ -62,8 +62,8 @@
   padding: 0 3px;
   box-sizing: border-box;
   border-radius: 7px;
-  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
-  color: var(--ot-chart-bg, #0f0f0f);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--ot-chart-bg);
   font-size: 11px;
   font-weight: 600;
   line-height: 14px;
@@ -79,7 +79,7 @@
 
 .alerts-panel-search {
   padding: 6px 12px;
-  border-bottom: 1px solid var(--color-border-table, #2e2e2e);
+  border-bottom: 1px solid var(--color-border-table);
 }
 .alerts-panel-search input {
   width: 100%;
@@ -93,15 +93,15 @@
   flex-direction: column;
   justify-content: center;
   padding: 8px 16px 7px;
-  border-bottom: 1px solid var(--color-border-table, #2e2e2e);
+  border-bottom: 1px solid var(--color-border-table);
   cursor: default;
 }
 .alerts-panel-item:hover {
-  background-color: var(--color-border-table, #2e2e2e);
+  background-color: var(--color-border-table);
 }
 /* The row whose menu is open. */
 .alerts-panel-item.is-menu-open {
-  background-color: var(--color-ot-blue-a800, #142e61);
+  background-color: var(--color-ot-blue-a800);
 }
 .alerts-panel-item.is-disabled > :not(.alerts-panel-row-actions) {
   opacity: 0.5;
@@ -111,7 +111,7 @@
   padding-bottom: 3px;
   font-size: 14px;
   line-height: 18px;
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -124,7 +124,7 @@
   height: 18px;
   font-size: 12px;
   line-height: 18px;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -139,14 +139,14 @@
 .alerts-panel-attr + .alerts-panel-attr::before {
   content: "•";
   margin: 0 6px;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 .alerts-panel-attr--strong,
 .alerts-panel-source {
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
 }
 .alerts-panel-status.is-active {
-  color: var(--color-minty-green-500, #089981);
+  color: var(--color-minty-green-500);
 }
 .alerts-panel-warn {
   color: var(--color-invalid-symbol);
@@ -164,10 +164,10 @@
   margin-top: 4px;
   font-size: 12px;
   line-height: 16px;
-  color: var(--color-ripe-red-500, #f23645);
+  color: var(--color-ripe-red-500);
 }
 .alerts-panel-webhook.is-ok {
-  color: var(--color-minty-green-500, #089981);
+  color: var(--color-minty-green-500);
 }
 .alerts-panel-webhook > svg {
   flex: 0 0 18px;
@@ -198,7 +198,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
   cursor: default;
 }
 .alerts-panel-row-btn:hover {
@@ -211,7 +211,7 @@
   font-size: 11px;
   line-height: 16px;
   text-transform: uppercase;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 
 /* ── Menus (alerts-menu.tsx) ── */
@@ -242,7 +242,7 @@
   height: 32px;
   padding: 0 12px;
   font-size: 14px;
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
   cursor: default;
 }
 .alerts-menu-row:hover:not(.is-disabled) {
@@ -272,7 +272,7 @@
 }
 .alerts-menu-count {
   margin-left: 12px;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
   font-variant-numeric: tabular-nums;
 }
 
@@ -286,12 +286,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  border: 1px solid var(--color-container-fill-primary-neutral-extra-bold);
   border-radius: 3px;
 }
 .alerts-menu-mark.is-checked {
-  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
-  color: var(--ot-chart-bg, #0f0f0f);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--ot-chart-bg);
 }
 .alerts-menu-mark.is-radio {
   border-radius: 50%;
@@ -301,7 +301,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--ot-chart-bg, #0f0f0f);
+  background-color: var(--ot-chart-bg);
 }
 
 /* Sort rows: the label 6 px after the direction icon. */
@@ -312,14 +312,14 @@
 /* The current sort. */
 .alerts-menu-sort.is-selected,
 .alerts-menu-sort.is-selected:hover {
-  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
-  color: var(--ot-chart-bg, #0f0f0f);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--ot-chart-bg);
 }
 
 .alerts-menu-sep {
   height: 1px;
   margin: 6px 0;
-  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+  background-color: var(--color-toolbar-divider-background);
 }
 .alerts-menu-sep + .alerts-menu-title {
   margin-top: -6px;
@@ -338,7 +338,7 @@
   font-size: 11px;
   line-height: 16px;
   text-transform: uppercase;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
   cursor: default;
 }
 .alerts-menu-chevron {
