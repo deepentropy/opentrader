@@ -8,7 +8,7 @@
  * Rendering + selection; App's onMenuSelect runs the picked row (chart
  * interval, chart type, layout, favourite indicators, snapshot, layouts).
  */
-import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
@@ -88,9 +88,13 @@ export function HeaderMenu(props: Props) {
   // the viewport's right edge (buttons at x > 1300 with a 428px-wide menu).
   // Right to left the same, mirrored: right edges aligned, flipped at the
   // viewport's left edge.
+  // The registry width is a minimum: a longer translation widens the menu (measured once shown).
+  const [shownWidth, setShownWidth] = createSignal(0);
+  let menuEl: HTMLDivElement | undefined;
+  onMount(() => requestAnimationFrame(() => menuEl && setShownWidth(menuEl.offsetWidth)));
   createEffect(() => {
     const a = props.anchor;
-    const w = props.menu.width;
+    const w = Math.max(props.menu.width, shownWidth());
     const margin = 4;
     if (isRtl()) {
       let right = a.right;
@@ -118,7 +122,10 @@ export function HeaderMenu(props: Props) {
   return (
     <Portal mount={document.body}>
       <div
-        ref={popover}
+        ref={(el) => {
+          menuEl = el;
+          popover(el);
+        }}
         class="ot-popover header-menu"
         data-menu-id={props.menuId}
         role="menu"
@@ -127,7 +134,7 @@ export function HeaderMenu(props: Props) {
           left: `${pos().left}px`,
           // The interval menu sizes to its rows, like the reference menu
           // (header-menu.css); the others keep their registry width.
-          ...(props.menuId === "chart-interval" ? {} : { width: `${props.menu.width}px` }),
+          ...(props.menuId === "chart-interval" ? {} : { width: "max-content", "min-width": `${props.menu.width}px`, "max-width": "calc(100vw - 8px)" }),
         }}
       >
         <For each={props.menu.sections}>
@@ -330,7 +337,7 @@ export function HeaderMenu(props: Props) {
                       </span>
                       <span class={`header-menu-label${isTemplateRow() ? "" : " apply-overflow-tooltip"}`}>{row.label}</span>
                       <Show when={row.hotkey}>
-                        <span class="header-menu-hotkey">{row.hotkey}</span>
+                        <span class="header-menu-hotkey" data-no-translate>{row.hotkey}</span>
                       </Show>
                       <Show when={isCustomRow()}>
                         <Tooltip text="Remove" side="bottom">

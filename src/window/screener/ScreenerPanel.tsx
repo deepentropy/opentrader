@@ -738,7 +738,7 @@ export function ScreenerPanel(props: Props) {
       </section>
 
       <Show when={titleOpen()}>
-        <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} width={260}>
+        <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} minWidth={260}>
           <PopItem title="Stock Screener" selected={!script() && screenerStore.type() === "stock"} onClick={() => { setTitleOpen(false); showScreener("stock"); }} />
           <PopItem title="ETF Screener" selected={!script() && screenerStore.type() === "etf"} onClick={() => { setTitleOpen(false); showScreener("etf"); }} />
           <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); screenerStore.setKind("script"); }} />
@@ -790,7 +790,7 @@ export function ScreenerPanel(props: Props) {
       </Show>
 
       <Show when={viewOpen()}>
-        <Popover anchor={viewBtn} onClose={() => setViewOpen(false)} width={160}>
+        <Popover anchor={viewBtn} onClose={() => setViewOpen(false)} minWidth={160}>
           <PopSectionTitle title="View type" />
           <For each={VIEWS}>
             {(v) => (

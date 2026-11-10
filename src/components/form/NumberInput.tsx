@@ -8,6 +8,7 @@
  */
 import { Show } from "solid-js";
 import { Chevron } from "./glyphs";
+import { localNumber, typedNumber } from "../../i18n/format";
 
 export function NumberField(props: {
   value: string;
@@ -30,13 +31,15 @@ export function NumberField(props: {
     if (r.int) v = Math.round(v);
     return v;
   };
-  const shown = () => (props.grouping && Number.isFinite(parseFloat(props.value)) ? Number(props.value).toLocaleString("en-US", { maximumFractionDigits: 8 }) : props.value);
+  // A grouped amount (initial capital) in the language's marks ("100 000"), typed in them or in English ones.
+  const grouped = (v: string) => localNumber(Number(v).toLocaleString("en-US", { maximumFractionDigits: 8 }));
+  const shown = () => (props.grouping && Number.isFinite(parseFloat(props.value)) ? grouped(props.value) : props.value);
   const commit = (text: string, el?: HTMLInputElement) => {
-    const n = parseFloat(props.grouping ? text.replace(/,/g, "") : text);
+    const n = parseFloat(props.grouping ? typedNumber(text).replace(/,/g, "") : text);
     if (!Number.isFinite(n)) { if (el) el.value = shown(); return; }
     const v = String(Number(clamp(n).toFixed(8)));
     props.onChange(v);
-    if (el) el.value = props.grouping ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 8 }) : v;
+    if (el) el.value = props.grouping ? grouped(v) : v;
   };
   const step = (dir: 1 | -1) => {
     const n = parseFloat(props.value);

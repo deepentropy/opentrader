@@ -1043,7 +1043,10 @@ html.theme-light .watchlist-col-guide {
   position: absolute;
   top: 44px;
   inset-inline-start: 8px;
-  width: 210px;
+  min-width: 210px;
+  /* At least this wide; a longer translation widens it. */
+  width: max-content;
+  max-width: calc(100vw - 16px);
   z-index: 60;
 }
 
@@ -1661,7 +1664,10 @@ html.theme-light .watchlist-col-guide {
  * buttons (28×28) under "Flag/Unflag", and an "Add … to watchlist" submenu.
  * Shell/rows reuse the shared `.ot-popover` + `.ot-menu-item`. */
 .watchlist-ctx-menu {
-  width: 252px;
+  min-width: 252px;
+  /* At least this wide; a longer translation widens it. */
+  width: max-content;
+  max-width: calc(100vw - 16px);
 }
 .watchlist-ctx-menu--section {
   width: 160px;

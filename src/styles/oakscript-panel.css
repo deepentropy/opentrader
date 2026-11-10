@@ -68,6 +68,9 @@
   inset-inline-start: 0;
   z-index: 60;
   min-width: 220px;
+  /* At least this wide; a longer translation widens it. */
+  width: max-content;
+  max-width: calc(100vw - 16px);
   max-height: 60vh;
   overflow-y: auto;
 }

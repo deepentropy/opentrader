@@ -21,6 +21,8 @@ type PopoverProps = {
   class?: string;
   /** Fixed width (px); otherwise the content decides. */
   width?: number;
+  /** A menu's width (px) at least, wider for longer labels (another language). */
+  minWidth?: number;
   maxHeight?: number;
   /** Extra x/y offset from the anchor's bottom start corner (x toward the end side). */
   offset?: { x: number; y: number };
@@ -71,7 +73,7 @@ export function Popover(props: PopoverProps) {
       <div
         ref={(node) => { el = node; popover(node); }}
         class={`scr-popover${props.class ? " " + props.class : ""}`}
-        style={{ width: props.width ? `${props.width}px` : undefined }}
+        style={{ width: props.width ? `${props.width}px` : undefined, "min-width": props.minWidth ? `${props.minWidth}px` : undefined }}
         role="dialog"
       >
         {props.children}

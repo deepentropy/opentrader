@@ -220,7 +220,10 @@
   top: calc(100% - 1px);
   inset-inline-end: 8px;
   z-index: 30;
-  width: 260px;
+  min-width: 260px;
+  /* At least this wide; a longer translation widens it. */
+  width: max-content;
+  max-width: calc(100vw - 16px);
   box-sizing: border-box;
 }
 /* The Sort menu ends under the Sort button (left of Options). */
