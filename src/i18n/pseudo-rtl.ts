@@ -14,9 +14,12 @@
 import type { Catalog } from "./tools/catalog";
 import type { Dictionary, PluralEntry } from "./translator";
 
-const RLM = "‏";
+const RLM = String.fromCharCode(0x200f);
 
-/** A text in the pseudo-language: "Add alert" → "‏⟦Add‏ alert‏⟧‏". Placeholders ({0}, {{ticker}}) are kept whole. */
+/**
+ * A text in the pseudo-language: "Add alert" → "⟦Add alert⟧", with a mark (invisible) before and after the brackets
+ * and after each word. Placeholders ({0}, {{ticker}}) are kept whole.
+ */
 export function pseudoRtl(text: string): string {
   const words = text.split(" ").map((w) => (w ? w + RLM : w));
   return `${RLM}⟦${words.join(" ")}⟧${RLM}`;

@@ -5,7 +5,7 @@ import { pseudoRtl, pseudoRtlDictionary } from "../pseudo-rtl";
 import type { Catalog } from "../tools/catalog";
 import { valuesOf } from "../tools/catalog";
 
-const RLM = "‏";
+const RLM = String.fromCharCode(0x200f);
 const plain = (s: string) => s.split(RLM).join("");
 
 describe("the right-to-left pseudo-language en-XB (#290)", () => {
