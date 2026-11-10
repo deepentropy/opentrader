@@ -144,9 +144,11 @@ describe("French formats (#291)", () => {
     as("fr");
     expect(typedNumber(`1${NNBSP}234,56`)).toBe("1234.56");
     expect(typedNumber("1234.56")).toBe("1234.56");
-    expect(typedNumber("1,234.56")).toBe("1,234.56");
-    expect(leftNumber("1234,5")).toBe("1,234.5");
-    expect(leftNumber("1 234,5")).toBe("1,234.5");
+    expect(typedNumber("1,234.56")).toBe("1234.56");
+    // Left ungrouped: a grouped "1,234" would be read back as 1.234 (a decimal comma).
+    expect(parsePositive(leftNumber("1234"))).toBe(1234);
+    expect(leftNumber("1234,5")).toBe("1234.5");
+    expect(leftNumber("1 234,5")).toBe("1234.5");
     expect(leftNumber("abc")).toBe("abc");
     expect(shownNumber("1,234.5")).toBe(`1${NNBSP}234,5`);
     expect(shownNumber("1234,5")).toBe("1234,5");

@@ -35,7 +35,7 @@ export function NumberField(props: {
   const grouped = (v: string) => localNumber(Number(v).toLocaleString("en-US", { maximumFractionDigits: 8 }));
   const shown = () => (props.grouping && Number.isFinite(parseFloat(props.value)) ? grouped(props.value) : props.value);
   const commit = (text: string, el?: HTMLInputElement) => {
-    const n = parseFloat(props.grouping ? typedNumber(text).replace(/,/g, "") : text);
+    const n = parseFloat(props.grouping ? typedNumber(text, true).replace(/,/g, "") : text);
     if (!Number.isFinite(n)) { if (el) el.value = shown(); return; }
     const v = String(Number(clamp(n).toFixed(8)));
     props.onChange(v);

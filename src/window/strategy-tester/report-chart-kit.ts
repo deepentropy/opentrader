@@ -1,4 +1,4 @@
-import { dateText, numberFormat } from "../../i18n/format";
+import { dateText, numberFormat, quarterText } from "../../i18n/format";
 /*
  * Shared plumbing of the report tab charts (Metrics view sub-tabs), after the
  * reference app's report chart helpers:
@@ -110,7 +110,7 @@ export function utcDate(ms: number, parts: "monthDay" | "date" | "monthYear" | "
 /** Quarter of a UTC date: "Q3 '20". */
 export function quarterLabel(ms: number): string {
   const d = new Date(ms);
-  return `Q${Math.floor(d.getUTCMonth() / 3) + 1} '${String(d.getUTCFullYear() % 100).padStart(2, "0")}`;
+  return `${quarterText(Math.floor(d.getUTCMonth() / 3) + 1)} '${String(d.getUTCFullYear() % 100).padStart(2, "0")}`;
 }
 
 // ---------------------------------------------------------------------------

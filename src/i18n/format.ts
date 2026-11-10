@@ -87,13 +87,27 @@ export function englishNumber(text: string): string {
  * code reads it as it always has. In English all three give the text itself. Plain number settings take a dot.
  */
 
-/** A number typed in a price field in English marks ("1 234,5" → "1234.5"); a text with both a "," and a "." is
- *  English already ("1,234.5"). The text itself in English. */
-export function typedNumber(text: string): string {
-  const m = activeFormats().numberMarks;
-  if (!m || (text.includes(",") && text.includes("."))) return text;
+/**
+ * A number typed in a price field in English marks, without its grouping ("1 234,5", "1.234,5", "1234.5" → "1234.5"):
+ * spaces group; with both a "," and a "." the last is the decimal sign ("1,234.5", "1.234,5"); a sign repeated groups
+ * ("1.234.567"); one "," or one "." is the decimal sign ("588,5", "588.5": a dot typed in German is not taken for a
+ * grouping mark). In a field of whole amounts shown grouped (`grouped`, the initial capital "100.000"), groups of
+ * three digits are groups. The text itself in English and in a language writing numbers as English does.
+ */
+export function typedNumber(text: string, grouped = false): string {
+  if (!activeFormats().numberMarks) return text;
+  if (grouped && /^\s*[+\-\u2212]?\d{1,3}([.,])\d{3}(\1\d{3})*\s*$/.test(text)) return text.replace(/[.,]/g, "");
   const t = text.replace(/(\d)[\s\u202f\u00a0](?=\d)/g, "$1");
-  return m.decimal === "." ? t : t.replace(m.decimal, ".");
+  const comma = t.lastIndexOf(",");
+  const dot = t.lastIndexOf(".");
+  if (comma >= 0 && dot >= 0) {
+    const decimal = comma > dot ? "," : ".";
+    const group = decimal === "," ? /\./g : /,/g;
+    return t.replace(group, "").replace(decimal, ".");
+  }
+  const mark = comma >= 0 ? "," : dot >= 0 ? "." : null;
+  if (!mark) return t;
+  return t.indexOf(mark) === t.lastIndexOf(mark) ? t.replace(mark, ".") : t.split(mark).join("");
 }
 
 /** An English number ("1,234.5", "−0.25"), as the code writes it in a field. */
@@ -104,18 +118,32 @@ export function shownNumber(text: string): string {
   return activeFormats().numberMarks && ENGLISH_FIELD.test(text.trim()) ? localNumber(text) : text;
 }
 
-/** A price field left: the number typed in English marks, its thousands grouped ("1 234,5" → "1,234.5"); the text
- *  itself when it isn't one number, and in English. */
+/** A price field left: the number typed in English marks, not grouped ("1 234,5" → "1234.5": a grouped "1,234" would
+ *  be read back with a decimal comma); the text itself when it isn't one number, and in English. */
 export function leftNumber(text: string): string {
   if (!activeFormats().numberMarks) return text;
-  const t = typedNumber(text.trim()).replace(/,/g, "");
-  const m = /^([+\-\u2212]?)(\d+)(\.\d+)?$/.exec(t);
-  return m ? m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (m[3] ?? "") : text;
+  const t = typedNumber(text.trim());
+  return /^[+\-\u2212]?\d+(\.\d+)?$/.test(t) ? t : text;
 }
 
 /** The weekday heads of a calendar, Monday first: the language's, or `english` ("Mo", "Tu"…). */
 export function calendarWeekdays<T extends string>(english: readonly T[]): readonly string[] {
   return (activeFormats().calendarWeekdays ?? english).map(formatted);
+}
+
+/** A calendar's title: "November 2026", "Julio 2026", "7月 2026" (its first letter upper case). */
+export function calendarTitle(year: number, month: number): string {
+  const pattern = activeFormats().calendarTitle;
+  const text = pattern
+    ? pattern.replace(/\{(MMMM|M|yyyy)\}/g, (_, t: string) =>
+        t === "yyyy" ? String(year) : t === "M" ? String(month) : dateText(Date.UTC(2000, month - 1, 1), { month: "long", timeZone: "UTC" }))
+    : dateText(new Date(year, month - 1, 1), { month: "long", year: "numeric" });
+  return formatted(text.charAt(0).toUpperCase() + text.slice(1));
+}
+
+/** A quarter (1 to 4): "Q3", "T3" in Spanish. */
+export function quarterText(q: number): string {
+  return formatted((activeFormats().quarter ?? "Q{q}").replace("{q}", String(q)));
 }
 
 /** The short name of a month (1 to 12): "Oct", 10月. */
@@ -181,7 +209,8 @@ export function libraryMonthRule(dateLocale: string, shortMonths?: readonly stri
   return (t) => (english.includes(t) ? names[english.indexOf(t)] : t);
 }
 
-/** Days, hours and minutes as whole phrases: "2 hours and 28 minutes", "1 day and 3 hours", "less than 1 minute". */
+/** Days, hours and minutes as whole phrases: "2 hours and 28 minutes", "1 day and 3 hours", "less than 1 minute";
+ *  "2時間28分" (the language's `durationJoin`). */
 export function durationText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const days = Math.floor(s / 86400);
@@ -191,8 +220,11 @@ export function durationText(seconds: number): string {
   const hour = (n: number) => translatePlural(n, { one: "{0} hour", other: "{0} hours" });
   const minute = (n: number) => translatePlural(n, { one: "{0} minute", other: "{0} minutes" });
   if (days === 0 && hours === 0 && minutes === 0) return translateWith("less than 1 minute");
-  if (days > 0) return translateWith("{0} and {1}", day(days), hour(hours));
-  if (hours > 0) return translateWith("{0} and {1}", hour(hours), minute(minutes));
+  const join = activeFormats().durationJoin;
+  const both = (larger: string, smaller: string, own?: string) =>
+    own ? formatted(own.replace("{0}", larger).replace("{1}", smaller)) : translateWith("{0} and {1}", larger, smaller);
+  if (days > 0) return both(day(days), hour(hours), join?.daysHours);
+  if (hours > 0) return both(hour(hours), minute(minutes), join?.hoursMinutes);
   return minute(minutes);
 }
 

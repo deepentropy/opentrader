@@ -1,4 +1,4 @@
-import { durationText } from "../../i18n/format";
+import { chartWeekday, durationText } from "../../i18n/format";
 /*
  * Chart legend statuses (the status pill next to the symbol title) and what
  * their popup says, as the reference app 3.4.1 (FullTooltipsPopup): one
@@ -131,6 +131,9 @@ export type Timeline = {
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** The short name of a weekday (`weekdayOf`: 1 Sunday … 7 Saturday) in the interface language, without its dot:
+ *  "Mon", "Di", "mar", "火". */
+const weekdayAt = (wd: number) => chartWeekday(WEEKDAYS[wd - 1]).replace(/\.$/, "");
 export const TIMELINE_TITLE: Record<TimelineType, string> = { open: "Market open", pre: "Pre-market", post: "Post-market", closed: "Market closed" };
 
 /** "UTC-4", "UTC+5:30", "UTC". */
@@ -204,7 +207,7 @@ export function sessionTimeline(s: SymbolSessions, sec: number, week = false): T
     const mb = wall(b - 60, db) + 1;
     const len = (db - da) * 1440 + mb - ma;
     if (len < 1440 || (len === 1440 && ma === 0)) return `${hm(ma)} — ${hm(mb)}`;
-    return `${WEEKDAYS[weekdayOf(da) - 1]} ${hm(ma)} — ${WEEKDAYS[weekdayOf(db) - 1]} ${hm(mb)}`;
+    return `${weekdayAt(weekdayOf(da))} ${hm(ma)} — ${weekdayAt(weekdayOf(db))} ${hm(mb)}`;
   };
 
   // Trading parts around the day, closed gaps between them.
@@ -246,7 +249,7 @@ export function sessionTimeline(s: SymbolSessions, sec: number, week = false): T
 
   const days: TimelineDay[] = [];
   for (let d = firstDay; d <= lastDay; d++) {
-    days.push({ weekday: WEEKDAYS[weekdayOf(d) - 1], active: d === day, segments: d === day ? [] : dayView(d).segments });
+    days.push({ weekday: weekdayAt(weekdayOf(d)), active: d === day, segments: d === day ? [] : dayView(d).segments });
   }
   const { midnight, nextMidnight, daySec, shown, frac, segments } = dayView(day);
   days[day - firstDay].segments = segments;
@@ -265,7 +268,7 @@ export function sessionTimeline(s: SymbolSessions, sec: number, week = false): T
     }
   }
   return {
-    weekday: WEEKDAYS[weekdayOf(day) - 1],
+    weekday: weekdayAt(weekdayOf(day)),
     segments,
     days,
     now,

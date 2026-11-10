@@ -8,7 +8,7 @@
  */
 
 import { partsOf, type Parts } from "lightweight-charts-drawing/core/time";
-import { chartDateText, chartWeekday, monthName } from "../../i18n/format";
+import { chartDateText, chartWeekday, monthName, quarterText } from "../../i18n/format";
 import { formatted } from "../../i18n/translator";
 
 /** The default date format: the interface language writes it its own way (i18n/format). */
@@ -36,7 +36,7 @@ function formatDate(key: string, p: Parts): string {
       case "MM": return pad(p.m, 2);
       case "dd": return pad(p.d, 2);
       case "d": return String(p.d);
-      default: return `Q${Math.floor((p.m - 1) / 3) + 1}`;
+      default: return quarterText(Math.floor((p.m - 1) / 3) + 1);
     }
   });
 }

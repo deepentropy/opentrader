@@ -29,6 +29,17 @@ export type Formats = {
   numberMarks?: { group: string; decimal: string; unitSpace: string };
   /** Between the words of a list ("Value, line"): ", " when absent. */
   listSeparator?: string;
+  /** A calendar's title, tokens {MMMM} the month's full name, {M} its number, {yyyy} the year ("{M}月 {yyyy}"). Intl's
+   *  month and year when absent ("November 2026"). */
+  calendarTitle?: string;
+  /** A quarter, {q} its number ("T{q}"): "Q{q}" when absent. */
+  quarter?: string;
+  /**
+   * The two units of a duration put together, {0} the larger: days and hours, hours and minutes. Where a language
+   * doesn't join them in one way ("2時間16分", but a connector between days and hours); the dictionary's "{0} and {1}"
+   * when absent ("2 Stunden und 16 Minuten").
+   */
+  durationJoin?: { daysHours: string; hoursMinutes: string };
 };
 
 export type LanguageEntry = {
@@ -85,14 +96,18 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     dictionary: () => import("./ja.json"),
     // One plural form ("other"), as Chinese.
     pluralLocale: "ja",
-    // Dates written "2026年11月10日(火)", the calendar's weekday heads in single kanji.
+    // Numbers as English. The chart's dates "2026-09-11 (金)", its months "9月"; the calendar "7月 2026" with its
+    // weekday heads in single kanji. Hours and minutes run together ("2時間16分"), days and hours take a connector.
     formats: {
       dateLocale: "ja-JP",
       numberLocale: "ja-JP",
-      chartDate: "{yyyy}年{M}月{d}日",
-      chartWeekdayDate: "{yyyy}年{M}月{d}日({wd})",
+      chartDate: "{yyyy}-{MM}-{dd}",
+      chartWeekdayDate: "{yyyy}-{MM}-{dd} ({wd})",
+      shortMonths: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
       calendarWeekdays: ["月", "火", "水", "木", "金", "土", "日"],
+      calendarTitle: "{M}月 {yyyy}",
       listSeparator: "、",
+      durationJoin: { daysHours: "{0}と{1}", hoursMinutes: "{0}{1}" },
     },
     direction: "ltr",
   },
@@ -118,15 +133,18 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     name: "Español",
     dictionary: () => import("./es.json"),
     pluralLocale: "es",
-    // "1.234,5", "103,47 M", "+5,81%"; the chart's months capitalised.
+    // "1.234,5" (grouped from four digits, as German: Intl's es-ES leaves "1234,5"), "103,47 M", "+5,81%"; the
+    // chart's months capitalised, May written whole; "vie 11 Sep '26"; the calendar "Julio 2026"; quarters "T3".
     formats: {
       dateLocale: "es-ES",
-      numberLocale: "es-ES",
+      numberLocale: "de-DE",
       chartDate: "{dd} {MMM} '{yy}",
       chartWeekdayDate: "{wd} {dd} {MMM} '{yy}",
-      shortMonths: ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sept", "Oct", "Nov", "Dic"],
+      shortMonths: ["Ene", "Feb", "Mar", "Abr", "Mayo", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"],
       calendarWeekdays: ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"],
-      numberMarks: { group: ".", decimal: ",", unitSpace: " " },
+      calendarTitle: "{MMMM} {yyyy}",
+      quarter: "T{q}",
+      numberMarks: { group: ".", decimal: ",", unitSpace: "\u202f" },
     },
     direction: "ltr",
   },
@@ -135,7 +153,16 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     name: "Deutsch",
     dictionary: () => import("./de.json"),
     pluralLocale: "de",
-    formats: { dateLocale: "de-DE", numberLocale: "de-DE", chartDate: "{dd} {MMM} '{yy}", chartWeekdayDate: "{wd} {dd} {MMM} '{yy}" },
+    // "1.234,5", "103,47 M", "+5,81%"; the chart's months "Mrz", "Okt"; "Fr 11 Sep '26"; the calendar "Juli 2026".
+    formats: {
+      dateLocale: "de-DE",
+      numberLocale: "de-DE",
+      chartDate: "{dd} {MMM} '{yy}",
+      chartWeekdayDate: "{wd} {dd} {MMM} '{yy}",
+      shortMonths: ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"],
+      calendarWeekdays: ["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."],
+      numberMarks: { group: ".", decimal: ",", unitSpace: "\u202f" },
+    },
     direction: "ltr",
   },
   {
