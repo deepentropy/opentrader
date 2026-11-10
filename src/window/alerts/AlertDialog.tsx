@@ -972,8 +972,9 @@ export function AlertDialog(props: Props) {
       <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
     </svg>
   );
-  const arrow = (d: string) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+  /** `along`: the arrow points back or forward along the reading direction (turned around right to left). */
+  const arrow = (d: string, along = false) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true" class={along ? "ot-flip-rtl" : undefined}>
       <path stroke="currentColor" stroke-width="1.2" fill="none" d={d} />
     </svg>
   );
@@ -1146,7 +1147,7 @@ export function AlertDialog(props: Props) {
   const subHeader = (title: string) => (
     <header class="ad-header" data-dialog-title>
       <button type="button" class="ad-icon-btn" data-name="back" aria-label="Back" onClick={() => setView("main")}>
-        {arrow("M11 3.5 5.5 9l5.5 5.5")}
+        {arrow("M11 3.5 5.5 9l5.5 5.5", true)}
       </button>
       <span class="ad-title">{title}</span>
       <span class="ad-spacer" />
@@ -1262,14 +1263,14 @@ export function AlertDialog(props: Props) {
                 <span class="ad-label">Message</span>
                 <button type="button" class="ad-link" data-name="alert-message-button" onClick={openMessage}>
                   <span class="ad-link-text">{isCallsOnly() ? msg.values().name || preview() : <>{msg.values().name ? `${msg.values().name}: ` : ""}{msg.values().message || preview()}</>}</span>
-                  {arrow("m7 4.5 4 4.5-4 4.5")}
+                  {arrow("m7 4.5 4 4.5-4 4.5", true)}
                 </button>
               </div>
               <div class="ad-row ad-row--text">
                 <span class="ad-label">Notifications</span>
                 <button type="button" class="ad-link" data-name="alert-notifications-button" onClick={openNotifications}>
                   <span class="ad-link-text">{notificationsText()}</span>
-                  {arrow("m7 4.5 4 4.5-4 4.5")}
+                  {arrow("m7 4.5 4 4.5-4 4.5", true)}
                 </button>
               </div>
             </div>
@@ -1307,7 +1308,7 @@ export function AlertDialog(props: Props) {
             <header class="ad-header" data-dialog-title>
               {/* Back keeps an edited condition, drops a new one. */}
               <button type="button" class="ad-icon-btn" data-name="back" aria-label="Back" onClick={() => (draft()?.saved ? applyDraft() : abortDraft())}>
-                {arrow("M11 3.5 5.5 9l5.5 5.5")}
+                {arrow("M11 3.5 5.5 9l5.5 5.5", true)}
               </button>
               <span class="ad-title">{draft()?.saved ? "Edit condition" : "Add condition"}</span>
               <span class="ad-spacer" />
@@ -1427,7 +1428,7 @@ export function AlertDialog(props: Props) {
                       <div class="ad-sched-pop" role="dialog" aria-label="Custom schedule" data-name="custom-schedule-popover">
                         <div class="ad-sched-pop-head">
                           <button type="button" class="ad-icon-btn" aria-label="Back" onClick={() => notify.setCustomSchedule(null)}>
-                            {arrow("M11 3.5 5.5 9l5.5 5.5")}
+                            {arrow("M11 3.5 5.5 9l5.5 5.5", true)}
                           </button>
                           <span class="ad-sched-pop-title">Custom schedule</span>
                         </div>

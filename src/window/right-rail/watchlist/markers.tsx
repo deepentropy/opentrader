@@ -6,12 +6,12 @@ import { Show } from "solid-js";
 import { FLAG_HEX, type FlagColor } from "../../../data/watchlist";
 import { WL_ICONS } from "./ui";
 
-/** Left-edge colour flag. The SVG markup is WL_ICONS.flag; CSS `color` does
+/** Start-edge colour flag (turned around right to left). The SVG markup is WL_ICONS.flag; CSS `color` does
  *  the tint. */
 export function FlagMarker(props: { flag: FlagColor }) {
   return (
     <span
-      class="watchlist-flag"
+      class="watchlist-flag ot-flip-rtl"
       aria-hidden="true"
       style={{ color: FLAG_HEX[props.flag] }}
       innerHTML={WL_ICONS.flag}

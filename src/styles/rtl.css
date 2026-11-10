@@ -50,11 +50,24 @@
 .chart-grid .ot-interval-unsupported:dir(rtl) {
   direction: rtl;
 }
+/* The strategy report's paged charts: their arrows page the time axis, which runs left to right. */
+.st-paged:dir(rtl) {
+  direction: ltr;
+}
 /* Each O / H / L / C and its value stay one Latin unit; the row of them runs right to left. */
 .ot-legend-value-item:dir(rtl),
 .ot-ind-legend-val:dir(rtl) {
   direction: ltr;
   unicode-bidi: isolate;
+}
+
+/* ---- Icons ----------------------------------------------------------------------------------------------------- */
+
+/* Most directional icons take `ot-flip-rtl` (base.css). Expanders drawn as a rotated down-chevron: collapsed, they
+   point to the end side. */
+.watchlist-group-expand.collapsed:dir(rtl),
+.tj-group-caret.is-collapsed:dir(rtl) svg {
+  transform: rotate(90deg);
 }
 
 /* ---- Controls ------------------------------------------------------------------------------------------------- */

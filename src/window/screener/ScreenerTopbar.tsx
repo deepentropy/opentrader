@@ -109,7 +109,7 @@ export function ScreenerTopbar(props: Props) {
           disabled={!screenerStore.canUndo()}
           onClick={() => screenerStore.undo()}
         >
-          <Icon name="scr-undo" size={18} class="ot-flip-rtl" />
+          <Icon name="scr-undo" size={18} />
         </button>
         <button
           type="button"
@@ -119,7 +119,7 @@ export function ScreenerTopbar(props: Props) {
           disabled={!screenerStore.canRedo()}
           onClick={() => screenerStore.redo()}
         >
-          <Icon name="scr-redo" size={18} class="ot-flip-rtl" />
+          <Icon name="scr-redo" size={18} />
         </button>
         </Show>
         <button

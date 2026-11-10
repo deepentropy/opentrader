@@ -34,6 +34,7 @@ import type { ScanController } from "./scan-controller";
 import { CategoryMenu } from "./CategoryMenu";
 import { EditorHeader } from "./FilterEditor";
 import { PopDivider, PopItem, Popover } from "./Popover";
+import { isRtl } from "../../components/reading-direction";
 
 // Column widths: the reference app sizes its table columns to their content. Here a column
 // starts at its catalog width, widened so the header title fits on one line
@@ -412,10 +413,11 @@ export function ScreenerTable(props: Props) {
             <Show when={x.n > 1}>
               <PopDivider />
               <Show when={x.m.index > 0}>
-                <PopItem title="Move left" icon="scr-menu-move-left" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "prev"); }} />
+                {/* The columns run right to left there: the previous one is on the right. */}
+                <PopItem title={isRtl() ? "Move right" : "Move left"} icon={isRtl() ? "scr-menu-move-right" : "scr-menu-move-left"} onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "prev"); }} />
               </Show>
               <Show when={x.m.index < x.n - 1}>
-                <PopItem title="Move right" icon="scr-menu-move-right" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "next"); }} />
+                <PopItem title={isRtl() ? "Move left" : "Move right"} icon={isRtl() ? "scr-menu-move-left" : "scr-menu-move-right"} onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "next"); }} />
               </Show>
               <Show when={x.m.index > 0}>
                 <PopItem title="Move to the start" icon="scr-menu-move-start" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "start"); }} />

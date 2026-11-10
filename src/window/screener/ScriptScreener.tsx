@@ -59,6 +59,7 @@ import { defaultIndicatorOptions } from "../chart/indicators/indicator-options";
 import { IndicatorsDialog } from "../header/IndicatorsDialog";
 import { IndicatorSettingsDialog } from "../chart/IndicatorSettingsDialog";
 import { PopDivider, PopItem, PopSearch, PopSectionTitle, Popover, SelectButton } from "./Popover";
+import { isRtl } from "../../components/reading-direction";
 import { ValueInput } from "./FilterEditor";
 import { translatePlural, translateWith } from "../../i18n/translator";
 
@@ -964,8 +965,8 @@ export function ScriptScreener(props: Props) {
                 <PopDivider />
                 <Show when={at() < keys().length - 1}>
                   <PopItem
-                    title="Move right"
-                    icon="scr-menu-move-right"
+                    title={isRtl() ? "Move left" : "Move right"}
+                    icon={isRtl() ? "scr-menu-move-left" : "scr-menu-move-right"}
                     onClick={() => {
                       close();
                       setColumns((k) => {
