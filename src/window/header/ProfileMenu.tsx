@@ -163,7 +163,7 @@ export function ProfileMenu(props: Props) {
                   class={`profile-menu-language${currentLanguage() === l.id ? " is-current" : ""}`}
                   onClick={() => void setLanguage(l.id)}
                 >
-                  {l.label}
+                  {l.name}
                 </button>
               )}
             </For>

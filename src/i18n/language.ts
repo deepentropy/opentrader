@@ -1,38 +1,29 @@
 /*
  * The interface language: a global, persisted choice. A change restarts the page, every window together (the text is
- * translated as it appears, English text can't be brought back in place).
+ * translated as it appears, English text can't be brought back in place). The languages are listed in languages.ts.
  */
 import * as kv from "../data/kv";
-import { observePage, setDictionary, type Dictionary } from "./translator";
-import { SIMPLIFIED_RULES, TRADITIONAL_RULES } from "./zh-patterns";
+import { libraryMonthRule } from "./format";
+import { ENGLISH, LANGUAGES, languageEntry, type LanguageEntry } from "./languages";
+import { observePage, setDictionary } from "./translator";
 
 const STORAGE_KEY = "ot:language";
 
-export type LanguageId = "en" | "zh-Hans" | "zh-Hant";
+function current(): LanguageEntry {
+  return languageEntry(kv.getItem(STORAGE_KEY) ?? "") ?? ENGLISH;
+}
 
-/** The languages, each named in its own language. */
-export const LANGUAGES: { id: LanguageId; label: string }[] = [
-  { id: "en", label: "English" },
-  { id: "zh-Hans", label: "简体中文" },
-  { id: "zh-Hant", label: "繁體中文" },
-];
-
-const DICTIONARIES: Record<Exclude<LanguageId, "en">, () => Promise<{ default: Dictionary }>> = {
-  "zh-Hans": () => import("./zh-Hans.json"),
-  "zh-Hant": () => import("./zh-Hant.json"),
-};
-
-export function currentLanguage(): LanguageId {
-  const saved = kv.getItem(STORAGE_KEY);
-  return LANGUAGES.some((l) => l.id === saved) ? (saved as LanguageId) : "en";
+export function currentLanguage(): string {
+  return current().id;
 }
 
 export function currentLanguageLabel(): string {
-  const id = currentLanguage();
-  return LANGUAGES.find((l) => l.id === id)!.label;
+  return current().name;
 }
 
-export async function setLanguage(id: LanguageId): Promise<void> {
+export { LANGUAGES };
+
+export async function setLanguage(id: string): Promise<void> {
   if (id === currentLanguage()) return;
   kv.setItem(STORAGE_KEY, id);
   await kv.flushKv();
@@ -43,10 +34,11 @@ export async function setLanguage(id: LanguageId): Promise<void> {
 export async function startTranslation(): Promise<void> {
   // Another window changed the language.
   kv.onExternalChange(STORAGE_KEY, () => window.location.reload());
-  const id = currentLanguage();
-  if (id === "en") return;
-  document.documentElement.lang = id;
-  const { default: dictionary } = await DICTIONARIES[id]();
-  setDictionary(dictionary, id === "zh-Hans" ? SIMPLIFIED_RULES : TRADITIONAL_RULES);
+  const language = current();
+  document.documentElement.dir = language.direction;
+  if (!language.dictionary) return;
+  document.documentElement.lang = language.id;
+  const { default: dictionary } = await language.dictionary();
+  setDictionary(dictionary, [libraryMonthRule(language.formats.dateLocale)], language.pluralLocale, language.formats);
   observePage();
 }

@@ -8,8 +8,10 @@
  */
 
 import { partsOf, type Parts } from "lightweight-charts-drawing/core/time";
+import { chartDateText, chartWeekday, monthName } from "../../i18n/format";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** The default date format: the interface language writes it its own way (i18n/format). */
+const DEFAULT_KEY = "dd MMM 'yy";
 const WEEKDAY_PREFIX = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+/;
 /** Sample tokens of the Date-format presets ("Mon 29 Sep '97") → format keys. */
 const SAMPLE_TOKENS: Record<string, string> = { Q3: "qq", "'97": "'yy", "1997": "yyyy", Sep: "MMM", "29": "dd", "09": "MM", "97": "yy" };
@@ -17,7 +19,7 @@ const SAMPLE_TOKENS: Record<string, string> = { Q3: "qq", "'97": "'yy", "1997": 
 /** Date-format key ("dd MMM 'yy", "yyyy-MM-dd", …) of a Date-format preset
  *  sample. Default for English: "dd MMM 'yy". */
 export function dateFormatKey(sample?: string): string {
-  if (!sample) return "dd MMM 'yy";
+  if (!sample) return DEFAULT_KEY;
   return sample.replace(WEEKDAY_PREFIX, "").replace(/Q3|'97|1997|Sep|29|09|97/g, (t) => SAMPLE_TOKENS[t]);
 }
 
@@ -29,7 +31,7 @@ function formatDate(key: string, p: Parts): string {
     switch (t) {
       case "yyyy": return pad(p.y, 4);
       case "yy": return pad(p.y % 100, 2);
-      case "MMM": return MONTHS[p.m - 1] ?? "";
+      case "MMM": return monthName(p.m);
       case "MM": return pad(p.m, 2);
       case "dd": return pad(p.d, 2);
       case "d": return String(p.d);
@@ -50,8 +52,9 @@ export type ChartTimeFormat = {
 /** Chart time label for an epoch-seconds bar time in `timeZone`. */
 export function formatChartTime(sec: number, timeZone: string, intraday: boolean, seconds: boolean, fmt: ChartTimeFormat = {}): string {
   const p = partsOf(sec, timeZone);
-  const date = formatDate(dateFormatKey(fmt.dateFormat), p);
-  const withDay = fmt.dayOfWeek !== false ? `${p.wd} ${date}` : date;
+  const key = dateFormatKey(fmt.dateFormat);
+  const dayOfWeek = fmt.dayOfWeek !== false;
+  const withDay = key === DEFAULT_KEY ? chartDateText(p, dayOfWeek) : dayOfWeek ? `${chartWeekday(p.wd)} ${formatDate(key, p)}` : formatDate(key, p);
   if (!intraday) return withDay;
   const time = fmt.timeFormat === "12-hours"
     ? new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hour12: true }).format(new Date(sec * 1000))
@@ -65,7 +68,7 @@ export function formatTickMark(sec: number, type: "Year" | "Month" | "DayOfMonth
   const p = partsOf(sec, timeZone);
   switch (type) {
     case "Year": return String(p.y);
-    case "Month": return MONTHS[p.m - 1] ?? "";
+    case "Month": return monthName(p.m);
     case "DayOfMonth": return String(p.d);
     default: {
       const seconds = type === "TimeWithSeconds";

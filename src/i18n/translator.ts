@@ -10,8 +10,17 @@
  * element names its sense with `data-i18n-sense="action"`: its text, title and placeholder, and those of the elements
  * inside, are looked up as "Post|action" first, then as "Post". Text a component shows elsewhere (a tooltip, a menu
  * row) goes through `translateAs`.
+ *
+ * A text holding a count has one form per plural category of the language (#288): the dictionary keys it by its
+ * English "other" form ("{0} bars") and gives either one text, for a language with one form (Chinese), or the forms
+ * by category ({ "one": …, "other": … }, Intl.PluralRules' names). The code asks through `translatePlural`.
  */
-export type Dictionary = Record<string, string>;
+import { ENGLISH, type Formats } from "./languages";
+
+/** A text's forms by plural category; `other` is the one every language has. */
+export type PluralEntry = Partial<Record<Intl.LDMLPluralRule, string>> & { other: string };
+
+export type Dictionary = Record<string, string | PluralEntry>;
 
 /** Attributes that show text. Not aria-label: the code finds some elements by it. */
 const ATTRIBUTES = ["placeholder", "title"];
@@ -23,18 +32,32 @@ const SENSE = "data-i18n-sense";
 const SKIP = "script,style,textarea,[contenteditable=true],.cm-editor,[data-no-translate]";
 
 /** End of a text that the dictionary has without it. */
-const ENDINGS = /(\s*(?:…|\.\.\.|:|：))$/;
+export const ENDINGS = /(\s*(?:…|\.\.\.|:|：))$/;
 
 const EMPTY: Dictionary = {};
 let dictionary: Dictionary = EMPTY;
 let rules: readonly ((text: string) => string)[] = [];
+/** English picks between the two forms the code writes. */
+const ENGLISH_PLURALS = new Intl.PluralRules(ENGLISH.pluralLocale);
+let pluralRules = ENGLISH_PLURALS;
+let formats: Formats = ENGLISH.formats;
 
-/** `textRules`: text holding a value (dates), tried when the dictionary doesn't have it. */
-export function setDictionary(d: Dictionary, textRules: readonly ((text: string) => string)[] = []): void {
+/**
+ * `textRules`: text holding a value, tried when the dictionary doesn't have it. `pluralLocale` picks the forms of
+ * counted texts, `languageFormats` the dates and numbers (format.ts).
+ */
+export function setDictionary(d: Dictionary, textRules: readonly ((text: string) => string)[] = [], pluralLocale = ENGLISH.pluralLocale, languageFormats = ENGLISH.formats): void {
   // No dictionary and no rules: English.
   dictionary = Object.keys(d).length || textRules.length ? d : EMPTY;
   rules = textRules;
+  pluralRules = new Intl.PluralRules(pluralLocale);
+  formats = languageFormats;
   drawn.clear();
+}
+
+/** The formats of the interface language (English inside `inEnglish`). */
+export function activeFormats(): Formats {
+  return formats;
 }
 
 /** A URL (an example address in a placeholder) is never translated. */
@@ -45,12 +68,15 @@ export function translatable(core: string): boolean {
   return core.length >= 2 && /[A-Za-z]{2}/.test(core) && !URL_TEXT.test(core);
 }
 
+/** An entry's text where one form is asked for: its "other" form when it has several. */
+const textOf = (entry: string | PluralEntry | undefined): string | undefined => (typeof entry === "object" ? entry.other : entry);
+
 /**
  * The translation of a trimmed text, undefined when neither the dictionary nor a rule has it. With a `sense`, its own
  * entry first; the word's entry when the dictionary gives that sense no entry of its own.
  */
 export function lookUp(core: string, d: Dictionary = dictionary, sense?: string): string | undefined {
-  const entry = (text: string) => (sense === undefined ? undefined : d[`${text}|${sense}`]) ?? d[text];
+  const entry = (text: string) => textOf((sense === undefined ? undefined : d[`${text}|${sense}`]) ?? d[text]);
   const to = entry(core);
   if (to !== undefined) return to;
   // "Save…" with "Save" in the dictionary, and the other way round.
@@ -68,7 +94,10 @@ export function translate(text: string, d: Dictionary = dictionary, sense?: stri
   const core = text.trim();
   if (d === EMPTY || !translatable(core)) return text;
   const to = lookUp(core, d, sense);
-  if (to === undefined) return text;
+  if (to === undefined) {
+    if (import.meta.env.DEV && d === dictionary) missed(core);
+    return text;
+  }
   return core === text ? to : text.replace(core, () => to);
 }
 
@@ -82,26 +111,79 @@ export function translating(): boolean {
   return dictionary !== EMPTY;
 }
 
+/** `template`'s `{0}`, `{1}`… replaced by the values; a placeholder without a value stays. */
+function fill(template: string, values: readonly (string | number)[]): string {
+  return template.replace(/\{(\d+)\}/g, (all, i) => (values[Number(i)] !== undefined ? String(values[Number(i)]) : all));
+}
+
 /**
  * A text holding values: the dictionary's translation of `template` ("{0} bars" → "{0} 根K线"), its `{0}`, `{1}`…
  * replaced by the values. The English template when the dictionary doesn't have it.
  */
 export function translateWith(template: string, ...values: (string | number)[]): string {
-  const to = dictionary === EMPTY ? template : (dictionary[template] ?? template);
-  return to.replace(/\{(\d+)\}/g, (all, i) => (values[Number(i)] !== undefined ? String(values[Number(i)]) : all));
+  if (dictionary === EMPTY) return fill(template, values);
+  const to = textOf(dictionary[template]);
+  if (import.meta.env.DEV && to === undefined) missed(template);
+  return fill(to ?? template, values);
 }
 
-/** `fn` run with the English text (what the agent tools answer). */
+/**
+ * A text holding a count, in the form the language gives that count: `translatePlural(n, { one: "{0} bar", other:
+ * "{0} bars" })`. The values fill the placeholders, the count alone when none are given (pass it formatted, "1,250",
+ * among the values when the text shows it so).
+ */
+export function translatePlural(count: number, forms: { one: string; other: string }, ...values: (string | number)[]): string {
+  const filled = values.length ? values : [count];
+  const category = pluralRules.select(count);
+  const entry = dictionary === EMPTY ? undefined : dictionary[forms.other];
+  if (import.meta.env.DEV && dictionary !== EMPTY && entry === undefined) missed(forms.other);
+  if (entry === undefined) return fill(ENGLISH_PLURALS.select(count) === "one" ? forms.one : forms.other, filled);
+  return fill(typeof entry === "string" ? entry : (entry[category] ?? entry.other), filled);
+}
+
+/** `fn` run with the English text and formats (what the agent tools answer). */
 export function inEnglish<T>(fn: () => T): T {
-  const [d, r] = [dictionary, rules];
+  const [d, r, p, f] = [dictionary, rules, pluralRules, formats];
   dictionary = EMPTY;
   rules = [];
+  pluralRules = ENGLISH_PLURALS;
+  formats = ENGLISH.formats;
   try {
     return fn();
   } finally {
-    dictionary = d;
-    rules = r;
+    [dictionary, rules, pluralRules, formats] = [d, r, p, f];
   }
+}
+
+/*
+ * The texts left in English, in the development build (#288): each text the page, a canvas or the code asked for and
+ * the dictionary lacked, once, with where it was seen. `window.__i18nMisses()` lists them; each is logged once with
+ * console.debug. Recorded once the page is translated (observePage), so tests stay quiet; a production build leaves
+ * it out (import.meta.env.DEV is false there, the calls are dropped).
+ */
+const misses = new Map<string, string>();
+let recording = false;
+
+/** The element path of a node ("div.chart-legend > span"), for the miss list. */
+function pathOf(el: Element | null): string {
+  const parts: string[] = [];
+  for (let e = el; e && e !== document.body && parts.length < 4; e = e.parentElement) {
+    const cls = typeof e.className === "string" ? e.className.trim().split(/\s+/)[0] : "";
+    parts.unshift(e.tagName.toLowerCase() + (cls ? `.${cls}` : ""));
+  }
+  return parts.join(" > ");
+}
+
+function missed(text: string, el?: Element | null): void {
+  if (!recording || misses.has(text)) return;
+  const where = el ? pathOf(el) : "code or canvas";
+  misses.set(text, where);
+  console.debug("[i18n] untranslated:", JSON.stringify(text), where);
+}
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __i18nMisses: () => { text: string; where: string }[] }).__i18nMisses = () =>
+    [...misses].map(([text, where]) => ({ text, where }));
 }
 
 /** Translations of text drawn on a canvas, each line on its own (the same texts come back on every paint). */
@@ -131,10 +213,22 @@ function senseOf(el: Element | null): string | undefined {
   return el?.closest(`[${SENSE}]`)?.getAttribute(SENSE) ?? undefined;
 }
 
+/** `translate` of a text on the page; a miss is recorded with its element. */
+function translateOnPage(text: string, el: Element | null): string {
+  const core = text.trim();
+  if (!translatable(core)) return text;
+  const to = lookUp(core, dictionary, senseOf(el));
+  if (to === undefined) {
+    if (import.meta.env.DEV) missed(core, el);
+    return text;
+  }
+  return core === text ? to : text.replace(core, () => to);
+}
+
 function translateTextNode(node: Text): void {
   const text = node.data;
   if (written.get(node) === text || skipped(node.parentElement)) return;
-  const to = translate(text, dictionary, senseOf(node.parentElement));
+  const to = translateOnPage(text, node.parentElement);
   if (to !== text) {
     written.set(node, to);
     node.data = to;
@@ -145,7 +239,7 @@ function translateAttributes(el: Element): void {
   for (const name of ATTRIBUTES) {
     const value = el.getAttribute(name);
     if (!value) continue;
-    const to = translate(value, dictionary, senseOf(el));
+    const to = translateOnPage(value, el);
     if (to !== value) el.setAttribute(name, to);
   }
 }
@@ -168,6 +262,7 @@ function translateTree(root: Node): void {
 
 /** Translates the page and everything added to it from now on (before it is painted). */
 export function observePage(root: Node = document.documentElement): () => void {
+  if (import.meta.env.DEV) recording = true;
   translateTree(root);
   const observer = new MutationObserver((records) => {
     for (const r of records) {

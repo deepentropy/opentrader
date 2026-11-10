@@ -6,7 +6,6 @@
  */
 import { createEffect } from "solid-js";
 import { LineSeries, type TickMarkType, type Time, type UTCTimestamp } from "lightweight-charts";
-import { translate } from "../../../i18n/translator";
 import { isIntradayInterval, isIntradayResolution, isSecondResolution } from "../../../data/datafeed";
 import { cachedSymbolSessions } from "../../../data/session";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "../session-breaks";
@@ -134,11 +133,11 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
         timeVisible: second || intraday,
         secondsVisible: second,
         tickMarkFormatter: (t: Time, tt: TickMarkType) =>
-          translate(formatTick(cx.realTimeOf(t), tt, tz, axisFmt, second || intraday, exchangeZone())),
+          formatTick(cx.realTimeOf(t), tt, tz, axisFmt, second || intraday, exchangeZone()),
       },
       localization: {
         timeFormatter: (t: Time) =>
-          translate(formatAxisTime(cx.realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt, exchangeZone())),
+          formatAxisTime(cx.realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt, exchangeZone()),
       },
     });
     // Day rollover (and thus session-break placement) depends on the timezone,

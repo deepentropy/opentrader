@@ -5,7 +5,7 @@ import { setDictionary } from "../translator";
 import { translatedPlotConfig, translatedStudyResult } from "../study-text";
 import type { IndicatorResult } from "oakscriptjs";
 import zhHans from "../zh-Hans.json";
-import { SIMPLIFIED_RULES } from "../zh-patterns";
+import { libraryMonthRule } from "../format";
 
 const ctx = { kind: "long-position", drawingId: "d1" };
 const fmt = (l: { id: DrawingLabel["id"]; text: string; [field: string]: unknown }) => {
@@ -53,7 +53,7 @@ describe("study text in the interface language (#190)", () => {
   });
 
   it("labels, shapes and tables; what the dictionary lacks stays", () => {
-    setDictionary(zhHans, SIMPLIFIED_RULES);
+    setDictionary(zhHans, [libraryMonthRule("zh-CN")]);
     const r = translatedStudyResult(result);
     expect(r.markers?.[0].text).toBe("强烈\n买入");
     expect(r.labels?.[0]).toBe(result.labels?.[0]);
