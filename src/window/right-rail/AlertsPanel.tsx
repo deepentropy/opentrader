@@ -128,7 +128,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
     <aside class="ot-rail-panel alerts-panel" aria-label="Alerts">
       <PanelHeader
         ariaLabel="Alerts header"
-        left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" class="alerts-panel-tabs" />}
+        left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" sense="history" class="alerts-panel-tabs" />}
       />
       <Show
         when={view() === "log"}

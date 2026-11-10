@@ -15,6 +15,8 @@ interface Props<Id extends string> {
   onChange: (id: Id) => void;
   class?: string;
   ariaLabel?: string;
+  /** The sense of the labels for the interface language (data-i18n-sense), when a label is a word with two meanings. */
+  sense?: string;
 }
 
 export function SegmentedControl<Id extends string>(props: Props<Id>) {
@@ -22,6 +24,7 @@ export function SegmentedControl<Id extends string>(props: Props<Id>) {
     <div
       role="tablist"
       aria-label={props.ariaLabel}
+      data-i18n-sense={props.sense}
       class={`ot-segmented-control${props.class ? " " + props.class : ""}`}
     >
       <For each={props.items}>
