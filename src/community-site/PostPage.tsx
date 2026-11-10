@@ -56,7 +56,7 @@ function ideaLog(p: Post): { d: string; e: string }[] {
 
 export function PostPage(props: { id: string }) {
   const t = createPostThread({ id: () => props.id, reloadOnAccount: true, onNeedSignIn: () => navigate(signInPath()) });
-  const { data, post, setPost, comments, setComments, ratings, isMod, error, setError, open, setOpen, draft, setDraft, kind, setKind, busy, setBusy, needUser, toggle, saveEdit, useful, markAnswer, moderate, banAuthor } = t;
+  const { data, post, setPost, comments, addReply, ratings, isMod, error, setError, open, setOpen, draft, setDraft, kind, setKind, busy, setBusy, needUser, toggle, saveEdit, useful, markAnswer, moderate, banAuthor } = t;
   const [snap, setSnap] = createSignal<string | null>(null);
   const [picking, setPicking] = createSignal(false);
   const [sort, setSort] = createSignal<"useful" | "oldest">("useful");
@@ -132,11 +132,8 @@ export function PostPage(props: { id: string }) {
       const r = await withPostingCheck(() => api.support(p.id, !supported(), supported() ? "" : why()));
       setSupported(r.supported);
       setPost("p", "useful_count", r.supporters);
-      if (r.comment) {
-        const c = r.comment;
-        setComments("list", (l) => (l.some((x) => x.id === c.id) ? l : [...l, c]));
-        setPost("p", "comment_count", (n) => n + 1);
-      }
+      // The reason is posted as a reply, which the live room brings too.
+      if (r.comment) addReply(r.comment, "answer");
       setWhy("");
     } catch (e) {
       setError(errorText(e));

@@ -11,6 +11,7 @@ import { COMMUNITY_URL, api, type ChartAttachment, type Comment, type Post, type
 import { withPostingCheck } from "../data/community/posting-check";
 import { me } from "../data/community/session";
 import { errorText } from "./parts";
+import { withReply, type ReplySource } from "./replies";
 
 /** The kinds a reader picks for a reply to the post (updates are the author's, support a suggestion's). */
 export const KINDS: { id: ReplyKind; label: string }[] = [
@@ -47,6 +48,13 @@ export function createPostThread(opts: {
   const [busy, setBusy] = createSignal(false);
   const changed = () => opts.onChanged?.();
 
+  /** A reply into the thread; the count goes up only when its id is new (the live room and the answer both bring the reader's own). */
+  const addReply = (c: Comment, from: ReplySource) => {
+    const r = withReply(comments.list, c, from);
+    setComments("list", r.list);
+    if (r.added) setPost("p", produce((x) => { if (x) x.comment_count += 1; }));
+  };
+
   // The fetched post feeds the stores the view edits in place.
   createMemo(() => {
     const d = data();
@@ -76,10 +84,7 @@ export function createPostThread(opts: {
       } catch {
         return;
       }
-      const c = m.comment;
-      if (m.type !== "comment" || !c || comments.list.some((x) => x.id === c.id)) return;
-      setComments("list", (l) => [...l, c]);
-      setPost("p", produce((x) => { if (x) x.comment_count += 1; }));
+      if (m.type === "comment" && m.comment) addReply(m.comment, "live");
     };
     socket.onclose = () => {
       if (!closed) retry = setTimeout(() => connect(postId, Math.min(delay * 2, 60_000)), delay);
@@ -103,9 +108,7 @@ export function createPostThread(opts: {
     try {
       const k = parentId ? null : p.own ? "update" : kind();
       const { comment } = await withPostingCheck(() => api.comment(p.id, text, parentId, k, attach));
-      // The live room may have brought it first.
-      setComments("list", (l) => (l.some((x) => x.id === comment.id) ? l : [...l, comment]));
-      setPost("p", "comment_count", (n) => n + 1);
+      addReply(comment, "answer");
       setDraft("");
       setKind(null);
       setOpen(null);
@@ -202,7 +205,7 @@ export function createPostThread(opts: {
 
   return {
     data, refetch,
-    post, setPost, comments, setComments, ratings, isMod,
+    post, setPost, comments, setComments, addReply, ratings, isMod,
     error, setError, open, setOpen, draft, setDraft, kind, setKind, busy, setBusy,
     needUser, toggle,
     send, saveEdit, remove, rate, useful, markAnswer, moderate, banAuthor,
