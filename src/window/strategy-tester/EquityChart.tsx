@@ -42,6 +42,7 @@ import { equityPoints, reportPeriods, whitespaceTimes, type EquityPoint } from "
 import { DASH, MINUS, money, percent as pct, zoneFormat } from "./format";
 import { cachedSymbolSessions } from "../../data/session";
 import { uiTheme } from "../header/chart-settings";
+import { translateAs } from "../../i18n/translator";
 
 const FONT = `-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif`;
 const UP = "#089981";
@@ -388,7 +389,7 @@ export function EquityChart(props: Props) {
       rows.push({ label: "Adverse excursion", color: EXCURSION_COLORS[2], value: fmt(c.point.excursions[2]) });
     }
     if (vis().buyHold) rows.push({ label: "Buy and hold", color: BUY_HOLD, value: fmt(c.point.buyHold) });
-    const date = t.open ? "Open" : fmtDate(props.intraday ? WEEKDAY_DATE_TIME : WEEKDAY_DATE, t.exit.time).replace(/(\d{4}) at /, "$1, ");
+    const date = t.open ? translateAs("Open", "trade") : fmtDate(props.intraday ? WEEKDAY_DATE_TIME : WEEKDAY_DATE, t.exit.time).replace(/(\d{4}) at /, "$1, ");
     return { title: `Trade ${c.point.tradeIndex + 1} ${t.direction}`, rows, date };
   });
 

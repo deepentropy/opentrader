@@ -88,7 +88,7 @@ export function AssistantPanel(props: { ticker: string }) {
             <button type="button" class="scr-light-btn scr-light-btn--ghost is-icon-only" title="Collapse panel" aria-label="Collapse panel" onClick={() => assistantPanel.collapse()}>
               <Icon name="st-footer-collapse-panel" size={28} />
             </button>
-            <button type="button" class="scr-light-btn scr-light-btn--ghost is-icon-only" title="Close" aria-label="Close" onClick={() => assistantPanel.setOpen(false)}>
+            <button type="button" class="scr-light-btn scr-light-btn--ghost is-icon-only" data-i18n-sense="action" title="Close" aria-label="Close" onClick={() => assistantPanel.setOpen(false)}>
               <Icon name="scr-panel-close" size={28} />
             </button>
           </div>
@@ -222,7 +222,7 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
               </button>
             }
           >
-            <button type="button" class="asst-send is-stop" title="Stop" aria-label="Stop" onClick={stop}>
+            <button type="button" class="asst-send is-stop" data-i18n-sense="action" title="Stop" aria-label="Stop" onClick={stop}>
               <Icon name="ai-stop" size={28} />
             </button>
           </Show>

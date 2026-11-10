@@ -5,6 +5,7 @@
  * negatives, U+202F before the K / M / B suffix, U+2014 when not available.
  */
 import { volumeFormat } from "../../data/volume-format";
+import { translate, translateWith } from "../../i18n/translator";
 
 export const MINUS = "−";
 export const NNBSP = " ";
@@ -41,13 +42,19 @@ export function count(v: number): string {
   return nfInt.format(v);
 }
 
+const DURATION_UNITS = [
+  [86_400_000, "{0} day", "{0} days"],
+  [3_600_000, "{0} hour", "{0} hours"],
+  [60_000, "{0} minute", "{0} minutes"],
+] as const;
+
 /** Duration in its largest whole unit: "412 days", "1 day", "2 hours", "1 minute", "< 1 minute". */
 export function durationString(ms: number): string {
-  for (const [unit, size] of [["day", 86_400_000], ["hour", 3_600_000], ["minute", 60_000]] as const) {
+  for (const [size, one, many] of DURATION_UNITS) {
     const n = Math.floor(ms / size);
-    if (n > 0) return `${nfInt.format(n)} ${unit}${n === 1 ? "" : "s"}`;
+    if (n > 0) return translateWith(n === 1 ? one : many, nfInt.format(n));
   }
-  return "< 1 minute";
+  return translate("< 1 minute");
 }
 
 /** Capital pill and trade sizes: 100000 -> "100 K", 36683.12 -> "36.68 K",

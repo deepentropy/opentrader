@@ -39,6 +39,7 @@ import { CloseIcon } from "./icons";
 import { FavoritePresets, OrderPresetsButton } from "./OrderPresets";
 import { DomPanel } from "./DomPanel";
 import { orderSummary, positionSummary } from "../chart/trading-lines-model";
+import { translateAs } from "../../i18n/translator";
 
 /** Order / DOM switch: tab, title, tooltip and its Shift hotkey. */
 const TABS: ["order" | "dom", string, string, string][] = [
@@ -93,7 +94,7 @@ function TicketHead(p: { title: JSX.Element; extra?: JSX.Element; onClose: () =>
       <span class="trd-tk-head-btns">
         {p.extra}
         <TicketSettingsMenu />
-        <Tooltip text="Close" side="bottom">
+        <Tooltip text={translateAs("Close", "action")} side="bottom">
           <button type="button" class="trd-icon-btn" aria-label="Close" onClick={() => p.onClose()}>
             <CloseIcon />
           </button>

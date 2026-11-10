@@ -14,6 +14,7 @@ import { shareListSeed, shareTradeSeed } from "../../data/trade-journal-share";
 import { tradeJournal, type JournalTrade, type SortCol } from "../../data/trade-journal";
 import { GROUP_LABELS, durationText, groupTrades, tradeDateText, type GroupBy } from "../../data/trade-journal-calc";
 import { pickTradeFile } from "./ImportTradesDialog";
+import { translateWith } from "../../i18n/translator";
 
 type Props = {
   /** Chart time zone (IANA): times and day groups are read in it. */
@@ -51,7 +52,7 @@ const qtyFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 });
 const price = (v: number) => (Math.abs(v) < 1 ? v.toFixed(4) : num.format(v));
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num.format(Math.abs(v))}`;
 const pct = (v: number, sign = true) => `${sign && v > 0 ? "+" : v < 0 ? "−" : ""}${(Math.abs(v) * 100).toFixed(2)}%`;
-const tradesText = (n: number) => `${n} trade${n === 1 ? "" : "s"}`;
+const tradesText = (n: number) => translateWith(n === 1 ? "{0} trade" : "{0} trades", n);
 const tone = (v: number) => (v > 0 ? "is-positive" : v < 0 ? "is-negative" : "");
 
 function sortValue(t: JournalTrade, col: SortCol): number | string {
@@ -395,7 +396,7 @@ export function TradeJournalView(props: Props) {
               <Popover anchor={anchor} onClose={() => setMenu(null)} class="st-tab-menu">
                 <Show when={trade}>{(t) => <PopItem title="Share trade to Community…" onClick={run(() => void shareTrade(t()))} />}</Show>
                 <Show when={list.length > 0}>
-                  <PopItem title={`Share ${tradesText(list.length)} to Community…`} onClick={run(() => shareList(list))} />
+                  <PopItem title={translateWith("Share {0} to Community…", tradesText(list.length))} onClick={run(() => shareList(list))} />
                 </Show>
                 <Show when={group}>{(g) => <PopItem title={`Share ${g().label} to Community…`} onClick={run(() => shareList(g().trades, g().label))} />}</Show>
               </Popover>

@@ -36,6 +36,7 @@ import { replayEnabled } from "../../../data/replay";
 import { tradingUi } from "../../../data/trading/trading-ui";
 import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
+import { translateWith } from "../../../i18n/translator";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -74,8 +75,6 @@ type ChartMenuActions = {
   removeIndicators: () => void;
   settings: () => void;
 };
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Build the chart context-menu node list: static order/separators/
  *  shortcuts/icons; the price/symbol/counts are interpolated from the live
@@ -132,8 +131,8 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     nodes.push({ kind: "separator" }, { kind: "item", id: "apply-to-layout", label: "Apply these indicators to entire layout", onSelect: a.applyToLayout });
   }
   const removeRows: CtxNode[] = [];
-  if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: `Remove ${plural(ctx.drawingCount, "drawing")}`, onSelect: a.removeDrawings });
-  if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: `Remove ${plural(ctx.indicatorCount, "indicator")}`, onSelect: a.removeIndicators });
+  if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: translateWith(ctx.drawingCount === 1 ? "Remove {0} drawing" : "Remove {0} drawings", ctx.drawingCount), onSelect: a.removeDrawings });
+  if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: translateWith(ctx.indicatorCount === 1 ? "Remove {0} indicator" : "Remove {0} indicators", ctx.indicatorCount), onSelect: a.removeIndicators });
   if (removeRows.length) nodes.push({ kind: "separator" }, ...removeRows);
   nodes.push(
     { kind: "separator" },

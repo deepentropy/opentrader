@@ -9,6 +9,7 @@ import { showConfirm, showRename } from "../../components/Dialogs";
 import { Popover, PopItem, PopDivider } from "../screener/Popover";
 import { tradeJournal } from "../../data/trade-journal";
 import { pickTradeFile } from "./ImportTradesDialog";
+import { translateWith } from "../../i18n/translator";
 
 export function JournalMenu(props: { anchor: HTMLElement; onClose: () => void }) {
   const journal = () => tradeJournal.active();
@@ -51,7 +52,7 @@ export function JournalMenu(props: { anchor: HTMLElement; onClose: () => void })
                 onClick={run(() =>
                   showConfirm({
                     title: "Delete journal",
-                    text: `Delete "${name}" and its ${trades.length} trade${trades.length === 1 ? "" : "s"}?`,
+                    text: translateWith(trades.length === 1 ? 'Delete "{0}" and its {1} trade?' : 'Delete "{0}" and its {1} trades?', name, trades.length),
                     mainText: "Delete",
                     cancelText: "Cancel",
                     intent: "danger",

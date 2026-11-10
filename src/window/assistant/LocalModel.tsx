@@ -26,7 +26,7 @@ export function AssistantSetup() {
                   <div class="asst-progress"><div style={{ width: `${pct()}%` }} /></div>
                   <div class="asst-inline">
                     <span class="asst-muted">Activating… {pct()}%</span>
-                    <button type="button" class="asst-btn" onClick={cancelLocal}>Stop</button>
+                    <button type="button" class="asst-btn" data-i18n-sense="action" onClick={cancelLocal}>Stop</button>
                   </div>
                 </div>
               }

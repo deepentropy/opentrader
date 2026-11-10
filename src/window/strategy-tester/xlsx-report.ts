@@ -24,6 +24,7 @@ import { longIntervalLabel } from "../chart/interval-favorites";
 import { derivedPerformance, growthStats, type GrowthStats } from "./metrics";
 import { durationString } from "./format";
 import type { XlsxCell, XlsxSheet } from "./xlsx-writer";
+import { inEnglish } from "../../i18n/translator";
 
 export type ReportTab = "Performance" | "Trades Analysis" | "Ratios" | "List of Trades" | "Properties";
 
@@ -192,7 +193,7 @@ function metricsSheet(r: BacktestReport, fields: Field[], name: string): XlsxShe
         row.push("", pctCell(exported(v, "percent")));
       } else if (f.unit === "duration") {
         // getDurationString: "412 days".
-        row.push(typeof v === "number" && Number.isFinite(v) ? durationString(v) : "", "");
+        row.push(typeof v === "number" && Number.isFinite(v) ? inEnglish(() => durationString(v)) : "", "");
       } else {
         row.push(exported(v, f.unit), pctCell(f.percentKey ? exported(valueOf(r, side, f.percentKey), "change") : ""));
       }

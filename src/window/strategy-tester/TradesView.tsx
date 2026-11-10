@@ -95,7 +95,7 @@ export function TradesView(props: Props) {
     switch (col) {
       case "Date and time": {
         const zone = timeZone();
-        return half === "exit" && t.open ? <span class="st-muted">Open</span> : zone ? tradeDate(half === "exit" ? t.exit.time : t.entry.time, props.intraday, zone) : "";
+        return half === "exit" && t.open ? <span class="st-muted" data-i18n-sense="trade">Open</span> : zone ? tradeDate(half === "exit" ? t.exit.time : t.entry.time, props.intraday, zone) : "";
       }
       case "Signal":
         return half === "exit" ? (t.open ? DASH : t.exit.signal) : t.entry.signal;

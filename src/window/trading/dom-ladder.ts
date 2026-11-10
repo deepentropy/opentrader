@@ -11,6 +11,7 @@
  * re-centres on the market after 2 s (dynamic mode: on every update).
  */
 import type { OrderType, Side, TradingOrder } from "../../data/trading/types";
+import { translateWith } from "../../i18n/translator";
 
 /** Row height (px). */
 export const DOM_ROW_H = 20;
@@ -137,9 +138,9 @@ export function sideCounts(orders: TradingOrder[], side: Side): { active: number
 /** The counter text ("" when no order) and its tooltip. */
 export function countText(c: { active: number; inactive: number; qty: number }): { text: string; title: string } {
   if (!c.active && !c.inactive) return { text: "", title: "" };
-  const a = `${c.active} active order${c.active === 1 ? "" : "s"} x ${c.qty}`;
-  const i = c.inactive ? `, ${c.inactive} inactive order${c.inactive === 1 ? "" : "s"}` : "";
-  return { text: String(c.active), title: a + i };
+  const a = translateWith(c.active === 1 ? "{0} active order x {1}" : "{0} active orders x {1}", c.active, c.qty);
+  const title = c.inactive ? translateWith(c.inactive === 1 ? "{0}, {1} inactive order" : "{0}, {1} inactive orders", a, c.inactive) : a;
+  return { text: String(c.active), title };
 }
 
 /** The order a click on a size cell places: limit, or stop with Ctrl / Cmd. */

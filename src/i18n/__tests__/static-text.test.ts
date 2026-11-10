@@ -20,7 +20,9 @@ function untranslated(): Map<string, string> {
   const missing = new Map<string, string>();
   for (const [file, source] of Object.entries(SOURCES)) {
     for (const t of staticTexts(file.replace(/^(\.\.\/)+/, "src/"), source)) {
-      if (translatable(t.text) && lookUp(t.text) === undefined && !missing.has(t.text)) missing.set(t.text, `${t.file}:${t.line}`);
+      // A word given a sense needs that sense's own entry: the word's entry is the other meaning.
+      const key = t.sense ? `${t.text}|${t.sense}` : t.text;
+      if (translatable(t.text) && lookUp(key) === undefined && !missing.has(key)) missing.set(key, `${t.file}:${t.line}`);
     }
   }
   setDictionary({});
@@ -38,6 +40,18 @@ describe("static interface text in zh-Hans", () => {
       </div>;`,
     ).map((t) => t.text);
     expect(found).toEqual(["Close menu", "Search", "Save layout", "> more"]);
+  });
+
+  it("gives a text the sense of its element or one around it", () => {
+    const found = staticTexts(
+      "x.tsx",
+      `const a = <div data-i18n-sense="action">
+        <button title="Close">Post</button>
+        <Tip placeholder="Stop" data-i18n-sense="halt" />
+      </div>;
+      const b = <span>Post</span>;`,
+    ).map((t) => [t.text, t.sense]);
+    expect(found).toEqual([["Close", "action"], ["Post", "action"], ["Stop", "halt"], ["Post", undefined]]);
   });
 
   it("leaves URLs alone", () => {

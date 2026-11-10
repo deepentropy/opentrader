@@ -607,7 +607,7 @@ export function ScriptScreener(props: Props) {
           onClick={() => (scanning() ? stop() : void scan())}
         >
           <Icon name={scanning() ? "sscr-stop" : "sscr-scan"} size={18} />
-          <span class="scr-light-btn-text">{scanning() ? "Stop" : "Scan"}</span>
+          <span class="scr-light-btn-text" data-i18n-sense="action">{scanning() ? "Stop" : "Scan"}</span>
         </button>
         <Show when={!scanning() && overCap()}>
           <span class="sscr-progress">{translateWith("Intraday intervals scan up to {0} symbols", INTRADAY_MAX_SYMBOLS)}</span>

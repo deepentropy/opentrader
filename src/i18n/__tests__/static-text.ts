@@ -1,10 +1,11 @@
 /*
  * The interface text written in the components: JSX text, and the `title` / `placeholder` attributes (what the page
- * translator translates), when given as plain strings. Text built at run time is not seen here.
+ * translator translates), when given as plain strings. Text built at run time is not seen here. A text inside an element
+ * naming its sense (`data-i18n-sense="action"`) comes with that sense.
  */
 import ts from "typescript";
 
-export type StaticText = { text: string; file: string; line: number };
+export type StaticText = { text: string; file: string; line: number; sense?: string };
 
 /** Attributes the translator translates. */
 const ATTRIBUTES = new Set(["title", "placeholder"]);
@@ -23,12 +24,24 @@ function jsxText(raw: string): string {
   );
 }
 
+/** The `data-i18n-sense` of the closest element around `node` that names one. */
+function senseOf(node: ts.Node, sf: ts.SourceFile): string | undefined {
+  for (let n: ts.Node | undefined = node; n; n = n.parent) {
+    const tag = ts.isJsxElement(n) ? n.openingElement : ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n) ? n : null;
+    const attr = tag?.attributes.properties.find((a) => ts.isJsxAttribute(a) && a.name.getText(sf) === "data-i18n-sense") as ts.JsxAttribute | undefined;
+    if (attr?.initializer && ts.isStringLiteral(attr.initializer)) return attr.initializer.text;
+  }
+  return undefined;
+}
+
 export function staticTexts(file: string, source: string): StaticText[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const out: StaticText[] = [];
   const add = (text: string, node: ts.Node) => {
     const t = text.trim();
-    if (t) out.push({ text: t, file, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1 });
+    if (!t) return;
+    const sense = senseOf(node, sf);
+    out.push({ text: t, file, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, ...(sense ? { sense } : {}) });
   };
   const visit = (node: ts.Node) => {
     if (ts.isJsxText(node)) add(jsxText(node.text), node);

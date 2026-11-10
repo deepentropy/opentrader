@@ -15,7 +15,7 @@ import {
 import { TIMEZONES } from "../../../data/timezones";
 import { pickFolder } from "./io";
 import { Section } from "./parts";
-import { translateWith } from "../../../i18n/translator";
+import { translate, translateWith } from "../../../i18n/translator";
 
 /** Zones a folder's times may be in: UTC and the chart's cities, one row per zone. */
 const FOLDER_ZONES = TIMEZONES.filter((z) => z.label !== "Exchange").filter((z, i, all) => all.findIndex((y) => y.iana === z.iana) === i);
@@ -73,16 +73,16 @@ function LocalFolderCard(props: { folder: LocalFolder }) {
   };
   const statusText = () => {
     const s = f().status;
-    if (!s) return "Not synced yet.";
-    if (s.failed) return `Last sync ${syncTime(s.at)}: ${s.failed}`;
+    if (!s) return translate("Not synced yet.");
+    if (s.failed) return translateWith("Last sync {0}: {1}", syncTime(s.at), s.failed);
     const parts = [
-      `${thousands(s.scanned)} file${s.scanned === 1 ? "" : "s"}`,
-      `${thousands(s.imported)} imported (${thousands(s.bars)} bars)`,
-      `${thousands(s.unchanged)} unchanged`,
+      translateWith(s.scanned === 1 ? "{0} file" : "{0} files", thousands(s.scanned)),
+      translateWith("{0} imported ({1} bars)", thousands(s.imported), thousands(s.bars)),
+      translateWith("{0} unchanged", thousands(s.unchanged)),
     ];
-    if (f().removeDeleted) parts.push(`${thousands(s.removed)} removed`);
-    parts.push(`${thousands(s.errors.length)} not imported`);
-    return `Last sync ${syncTime(s.at)}: ${parts.join(", ")}.`;
+    if (f().removeDeleted) parts.push(translateWith("{0} removed", thousands(s.removed)));
+    parts.push(translateWith("{0} not imported", thousands(s.errors.length)));
+    return translateWith("Last sync {0}: {1}.", syncTime(s.at), parts.join(", "));
   };
   const errors = () => f().status?.errors ?? [];
   return (

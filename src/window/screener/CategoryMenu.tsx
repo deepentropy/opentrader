@@ -65,7 +65,7 @@ export function CategoryMenu(props: Props) {
         keyed
         fallback={
           <>
-            <div class="scr-menu-title">{props.kind === "filters" ? "Filters" : "Columns"}</div>
+            <div class="scr-menu-title" data-i18n-sense="table">{props.kind === "filters" ? "Filters" : "Columns"}</div>
             <PopSearch value={q()} onInput={(v) => { setQ(v); setCat(null); }} />
             <div class="scr-pop-scroll" role="listbox">
               <Show

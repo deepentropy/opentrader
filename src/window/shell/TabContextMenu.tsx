@@ -12,6 +12,7 @@ import { onMount, For, Show, createSignal } from "solid-js";
 import { createPopover } from "../../components/popover";
 import { Icon, type IconName } from "../../components/Icon";
 import { LINK_PALETTE, type LinkChannel, type LinkColor, type TabLinkingState } from "./tab-linking";
+import { translateAs } from "../../i18n/translator";
 
 export type TabMenuAnchor = {
   tabId: string;
@@ -100,7 +101,7 @@ export function TabContextMenu(props: Props) {
     { kind: "separator" as const },
     { kind: "item", label: "Customize tab title…", icon: "settings-tabs", onClick: () => props.onCustomizeTitle() },
     { kind: "separator" as const },
-    { kind: "item", label: "Close", hotkey: "Ctrl+W", onClick: () => props.onCloseTab(id) },
+    { kind: "item", label: translateAs("Close", "action"), hotkey: "Ctrl+W", onClick: () => props.onCloseTab(id) },
     ...(a.isCloseOtherVisible
       ? [{ kind: "item" as const, label: "Close other tabs", onClick: () => props.onCloseOthers(id) }]
       : []),

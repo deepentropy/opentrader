@@ -13,6 +13,7 @@ import type { EntryBuckets, TimeUnit } from "./metrics";
 import { HoverBar, PALETTE as P, PrettyPriceScale, chartBase, reportTheme, themed, withAlpha } from "./report-chart-kit";
 import { BucketBarsSeries, type BucketBarsData } from "./report-series";
 import { ChartTip, DetailSwitch, Legend, PagedChart, Widget, usePager, type TipAnchor } from "./ReportWidget";
+import { translateWith } from "../../i18n/translator";
 
 const UNITS: readonly TimeUnit[] = ["hour", "day", "month"];
 const UNIT_LABEL: Record<TimeUnit, string> = { hour: "Hours", day: "Days", month: "Months" };
@@ -44,7 +45,7 @@ function bucketLabel(sec: number, unit: TimeUnit): string {
   return unit === "month" ? month(sec, true) : weekday(sec, true);
 }
 
-const trades = (n: number) => `${n} trade${n === 1 ? "" : "s"}`;
+const trades = (n: number) => translateWith(n === 1 ? "{0} trade" : "{0} trades", n);
 
 export function ResultsByTime(props: { buckets: EntryBuckets }) {
   let container!: HTMLDivElement;

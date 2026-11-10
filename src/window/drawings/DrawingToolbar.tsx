@@ -37,6 +37,7 @@ import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverl
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
+import { translateWith } from "../../i18n/translator";
 
 /** Hotkey tools created at once at the cursor (Alt+H/J/V/C). */
 const PLACE_NOW = new Set(["horizontal-line", "horizontal-ray", "vertical-line", "cross-line"]);
@@ -177,8 +178,9 @@ const SYNC_TOOLTIPS: Record<SyncMode, string> = {
   global: "New drawings are replicated to all charts in all layouts and shown when the same ticker is selected",
 };
 
-/** "1 drawing" / "112 drawings" (same rule as the chart menu Remove rows). */
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** "1 drawing" / "112 drawings", whole phrases so that each language words its count. */
+const drawingsText = (n: number) => translateWith(n === 1 ? "{0} drawing" : "{0} drawings", n);
+const indicatorsText = (n: number) => translateWith(n === 1 ? "{0} indicator" : "{0} indicators", n);
 
 export function DrawingToolbar(props: Props) {
   // Which tool each group displays on its toolbar button — per-group MRU
@@ -911,7 +913,7 @@ export function DrawingToolbar(props: Props) {
                 class="drawing-tool-submenu-item"
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAll(); }}
               >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.drawingCount, "drawing")}</span>
+                <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", drawingsText(props.drawingCount))}</span>
               </button>
               <button
                 type="button"
@@ -919,7 +921,7 @@ export function DrawingToolbar(props: Props) {
                 class="drawing-tool-submenu-item"
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveIndicators(); }}
               >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.indicatorCount, "indicator")}</span>
+                <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", indicatorsText(props.indicatorCount))}</span>
               </button>
               <button
                 type="button"
@@ -928,7 +930,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAllObjects(); }}
               >
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">
-                  Remove {plural(props.drawingCount, "drawing")} &amp; {plural(props.indicatorCount, "indicator")}
+                  {translateWith("Remove {0} & {1}", drawingsText(props.drawingCount), indicatorsText(props.indicatorCount))}
                 </span>
               </button>
               <div class="drawing-tool-submenu-divider" role="separator" />

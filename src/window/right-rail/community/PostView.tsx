@@ -14,6 +14,7 @@ import { chartBridge } from "../../../data/community/chart-share";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, TypeBadges, errorText } from "../../../community-shared/parts";
 import { KINDS, KIND_LABEL, createPostThread, type FormKind } from "../../../community-shared/post-thread";
+import { translateWith } from "../../../i18n/translator";
 
 const REASONS: { id: Reason; label: string }[] = [
   { id: "thesis", label: "Clear thesis" },
@@ -67,7 +68,8 @@ function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart 
     setFailed(null);
     try {
       const n = await b.open(props.chart);
-      setDone(`Opened ${props.chart.symbol}, ${shortIntervalLabel(props.chart.interval)}${n ? ` with ${n} drawing${n === 1 ? "" : "s"}` : ""}.`);
+      const [symbol, interval] = [props.chart.symbol, shortIntervalLabel(props.chart.interval)];
+      setDone(n ? translateWith(n === 1 ? "Opened {0}, {1} with {2} drawing." : "Opened {0}, {1} with {2} drawings.", symbol, interval, n) : translateWith("Opened {0}, {1}.", symbol, interval));
     } catch (e) {
       setFailed(errorText(e));
     }
@@ -90,7 +92,7 @@ function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart 
       <Show when={props.chart}>
         <div class="cm-actions">
           <span class="cm-muted">
-            {props.chart!.symbol} · {shortIntervalLabel(props.chart!.interval)} · {drawings()} drawing{drawings() === 1 ? "" : "s"}
+            {props.chart!.symbol} · {shortIntervalLabel(props.chart!.interval)} · {translateWith(drawings() === 1 ? "{0} drawing" : "{0} drawings", drawings())}
           </span>
           <Show
             when={chartBridge()}
@@ -172,7 +174,7 @@ export function PostView(props: Props) {
           <span class="cm-dot">·</span>
           <Age at={c().created_at} />
           <Show when={c().edited_at}><span class="cm-muted"> (edited)</span></Show>
-          <Show when={isCollapsed()}><span class="cm-muted"> · {kids().length ? `${kids().length} repl${kids().length > 1 ? "ies" : "y"}` : ""}</span></Show>
+          <Show when={isCollapsed()}><span class="cm-muted"> · {kids().length ? translateWith(kids().length === 1 ? "{0} reply" : "{0} replies", kids().length) : ""}</span></Show>
         </div>
         <Show when={!isCollapsed()}>
           <Show when={c().removed}>

@@ -46,7 +46,7 @@ import { showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
 import { setOpenedScript } from "./editor-state";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
-import { translate, translateWith } from "../../i18n/translator";
+import { translate, translateAs, translateWith } from "../../i18n/translator";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -513,7 +513,7 @@ export function OakScriptPanel(props: Props) {
               </svg>
             </button>
           </Tooltip>
-          <Tooltip text="Close" side="top">
+          <Tooltip text={translateAs("Close", "action")} side="top">
             <button
               type="button"
               class="oak-panel__chrome-btn"

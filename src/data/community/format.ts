@@ -6,6 +6,7 @@
 import { POST_TYPES } from "../../community-shared/contract";
 import { date, dateTime } from "../../community-shared/dates";
 import type { Idea, Post, PostType, SuggestionStatus, TrackRecord } from "./api";
+import { translate, translateWith } from "../../i18n/translator";
 
 export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion" };
 export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions" };
@@ -65,9 +66,9 @@ export function age(sec: number, nowMs = Date.now()): string {
 
 /** "34 ideas · 62% hit", "2 open ideas", "no ideas yet". */
 export function recordLine(r: TrackRecord | null | undefined): string {
-  if (!r || (!r.resolved && !r.open)) return "no ideas yet";
-  if (!r.resolved) return `${r.open} open idea${r.open === 1 ? "" : "s"}`;
-  return `${r.resolved} idea${r.resolved === 1 ? "" : "s"} · ${r.hit_pct}% hit`;
+  if (!r || (!r.resolved && !r.open)) return translate("no ideas yet");
+  if (!r.resolved) return translateWith(r.open === 1 ? "{0} open idea" : "{0} open ideas", r.open);
+  return translateWith(r.resolved === 1 ? "{0} idea · {1}% hit" : "{0} ideas · {1}% hit", r.resolved, String(r.hit_pct));
 }
 
 /** "34 resolved ideas · 62% hit · +0.42R avg". */
@@ -98,7 +99,7 @@ export function outcome(i: Idea): string {
 /** The status line of a post in a list: an idea's state, an answered question, a post-mortem's idea. */
 export function postState(p: Post): { text: string; color: string } | null {
   if (p.idea) return ideaState(p.idea);
-  if (p.suggestion) return { text: `${STATUS_LABEL[p.suggestion.status]} · ${p.useful_count} supporter${p.useful_count === 1 ? "" : "s"}`, color: p.suggestion.status === "shipped" ? UP : INK };
+  if (p.suggestion) return { text: translateWith(p.useful_count === 1 ? "{0} · {1} supporter" : "{0} · {1} supporters", translate(STATUS_LABEL[p.suggestion.status]), p.useful_count), color: p.suggestion.status === "shipped" ? UP : INK };
   if (p.type === "question" && p.answer_id) return { text: "Answered", color: INK };
   if (p.type === "postmortem" && p.linked?.status) {
     const s = p.linked.status;

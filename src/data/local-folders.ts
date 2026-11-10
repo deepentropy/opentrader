@@ -20,6 +20,7 @@ import { commands, type LocalSeries } from "../bindings";
 import { getItem, onExternalChange, setItem } from "./kv";
 import { parseSeedSymbolInfo, seriesNameFromFile } from "./local-series-csv";
 import { deleteLocalSeries, importLocalSeries, localSeriesChanged } from "./local-series";
+import { translate, translateWith } from "../i18n/translator";
 
 /** A file a sync could not import, with its size and time then (it is not
  *  read again until they change). */
@@ -247,10 +248,11 @@ async function doSync(path: string): Promise<FolderSyncStatus> {
 export function syncSummary(folder: LocalFolder, s: FolderSyncStatus): string {
   if (s.failed) return `${folder.path}: ${s.failed}`;
   const parts: string[] = [];
-  if (s.imported) parts.push(`${s.imported.toLocaleString("en-US")} series updated`);
-  if (s.removed) parts.push(`${s.removed.toLocaleString("en-US")} removed`);
-  if (s.errors.length) parts.push(`${s.errors.length.toLocaleString("en-US")} file${s.errors.length === 1 ? "" : "s"} not imported (Settings > Local data)`);
-  return `${folder.path}: ${parts.join(", ") || "no change"}.`;
+  if (s.imported) parts.push(translateWith("{0} series updated", s.imported.toLocaleString("en-US")));
+  if (s.removed) parts.push(translateWith("{0} removed", s.removed.toLocaleString("en-US")));
+  const n = s.errors.length;
+  if (n) parts.push(translateWith(n === 1 ? "{0} file not imported (Settings > Local data)" : "{0} files not imported (Settings > Local data)", n.toLocaleString("en-US")));
+  return `${folder.path}: ${parts.join(", ") || translate("no change")}.`;
 }
 
 /** Minutes between two background syncs. */

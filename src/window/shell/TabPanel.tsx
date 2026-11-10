@@ -335,6 +335,7 @@ export function TabPanel(props: Props) {
                       class="tab-close-btn"
                       aria-label="close-tab-button"
                       tabIndex={-1}
+                      data-i18n-sense="action"
                       title="Close"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); props.onClose(tab.id); }}

@@ -42,6 +42,7 @@ import {
   type DomMarket,
   type DomOrderMark,
 } from "./dom-ladder";
+import { translateWith } from "../../i18n/translator";
 
 const CrossIcon = () => (
   <svg width="9" height="9" viewBox="0 0 9 9" aria-hidden="true">
@@ -328,7 +329,7 @@ export function DomPanel() {
     if (plMode() === "percent") return `${((diff / p.avgPrice) * 100).toFixed(2)}%`;
     if (plMode() === "ticks") {
       const n = Math.round(diff / tick());
-      return `${n} tick${Math.abs(n) === 1 ? "" : "s"}`;
+      return translateWith(Math.abs(n) === 1 ? "{0} tick" : "{0} ticks", n);
     }
     return `${p.pl.toFixed(2)} ${replayBroker.currency()}`;
   };

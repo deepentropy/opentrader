@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inEnglish, setDictionary, translate, translateDrawn, translateWith } from "../translator";
+import { inEnglish, lookUp, setDictionary, translate, translateAs, translateDrawn, translateWith } from "../translator";
 import zhHans from "../zh-Hans.json";
 import zhHant from "../zh-Hant.json";
 import { SIMPLIFIED_RULES, TRADITIONAL_RULES } from "../zh-patterns";
@@ -21,6 +21,27 @@ describe("translate (#189)", () => {
     expect(translate("Save...", D)).toBe("保存...");
     expect(translate("Save:", D)).toBe("保存:");
     expect(translate("Open…", D)).toBe("打开…");
+  });
+});
+
+describe("a word with two meanings (#285)", () => {
+  const W = { Post: "盘后", "Post|action": "发布", Close: "收盘" };
+  it("looks up the sense's own entry first", () => {
+    expect(lookUp("Post", W, "action")).toBe("发布");
+    expect(translate(" Post ", W, "action")).toBe(" 发布 ");
+    expect(translate("Post…", W, "action")).toBe("发布…");
+  });
+  it("the word's entry without a sense, or when the sense has none", () => {
+    expect(translate("Post", W)).toBe("盘后");
+    expect(translate("Close", W, "action")).toBe("收盘");
+    expect(lookUp("Pre", W, "action")).toBeUndefined();
+  });
+  it("translateAs: the page's dictionary in a sense, English without one", () => {
+    setDictionary(W);
+    expect(translateAs("Post", "action")).toBe("发布");
+    expect(translate("Post")).toBe("盘后");
+    setDictionary({});
+    expect(translateAs("Post", "action")).toBe("Post");
   });
 });
 
@@ -78,6 +99,11 @@ describe("the dictionaries (#190)", () => {
       expect(wrong).toEqual([]);
     });
   }
+  it("every sense is the sense of a word the dictionary has", () => {
+    // "Post|action"; a text holding a bar ("DMSDB | MisinkoMaster") is not a sense.
+    const orphans = Object.keys(zhHans).filter((k) => /^[^|]+\|[a-z]+$/.test(k) && !(k.slice(0, k.indexOf("|")) in zhHans));
+    expect(orphans).toEqual([]);
+  });
   it("both scripts have the same texts", () => {
     expect(Object.keys(zhHant).filter((k) => !(k in zhHans))).toEqual([]);
     expect(Object.keys(zhHans).filter((k) => !(k in zhHant))).toEqual([]);

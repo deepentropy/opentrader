@@ -180,7 +180,7 @@ export function ImportTradesDialog(props: Props) {
           when={!stExport}
           fallback={<div class="tj-import-note">Strategy Tester list of trades: entries and exits are paired by trade number.</div>}
         >
-          <div class="tj-section-title">Columns</div>
+          <div class="tj-section-title" data-i18n-sense="table">Columns</div>
           <div class="tj-mapping">
             <For each={FIELDS}>
               {(f) => (

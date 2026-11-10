@@ -128,15 +128,16 @@ function baseText(base: string): string {
   const m = /^(\d+)([SD]?)$/.exec(base);
   if (!m) return base;
   const n = Number(m[1]);
-  const unit = m[2] === "S" ? "second" : m[2] === "D" ? "day" : "minute";
-  return `${n} ${unit}${n === 1 ? "" : "s"}`;
+  const [one, many] = m[2] === "S" ? ["{0} second", "{0} seconds"] : m[2] === "D" ? ["{0} day", "{0} days"] : ["{0} minute", "{0} minutes"];
+  return translateWith(n === 1 ? one : many, n);
 }
 
 function dateText(sec: number, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(sec * 1000));
 }
 
-const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+/** A count in a phrase: `one` or `many` with the number in `{0}`. */
+const count = (n: number, one: string, many: string) => translateWith(n === 1 ? one : many, n.toLocaleString("en-US"));
 
 type Entry = PickedFile & {
   name: () => string;
@@ -199,7 +200,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
     const n = p.rows.length / ROW;
     const first = dateText(p.rows[0], zone());
     const last = dateText(p.rows[(n - 1) * ROW], zone());
-    return `${n.toLocaleString("en-US")} bars of ${baseText(p.base)}, ${first} to ${last}${p.hasVolume ? "" : ", no volume"}`;
+    return translateWith(p.hasVolume ? "{0} bars of {1}, {2} to {3}" : "{0} bars of {1}, {2} to {3}, no volume", n.toLocaleString("en-US"), baseText(p.base), first, last);
   };
 
   async function submit() {
@@ -236,7 +237,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         });
         r.imported++;
         names.push(out.series.name);
-        if (out.skipped) r.notes.push(`${out.series.name}: ${count(out.skipped, "line")} were not bars and were left out.`);
+        if (out.skipped) r.notes.push(translateWith(out.skipped === 1 ? "{0}: {1} line was not a bar and was left out." : "{0}: {1} lines were not bars and were left out.", out.series.name, out.skipped.toLocaleString("en-US")));
       } catch (err) {
         r.failed.push({ file: e.fileName, message: message(err) });
       }
@@ -284,7 +285,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
               when={preview}
               fallback={
                 <>
-                  <div class="tj-section-title">{count(total, "file")}</div>
+                  <div class="tj-section-title">{count(total, "{0} file", "{0} files")}</div>
                   <div class="ls-import-list" data-name="import-series-list">
                     <For each={entries}>
                       {(e) => (
@@ -346,8 +347,8 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         {(r) => (
           <div class="ot-dlg-content tj-import-body" data-name="import-series-result">
             <div class="ls-import-result-head">
-              {count(r().imported, "series", "series")} imported
-              <Show when={r().failed.length}>, {count(r().failed.length, "file")} not imported</Show>.
+              {translateWith("{0} series imported", r().imported.toLocaleString("en-US"))}
+              <Show when={r().failed.length}>, {count(r().failed.length, "{0} file not imported", "{0} files not imported")}</Show>.
             </div>
             <Show when={r().failed.length}>
               <div class="ls-import-list">

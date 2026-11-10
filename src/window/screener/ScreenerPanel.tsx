@@ -558,6 +558,7 @@ export function ScreenerPanel(props: Props) {
             <button
               type="button"
               class="scr-light-btn scr-light-btn--ghost is-icon-only"
+              data-i18n-sense="action"
               title="Close"
               aria-label="Close"
               onClick={() => (dock() === "window" ? props.onCloseWindow?.() : screenerPanel.setOpen(false))}

@@ -12,6 +12,7 @@ import { IconButton } from "../../../components/IconButton";
 import { api, type ContactMessage, type QueueItem } from "../../../data/community/api";
 import { me } from "../../../data/community/session";
 import { Age, Author, ErrorBanner, ReasonForm, errorText } from "../../../community-shared/parts";
+import { translateWith } from "../../../i18n/translator";
 
 const REASON_LABELS: Record<string, string> = {
   spam: "Spam",
@@ -95,7 +96,7 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
                     <span class="cm-badge">{item.target_type}</span>
                     <span>{item.community_id.replace(/^t:/, "$").replace(/^c:/, "")}</span>
                     <span class="cm-dot">·</span>
-                    <span>{item.reports} report{item.reports > 1 ? "s" : ""}</span>
+                    <span>{translateWith(item.reports === 1 ? "{0} report" : "{0} reports", item.reports)}</span>
                     <span class="cm-dot">·</span>
                     <Age at={item.first_at} />
                   </div>
@@ -117,7 +118,7 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
                       <div class="cm-actions">
                         <button type="button" class="cm-action is-mod" onClick={() => setRemoving(item.target_id)}>Remove</button>
                         <button type="button" class="cm-action" onClick={() => act(item, "dismiss")}>Dismiss</button>
-                        <button type="button" class="cm-action" onClick={() => props.onOpenPost(item.target_type === "post" ? item.target_id : item.content?.post_id ?? "")}>Open</button>
+                        <button type="button" class="cm-action" data-i18n-sense="action" onClick={() => props.onOpenPost(item.target_type === "post" ? item.target_id : item.content?.post_id ?? "")}>Open</button>
                       </div>
                     }
                   >

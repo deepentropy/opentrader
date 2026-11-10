@@ -35,6 +35,7 @@ import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, MarkdownBody, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "../../../community-shared/parts";
+import { translateWith } from "../../../i18n/translator";
 
 /** "chart" (follows the chart), "following" (my tickers), "all", or a community id. */
 type Source = string;
@@ -372,7 +373,7 @@ export function CommunityPanel(props: Props) {
             </div>
             <Show when={info()!.description}><div class="cm-muted">{info()!.description}</div></Show>
             <div class="cm-muted">
-              {info()!.post_count} post{info()!.post_count === 1 ? "" : "s"}
+              {translateWith(info()!.post_count === 1 ? "{0} post" : "{0} posts", info()!.post_count)}
               {" · "}
               <ExternalLink href={`${WEBSITE}${info()!.id === GENERAL ? "/c/general" : `/t/${encodeURIComponent(info()!.id.slice(2))}`}`}>Open ideas and record on the website</ExternalLink>
               <Show when={info()!.post_count > 0}>
@@ -561,14 +562,14 @@ export function CommunityPanel(props: Props) {
             <Show when={preview()}>
               <img class="cm-chart-img" src={preview()!} alt="Attached chart" />
               <div class="cm-muted cm-hint">
-                {attached()!.chart.symbol} · {shortIntervalLabel(attached()!.chart.interval)} · {attached()!.chart.drawings.length} drawing{attached()!.chart.drawings.length === 1 ? "" : "s"}
+                {attached()!.chart.symbol} · {shortIntervalLabel(attached()!.chart.interval)} · {translateWith(attached()!.chart.drawings.length === 1 ? "{0} drawing" : "{0} drawings", attached()!.chart.drawings.length)}
               </div>
             </Show>
           </Show>
           <ErrorBanner text={err()} />
           <div class="cm-form-actions">
             <button type="button" class="cm-btn" onClick={() => setView({ kind: "list" })}>Cancel</button>
-            <button type="button" class="cm-btn is-primary" disabled={busy() || !ready()} onClick={submit}>{isIdea() ? "Post idea" : "Post"}</button>
+            <button type="button" class="cm-btn is-primary" data-i18n-sense="action" disabled={busy() || !ready()} onClick={submit}>{isIdea() ? "Post idea" : "Post"}</button>
           </div>
           <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community guidelines</ExternalLink>.</div>
         </div>
