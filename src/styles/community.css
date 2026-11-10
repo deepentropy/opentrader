@@ -136,10 +136,10 @@
   border-radius: 4px;
   font-size: 11px;
   line-height: 16px;
-  background: var(--color-container-fill-primary-neutral-light, rgba(128, 128, 128, 0.2));
+  background: var(--color-container-fill-primary-neutral-light);
   color: var(--color-toolbar-button-text);
 }
-.cm-badge.is-danger { background: rgba(242, 54, 69, 0.2); color: #f23645; }
+.cm-badge.is-danger { background: var(--ot-tint-red-20); color: var(--color-ripe-red-500); }
 
 /* A post's type, an idea's direction, a reply's kind; an idea's levels and state. */
 .cm-type {
@@ -153,9 +153,9 @@
   font-weight: 600;
   color: var(--color-text-secondary);
 }
-.cm-type.is-idea { color: #82a4ff; border-color: rgba(41, 98, 255, 0.55); }
+.cm-type.is-idea { color: #82a4ff; border-color: var(--ot-tint-blue-55); }
 .cm-type.is-analysis, .cm-type.is-dir { color: var(--color-toolbar-button-text); border-color: var(--color-toolbar-button-text); }
-.cm-type.is-answer { color: #089981; border-color: rgba(8, 153, 129, 0.6); }
+.cm-type.is-answer { color: var(--color-minty-green-500); border-color: var(--ot-tint-green-60); }
 .cm-state { font-weight: 600; }
 .cm-idea { margin: 8px 0; padding: 8px 10px; border-left: 2px solid var(--color-brand); background: var(--color-bg-primary-hover); font-size: 12px; line-height: 18px; }
 .cm-idea-levels { font-weight: 600; color: var(--color-toolbar-button-text); font-variant-numeric: tabular-nums; }
@@ -174,7 +174,7 @@
 }
 .cm-chip span { opacity: 0.7; margin-left: 2px; }
 .cm-chip:hover { background: var(--color-toolbar-button-background-hover); }
-.cm-chip.is-on { border-color: var(--color-brand); background: rgba(41, 98, 255, 0.16); color: var(--color-text-primary, #fff); }
+.cm-chip.is-on { border-color: var(--color-brand); background: var(--ot-tint-blue-16); color: var(--color-text-primary); }
 .cm-chip[disabled] { opacity: 0.6; pointer-events: none; }
 .cm-action.is-on { color: var(--color-brand); }
 .cm-notice { display: flex; align-items: flex-start; gap: 8px; margin: 8px 16px; padding: 6px 8px; border-radius: 6px; background: rgba(41, 98, 255, 0.12); color: var(--color-toolbar-button-text); font-size: 12px; }
@@ -217,8 +217,8 @@
   padding: 6px 8px;
   border-radius: 6px;
   font-size: 12px;
-  background: rgba(242, 54, 69, 0.12);
-  color: #f23645;
+  background: var(--ot-tint-red-12);
+  color: var(--color-ripe-red-500);
 }
 .cm-locked { margin-top: 10px; font-size: 12px; }
 
@@ -252,8 +252,8 @@
 .cm-markdown ul { list-style: disc; }
 .cm-markdown ol { list-style: decimal; }
 .cm-markdown blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--color-divider-line-primary); color: var(--color-text-secondary); }
-.cm-markdown code { padding: 0 3px; border-radius: 3px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--color-container-fill-primary-neutral-light, rgba(128, 128, 128, 0.18)); }
-.cm-markdown pre { margin: 0 0 8px; padding: 8px; overflow-x: auto; border-radius: 6px; background: var(--color-container-fill-primary-neutral-light, rgba(128, 128, 128, 0.18)); }
+.cm-markdown code { padding: 0 3px; border-radius: 3px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--color-container-fill-primary-neutral-light); }
+.cm-markdown pre { margin: 0 0 8px; padding: 8px; overflow-x: auto; border-radius: 6px; background: var(--color-container-fill-primary-neutral-light); }
 .cm-markdown pre code { padding: 0; background: none; }
 .cm-markdown hr { border: 0; border-top: 1px solid var(--color-divider-line-primary); margin: 10px 0; }
 .cm-markdown a, .cm-link { color: var(--color-brand); text-decoration: none; cursor: pointer; }
@@ -283,13 +283,13 @@
   outline: none;
 }
 .cm-input { height: 32px; }
-.cm-input:focus, .cm-textarea:focus { border-color: #2962ff; box-shadow: 0 0 0 1px #2962ff; }
-select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
+.cm-input:focus, .cm-textarea:focus { border-color: var(--color-brand); box-shadow: 0 0 0 1px var(--color-brand); }
+select.cm-input option { background: var(--color-popup-background); }
 .cm-textarea { min-height: 80px; resize: vertical; line-height: 18px; }
 .cm-textarea.is-small { min-height: 54px; }
 .cm-textarea.is-tall { min-height: 200px; }
 .cm-radio { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: default; }
-.cm-radio input { accent-color: #2962ff; margin: 0; }
+.cm-radio input { accent-color: var(--color-brand); margin: 0; }
 .cm-composer { padding: 12px 16px 16px; }
 .cm-hint { margin-top: 4px; font-size: 11px; }
 
@@ -301,7 +301,7 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   justify-content: center;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid var(--color-divider, var(--color-border-hover));
+  border: 1px solid var(--color-divider);
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
@@ -310,9 +310,9 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
 }
 .cm-btn:hover { background: var(--color-toolbar-button-background-hover); }
 .cm-btn.is-small { height: 26px; padding: 0 10px; font-size: 12px; }
-.cm-btn.is-primary { background: #2962ff; border-color: #2962ff; color: #fff; }
-.cm-btn.is-primary:hover { background: #1e53e5; }
-.cm-btn.is-danger { background: #f23645; border-color: #f23645; color: #fff; }
+.cm-btn.is-primary { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-white); }
+.cm-btn.is-primary:hover { background: var(--color-brand-hover); }
+.cm-btn.is-danger { background: var(--color-ripe-red-500); border-color: var(--color-ripe-red-500); color: var(--color-white); }
 .cm-btn:disabled { opacity: 0.5; pointer-events: none; }
 .cm-btn.is-provider { position: relative; width: 100%; height: 40px; margin-top: 8px; gap: 10px; }
 .cm-btn.is-provider .cm-provider-logo { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); }
@@ -325,8 +325,8 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   padding: 6px 8px;
   border-radius: 6px;
   font-size: 12px;
-  background: rgba(242, 54, 69, 0.12);
-  color: #f23645;
+  background: var(--ot-tint-red-12);
+  color: var(--color-ripe-red-500);
 }
 .cm-form .cm-error, .cm-signin .cm-error { margin: 4px 0 0; }
 .cm-error span { flex: 1; }
@@ -387,8 +387,8 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   margin-left: 6px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #f23645;
-  color: #fff;
+  background: var(--color-ripe-red-500);
+  color: var(--color-white);
   font-size: 11px;
   line-height: 16px;
   text-align: center;
@@ -400,8 +400,8 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f23645;
-  box-shadow: 0 0 0 2px var(--ot-chart-bg, #0f0f0f);
+  background: var(--color-ripe-red-500);
+  box-shadow: 0 0 0 2px var(--ot-chart-bg);
   pointer-events: none;
 }
 .cm-toasts {
@@ -418,8 +418,8 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   position: relative;
   padding: 10px 32px 10px 12px;
   border-radius: 8px;
-  background: var(--ot-popover-bg, #1e1e1e);
-  box-shadow: var(--ot-popover-shadow, 0 2px 12px rgba(0, 0, 0, 0.5));
+  background: var(--ot-popover-bg);
+  box-shadow: var(--ot-popover-shadow);
   color: var(--color-toolbar-button-text);
   cursor: pointer;
 }
@@ -429,11 +429,11 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
 .cm-notice { padding: 10px 16px; border-bottom: 1px solid var(--color-divider-line-primary); }
 .cm-notice.is-link { cursor: default; }
 .cm-notice.is-link:hover { background: var(--color-bg-primary-hover); }
-.cm-notice.is-new { box-shadow: inset 3px 0 0 #2962ff; }
+.cm-notice.is-new { box-shadow: inset 3px 0 0 var(--color-brand); }
 .cm-notice-text { margin-top: 2px; font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
 
 /* The bot check before a first post (#219). */
-.cm-check { margin: 8px 16px; padding: 10px 12px; border: 1px solid #2962ff; border-radius: 8px; }
+.cm-check { margin: 8px 16px; padding: 10px 12px; border: 1px solid var(--color-brand); border-radius: 8px; }
 .cm-check p { margin: 4px 0 8px; font-size: 12px; }
 
 /* A community's About page (#209). */
