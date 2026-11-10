@@ -18,8 +18,7 @@
 .oak-panel__resizer {
   position: absolute;
   top: -6px;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   height: 10px;
   cursor: row-resize;
   z-index: 3;
@@ -32,7 +31,8 @@
   justify-content: space-between;
   height: 30px;
   flex-shrink: 0;
-  padding: 0 6px 0 10px;
+  padding-block: 0;
+  padding-inline: 10px 6px;
   border-bottom: 1px solid var(--color-popup-menu-separator);
 }
 
@@ -65,7 +65,7 @@
 .oak-script-menu {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 0;
+  inset-inline-start: 0;
   z-index: 60;
   min-width: 220px;
   max-height: 60vh;
@@ -140,7 +140,7 @@
 .oak-panel__action-btn {
   height: 24px;
   padding: 0 8px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   border: 1px solid var(--color-popup-menu-separator);
   border-radius: 6px;
   font-size: 12px;
@@ -183,7 +183,8 @@
 .oak-console__row {
   display: flex;
   align-items: baseline;
-  padding: 4px 8px 4px 4px;
+  padding-block: 4px;
+  padding-inline: 4px 8px;
   color: var(--color-text-secondary);
 }
 
@@ -205,7 +206,7 @@
 
 .oak-console__badge {
   display: inline-block;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   padding: 1px 4px;
   border-radius: 4px;
   background-color: var(--color-ripe-red-a800);
@@ -259,16 +260,16 @@
   flex: none;
   width: 22px;
   height: 22px;
-  margin-right: 9px;
+  margin-inline-end: 9px;
   color: var(--color-tan-orange-700);
 }
 .oak-panel__readonly-header {
-  margin-right: 4px;
+  margin-inline-end: 4px;
   color: var(--color-tan-orange-700);
   font-weight: 600;
 }
 .oak-panel__readonly-link {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   color: var(--color-ot-blue-300);
   cursor: pointer;
 }
@@ -295,7 +296,8 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   font-size: 14px;
 }
 .oak-builtin-dlg__title {
-  padding: 20px 50px 20px 20px;
+  padding-block: 20px;
+  padding-inline: 20px 50px;
   font-size: 20px;
   font-weight: 600;
   line-height: 28px;
@@ -306,13 +308,14 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   align-items: center;
   height: 40px;
   box-sizing: border-box;
-  padding: 8px 16px 8px 47px;
+  padding-block: 8px;
+  padding-inline: 47px 16px;
   border-top: 1px solid var(--color-popup-menu-separator);
   border-bottom: 1px solid var(--color-popup-menu-separator);
 }
 .oak-builtin-dlg__search svg {
   position: absolute;
-  left: 18px;
+  inset-inline-start: 18px;
   color: var(--color-text-primary);
 }
 .oak-builtin-dlg__search input {
@@ -352,6 +355,6 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
 .oak-builtin-dlg__type {
   display: inline-flex;
   flex: none;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   color: var(--color-text-primary);
 }

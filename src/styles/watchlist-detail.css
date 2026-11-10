@@ -41,7 +41,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px 0 16px;
+  padding-block: 0;
+  padding-inline: 16px 8px;
 }
 
 .watchlist-detail-title {
@@ -95,7 +96,7 @@
 .watchlist-detail-popover {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
+  inset-inline-end: 0;
   z-index: 70;
   min-width: 200px;
   padding: 6px;
@@ -156,7 +157,7 @@
   line-height: 1.4;
   color: var(--color-main-text);
   background-color: var(--ot-tint-blue-8);
-  border-left: 2px solid var(--color-brand);
+  border-inline-start: 2px solid var(--color-brand);
   border-radius: 4px;
   white-space: pre-wrap;
   cursor: text;
@@ -195,7 +196,8 @@
  * breathing room). */
 .watchlist-detail-dot {
   flex-shrink: 0;
-  margin: 0 6px 0 3px;
+  margin-block: 0;
+  margin-inline: 3px 6px;
   color: var(--color-text-primary);
 }
 
@@ -391,8 +393,8 @@
 
 .watchlist-detail-stat-value {
   flex-shrink: 0;
-  margin-left: auto;
-  text-align: right;
+  margin-inline-start: auto;
+  text-align: end;
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -470,7 +472,7 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  margin-right: 2px;
+  margin-inline-end: 2px;
   border: 0;
   background: transparent;
   color: var(--color-default-gray);
@@ -502,7 +504,7 @@
   width: 20px;
   height: 20px;
   padding: 0;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   border: 0;
   background: transparent;
   color: var(--color-default-gray);

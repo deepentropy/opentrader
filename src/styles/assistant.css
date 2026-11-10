@@ -38,7 +38,8 @@
   gap: 4px;
   max-width: 100%;
   height: 34px;
-  padding: 5px 6px 5px 8px;
+  padding-block: 5px;
+  padding-inline: 8px 6px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -80,7 +81,7 @@
 }
 .asst-chat-menu {
   top: 38px;
-  left: 0;
+  inset-inline-start: 0;
 }
 .asst-menu-item {
   display: flex;
@@ -93,7 +94,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: default;
 }
 .asst-menu-item:hover:not(:disabled),
@@ -138,7 +139,8 @@
   gap: 4px;
   max-width: 100%;
   min-height: 34px;
-  padding: 0 11px 0 7px;
+  padding-block: 0;
+  padding-inline: 7px 11px;
   border: 1px solid #222;
   border-radius: 8px;
   background-color: #222;
@@ -146,7 +148,7 @@
   font: inherit;
   font-size: 16px;
   line-height: 24px;
-  text-align: left;
+  text-align: start;
   cursor: default;
 }
 .asst-suggestion:hover:not(:disabled) {
@@ -257,7 +259,8 @@
   color: var(--color-cold-gray-300);
 }
 .asst-step-detail {
-  margin: 4px 0 0 14px;
+  margin-block: 4px 0;
+  margin-inline: 14px 0;
   max-height: 220px;
   overflow: auto;
   padding: 6px 8px;
@@ -273,11 +276,13 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 6px 0 0 14px;
+  margin-block: 6px 0;
+  margin-inline: 14px 0;
   color: var(--color-content-primary-neutral-bold);
 }
 .asst-shot {
-  margin: 6px 0 0 14px;
+  margin-block: 6px 0;
+  margin-inline: 14px 0;
   max-width: calc(100% - 14px);
   border-radius: 6px;
   border: 1px solid var(--color-cold-gray-800);
@@ -289,7 +294,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 4px 4px 16px;
+  padding-block: 12px 4px;
+  padding-inline: 16px 4px;
   border: 1px solid #555;
   border-radius: 8px;
 }
@@ -299,7 +305,8 @@
 .asst-input {
   min-height: 18px;
   max-height: 160px;
-  padding: 0 12px 0 0;
+  padding-block: 0;
+  padding-inline: 0 12px;
   border: 0;
   outline: 0;
   resize: none;
@@ -413,7 +420,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: default;
 }
 .asst-chat-row-title {
@@ -509,7 +516,7 @@
 }
 .asst-beta-tag {
   display: inline-block;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   padding: 0 6px;
   border-radius: 4px;
   background-color: var(--color-tan-orange-500);

@@ -135,6 +135,6 @@
   margin-bottom: 12px;
 }
 .ls-import-progress {
-  margin-right: auto;
+  margin-inline-end: auto;
   color: var(--color-text-secondary);
 }

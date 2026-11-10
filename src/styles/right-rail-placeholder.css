@@ -11,7 +11,7 @@
   width: var(--ot-rail-width, 331px);
   flex-shrink: 0;
   background-color: var(--ot-chart-bg);
-  border-left: 1px solid var(--color-toolbar-divider-background);
+  border-inline-start: 1px solid var(--color-toolbar-divider-background);
   display: flex;
   align-items: center;
   justify-content: center;

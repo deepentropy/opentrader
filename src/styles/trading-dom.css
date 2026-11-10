@@ -428,7 +428,7 @@ html.theme-light {
   z-index: 120;
   width: 414px;
   max-height: calc(100vh - 16px);
-  border-left: 0;
+  border-inline-start: 0;
   border-radius: 6px;
   background: var(--trd-float-bg);
   box-shadow: 0 2px 4px var(--ot-shadow-40);

@@ -96,7 +96,7 @@ html.theme-light {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-left: 4px solid var(--color-bg-secondary);
+  border-inline-start: 4px solid var(--color-bg-secondary);
   background: var(--ot-chart-bg);
   color: var(--trd-text-secondary);
   font-family: var(--trd-font);
@@ -166,11 +166,17 @@ html.theme-light {
   background: var(--trd-side-hover);
 }
 .trd-tk-side.is-sell {
-  border-radius: 8px 0 0 8px;
+  border-start-start-radius: 8px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 8px;
   align-items: flex-start;
 }
 .trd-tk-side.is-buy {
-  border-radius: 0 8px 8px 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
+  border-end-start-radius: 0;
   align-items: flex-end;
 }
 .trd-tk-side.is-sell.is-selected {
@@ -464,7 +470,7 @@ html.theme-light {
 /* ─── Toasts ─── */
 .trd-toasts {
   position: fixed;
-  left: 64px;
+  inset-inline-start: 64px;
   bottom: 48px;
   z-index: 250;
   display: flex;
@@ -476,7 +482,8 @@ html.theme-light {
 .trd-toast {
   position: relative;
   display: flex;
-  padding: 3px 0 3px 3px;
+  padding-block: 3px;
+  padding-inline: 3px 0;
   border: 1px solid var(--trd-toast-border);
   border-radius: 12px;
   background: var(--trd-toast-bg);
@@ -491,7 +498,10 @@ html.theme-light {
   justify-content: center;
   width: 42px;
   flex-shrink: 0;
-  border-radius: 8px 0 0 8px;
+  border-start-start-radius: 8px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 8px;
 }
 .trd-toast.is-success .trd-toast-icon {
   background: var(--trd-toast-success-tile);
@@ -520,7 +530,8 @@ html.theme-light {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  padding: 9px 32px 9px 12px;
+  padding-block: 9px;
+  padding-inline: 12px 32px;
 }
 .trd-toast-title {
   font: 400 15px/24px var(--trd-font);
@@ -546,7 +557,7 @@ html.theme-light {
 .trd-toast-close {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   display: inline-flex;
   border: 0;
   background: transparent;
@@ -587,7 +598,8 @@ html.theme-light {
   font-size: 14px;
   align-items: center;
   gap: 4px;
-  padding: 0 6px 0 2px;
+  padding-block: 0;
+  padding-inline: 2px 6px;
   border-radius: 12px;
   background: var(--trd-chip-bg);
   font-weight: 600;
@@ -624,14 +636,16 @@ html.theme-light {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin: 0 6px 0 4px;
+  margin-block: 0;
+  margin-inline: 4px 6px;
 }
 .trd-trade-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 10px 0 4px;
+  padding-block: 0;
+  padding-inline: 4px 10px;
   border: 0;
   border-radius: 14px;
   background: var(--trd-trade-bg);
@@ -723,8 +737,9 @@ html.theme-light {
   gap: 2px;
   align-self: flex-start;
   height: 24px;
-  margin-left: -4px;
-  padding: 0 2px 0 4px;
+  margin-inline-start: -4px;
+  padding-block: 0;
+  padding-inline: 4px 2px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -782,8 +797,9 @@ html.theme-light {
   align-items: center;
   gap: 3px;
   height: 26px;
-  margin-right: 4px;
-  padding: 0 2px 0 6px;
+  margin-inline-end: 4px;
+  padding-block: 0;
+  padding-inline: 6px 2px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -866,8 +882,8 @@ html.theme-light {
   color: var(--color-cold-gray-300);
 }
 .trd-menu-value {
-  margin-left: auto;
-  padding-left: 24px;
+  margin-inline-start: auto;
+  padding-inline-start: 24px;
   color: var(--trd-menu-muted);
   font-size: 13px;
   font-feature-settings: "tnum", "lnum";
@@ -941,7 +957,7 @@ html.theme-light {
 }
 .trd-preset-desc .trd-menu-info {
   vertical-align: middle;
-  margin-left: 6px;
+  margin-inline-start: 6px;
 }
 .trd-preset-desc.is-bullets {
   color: var(--color-text-primary);
@@ -986,8 +1002,8 @@ html.theme-light {
    1 px #464646 line, padding 16 20; label 14/18, field 34 then 16 below,
    input 14 px; description 16 above the footer. */
 .ot-dlg.trd-preset-dlg { width: 400px; padding: 0; }
-.trd-preset-dlg .ot-dlg-title { margin: 0; padding: 20px 57px 20px 20px; line-height: 28px; }
-.trd-preset-dlg .ot-dlg-close { top: 17px; right: 17px; }
+.trd-preset-dlg .ot-dlg-title { margin: 0; padding-block: 20px; padding-inline: 20px 57px; line-height: 28px; }
+.trd-preset-dlg .ot-dlg-close { top: 17px; inset-inline-end: 17px; }
 .trd-preset-dlg .ot-dlg-content,
 .trd-preset-dlg .ot-dlg-footer { border-top: 1px solid var(--trd-dlg-divider, var(--color-popup-menu-separator)); }
 .trd-preset-dlg .ot-dlg-content { margin: 0; padding: 16px 20px 16px; font-size: 14px; line-height: 18px; }
@@ -1037,8 +1053,10 @@ html.theme-dark .trd-preset-dlg { --trd-dlg-divider: #464646; }
   display: flex;
   flex-flow: row;
   flex: 0 0 auto;
-  padding: 0 32px 0 16px;
-  margin: 12px -16px 0 0;
+  padding-block: 0;
+  padding-inline: 16px 32px;
+  margin-block: 12px 0;
+  margin-inline: 0 -16px;
   overflow: auto hidden;
   scrollbar-width: none;
 }

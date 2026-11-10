@@ -23,7 +23,7 @@
 .scr-split.is-overlay {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 20;
   height: auto;
@@ -112,7 +112,8 @@
   height: 34px;
   min-width: 34px;
   box-sizing: border-box;
-  padding: 0 11px 0 7px;
+  padding-block: 0;
+  padding-inline: 7px 11px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -145,7 +146,7 @@
 }
 .scr-light-btn-text {
   padding: 4px 0;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 }
 .scr-light-btn.is-rotating > span:first-child {
   animation: scr-rotate 0.8s linear infinite;
@@ -176,8 +177,9 @@
   gap: 2px;
   height: 34px;
   box-sizing: border-box;
-  padding: 5px 2px 5px 4px;
-  margin-left: -4px;
+  padding-block: 5px;
+  padding-inline: 4px 2px;
+  margin-inline-start: -4px;
   border-radius: 4px;
   min-width: 0;
   cursor: default;
@@ -303,14 +305,20 @@
   padding: 0 8px;
 }
 .scr-pill.is-active .scr-pill-main {
-  border-radius: 8px 0 0 8px;
-  border-right: 1px solid var(--scr-pill-divider);
+  border-start-start-radius: 8px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-end-start-radius: 8px;
+  border-inline-end: 1px solid var(--scr-pill-divider);
 }
 .scr-pill-x {
   justify-content: center;
   width: 34px;
   flex: 0 0 34px;
-  border-radius: 0 8px 8px 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 8px;
+  border-end-end-radius: 8px;
+  border-end-start-radius: 0;
   color: var(--scr-pill-active-text);
 }
 .scr-pill-main:not(.is-static):hover,
@@ -388,14 +396,14 @@
   padding: 0 7px;
 }
 .scr-sets-btn .scr-light-btn-text {
-  margin-left: 4px;
-  margin-right: 2px;
+  margin-inline-start: 4px;
+  margin-inline-end: 2px;
 }
 .scr-header-controls {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .scr-refresh-wrap {
   position: relative;
@@ -403,7 +411,7 @@
 .scr-counter {
   position: absolute;
   top: -8px;
-  left: 24px;
+  inset-inline-start: 24px;
   z-index: 1;
   display: flex;
   align-items: center;
@@ -431,7 +439,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  margin-left: 20px;
+  margin-inline-start: 20px;
   contain: strict;
 }
 .scr-table {
@@ -452,7 +460,7 @@
   background: var(--color-body-bg);
   border-bottom: 1px solid var(--color-border-primary-neutral-light); /* #4a4a4a */
   font-weight: 400;
-  text-align: left;
+  text-align: start;
   vertical-align: middle;
   cursor: default;
 }
@@ -461,14 +469,16 @@
   align-items: center;
   height: 48px;
   box-sizing: border-box;
-  padding: 0 8px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 8px;
   color: var(--color-content-primary-neutral); /* #8c8c8c */
   line-height: 18px;
 }
 .scr-th.is-right .scr-th-wrap {
   justify-content: flex-end;
-  padding: 0 12px 0 8px;
-  text-align: right;
+  padding-block: 0;
+  padding-inline: 8px 12px;
+  text-align: end;
 }
 .scr-th:hover .scr-th-wrap,
 .scr-th.is-menu .scr-th-wrap {
@@ -525,13 +535,14 @@
 .scr-th-symbol,
 .scr-td-symbol {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
 }
 .scr-th-symbol {
   z-index: 3;
 }
 .scr-th-symbol .scr-th-wrap {
-  padding: 0 16px 0 20px;
+  padding-block: 0;
+  padding-inline: 20px 16px;
 }
 .scr-th-symbol-data {
   display: grid;
@@ -557,7 +568,7 @@
 }
 .scr-th-setup {
   position: sticky;
-  right: 0;
+  inset-inline-end: 0;
   z-index: 3;
   padding: 0 2px;
   text-align: center;
@@ -591,11 +602,12 @@
   text-overflow: ellipsis;
 }
 .scr-td.is-right {
-  text-align: right;
+  text-align: end;
 }
 .scr-td-symbol {
   z-index: 1;
-  padding: 0 12px 0 20px;
+  padding-block: 0;
+  padding-inline: 20px 12px;
   overflow: visible;
   background: var(--color-body-bg);
 }
@@ -614,7 +626,7 @@ html.theme-light .scr-tr.is-selected > .scr-td {
   content: "";
   position: absolute;
   top: 0;
-  right: -6px;
+  inset-inline-end: -6px;
   width: 6px;
   height: 100%;
   background-image: linear-gradient(to right, #43465154, #43465100);
@@ -633,7 +645,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 }
 .scr-row-flag {
   position: absolute;
-  left: -20px;
+  inset-inline-start: -20px;
   display: flex;
   width: 15px;
   height: 24px;
@@ -704,8 +716,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-empty {
   position: absolute;
   top: 90px;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   text-align: center;
   color: var(--color-content-primary-neutral);
   font-size: 16px;
@@ -765,7 +776,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   display: flex;
   flex: 0 0 28px;
   height: 28px;
-  margin-right: 4px;
+  margin-inline-end: 4px;
 }
 .scr-item-flag {
   display: flex;
@@ -864,7 +875,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-stepper {
   display: flex;
   flex-direction: column;
-  margin-right: 2px;
+  margin-inline-end: 2px;
 }
 .scr-stepper button {
   display: flex;
@@ -893,7 +904,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   width: 18px;
   height: 18px;
   box-sizing: border-box;
-  margin: 0 6px 0 4px;
+  margin-block: 0;
+  margin-inline: 4px 6px;
   border: 1px solid var(--color-container-fill-primary-neutral-extra-bold);
   border-radius: 3px;
 }
@@ -920,7 +932,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   line-height: 18px;
 }
 .scr-editor-title {
-  padding: 5px 0 5px 4px;
+  padding-block: 5px;
+  padding-inline: 4px 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -940,7 +953,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 8px;
-  padding: 0 0 0 4px;
+  padding-block: 0;
+  padding-inline: 4px 0;
 }
 .scr-editor-params--target {
   padding: 0;
@@ -1017,7 +1031,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   font: inherit;
   font-size: 14px;
   line-height: 18px;
-  text-align: left;
+  text-align: start;
 }
 .scr-select:hover,
 .scr-select.is-open {
@@ -1025,11 +1039,11 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 }
 .scr-select-icon {
   display: flex;
-  margin-right: 4px;
+  margin-inline-end: 4px;
 }
 .scr-select-label {
   flex: 1 1 auto;
-  padding-right: 6px;
+  padding-inline-end: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1109,7 +1123,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 }
 .scr-open-search-icon {
   position: absolute;
-  left: 15px;
+  inset-inline-start: 15px;
   top: 6px;
   display: inline-flex;
   color: var(--color-cold-gray-350);
@@ -1119,7 +1133,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   box-sizing: border-box;
   width: 100%;
   height: 40px;
-  padding: 8px 16px 8px 47px;
+  padding-block: 8px;
+  padding-inline: 47px 16px;
   font-size: 16px;
   color: var(--color-cold-gray-350);
 }
@@ -1175,7 +1190,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   display: grid;
   grid-auto-flow: column;
   gap: 8px;
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 .scr-open-action {
   all: unset;
@@ -1206,7 +1221,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   border-radius: 50%;
   background: var(--color-container-fill-primary-neutral-extra-light);
   color: var(--color-content-primary-neutral-light);
@@ -1272,7 +1287,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   cursor: default;
 }
 .sscr-block-btn + .sscr-block-btn {
-  border-left: 1px solid var(--color-border-primary-neutral-light);
+  border-inline-start: 1px solid var(--color-border-primary-neutral-light);
 }
 .sscr-block-btn.is-icon {
   padding: 0 7px;
@@ -1299,7 +1314,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 /* Scan: the primary light button (#f2f2f2 / black text). */
 .sscr-scan-btn {
   gap: 6px;
-  padding: 0 12px 0 10px;
+  padding-block: 0;
+  padding-inline: 10px 12px;
   background-color: var(--color-container-fill-primary-neutral-extra-bold); /* #f2f2f2 */
   color: var(--color-content-primary-inverse); /* #000 */
 }
@@ -1319,7 +1335,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 }
 .sscr-name {
   min-width: 0;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-content-primary-neutral-bold);
@@ -1361,7 +1377,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   align-items: center;
   gap: 8px;
   height: 40px;
-  padding: 0 8px 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 8px;
   border-radius: 6px;
   background-color: var(--color-container-fill-primary-neutral-light); /* #3d3d3d */
   color: var(--color-content-primary-neutral-bold);
@@ -1462,7 +1479,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 
 /* Market popover: the "Primary listing" switch at the row end. */
 .scr-market-primary .switch-view {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Length "Custom…" row under the options (EMA, SMA, RSI). */
@@ -1493,7 +1510,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 
 /* Screen menu "Autosave": the switch at the row end. */
 .scr-autosave .switch-view {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .scr-autosave.is-disabled {
   opacity: 0.5;
@@ -1513,8 +1530,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   padding: 0 7px;
 }
 .scr-view-tool .scr-light-btn-text {
-  margin-left: 4px;
-  margin-right: 2px;
+  margin-inline-start: 4px;
+  margin-inline-end: 2px;
 }
 .scr-view-tool.is-icon-only {
   padding: 0 3px;
@@ -1551,15 +1568,15 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  margin: 0 12px 0 20px;
+  margin-block: 0;
+  margin-inline: 20px 12px;
 }
 .scr-charts-inner {
   position: relative;
 }
 .scr-charts-line {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   display: grid;
   gap: 8px;
   padding-bottom: 8px;
@@ -1749,7 +1766,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   opacity: 0.35;
 }
 .scr-heat-depth {
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 
 /* ── Narrow screener (the reference app's container breakpoints, see ScreenerPanel `narrow` / `roomy`) ──────── */
@@ -1780,13 +1797,13 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-head-row.is-row .scr-control-panel {
   flex: 1 1 auto;
   min-width: 0;
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 .scr-filters-btn-wrap {
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
-  margin-left: 20px;
+  margin-inline-start: 20px;
 }
 .scr-head-row.is-stacked .scr-filters-btn-wrap {
   display: flex;
@@ -1797,17 +1814,18 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   justify-content: center;
 }
 .scr-filters-btn .scr-light-btn-text {
-  margin-left: 4px;
+  margin-inline-start: 4px;
 }
 /* Its count: the active filters, the market, the watchlist. */
 .scr-filters-counter {
   top: -4px;
-  left: auto;
-  right: -4px;
+  inset-inline-start: auto;
+  inset-inline-end: -4px;
   box-shadow: 0 0 0 1px var(--color-body-bg);
 }
 .scr-control-divider.scr-control-divider--pills {
-  margin: 0 12px 0 4px;
+  margin-block: 0;
+  margin-inline: 4px 12px;
 }
 
 /* ── Filters dialog (480 × 600, the reference app) ───────────────────────────────────────── */
@@ -1852,7 +1870,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   flex: 1 1 auto;
 }
 .scr-pills.is-dialog .scr-pill-caret {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .scr-filters-divider {
   flex-shrink: 0;
@@ -1894,7 +1912,7 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  margin-left: 8px;
+  margin-inline-start: 8px;
 }
 .scr-sqtab {
   display: inline-grid;
@@ -1948,7 +1966,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   grid-area: 1 / 2;
   width: 18px;
   height: 18px;
-  margin: 0 -4px 0 4px;
+  margin-block: 0;
+  margin-inline: 4px -4px;
   transition: transform 0.35s;
 }
 .scr-sqtab-arrow.is-open {

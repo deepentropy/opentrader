@@ -16,8 +16,8 @@
 
 /* Manage-mode checked count, between the mode toggle and the bulk actions. */
 .object-tree-toolbar-count {
-  margin-left: 6px;
-  margin-right: 2px;
+  margin-inline-start: 6px;
+  margin-inline-end: 2px;
   font-size: 11px;
   color: var(--color-content-primary-neutral);
   white-space: nowrap;
@@ -75,7 +75,7 @@
 
 /* Grouped rows indent under their header. */
 .object-tree-row.in-group {
-  padding-left: 22px;
+  padding-inline-start: 22px;
 }
 
 /* ── Data window view ─────────────────────────────────────────────────────── */
@@ -143,7 +143,7 @@
   cursor: default;
   color: var(--color-toolbar-button-text);
   background: transparent;
-  border-left: 2px solid transparent;
+  border-inline-start: 2px solid transparent;
 }
 
 .object-tree-row:hover {
@@ -170,7 +170,7 @@
 
 .object-tree-row.selected {
   background-color: var(--color-toolbar-button-background-hover);
-  border-left-color: var(--color-toolbar-button-text-active);
+  border-inline-start-color: var(--color-toolbar-button-text-active);
 }
 
 /* Chart-source row sits at the top of the tree and reads as the heading for

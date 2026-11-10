@@ -68,7 +68,7 @@
 .tj-summary {
   display: flex;
   gap: 14px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .tj-muted {
   color: var(--color-text-secondary);
@@ -102,7 +102,7 @@
   text-overflow: ellipsis;
 }
 .tj-th:first-child {
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 .tj-th.is-end {
   text-align: end;
@@ -124,8 +124,7 @@
 .tj-row,
 .tj-group {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   height: 32px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--color-divider-hover);
@@ -153,7 +152,7 @@
   overflow: hidden;
 }
 .tj-td:first-child {
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 .tj-td.is-end {
   justify-content: flex-end;
@@ -185,7 +184,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding-left: 12px;
+  padding-inline-start: 12px;
   background: var(--color-bg-secondary);
   min-width: 1300px;
   font-weight: 600;
@@ -238,7 +237,7 @@
   color: var(--color-text-secondary);
 }
 .tj-required {
-  margin-left: 2px;
+  margin-inline-start: 2px;
   color: var(--color-ripe-red-500);
 }
 .tj-section-title {

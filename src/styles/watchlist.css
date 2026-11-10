@@ -38,7 +38,7 @@
   gap: 4px;
   /* Bleed left so the hover pill extends past the label while the marker stays
    * on the grid. */
-  margin-left: -8px;
+  margin-inline-start: -8px;
   padding: 0 8px;
   height: 28px;
   background: transparent;
@@ -105,7 +105,7 @@
   min-width: 0;
   box-sizing: border-box;
   height: 28px;
-  margin-left: -8px;
+  margin-inline-start: -8px;
   padding: 0 6px;
   font: inherit;
   font-size: 14px;
@@ -195,7 +195,8 @@
   display: grid;
   grid-template-columns: 1fr 70px 60px 50px;
   align-items: center;
-  padding: 0 12px 0 0;
+  padding-block: 0;
+  padding-inline: 0 12px;
   gap: 4px;
   border-bottom: 1px solid var(--color-divider-line-primary);
   /* Labels are --color-text-secondary (#8c8c8c): the header CELL computes
@@ -223,7 +224,7 @@
    * outside the cell (right:-12px) where a clip would hide it. */
 }
 .watchlist-column-header:last-child {
-  padding-right: 4px;
+  padding-inline-end: 4px;
 }
 
 /* Column divider — an 8px ew-resize grab area centred 4px right of the
@@ -270,7 +271,7 @@
   position: absolute;
   bottom: 0;
   width: 2px;
-  margin-left: -1px;
+  margin-inline-start: -1px;
   background-color: var(--color-ot-blue-a900);
   z-index: 50;
   pointer-events: none;
@@ -284,7 +285,7 @@ html.theme-light .watchlist-col-guide {
  * below. */
 .watchlist-column-flag {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 50%;
   width: 12px;
   height: 26px;
@@ -318,16 +319,16 @@ html.theme-light .watchlist-col-guide {
 }
 
 .watchlist-column-symbol {
-  text-align: left;
+  text-align: start;
   /* "Symbol" starts at 16px (12px flag gutter + 4px cell padding), the
    * same x as the row logo below. */
-  padding-left: 16px;
+  padding-inline-start: 16px;
 }
 
 .watchlist-column-last,
 .watchlist-column-changePercent,
 .watchlist-column-prePost {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
@@ -385,7 +386,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-sort-reset-wrap {
   position: absolute;
   top: 2px;
-  right: 0;
+  inset-inline-end: 0;
   height: 24px;
 }
 .watchlist-sort-reset {
@@ -428,7 +429,8 @@ html.theme-light .watchlist-col-guide {
   align-items: center;
   /* No left padding: the symbol cell insets itself past the 15px flag gutter;
    * the 8px right padding keeps the numeric cells off the edge. */
-  padding: 0 8px 0 0;
+  padding-block: 0;
+  padding-inline: 0 8px;
   gap: 4px;
   /* Row cells are 14px/18px; without it the numeric cells inherit the
    * body line-height and sit 1px below the ticker. */
@@ -487,7 +489,7 @@ html.theme-light .watchlist-col-guide {
   gap: 6px;
   min-width: 0;
   /* Tickers begin at ~16px, clearing the 15px left flag gutter. */
-  padding-left: 16px;
+  padding-inline-start: 16px;
 }
 
 /* Left-edge colour flag in the row's 15px gutter; a 12px flag SVG tinted by
@@ -495,7 +497,7 @@ html.theme-light .watchlist-col-guide {
  * button. */
 .watchlist-row > .watchlist-flag {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   bottom: 0;
   width: 13px;
@@ -533,13 +535,13 @@ html.theme-light .watchlist-col-guide {
 }
 
 .watchlist-last {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
 .watchlist-change-percent,
 .watchlist-prepost {
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
   /* Regular weight throughout the table (14px/400). */
   font-weight: 400;
@@ -614,7 +616,7 @@ html.theme-light .watchlist-col-guide {
 
 /* Renaming — hides the chevron + trash and shifts the edit zone to 8px. */
 .watchlist-group.renaming {
-  padding-left: 8px;
+  padding-inline-start: 8px;
 }
 .watchlist-group.renaming .watchlist-group-expand,
 .watchlist-group.renaming .watchlist-group-delete {
@@ -643,7 +645,7 @@ html.theme-light .watchlist-col-guide {
 /* Delete-section trash: shown while the pointer is over the header. */
 .watchlist-group-delete {
   position: absolute;
-  right: 6px;
+  inset-inline-end: 6px;
   top: 10px;
   display: none;
   align-items: center;
@@ -678,7 +680,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-settings {
   position: absolute;
   top: 44px;
-  right: 8px;
+  inset-inline-end: 8px;
   width: 222px;
   z-index: 60;
 }
@@ -857,7 +859,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-sort-menu {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
+  inset-inline-end: 0;
   z-index: 70;
   min-width: 168px;
   padding: 4px;
@@ -877,7 +879,7 @@ html.theme-light .watchlist-col-guide {
   color: var(--color-main-text);
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   border-radius: 4px;
   cursor: default;
 }
@@ -891,7 +893,8 @@ html.theme-light .watchlist-col-guide {
 .watchlist-sort-item-icon {
   display: inline-flex;
   flex-shrink: 0;
-  margin: -6px 0 -6px -4px;
+  margin-block: -6px;
+  margin-inline: -4px 0;
 }
 .watchlist-sort-item-icon svg {
   display: block;
@@ -911,7 +914,8 @@ html.theme-light .watchlist-col-guide {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 16px;
+  padding-block: 0;
+  padding-inline: 16px 8px;
   border-bottom: 1px solid var(--color-border-table);
   cursor: default;
 }
@@ -949,7 +953,7 @@ html.theme-light .watchlist-col-guide {
   color: var(--color-main-text);
 }
 .watchlist-tile-last {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 14px;
   color: var(--color-main-text);
   font-variant-numeric: tabular-nums;
@@ -973,7 +977,7 @@ html.theme-light .watchlist-col-guide {
 }
 .watchlist-tile-pct {
   min-width: 48px;
-  text-align: right;
+  text-align: end;
 }
 .watchlist-tile-change.up,
 .watchlist-tile-pct.up {
@@ -986,7 +990,7 @@ html.theme-light .watchlist-col-guide {
 /* The flag marker + hover trash are shared with the table row. */
 .watchlist-tile > .watchlist-flag {
   position: absolute;
-  left: 2px;
+  inset-inline-start: 2px;
   top: 0;
   bottom: 0;
   width: 13px;
@@ -1008,7 +1012,7 @@ html.theme-light .watchlist-col-guide {
  * table row and the tile row. */
 .watchlist-row-remove {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 50%;
   transform: translateY(-50%);
   display: none;
@@ -1038,7 +1042,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-menu {
   position: absolute;
   top: 44px;
-  left: 8px;
+  inset-inline-start: 8px;
   width: 210px;
   z-index: 60;
 }
@@ -1085,8 +1089,8 @@ html.theme-light .watchlist-col-guide {
 .watchlist-menu-star {
   display: inline-flex;
   align-items: center;
-  margin-left: auto;
-  padding-left: 12px;
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
   color: var(--color-content-primary-neutral);
   cursor: pointer;
   border-radius: 4px;
@@ -1164,7 +1168,7 @@ html.theme-light .watchlist-col-guide {
   color: var(--color-toolbar-button-text);
   font: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .wl-lm-tab:hover {
@@ -1187,7 +1191,8 @@ html.theme-light .watchlist-col-guide {
   display: flex;
   justify-content: flex-end;
   height: 26px;
-  padding: 0 88px 0 0;
+  padding-block: 0;
+  padding-inline: 0 88px;
 }
 .wl-lm-colhead-symbols {
   font-size: 11px;
@@ -1276,7 +1281,7 @@ html.theme-light .watchlist-col-guide {
 .wl-lm-count {
   flex-shrink: 0;
   width: 48px;
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 .wl-lm-actions {
@@ -1392,7 +1397,7 @@ html.theme-light .watchlist-col-guide {
   color: inherit;
   font: inherit;
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: default;
 }
 .wl-dialog-row:hover {
@@ -1438,7 +1443,7 @@ html.theme-light .watchlist-col-guide {
 .wl-dialog-row-count {
   flex-shrink: 0;
   width: 60px;
-  text-align: right;
+  text-align: end;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--color-default-gray);
@@ -1585,7 +1590,7 @@ html.theme-light .watchlist-col-guide {
 }
 .wl-dialog-field .wl-dialog-input {
   width: 96px;
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 .wl-dialog-suffix {
@@ -1637,7 +1642,7 @@ html.theme-light .watchlist-col-guide {
 /* Transient toast — share confirmation / alert firing. */
 .watchlist-toast {
   position: fixed;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: 16px;
   z-index: 210;
   max-width: 300px;
@@ -1662,7 +1667,7 @@ html.theme-light .watchlist-col-guide {
   width: 160px;
 }
 .watchlist-ctx-menu .ot-menu-item {
-  padding-right: 12px;
+  padding-inline-end: 12px;
 }
 .watchlist-ctx-menu .ot-menu-item__icon svg {
   width: 16px;
@@ -1671,7 +1676,7 @@ html.theme-light .watchlist-col-guide {
 /* Trailing submenu chevron (the shared menuArrow points down; rotate it to
  * point right like a submenu indicator). */
 .ot-menu-item__submenu-arrow {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: inline-flex;
   align-items: center;
   opacity: 0.7;
@@ -1688,7 +1693,7 @@ html.theme-light .watchlist-col-guide {
   display: flex;
   align-items: center;
   height: 32px;
-  padding-left: 36px;
+  padding-inline-start: 36px;
 }
 .watchlist-ctx-flag-swatch {
   display: inline-flex;
@@ -1743,7 +1748,7 @@ html.theme-light .watchlist-col-guide {
 .watchlist-ctx-menu .watchlist-ctx-list-row {
   grid-template-columns: auto 1fr;
   gap: 8px;
-  padding-left: 12px;
+  padding-inline-start: 12px;
 }
 .watchlist-ctx-check {
   display: inline-flex;
