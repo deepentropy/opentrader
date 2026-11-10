@@ -69,3 +69,11 @@ from the code, the built-in studies and `src/i18n/tools/run-time-texts.ts`.
   accented, a third longer and between markers ⟦…⟧: text without them is left in English. With the dev app running
   with CDP, `npm run i18n:walk -- 9231` walks its screens, menus, dialogs and panels in it and writes the English left
   on screen, the cut text and the misses to `.tmp/i18n-walk/` (report.md, screenshots), then puts the app back.
+- Right to left: the page's `dir` is the language's. CSS uses start/end (`margin-inline-start`, `inset-inline-end`,
+  `text-align: start`); left/right only for what keeps its side: the panels' places and their outer edges and resize
+  handles, the chart and what sits over it (`src/styles/rtl.css` holds those rules). Code that places a menu or
+  popover uses `src/components/reading-direction.ts` (`fitToWindow` and `createPopover` already do). An icon that
+  points along the reading direction (back, submenu chevron, expander) takes `ot-flip-rtl`; undo/redo, replay, logos
+  and drawing tools don't. A value shown inside text (price, percent, volume, time) is isolated: the `ot-value`
+  class (`src/styles/rtl.css`). Check with the dev build's pseudo-language "English, right to left (test)"
+  (`en-XB`, `src/i18n/pseudo-rtl.ts`): the English words in right-to-left order inside ⟦ ⟧.
