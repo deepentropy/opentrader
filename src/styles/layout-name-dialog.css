@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ot-backdrop);
 }
 
 /* .ot-popover supplies bg + radius + shadow; width/layout overridden here. */
@@ -159,7 +159,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ot-backdrop);
 }
 
 .layout-browser {
@@ -168,10 +168,10 @@
   max-height: calc(100vh - 120px);
   display: flex;
   flex-direction: column;
-  background: var(--color-popup-background, var(--color-bg-primary));
-  border: 1px solid var(--color-widget-border, #2e2e2e);
+  background: var(--color-popup-background);
+  border: 1px solid var(--color-widget-border);
   border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 28px var(--ot-shadow-50);
   color: var(--color-text-primary);
   user-select: none;
   overflow: hidden;
@@ -250,7 +250,7 @@
   background: var(--color-bg-primary-hover);
 }
 .layout-browser-row.active {
-  background: var(--color-popup-element-background-hover, rgba(255, 255, 255, 0.08));
+  background: var(--color-popup-element-background-hover);
 }
 
 .layout-browser-row-favorite {
@@ -265,7 +265,7 @@
   margin: 0 4px 0 6px;
   border-radius: 4px;
   cursor: default;
-  color: var(--color-popup-element-toolbox-text, grey);
+  color: var(--color-popup-element-toolbox-text);
   opacity: 0;
 }
 .layout-browser-row:hover .layout-browser-row-favorite,
@@ -273,12 +273,12 @@
   opacity: 1;
 }
 .layout-browser-row-favorite:hover {
-  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
-  color: var(--color-popup-element-toolbox-text-hover, #dbdbdb);
+  background-color: var(--color-container-fill-primary-neutral-normal);
+  color: var(--color-popup-element-toolbox-text-hover);
 }
 .layout-browser-row-favorite.is-favorite {
   opacity: 1;
-  color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  color: var(--color-container-fill-primary-neutral-extra-bold);
 }
 
 .layout-browser-row-main {
@@ -332,7 +332,7 @@
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-brand, #2962ff);
+  color: var(--color-brand);
   padding-right: 4px;
 }
 
@@ -353,6 +353,6 @@
   opacity: 1;
 }
 .layout-browser-row-delete:hover {
-  color: var(--color-red, #f23645);
+  color: var(--color-ripe-red-500);
   background-color: var(--color-bg-primary);
 }

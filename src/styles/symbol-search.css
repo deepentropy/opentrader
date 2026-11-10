@@ -20,7 +20,7 @@
 .symbol-search-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ot-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -35,10 +35,10 @@
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   display: flex;
   flex-direction: column;
-  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-family: var(--font-family-base);
   font-size: 14px;
   overflow: hidden;
 }
@@ -105,7 +105,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -125,7 +125,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   flex-shrink: 0;
 }
 
@@ -149,7 +149,7 @@
 }
 
 .symbol-search-input::placeholder {
-  color: var(--color-cold-gray-500, #707070);
+  color: var(--color-cold-gray-500);
   text-transform: none;
 }
 
@@ -177,7 +177,7 @@
   border: 1px solid var(--color-divider-hover);
   border-radius: 14px;
   background-color: var(--color-bg-primary-hover);
-  color: var(--color-toolbar-button-text, #dbdbdb);
+  color: var(--color-toolbar-button-text);
   font-family: inherit;
   font-size: 14px;
   font-weight: 400;
@@ -193,8 +193,8 @@
 
 .symbol-search-tab.selected {
   border-color: var(--ot-strong);
-  background-color: rgb(242, 242, 242);
-  color: rgb(15, 15, 15);
+  background-color: var(--color-cold-gray-100);
+  color: var(--color-cold-gray-900);
 }
 
 /* ── Filter chips strip (All tab) ───────────────────────────────────────── */
@@ -250,7 +250,7 @@
   background-color: var(--color-bg-primary-hover);
   border: 1px solid var(--color-divider);
   border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--ot-shadow-50);
 }
 
 .symbol-search-type-option {
@@ -273,12 +273,12 @@
 }
 
 .symbol-search-type-option.selected {
-  color: var(--color-ot-blue, #2962ff);
+  color: var(--color-brand);
 }
 
 /* Dropdown caret on the Type chip. */
 .symbol-search-filter-caret {
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   flex-shrink: 0;
 }
 .symbol-search-filter[aria-expanded="true"] .symbol-search-filter-caret {
@@ -291,8 +291,8 @@
   display: inline-flex;
   align-items: stretch;
   border-radius: 8px;
-  background-color: rgb(242, 242, 242);
-  color: rgb(87, 87, 87);
+  background-color: var(--color-cold-gray-100);
+  color: var(--color-cold-gray-650);
 }
 .symbol-search-filter-pill button {
   border: 0;
@@ -307,7 +307,7 @@
   padding: 0 12px;
   gap: 4px;
   border-radius: 8px 0 0 8px;
-  color: rgb(0, 0, 0) !important;
+  color: var(--color-black) !important;
   font-size: 14px;
   font-weight: 600;
 }
@@ -316,7 +316,7 @@
   justify-content: center;
   padding: 0;
   border-radius: 0 8px 8px 0;
-  border-left: 1px solid rgb(219, 219, 219) !important;
+  border-left: 1px solid var(--color-cold-gray-200) !important;
 }
 .symbol-search-filter-pill button:hover {
   background-color: rgb(224, 224, 224);
@@ -340,7 +340,7 @@
   background-color: var(--color-bg-primary);
   border: 0;
   border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
 }
 .symbol-search-filter-menu .symbol-search-type-option {
   height: 32px;
@@ -349,8 +349,8 @@
   font-size: 14px;
 }
 .symbol-search-filter-menu .symbol-search-type-option.selected {
-  background-color: rgb(242, 242, 242);
-  color: rgb(15, 15, 15);
+  background-color: var(--color-cold-gray-100);
+  color: var(--color-cold-gray-900);
 }
 
 /* Economy countries panel: covers the dialog, regions in two columns. */
@@ -384,7 +384,7 @@
 .symbol-search-panel-search-icon {
   position: absolute;
   left: 14px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 .symbol-search-panel-input {
   flex: 1;
@@ -414,7 +414,7 @@
   font-size: 11px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 .symbol-search-panel-grid {
   display: grid;
@@ -441,8 +441,8 @@
   background-color: var(--color-bg-primary-hover);
 }
 .symbol-search-panel-item.selected {
-  background-color: rgb(242, 242, 242);
-  color: rgb(0, 0, 0);
+  background-color: var(--color-cold-gray-100);
+  color: var(--color-black);
 }
 .symbol-search-panel-icon,
 .symbol-search-panel-flag {
@@ -496,7 +496,7 @@
 .symbol-search-none-text { margin: 0 20px; font-size: 18px; line-height: 28px; }
 .symbol-search-other { margin: 0 20px 12px; font-size: 18px; line-height: 24px; font-weight: 600; }
 .symbol-search-other b { font-weight: 700; }
-.symbol-search-other-token { color: #2962ff; }
+.symbol-search-other-token { color: var(--color-brand); }
 .symbol-search-other-count { margin: 0 20px; font-size: 14px; line-height: 18px; }
 .symbol-search-show-me {
   all: unset;
@@ -505,7 +505,7 @@
   height: 34px;
   padding: 0 11px;
   border-radius: 6px;
-  background: var(--color-container-fill-primary-neutral-light, #1a1a1a);
+  background: var(--color-container-fill-primary-neutral-light);
   color: var(--color-text-primary);
   font-size: 16px;
   line-height: 24px;
@@ -671,7 +671,7 @@
 
 .symbol-search-title-cell em {
   font-style: normal;
-  color: var(--color-ot-blue, #2962ff);
+  color: var(--color-brand);
 }
 
 /* ── Description cell (middle) ────────────────────────────────── */
@@ -685,7 +685,7 @@
 
 .symbol-search-desc-cell em {
   font-style: normal;
-  color: var(--color-ot-blue, #2962ff);
+  color: var(--color-brand);
 }
 
 /* ── Exchange cell (right) ────────────────────────────────────── */
@@ -717,7 +717,7 @@
 .symbol-search-primary-icon {
   display: inline-flex;
   align-items: center;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 
 .symbol-search-flag {
@@ -781,19 +781,19 @@
   margin-inline-end: 8px;
   border-radius: 4px;
   background-color: var(--color-bg-primary);
-  color: var(--color-popup-element-toolbox-text, grey);
+  color: var(--color-popup-element-toolbox-text);
   cursor: pointer;
 }
 .symbol-search-action:hover {
-  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
-  color: var(--color-popup-element-toolbox-text-hover, #dbdbdb);
+  background-color: var(--color-container-fill-primary-neutral-normal);
+  color: var(--color-popup-element-toolbox-text-hover);
 }
 .symbol-search-action.is-add,
 .symbol-search-action.is-add:hover {
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
 }
 .symbol-search-action.is-remove:hover {
-  color: var(--color-ripe-red-500, #f23645);
+  color: var(--color-ripe-red-500);
 }
 .symbol-search-action svg {
   display: block;
@@ -810,12 +810,12 @@ html.theme-light .symbol-search-row.is-flashed {
 }
 @keyframes symbol-search-flash {
   50% {
-    background-color: var(--color-ot-blue-a900, #132042);
+    background-color: var(--color-ot-blue-a900);
   }
 }
 @keyframes symbol-search-flash-light {
   50% {
-    background-color: var(--color-ot-blue-50, #e3effd);
+    background-color: var(--color-ot-blue-50);
   }
 }
 
@@ -875,12 +875,12 @@ html.theme-light .symbol-search-row.is-flashed {
 }
 
 .header-toolbar-widget.is-symbol:hover {
-  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
-  color: var(--color-toolbar-button-text-hover, #fff);
+  background-color: var(--color-toolbar-button-background-hover);
+  color: var(--color-toolbar-button-text-hover);
 }
 
 .header-toolbar-widget.is-symbol.is-open {
-  background-color: var(--color-toolbar-opened-element-bg, #2e2e2e);
+  background-color: var(--color-toolbar-opened-element-bg);
 }
 
 /* ── Compare symbols dialog ([data-name="compare-dialog"]) ────────────────
@@ -895,7 +895,7 @@ html.theme-light .symbol-search-row.is-flashed {
   padding: 16px 20px 8px;
   font-size: 11px;
   line-height: 16px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   text-transform: uppercase;
 }
 .symbol-search-list.is-compare .cmp-search-row {
@@ -925,7 +925,7 @@ html.theme-light .symbol-search-row.is-flashed {
 .cmp-search-desc {
   font-size: 12px;
   line-height: 17px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -933,7 +933,7 @@ html.theme-light .symbol-search-row.is-flashed {
 .cmp-search-ticker em,
 .cmp-search-desc em {
   font-style: normal;
-  color: var(--color-ot-blue, #2962ff);
+  color: var(--color-brand);
 }
 .cmp-search-exchange {
   display: grid;

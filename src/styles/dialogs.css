@@ -28,7 +28,7 @@
   padding: 40px 0 40px;
   border-radius: 6px;
   background: var(--color-bg-primary);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   color: var(--color-text-primary);
   font-family: var(--font-family-base);
   font-size: 14px;
@@ -85,7 +85,7 @@
 }
 .ot-dlg-input-box:focus-within {
   border-color: transparent;
-  box-shadow: inset 0 0 0 2px #2962ff;
+  box-shadow: inset 0 0 0 2px var(--color-brand);
 }
 .ot-dlg-input {
   flex: 1;
@@ -160,8 +160,8 @@
 }
 .ot-dlg-btn.is-secondary { border-color: var(--color-divider); color: var(--ot-text-max); }
 .ot-dlg-btn.is-neutral { background: var(--color-container-fill-primary-neutral-extra-bold); border-color: var(--ot-strong); color: var(--ot-text-inverse); }
-.ot-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
-.ot-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
+.ot-dlg-btn.is-success { background: var(--color-minty-green-500); border-color: var(--color-minty-green-500); color: var(--color-white); }
+.ot-dlg-btn.is-danger { background: var(--color-ripe-red-500); border-color: var(--color-ripe-red-500); color: var(--color-white); }
 .ot-dlg-btn.is-main[aria-disabled="true"] { background: var(--color-container-fill-primary-neutral-light); border-color: var(--color-divider-line-primary); color: var(--color-text-disabled); }
 
 /* "Don't show again" under a confirm text: 16 px gap above, 18 px box, 8 px
@@ -211,7 +211,7 @@
   flex-direction: column;
   border-radius: 6px;
   background: var(--color-popup-background);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   outline: none;
   overflow: hidden;
 }
@@ -245,7 +245,7 @@
   right: 0;
   bottom: -4px;
   height: 4px;
-  background: #2962ff;
+  background: var(--color-brand);
 }
 .ot-emoji-list {
   flex: 1;

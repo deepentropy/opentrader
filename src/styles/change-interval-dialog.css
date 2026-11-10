@@ -11,8 +11,8 @@
   box-sizing: border-box;
   background: var(--color-bg-primary);
   border-radius: 6px;
-  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
-  color: var(--color-main-text, #dbdbdb);
+  box-shadow: 0 2px 4px 0 var(--ot-shadow-40);
+  color: var(--color-main-text);
   font-size: 14px;
   outline: none;
 }
@@ -30,7 +30,7 @@
   max-width: 100%;
 }
 .change-interval-title {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   cursor: default;
   font-size: 20px;
   font-weight: 700;
@@ -68,12 +68,12 @@
   content: "";
   position: absolute;
   inset: -1px;
-  border: 2px solid #2962ff;
+  border: 2px solid var(--color-brand);
   border-radius: 8px;
   pointer-events: none;
 }
 .change-interval-input-wrap.is-danger:focus-within::after {
-  border-color: #f23645;
+  border-color: var(--color-ripe-red-500);
 }
 .change-interval-input {
   flex: 1;
@@ -83,7 +83,7 @@
   border: 0;
   outline: none;
   background: transparent;
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font: inherit;
   font-size: 16px;
   line-height: 24px;
@@ -100,5 +100,5 @@
   white-space: nowrap;
 }
 .change-interval-hint.is-error {
-  color: #f23645;
+  color: var(--color-ripe-red-500);
 }

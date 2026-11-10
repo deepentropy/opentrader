@@ -40,12 +40,12 @@
 }
 .cp3-number.custom-interval-input.has-error,
 .cp3-number.custom-interval-input.has-error:focus-within {
-  border-color: #f23645;
+  border-color: var(--color-ripe-red-500);
 }
 
 .custom-interval-error {
   margin-top: 4px;
-  color: #f23645;
+  color: var(--color-ripe-red-500);
   font-size: 12px;
   line-height: 16px;
 }

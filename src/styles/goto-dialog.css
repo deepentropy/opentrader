@@ -228,7 +228,7 @@
 }
 
 .goto-dialog-input::placeholder {
-  color: var(--color-text-field-placeholder-default, var(--color-default-gray));
+  color: var(--color-text-field-placeholder-default);
 }
 
 .goto-dialog-input-icon {
@@ -599,8 +599,8 @@
 }
 .goto-time-item.is-active,
 .goto-time-item.is-active:hover {
-  color: var(--tv-color-popup-element-text-active, var(--color-content-primary-inverse));
-  background-color: var(--tv-color-popup-element-background-active, var(--color-container-fill-primary-neutral-extra-bold));
+  color: var(--color-content-primary-inverse);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
 }
 
 /* Disabled time field on DWM charts (the reference app ui-lib control, dark theme:

@@ -18,7 +18,7 @@
 .indicators-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ot-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -33,10 +33,10 @@
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-radius: 6px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 18px 50px var(--ot-shadow-60), 0 2px 8px var(--ot-shadow-40);
   display: flex;
   flex-direction: column;
-  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-family: var(--font-family-base);
   font-size: 14px;
   overflow: hidden;
 }
@@ -88,13 +88,13 @@
   align-items: center;
   gap: 4px;
   padding: 0 11px;
-  border: 1px solid var(--color-border-primary-neutral-light, #4a4a4a);
+  border: 1px solid var(--color-border-primary-neutral-light);
   border-radius: 8px;
   box-sizing: border-box;
 }
 
 .indicators-search-wrap:focus-within {
-  border-color: var(--color-ot-blue-500, #2962ff);
+  border-color: var(--color-ot-blue-500);
 }
 
 .indicators-search-icon {
@@ -103,7 +103,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   flex-shrink: 0;
 }
 
@@ -120,7 +120,7 @@
 }
 
 .indicators-search-input::placeholder {
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 
 /* ── Content: sidebar + list ──────────────────────────────────────────── */
@@ -152,7 +152,7 @@
   font-size: 11px;
   font-weight: 400;
   line-height: 16px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   padding: 7px 0 7px 12px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -219,7 +219,7 @@
   font-size: 11px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 
 /* Under the type tabs the header has a smaller top gap (8px vs 16px). */
@@ -272,7 +272,7 @@
 .indicators-empty-body {
   font-size: 13px;
   line-height: 18px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   max-width: 360px;
 }
 
@@ -282,15 +282,15 @@
   padding: 0 16px;
   border: 0;
   border-radius: 8px;
-  background-color: var(--color-ot-blue-500, #2962ff);
-  color: #fff;
+  background-color: var(--color-ot-blue-500);
+  color: var(--color-white);
   font-family: inherit;
   font-size: 14px;
   cursor: pointer;
 }
 
 .indicators-empty-action:hover {
-  background-color: var(--color-ot-blue-600, #1e53e5);
+  background-color: var(--color-ot-blue-600);
 }
 
 .indicators-list {
@@ -348,7 +348,7 @@ html.theme-light {
   letter-spacing: 0.4px;
   text-transform: uppercase;
   white-space: nowrap;
-  color: var(--color-default-gray, #8c8c8c);
+  color: var(--color-default-gray);
 }
 
 .indicators-list.has-filters .indicators-section-title {
@@ -363,7 +363,7 @@ html.theme-light {
 
 /* Letters matching the search. */
 .indicators-hit {
-  color: var(--color-brand, #2962ff);
+  color: var(--color-brand);
 }
 
 /* Registry-backed rows are clickable (each click adds the study). */
@@ -397,7 +397,7 @@ html.theme-light {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 
 .indicators-favorite.is-active {
@@ -438,7 +438,7 @@ html.theme-light {
 
 /* Author: plain text (no author pages here). */
 .indicators-author {
-  color: var(--color-main-text, #dbdbdb);
+  color: var(--color-main-text);
   font-size: 14px;
 }
 
@@ -492,7 +492,7 @@ html.theme-light {
   font-size: 11px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
 }
 
 .indicators-fund-list {

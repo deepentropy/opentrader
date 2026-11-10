@@ -18,9 +18,9 @@
   max-width: 480px;
   max-height: calc(100% - 20px);
   overflow: hidden;
-  background-color: var(--color-popup-background, #1f1f1f);
+  background-color: var(--color-popup-background);
   border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   cursor: default;
   font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   user-select: none;
@@ -32,7 +32,7 @@
   flex-direction: column;
   min-width: 0;
   margin: 40px 0 40px 40px;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .unsaved-layout-title {
@@ -74,7 +74,7 @@
   outline: none;
 }
 .unsaved-layout-btn:focus-visible {
-  outline: 2px solid var(--color-ot-blue-500, #2962ff);
+  outline: 2px solid var(--color-ot-blue-500);
   outline-offset: 2px;
 }
 /* black primary: #F2F2F2 fill, dark text; hover #DBDBDB. */
@@ -119,7 +119,7 @@
   height: 34px;
   margin: 8px 8px 0 -2px;
   border-radius: 8px;
-  color: var(--color-text-primary, #dbdbdb);
+  color: var(--color-text-primary);
   cursor: default;
 }
 .unsaved-layout-close:hover {

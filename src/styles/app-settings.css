@@ -8,7 +8,7 @@
 .app-settings-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--ot-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,10 +23,10 @@
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   border-radius: 6px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 18px 50px var(--ot-shadow-60), 0 2px 8px var(--ot-shadow-40);
   display: flex;
   flex-direction: column;
-  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-family: var(--font-family-base);
   font-size: 14px;
   overflow: hidden;
 }
@@ -52,7 +52,7 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: var(--color-cold-gray-400, #a3a6af);
+  color: var(--color-cold-gray-400);
   border-radius: 50%;
   cursor: pointer;
 }
@@ -122,7 +122,7 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-cold-gray-400, #8c8c8c);
+  color: var(--color-cold-gray-400);
   margin-bottom: 10px;
 }
 .app-settings-section-content {
@@ -149,15 +149,15 @@
   width: 16px;
   height: 16px;
   border-radius: 3px;
-  border: 1px solid var(--color-cold-gray-500, #6a6d78);
+  border: 1px solid var(--color-cold-gray-500);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-white);
 }
 .app-settings-checkbox.is-checked {
-  background: var(--color-accent, #2962ff);
-  border-color: var(--color-accent, #2962ff);
+  background: var(--color-brand);
+  border-color: var(--color-brand);
 }
 .app-settings-check-label {
   font-size: 14px;
@@ -306,8 +306,8 @@
 .app-settings-btn:hover { background: var(--color-container-fill-primary-neutral-normal); }
 .app-settings-btn:disabled { opacity: 0.5; cursor: default; }
 /* Armed state of the two-click confirm buttons (Clear cache / Factory reset). */
-.app-settings-btn.is-armed { background: var(--color-ripe-red-500, #f23645); color: #fff; }
-.app-settings-btn.is-armed:hover { background: var(--color-ripe-red-400, #f7525f); }
+.app-settings-btn.is-armed { background: var(--color-ripe-red-500); color: var(--color-white); }
+.app-settings-btn.is-armed:hover { background: var(--color-ripe-red-400); }
 
 /* Field (label above control) */
 .app-settings-field {
@@ -355,7 +355,7 @@
   word-break: break-all;
   user-select: text;
 }
-.app-settings-field-error { font-size: 13px; color: var(--color-ripe-red-500, #f23645); }
+.app-settings-field-error { font-size: 13px; color: var(--color-ripe-red-500); }
 
 /* Downloads path row */
 .app-settings-path-row {
@@ -369,10 +369,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-accent, #2962ff);
+  color: var(--color-brand);
   cursor: pointer;
 }
-.app-settings-path.disabled { color: var(--color-cold-gray-500, #6a6d78); cursor: default; }
+.app-settings-path.disabled { color: var(--color-cold-gray-500); cursor: default; }
 
 /* Tab title order — draggable checkbox rows. */
 .app-settings-tab-order {
@@ -393,7 +393,7 @@
 /* The row being dragged lifts off the page. */
 .app-settings-drag-row.is-dragging {
   background: var(--color-bg-primary-hover);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 12px var(--ot-shadow-45);
   position: relative;
   z-index: 1;
 }
@@ -409,7 +409,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-cold-gray-500, #6a6d78);
+  color: var(--color-cold-gray-500);
   cursor: grab;
 }
 .app-settings-drag-row:active .app-settings-drag-handle { cursor: grabbing; }
@@ -427,7 +427,7 @@
 /* Alert volume slider */
 .app-settings-slider {
   width: 220px;
-  accent-color: var(--color-accent, #2962ff);
+  accent-color: var(--color-brand);
 }
 
 /* About */
@@ -438,10 +438,10 @@
   padding-top: 8px;
 }
 .app-settings-about-app { font-size: 18px; font-weight: 600; }
-.app-settings-about-version { color: var(--color-cold-gray-400, #8c8c8c); }
+.app-settings-about-version { color: var(--color-cold-gray-400); }
 .app-settings-about-copyright {
   margin-top: 16px;
-  color: var(--color-cold-gray-500, #6a6d78);
+  color: var(--color-cold-gray-500);
   font-size: 13px;
 }
 /* Notice of the economic data source (required by its API terms). */
@@ -454,7 +454,7 @@
   font-size: 12px;
   line-height: 16px;
 }
-.app-settings-about-link { color: var(--color-brand, #2962ff); text-decoration: none; cursor: pointer; }
+.app-settings-about-link { color: var(--color-brand); text-decoration: none; cursor: pointer; }
 .app-settings-about-link:hover { text-decoration: underline; }
 /* Support OpenTrader: monthly cost covered by donations (data/funding.ts). */
 .app-settings-funding {
@@ -473,7 +473,7 @@
   background: var(--color-container-fill-primary-neutral-light);
   overflow: hidden;
 }
-.app-settings-funding-fill { height: 100%; background: var(--color-ot-blue-500, #2962ff); }
+.app-settings-funding-fill { height: 100%; background: var(--color-ot-blue-500); }
 .app-settings-funding-numbers {
   display: flex;
   justify-content: space-between;
@@ -618,7 +618,7 @@
 .app-settings-local-add { margin-top: 8px; }
 .app-settings-local-status { color: var(--color-content-secondary-neutral); font-size: 12px; line-height: 16px; }
 .app-settings-local-errors { max-height: 160px; overflow-y: auto; font-size: 12px; line-height: 16px; }
-.app-settings-local-error { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; padding: 2px 0; color: #f7525f; }
+.app-settings-local-error { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; padding: 2px 0; color: var(--color-ripe-red-400); }
 .app-settings-local-error-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-content-secondary-neutral); }
 .app-settings-local-folder .app-settings-btn,
 .app-settings-local-add .app-settings-btn { flex: none; white-space: nowrap; }
