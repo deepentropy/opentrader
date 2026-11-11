@@ -149,6 +149,10 @@
   display: flex;
   flex-direction: column;
 }
+/* A flyout taller than the window scrolls (keepInWindowHeight): its rows keep their height. */
+.drawing-tool-submenu > * {
+  flex-shrink: 0;
+}
 
 /* Section header inside the popover — upper-case 11 px muted title in a
  * 24 px row ("LINES / CHANNELS / PITCHFORKS"), 8 px in from the rows. */

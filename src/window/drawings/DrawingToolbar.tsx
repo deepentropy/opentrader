@@ -14,6 +14,7 @@ import { track } from "../../data/analytics";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { keepInWindowHeight } from "../../components/menu-fit";
 import { SwitchMark } from "../../components/form";
 import {
   CURSOR_MODE_TOOL,
@@ -284,7 +285,7 @@ export function DrawingToolbar(props: Props) {
         </Tooltip>
         <Show when={open()}>
           {/* The row of the button's mode is selected while that mode is on. */}
-          <div class="ot-popover drawing-tool-submenu" role="menu" aria-label={menuTitle}>
+          <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label={menuTitle}>
             <For each={["drawings", "indicators", "all"] as const}>
               {(m) => (
                 <button
@@ -541,6 +542,7 @@ export function DrawingToolbar(props: Props) {
                   </Tooltip>
                   <Show when={isOpen()}>
                     <div
+                      ref={keepInWindowHeight}
                       class="ot-popover drawing-tool-submenu"
                       role="menu"
                       aria-label={group.title}
@@ -729,7 +731,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={magnetMenuOpen()}>
-            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
+            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
               {/* Strength rows (40 px, with their icon): the one in use is
                *  selected while the magnet is on; picking one turns it on. */}
               <For each={[["weak", "Weak magnet", "draw-magnet-weak"], ["strong", "Strong magnet", "draw-magnet-strong"]] as const}>
@@ -837,7 +839,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={syncMenuOpen()}>
-            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
+            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
               {/* The two modes, with their icon; the mode in use is selected
                *  while sync is on; picking one turns sync on. */}
               <For each={["layout", "global"] as const}>
@@ -906,7 +908,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={removeMenuOpen()}>
-            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
+            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
               <button
                 type="button"
                 role="menuitem"

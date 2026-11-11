@@ -38,6 +38,23 @@ export function fitToWindow(el: HTMLElement, x: number, y: number, endX = false,
   el.style.top = `${Math.max(0, Math.min(y, H - h))}px`;
 }
 
+/** Ref callback for a menu its CSS places beside its button (the drawing toolbar's flyouts): moved up when it would
+ *  cross the window's bottom edge, given the window height and scrolled when taller, as fitToWindow does. */
+export function keepInWindowHeight(el: HTMLElement): void {
+  queueMicrotask(() => {
+    const H = document.documentElement.clientHeight;
+    const r = el.getBoundingClientRect();
+    let h = r.height;
+    if (h > H) {
+      el.style.maxHeight = `${H}px`;
+      el.style.overflowY = "auto";
+      h = H;
+    }
+    const up = Math.min(r.top, r.top + h - H);
+    if (up > 0) el.style.top = `${parseFloat(getComputedStyle(el).top) - up}px`;
+  });
+}
+
 /** Ref callback that keeps a menu fitted whenever its requested position
  *  changes (runs after the element is in the document). */
 export function fitMenuRef(pos: () => { x: number; y: number; endX?: boolean; endY?: boolean }) {
