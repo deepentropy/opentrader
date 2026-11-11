@@ -37,7 +37,6 @@
 }
 
 .oak-panel__header-left {
-  position: relative; /* anchors the script menu popover */
   display: flex;
   align-items: center;
   gap: 6px;
