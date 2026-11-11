@@ -17,6 +17,8 @@ import { type ChartCx } from "./context";
 export interface StudySyncApi {
   /** The controller of this chart's studies, the chart as its host. */
   createController: (chart: IChartApi) => IndicatorController;
+  /** The studies' chart context follows the series whose bars the chart now shows (set with its bars, #308). */
+  applyScriptChart: () => void;
 }
 
 export function createStudySync(cx: ChartCx): StudySyncApi {
@@ -93,12 +95,20 @@ export function createStudySync(cx: ChartCx): StudySyncApi {
     legendAtCrosshair();
   });
 
-  // Chart context (timeframe, session, tickerid, background) of the studies.
+  // Chart context (timeframe, session, tickerid, background) of the studies: the series whose bars are shown. While
+  // another series loads, the studies still calculate on the bars before (a script update, a resize): the context of
+  // the new one would read them as its own (intraday bars stamped as daily ones, #308). The data apply sets the new
+  // context with the new bars (applyScriptChart).
+  const pushScriptChart = () => {
+    const s = cx.shownSeries() ?? { symbol: props.symbol, interval: props.interval, session: props.session };
+    const t = readChartTokens(appearance());
+    cx.controller?.setScriptChart(scriptChartContext(s.symbol, s.interval, s.session, { top: t.bg, bottom: t.bgGradient ? t.bgBottom : t.bg }));
+  };
   createEffect(() => {
     chartReady();
-    const t = readChartTokens(appearance());
-    cx.controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session, { top: t.bg, bottom: t.bgGradient ? t.bgBottom : t.bg }));
+    pushScriptChart();
   });
+  const applyScriptChart = () => untrack(pushScriptChart);
 
   // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars.
   createEffect(() => {
@@ -130,5 +140,5 @@ export function createStudySync(cx: ChartCx): StudySyncApi {
     cx.controller?.setNameLabelsVisible(t.indNameLabel);
   });
 
-  return { createController };
+  return { createController, applyScriptChart };
 }

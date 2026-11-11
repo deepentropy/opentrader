@@ -165,6 +165,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     if (!real || real.bars.length === 0) {
       cx.raw = [];
       cx.rawDaily = [];
+      cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });
+      cx.applyScriptChart();
       cx.liveVolBase = null;
       setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
       cx.afterSeriesData();
@@ -182,6 +184,9 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // re-aggregate the full set.
     cx.rawDaily = real.daily ?? [];
     cx.raw = toOHLC(real.bars);
+    // The studies calculate below on these bars: their chart context is this series'.
+    cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });
+    cx.applyScriptChart();
     // The symbol's session (tick grid) is known with its bars.
     cx.applyPriceFormat();
     // Fresh series (possibly a new ADJ basis) — re-snap the 1W/1M live-volume
@@ -309,7 +314,6 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // New data is painted — end the transition (drop the dim, re-enable the
     // live poller).
     cx.swapping = false;
-    cx.shownSeries = `${props.symbol}|${props.interval}`;
     // A date-range target that arrived while this pane was loading.
     if (cx.syncTarget) cx.scheduleSyncRun(0);
     // A linked time that arrived while this pane was loading.

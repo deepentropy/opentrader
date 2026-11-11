@@ -59,7 +59,7 @@ import { ChartContextMenu } from "./ChartContextMenu";
 import { type Coords } from "../drawings/coords";
 import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
-import { createChartCx, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps } from "./view/context";
+import { createChartCx, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps, type ShownSeries } from "./view/context";
 import { appearanceOptions } from "./view/helpers";
 import { createNavigation } from "./view/navigation";
 import { createMenus } from "./view/menus";
@@ -199,6 +199,7 @@ export function ChartView(props: ChartViewProps) {
    *  clears the drawing selection and selecting a drawing clears it. Delete /
    *  Backspace remove it, Escape or a click on the empty chart clear it. */
   const [selectedStudy, setSelectedStudy] = createSignal<string | null>(null);
+  const [shownSeries, setShownSeries] = createSignal<ShownSeries | null>(null);
   /** Legend flag colour popup (its flag button), null = closed. */
   const [flagPopup, setFlagPopup] = createSignal<HTMLElement | null>(null);
   /** Legend "Chart syncing" menu (its button rect), null = closed. */
@@ -320,7 +321,8 @@ export function ChartView(props: ChartViewProps) {
     setReloadTick,
     chartReady,
     swapping: false,
-    shownSeries: "",
+    shownSeries,
+    setShownSeries,
     pendingRangeSpan: null,
     rangePersistTimer: undefined,
     coords,

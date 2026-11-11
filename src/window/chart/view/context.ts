@@ -179,6 +179,9 @@ export type ChartViewProps = {
 export type ChartMenuState = { x: number; y: number; nodes: CtxNode[]; endX?: boolean; endY?: boolean; corner?: boolean };
 
 /** State and functions ChartView itself owns. */
+/** A series as the chart loads it. */
+export type ShownSeries = { symbol: string | undefined; interval: string | undefined; session: string | undefined };
+
 export interface ChartCore {
   props: ChartViewProps;
   /** The chart's edits of its pane and drawings, bound to its tab and pane. */
@@ -251,8 +254,9 @@ export interface ChartCore {
   setSettingsTab: Setter<DialogTab | undefined>;
   studySelectionBg: Accessor<ReturnType<typeof chartBackgroundAt>>;
   swapping: boolean;
-  /** "symbol|interval" of the bars shown, set when they are painted. */
-  shownSeries: string;
+  /** The series whose bars the chart shows (null before the first): set with its bars. */
+  shownSeries: Accessor<ShownSeries | null>;
+  setShownSeries: Setter<ShownSeries | null>;
   syncLockPanes: () => void;
   toggleSourceHidden: (id: string) => void;
   whenShown: <T extends Event>(fn: (e: T) => void) => EventListener;

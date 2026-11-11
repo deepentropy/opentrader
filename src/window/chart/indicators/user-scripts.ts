@@ -71,6 +71,8 @@ type Run = {
   /** Staleness key `result` was computed for (null = nothing computed). */
   key: string | null;
   result: unknown | null;
+  /** The series `result` was calculated on (seriesOf). */
+  resultSeries: string | null;
   running: boolean;
   queued: QueuedRun | null;
   /** Bars of other symbols the script asked for (`request.security`): given with every run. */
@@ -133,6 +135,11 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.hasAlertFunction = meta?.hasAlertFunction;
 }
 
+/** The series a script runs on: its chart's symbol, timeframe and session. */
+function seriesOf(chart: ChartContext | undefined): string {
+  return `${chart?.tickerid ?? ""}|${chart?.timeframe ?? ""}|${chart?.sessionType ?? ""}`;
+}
+
 async function runInWorker(
   rt: Runtime,
   run: Run,
@@ -160,6 +167,7 @@ async function runInWorker(
     const restamp = /^\d*[DWM]$/i.test(chart?.timeframe ?? "");
     const out = await engine.update(runKey, scriptId, bars, inputs, chart, symbols, sources, restamp);
     run.result = out.result;
+    run.resultSeries = seriesOf(chart);
     run.fullRunReason = out.fullRunReason;
     noteDrawingKinds(rt.entry, run.result);
     run.key = key;
@@ -215,7 +223,10 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
-    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [], error: null, fullRunReason: null }));
+    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, resultSeries: null, running: false, queued: null, requests: [], error: null, fullRunReason: null }));
+    // The result before stays while a run calculates on the same series (a live update, more history); on another
+    // series it would be drawn on bars it was not calculated on (#308): the study shows loading instead.
+    const kept = run.resultSeries === seriesOf(chart) ? run.result : null;
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
     // them while a study reads them); one not loaded yet holds the run until it arrives.
     let symbols: OakSymbolData | undefined;
@@ -224,7 +235,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
       symbols = { bars: {}, info: {} };
       for (const r of run.requests) {
         const b = symbolBars?.(r.symbol, r.timeframe);
-        if (b === undefined) return run.result ?? PENDING_RESULT;
+        if (b === undefined) return kept ?? PENDING_RESULT;
         symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
         const info = symbolInfo?.(r.symbol);
         if (info) symbols.info[r.symbol] = info;
@@ -257,7 +268,8 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     }
     // The run for these bars and inputs failed: the chart shows the error with the study.
     if (run.error !== null && run.key === key) throw new Error(run.error);
-    return run.result ?? (run.key === key ? EMPTY_RESULT : PENDING_RESULT);
+    if (run.key === key) return run.result ?? EMPTY_RESULT;
+    return kept ?? PENDING_RESULT;
   };
 }
 

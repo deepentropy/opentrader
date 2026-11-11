@@ -33,7 +33,8 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
   function flushShowRange() {
     const d = pendingShowRange;
     if (!d || !cx.chart || cx.raw.length === 0 || cx.history.loading || cx.swapping) return;
-    if (d.series !== undefined && d.series !== cx.shownSeries) return;
+    const shown = cx.shownSeries();
+    if (d.series !== undefined && d.series !== `${shown?.symbol}|${shown?.interval}`) return;
     pendingShowRange = null;
     // Bar Replay frames its own start: the range would fight it.
     if (d.replayAt !== undefined) {
