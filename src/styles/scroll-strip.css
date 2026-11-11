@@ -1,0 +1,125 @@
+/*
+ * ScrollStrip (src/components/ScrollStrip.tsx): a toolbar that scrolls without a scrollbar, with a 24 px arrow at
+ * each end, 60 % of the scroll-buttons colour, sliding in while there is more on its side.
+ */
+.ot-scroll-strip {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+.ot-scroll-strip-view {
+  width: 100%;
+  height: 100%;
+  scrollbar-width: none;
+}
+.ot-scroll-strip-view::-webkit-scrollbar {
+  display: none;
+}
+.ot-scroll-strip.is-y .ot-scroll-strip-view {
+  overflow: hidden auto;
+}
+.ot-scroll-strip.is-x .ot-scroll-strip-view {
+  overflow: auto hidden;
+}
+.ot-scroll-strip-content {
+  display: flex;
+}
+.ot-scroll-strip.is-y .ot-scroll-strip-content {
+  flex-direction: column;
+  min-height: 100%;
+}
+.ot-scroll-strip.is-x .ot-scroll-strip-content {
+  flex-direction: row;
+  width: max-content;
+  min-width: 100%;
+  height: 100%;
+}
+
+.ot-scroll-strip-arrow {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background-color: color-mix(in srgb, var(--color-legacy-bg-scroll-buttons) 60%, transparent);
+  color: var(--color-scroll-buttons-arrow);
+  overflow: hidden;
+  transition:
+    background-color 0.35s,
+    transform 0.1167s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+.ot-scroll-strip-arrow:hover,
+.ot-scroll-strip-arrow:active {
+  transition:
+    background-color 58ms,
+    transform 0.1167s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.ot-scroll-strip-icon {
+  display: block;
+  transition: translate 60ms;
+}
+.ot-scroll-strip-arrow:hover .ot-scroll-strip-icon,
+.ot-scroll-strip-arrow:active .ot-scroll-strip-icon {
+  translate: 0 1px;
+}
+
+/* A column: full-width arrows at the top and bottom. */
+.ot-scroll-strip.is-y .ot-scroll-strip-arrow {
+  inset-inline: 0;
+  height: 24px;
+}
+.ot-scroll-strip.is-y .is-back {
+  top: 0;
+  transform: translateY(-100%);
+}
+.ot-scroll-strip.is-y .is-back .ot-scroll-strip-icon {
+  rotate: 180deg;
+}
+.ot-scroll-strip.is-y .is-forward {
+  bottom: 0;
+  transform: translateY(100%);
+}
+
+/* A row: full-height arrows at its start and end. */
+.ot-scroll-strip.is-x .ot-scroll-strip-arrow {
+  top: 0;
+  bottom: 0;
+  width: 24px;
+}
+.ot-scroll-strip.is-x .is-back {
+  inset-inline-start: 0;
+  transform: translateX(-100%);
+}
+.ot-scroll-strip.is-x .is-back .ot-scroll-strip-icon {
+  rotate: 90deg;
+}
+.ot-scroll-strip.is-x .is-forward {
+  inset-inline-end: 0;
+  transform: translateX(100%);
+}
+.ot-scroll-strip.is-x .is-forward .ot-scroll-strip-icon {
+  rotate: -90deg;
+}
+/* Right to left the row's start is on the right: the arrows slide out and point the other way. */
+[dir="rtl"] .ot-scroll-strip.is-x .is-back {
+  transform: translateX(100%);
+}
+[dir="rtl"] .ot-scroll-strip.is-x .is-forward {
+  transform: translateX(-100%);
+}
+[dir="rtl"] .ot-scroll-strip.is-x .is-back .ot-scroll-strip-icon {
+  rotate: -90deg;
+}
+[dir="rtl"] .ot-scroll-strip.is-x .is-forward .ot-scroll-strip-icon {
+  rotate: 90deg;
+}
+
+.ot-scroll-strip:not(.arrows-on-hover) .ot-scroll-strip-arrow.is-visible,
+.ot-scroll-strip.arrows-on-hover:hover .ot-scroll-strip-arrow.is-visible {
+  transform: none;
+  transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+}

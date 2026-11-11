@@ -16,6 +16,22 @@
   font-size: 14px;
 }
 
+/* The row, scrolled when the window is too narrow for it (ScrollStrip, #298). */
+.header-toolbar-scroll {
+  flex: 1 1 auto;
+  height: 100%;
+}
+.header-toolbar-row {
+  align-items: center;
+}
+/* Too narrow for the whole row: Indicators, Alert and Replay show only their icon, as wide as the icon buttons. */
+.header-toolbar.is-compact .header-toolbar-btn.is-iconText {
+  padding-inline: 5px;
+}
+.header-toolbar.is-compact .header-toolbar-btn.is-iconText .header-toolbar-label {
+  display: none;
+}
+
 .header-toolbar-section {
   display: flex;
   align-items: center;

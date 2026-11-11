@@ -14,7 +14,8 @@ import { track } from "../../data/analytics";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { keepInWindowHeight } from "../../components/menu-fit";
+import { placeFlyout } from "../../components/menu-fit";
+import { ScrollStrip } from "../../components/ScrollStrip";
 import { SwitchMark } from "../../components/form";
 import {
   CURSOR_MODE_TOOL,
@@ -285,7 +286,7 @@ export function DrawingToolbar(props: Props) {
         </Tooltip>
         <Show when={open()}>
           {/* The row of the button's mode is selected while that mode is on. */}
-          <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label={menuTitle}>
+          <div ref={placeFlyout} class="ot-popover drawing-tool-submenu" role="menu" aria-label={menuTitle}>
             <For each={["drawings", "indicators", "all"] as const}>
               {(m) => (
                 <button
@@ -483,502 +484,505 @@ export function DrawingToolbar(props: Props) {
         setToolbarMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <div class="drawing-toolbar-section">
-        <For each={GROUPS}>
-          {(group) => {
-            const flatTools = () => groupTools(group);
-            const defaultTool = () => {
-              const tools = flatTools();
-              return tools.find((t) => t.id === groupDefault()[group.id]) ?? tools[0];
-            };
-            const isSelected = () => selectedTool() === defaultTool()?.id;
-            const isOpen = () => openGroup() === group.id;
+      {/* The tools scroll when the window is too short for them (#297). */}
+      <ScrollStrip axis="y" class="drawing-toolbar-scroll">
+        <div class="drawing-toolbar-section">
+          <For each={GROUPS}>
+            {(group) => {
+              const flatTools = () => groupTools(group);
+              const defaultTool = () => {
+                const tools = flatTools();
+                return tools.find((t) => t.id === groupDefault()[group.id]) ?? tools[0];
+              };
+              const isSelected = () => selectedTool() === defaultTool()?.id;
+              const isOpen = () => openGroup() === group.id;
 
-            return (
-              <Show when={flatTools().length > 0}>
-                <div class={"drawing-tool-group" + (isOpen() ? " open" : "")}>
-                  <Tooltip
-                    text={defaultTool()!.title}
-                    hotkey={TOOL_HINTS[defaultTool()!.id]?.hotkey}
-                    hotkeyText={TOOL_HINTS[defaultTool()!.id]?.hotkeyText}
-                    side="right"
-                  >
-                    <button
-                      type="button"
-                      class={
-                        "ot-toolbar-button drawing-tool-btn" +
-                        (isSelected() ? " selected" : "")
-                      }
-                      aria-label={defaultTool()!.title}
-                      onClick={() => pickTool(defaultTool()!.id)}
+              return (
+                <Show when={flatTools().length > 0}>
+                  <div class={"drawing-tool-group" + (isOpen() ? " open" : "")}>
+                    <Tooltip
+                      text={defaultTool()!.title}
+                      hotkey={TOOL_HINTS[defaultTool()!.id]?.hotkey}
+                      hotkeyText={TOOL_HINTS[defaultTool()!.id]?.hotkeyText}
+                      side="right"
                     >
-                      <span class="drawing-tool-icon">
-                        <Icon
-                          name={defaultTool()!.iconName ?? group.defaultIcon}
-                          size={28}
-                        />
-                      </span>
-                    </button>
-                  </Tooltip>
-                  <Tooltip text={group.title} side="right">
-                    <button
-                      type="button"
-                      class="ot-toolbar-button drawing-tool-arrow"
-                      aria-label={group.title}
-                      aria-haspopup="menu"
-                      aria-expanded={isOpen()}
-                      onClick={() => {
-                        setMagnetMenuOpen(false);
-                        setSyncMenuOpen(false);
-                        setHideMenuOpen(false);
-                        setRemoveMenuOpen(false);
-                        setOpenGroup(isOpen() ? null : group.id);
-                      }}
-                    >
-                      <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
-                        <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
-                      </svg>
-                    </button>
-                  </Tooltip>
-                  <Show when={isOpen()}>
-                    <div
-                      ref={keepInWindowHeight}
-                      class="ot-popover drawing-tool-submenu"
-                      role="menu"
-                      aria-label={group.title}
-                    >
-                      <For each={group.sections}>
-                        {(section, si) => (
-                          <>
-                            <Show when={si() > 0}>
-                              <div class="drawing-tool-submenu-divider" role="separator" />
-                            </Show>
-                            <Show when={section.header}>
-                              <div
-                                class="drawing-tool-submenu-section-header"
-                                role="presentation"
-                              >
-                                {section.header}
-                              </div>
-                            </Show>
-                            <For each={section.tools}>
-                              {(tool) => {
-                                const isCurrent = () =>
-                                  tool.id === groupDefault()[group.id];
-                                const fav = () => isFavoriteTool(tool.id);
-                                // Tools listed but not yet wired up render
-                                // disabled (greyed) and can't be picked or
-                                // favorited.
-                                const impl = isToolImplemented(tool.id);
-                                return (
-                                  <div class="drawing-tool-submenu-row">
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      disabled={!impl}
-                                      aria-disabled={!impl}
-                                      title={impl ? undefined : translateWith("{0} — coming soon", tool.title)}
-                                      class={
-                                        "drawing-tool-submenu-item" +
-                                        (isCurrent() ? " current" : "") +
-                                        (impl ? "" : " disabled")
-                                      }
-                                      onClick={() => pickFromSubmenu(group, tool)}
-                                    >
-                                      <span class="drawing-tool-submenu-icon">
-                                        <Icon
-                                          name={tool.iconName ?? group.defaultIcon}
-                                          size={28}
-                                        />
-                                      </span>
-                                      <span class="drawing-tool-submenu-label apply-overflow-tooltip">
-                                        {tool.title}
-                                      </span>
-                                      <Show when={tool.hotkey}>
-                                        <span class="drawing-tool-submenu-hotkey" data-no-translate>
-                                          {tool.hotkey}
+                      <button
+                        type="button"
+                        class={
+                          "ot-toolbar-button drawing-tool-btn" +
+                          (isSelected() ? " selected" : "")
+                        }
+                        aria-label={defaultTool()!.title}
+                        onClick={() => pickTool(defaultTool()!.id)}
+                      >
+                        <span class="drawing-tool-icon">
+                          <Icon
+                            name={defaultTool()!.iconName ?? group.defaultIcon}
+                            size={28}
+                          />
+                        </span>
+                      </button>
+                    </Tooltip>
+                    <Tooltip text={group.title} side="right">
+                      <button
+                        type="button"
+                        class="ot-toolbar-button drawing-tool-arrow"
+                        aria-label={group.title}
+                        aria-haspopup="menu"
+                        aria-expanded={isOpen()}
+                        onClick={() => {
+                          setMagnetMenuOpen(false);
+                          setSyncMenuOpen(false);
+                          setHideMenuOpen(false);
+                          setRemoveMenuOpen(false);
+                          setOpenGroup(isOpen() ? null : group.id);
+                        }}
+                      >
+                        <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
+                          <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                    <Show when={isOpen()}>
+                      <div
+                        ref={placeFlyout}
+                        class="ot-popover drawing-tool-submenu"
+                        role="menu"
+                        aria-label={group.title}
+                      >
+                        <For each={group.sections}>
+                          {(section, si) => (
+                            <>
+                              <Show when={si() > 0}>
+                                <div class="drawing-tool-submenu-divider" role="separator" />
+                              </Show>
+                              <Show when={section.header}>
+                                <div
+                                  class="drawing-tool-submenu-section-header"
+                                  role="presentation"
+                                >
+                                  {section.header}
+                                </div>
+                              </Show>
+                              <For each={section.tools}>
+                                {(tool) => {
+                                  const isCurrent = () =>
+                                    tool.id === groupDefault()[group.id];
+                                  const fav = () => isFavoriteTool(tool.id);
+                                  // Tools listed but not yet wired up render
+                                  // disabled (greyed) and can't be picked or
+                                  // favorited.
+                                  const impl = isToolImplemented(tool.id);
+                                  return (
+                                    <div class="drawing-tool-submenu-row">
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        disabled={!impl}
+                                        aria-disabled={!impl}
+                                        title={impl ? undefined : translateWith("{0} — coming soon", tool.title)}
+                                        class={
+                                          "drawing-tool-submenu-item" +
+                                          (isCurrent() ? " current" : "") +
+                                          (impl ? "" : " disabled")
+                                        }
+                                        onClick={() => pickFromSubmenu(group, tool)}
+                                      >
+                                        <span class="drawing-tool-submenu-icon">
+                                          <Icon
+                                            name={tool.iconName ?? group.defaultIcon}
+                                            size={28}
+                                          />
                                         </span>
-                                      </Show>
-                                    </button>
-                                    {/* Favorite star —
-                                     * `preset-menu-favorite-button`. Revealed on
-                                     * row hover; stays filled once favorited.
-                                     * Toggles toolbar membership without arming. */}
-                                    <button
-                                      type="button"
-                                      disabled={!impl}
-                                      class={
-                                        "drawing-tool-submenu-fav" +
-                                        (fav() ? " favorited" : "")
-                                      }
-                                      data-name="preset-menu-favorite-button"
-                                      aria-label={fav() ? "Remove from favorites" : "Add to favorites"}
-                                      aria-pressed={fav()}
-                                      title={fav() ? "Remove from favorites" : "Add to favorites"}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleFavoriteTool(tool.id);
-                                      }}
-                                    >
-                                      {/* 5-point star, viewBox 0 0 18 18 — rendered
-                                       * at its native 18×18 (the
-                                       * preset-menu-favorite-button size). */}
-                                      <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
-                                        <path
-                                          fill={fav() ? "currentColor" : "none"}
-                                          stroke="currentColor"
-                                          stroke-width="1.2"
-                                          stroke-linejoin="round"
-                                          d="M9 2.2l1.96 3.97 4.38.64-3.17 3.09.75 4.36L9 12.16l-3.92 2.06.75-4.36L2.66 6.81l4.38-.64z"
-                                        />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                );
-                              }}
-                            </For>
-                          </>
-                        )}
-                      </For>
-                    </div>
-                  </Show>
-                </div>
-              </Show>
-            );
-          }}
-        </For>
-      </div>
+                                        <span class="drawing-tool-submenu-label apply-overflow-tooltip">
+                                          {tool.title}
+                                        </span>
+                                        <Show when={tool.hotkey}>
+                                          <span class="drawing-tool-submenu-hotkey" data-no-translate>
+                                            {tool.hotkey}
+                                          </span>
+                                        </Show>
+                                      </button>
+                                      {/* Favorite star —
+                                       * `preset-menu-favorite-button`. Revealed on
+                                       * row hover; stays filled once favorited.
+                                       * Toggles toolbar membership without arming. */}
+                                      <button
+                                        type="button"
+                                        disabled={!impl}
+                                        class={
+                                          "drawing-tool-submenu-fav" +
+                                          (fav() ? " favorited" : "")
+                                        }
+                                        data-name="preset-menu-favorite-button"
+                                        aria-label={fav() ? "Remove from favorites" : "Add to favorites"}
+                                        aria-pressed={fav()}
+                                        title={fav() ? "Remove from favorites" : "Add to favorites"}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleFavoriteTool(tool.id);
+                                        }}
+                                      >
+                                        {/* 5-point star, viewBox 0 0 18 18 — rendered
+                                         * at its native 18×18 (the
+                                         * preset-menu-favorite-button size). */}
+                                        <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                                          <path
+                                            fill={fav() ? "currentColor" : "none"}
+                                            stroke="currentColor"
+                                            stroke-width="1.2"
+                                            stroke-linejoin="round"
+                                            d="M9 2.2l1.96 3.97 4.38.64-3.17 3.09.75 4.36L9 12.16l-3.92 2.06.75-4.36L2.66 6.81l4.38-.64z"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  );
+                                }}
+                              </For>
+                            </>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
+                </Show>
+              );
+            }}
+          </For>
+        </div>
 
-      {/* Measure + Zoom in (one section) */}
-      <div class="drawing-toolbar-section">
-        <Tooltip text="Measure" hotkey="Shift" hotkeyText="{0} + Click on the chart" side="right">
-          <button
-            type="button"
-            class={
-              "ot-toolbar-button drawing-tool-btn" +
-              (props.armedTool === "measure" ? " selected" : "")
-            }
-            aria-label="Measure"
-            onClick={() => pickTool("measure")}
-          >
-            <span class="drawing-tool-icon">
-              <Icon name="draw-measure" size={28} />
-            </span>
-          </button>
-        </Tooltip>
-        <Tooltip text="Zoom in" side="right">
-          <button
-            type="button"
-            class={
-              "ot-toolbar-button drawing-tool-btn" +
-              (props.armedTool === "zoom" ? " selected" : "")
-            }
-            aria-label="Zoom in"
-            onClick={() => pickTool("zoom")}
-          >
-            <span class="drawing-tool-icon">
-              <Icon name="draw-zoom" size={28} />
-            </span>
-          </button>
-        </Tooltip>
-      </div>
-
-      {/* Toggles — Magnet / Keep drawing / Lock all / Hide all */}
-      <div class="drawing-toolbar-section">
-        {/* Magnet — split control: the icon toggles magnet on/off, the caret
-         *  opens a Weak/Strong strength menu + a "Snap to indicator" checkbox. */}
-        <div class={"drawing-tool-group" + (magnetMenuOpen() ? " open" : "")}>
-          <Tooltip
-            text="Magnet mode snaps drawings placed near price bars to the closest OHLC value"
-            hotkey="Ctrl"
-            side="right"
-            width="narrow"
-          >
+        {/* Measure + Zoom in (one section) */}
+        <div class="drawing-toolbar-section">
+          <Tooltip text="Measure" hotkey="Shift" hotkeyText="{0} + Click on the chart" side="right">
             <button
               type="button"
               class={
                 "ot-toolbar-button drawing-tool-btn" +
-                (props.magnet ? " active" : "")
+                (props.armedTool === "measure" ? " selected" : "")
               }
-              aria-label="Magnet mode"
-              aria-pressed={props.magnet}
-              onClick={() => props.setMagnet(!props.magnet)}
+              aria-label="Measure"
+              onClick={() => pickTool("measure")}
             >
               <span class="drawing-tool-icon">
-                <Icon name={props.magnetMode === "weak" ? "draw-magnet-weak" : "draw-magnet-strong"} size={28} />
+                <Icon name="draw-measure" size={28} />
               </span>
             </button>
           </Tooltip>
-          <Tooltip text="Magnets" side="right">
+          <Tooltip text="Zoom in" side="right">
             <button
               type="button"
-              class="ot-toolbar-button drawing-tool-arrow"
-              aria-label="Magnets"
-              aria-haspopup="menu"
-              aria-expanded={magnetMenuOpen()}
-              onClick={() => {
-                setOpenGroup(null);
-                setSyncMenuOpen(false);
-                setHideMenuOpen(false);
-                setRemoveMenuOpen(false);
-                setLockMenuOpen(false);
-                setMagnetMenuOpen(!magnetMenuOpen());
-              }}
-            >
-              <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
-                <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
-              </svg>
-            </button>
-          </Tooltip>
-          <Show when={magnetMenuOpen()}>
-            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
-              {/* Strength rows (40 px, with their icon): the one in use is
-               *  selected while the magnet is on; picking one turns it on. */}
-              <For each={[["weak", "Weak magnet", "draw-magnet-weak"], ["strong", "Strong magnet", "draw-magnet-strong"]] as const}>
-                {([id, label, icon]) => (
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={props.magnet && props.magnetMode === id}
-                    class={
-                      "drawing-tool-submenu-item is-large" +
-                      (props.magnet && props.magnetMode === id ? " current" : "")
-                    }
-                    onClick={() => {
-                      props.setMagnetMode(id);
-                      if (!props.magnet) props.setMagnet(true);
-                      setMagnetMenuOpen(false);
-                    }}
-                  >
-                    <span class="drawing-tool-submenu-icon">
-                      <Icon name={icon} size={28} />
-                    </span>
-                    <span class="drawing-tool-submenu-label apply-overflow-tooltip">{label}</span>
-                  </button>
-                )}
-              </For>
-              <div class="drawing-tool-submenu-divider" role="separator" />
-              {/* "Snap to indicators": a switch, the menu stays open; off
-               *  while the magnet is off. */}
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={props.magnetSnapsToIndicators}
-                disabled={!props.magnet}
-                class="drawing-tool-submenu-item has-switch"
-                onClick={() => props.setMagnetSnapsToIndicators(!props.magnetSnapsToIndicators)}
-              >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Snap to indicators</span>
-                <SwitchMark variant="toolbar" on={props.magnetSnapsToIndicators} />
-              </button>
-            </div>
-          </Show>
-        </div>
-        <Tooltip text="Keep drawing" side="right">
-          <button
-            type="button"
-            class={
-              "ot-toolbar-button drawing-tool-btn" +
-              (props.stayMode ? " active" : "")
-            }
-            aria-label="Keep drawing"
-            aria-pressed={props.stayMode}
-            onClick={() => props.setStayMode(!props.stayMode)}
-          >
-            <span class="drawing-tool-icon">
-              <Icon name="draw-stay-mode" size={28} />
-            </span>
-          </button>
-        </Tooltip>
-        {/* Lock and Hide — split controls: the icon toggles the button's mode
-         *  (icon and tooltip of the mode, pressed while on; Ctrl + Alt + H for
-         *  Hide), the caret opens the drawings / indicators / all menu, whose
-         *  row makes its mode the button's mode and toggles it. */}
-        {objectsGroup("lock")}
-        {objectsGroup("hide")}
-        {/* Sync drawings — `drawingSyncMode-button`. The icon turns sync on /
-         *  off (icon of the mode, pressed while on); the caret opens the
-         *  Sync-in-layout / Sync-globally menu. App keys the drawings store
-         *  by the mode (drawingKeyFor). */}
-        <div class={"drawing-tool-group" + (syncMenuOpen() ? " open" : "")}>
-          <Tooltip text={SYNC_TOOLTIPS[syncMode()]} side="right">
-            <button
-              type="button"
-              class={"ot-toolbar-button drawing-tool-btn" + (syncMode() !== "none" ? " active" : "")}
-              aria-label={SYNC_TOOLTIPS[syncMode()]}
-              aria-pressed={syncMode() !== "none"}
-              onClick={() => {
-                setSyncMenuOpen(false);
-                toggleSync();
-              }}
+              class={
+                "ot-toolbar-button drawing-tool-btn" +
+                (props.armedTool === "zoom" ? " selected" : "")
+              }
+              aria-label="Zoom in"
+              onClick={() => pickTool("zoom")}
             >
               <span class="drawing-tool-icon">
-                <Icon name={syncOnMode() === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
+                <Icon name="draw-zoom" size={28} />
               </span>
             </button>
           </Tooltip>
-          <Tooltip text="Sync drawings options" side="right">
-            <button
-              type="button"
-              class="ot-toolbar-button drawing-tool-arrow"
-              aria-label="Sync drawings options"
-              aria-haspopup="menu"
-              aria-expanded={syncMenuOpen()}
-              onClick={() => {
-                setOpenGroup(null);
-                setMagnetMenuOpen(false);
-                setHideMenuOpen(false);
-                setRemoveMenuOpen(false);
-                setLockMenuOpen(false);
-                setSyncMenuOpen(!syncMenuOpen());
-              }}
-            >
-              <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
-                <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
-              </svg>
-            </button>
-          </Tooltip>
-          <Show when={syncMenuOpen()}>
-            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
-              {/* The two modes, with their icon; the mode in use is selected
-               *  while sync is on; picking one turns sync on. */}
-              <For each={["layout", "global"] as const}>
-                {(id) => (
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={syncMode() === id}
-                    class={"drawing-tool-submenu-item" + (syncMode() === id ? " current" : "")}
-                    onClick={() => {
-                      pickSyncMode(id);
-                      setSyncMenuOpen(false);
-                    }}
-                  >
-                    <span class="drawing-tool-submenu-icon">
-                      <Icon name={id === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
-                    </span>
-                    <span class="drawing-tool-submenu-label apply-overflow-tooltip">{SYNC_LABELS[id]}</span>
-                  </button>
-                )}
-              </For>
-            </div>
-          </Show>
         </div>
-      </div>
 
-      {/* Remove objects (standalone section) — split control: the icon clears
-       *  drawings; the caret opens a menu to scope the removal (drawings /
-       *  indicators / both). */}
-      <div class="drawing-toolbar-section">
-        <div class={"drawing-tool-group" + (removeMenuOpen() ? " open" : "")}>
-          <Tooltip text="Remove objects" side="right">
-            <button
-              type="button"
-              class="ot-toolbar-button drawing-tool-btn"
-              aria-label="Remove objects"
-              onClick={() => {
-                setRemoveMenuOpen(false);
-                props.onRemoveAll();
-              }}
+        {/* Toggles — Magnet / Keep drawing / Lock all / Hide all */}
+        <div class="drawing-toolbar-section">
+          {/* Magnet — split control: the icon toggles magnet on/off, the caret
+           *  opens a Weak/Strong strength menu + a "Snap to indicator" checkbox. */}
+          <div class={"drawing-tool-group" + (magnetMenuOpen() ? " open" : "")}>
+            <Tooltip
+              text="Magnet mode snaps drawings placed near price bars to the closest OHLC value"
+              hotkey="Ctrl"
+              side="right"
+              width="narrow"
             >
-              <span class="drawing-tool-icon">
-                <Icon name="draw-trash" size={28} />
-              </span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Remove options" side="right">
-            <button
-              type="button"
-              class="ot-toolbar-button drawing-tool-arrow"
-              aria-label="Remove options"
-              aria-haspopup="menu"
-              aria-expanded={removeMenuOpen()}
-              onClick={() => {
-                setOpenGroup(null);
-                setMagnetMenuOpen(false);
-                setSyncMenuOpen(false);
-                setHideMenuOpen(false);
-                setLockMenuOpen(false);
-                setRemoveMenuOpen(!removeMenuOpen());
-              }}
-            >
-              <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
-                <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
-              </svg>
-            </button>
-          </Tooltip>
-          <Show when={removeMenuOpen()}>
-            <div ref={keepInWindowHeight} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
               <button
                 type="button"
-                role="menuitem"
-                class="drawing-tool-submenu-item"
-                onClick={() => { setRemoveMenuOpen(false); props.onRemoveAll(); }}
+                class={
+                  "ot-toolbar-button drawing-tool-btn" +
+                  (props.magnet ? " active" : "")
+                }
+                aria-label="Magnet mode"
+                aria-pressed={props.magnet}
+                onClick={() => props.setMagnet(!props.magnet)}
               >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", drawingsText(props.drawingCount))}</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                class="drawing-tool-submenu-item"
-                onClick={() => { setRemoveMenuOpen(false); props.onRemoveIndicators(); }}
-              >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", indicatorsText(props.indicatorCount))}</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                class="drawing-tool-submenu-item"
-                onClick={() => { setRemoveMenuOpen(false); props.onRemoveAllObjects(); }}
-              >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">
-                  {translateWith("Remove {0} & {1}", drawingsText(props.drawingCount), indicatorsText(props.indicatorCount))}
+                <span class="drawing-tool-icon">
+                  <Icon name={props.magnetMode === "weak" ? "draw-magnet-weak" : "draw-magnet-strong"} size={28} />
                 </span>
               </button>
-              <div class="drawing-tool-submenu-divider" role="separator" />
+            </Tooltip>
+            <Tooltip text="Magnets" side="right">
               <button
                 type="button"
-                role="menuitemcheckbox"
-                aria-checked={props.alwaysRemoveLocked}
-                class="drawing-tool-submenu-item has-switch"
-                onClick={() => { setRemoveMenuOpen(false); props.onToggleAlwaysRemoveLocked(); }}
+                class="ot-toolbar-button drawing-tool-arrow"
+                aria-label="Magnets"
+                aria-haspopup="menu"
+                aria-expanded={magnetMenuOpen()}
+                onClick={() => {
+                  setOpenGroup(null);
+                  setSyncMenuOpen(false);
+                  setHideMenuOpen(false);
+                  setRemoveMenuOpen(false);
+                  setLockMenuOpen(false);
+                  setMagnetMenuOpen(!magnetMenuOpen());
+                }}
               >
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Always remove locked drawings</span>
-                <SwitchMark variant="toolbar" on={props.alwaysRemoveLocked} />
+                <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
+                  <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
+                </svg>
               </button>
-            </div>
-          </Show>
+            </Tooltip>
+            <Show when={magnetMenuOpen()}>
+              <div ref={placeFlyout} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
+                {/* Strength rows (40 px, with their icon): the one in use is
+                 *  selected while the magnet is on; picking one turns it on. */}
+                <For each={[["weak", "Weak magnet", "draw-magnet-weak"], ["strong", "Strong magnet", "draw-magnet-strong"]] as const}>
+                  {([id, label, icon]) => (
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={props.magnet && props.magnetMode === id}
+                      class={
+                        "drawing-tool-submenu-item is-large" +
+                        (props.magnet && props.magnetMode === id ? " current" : "")
+                      }
+                      onClick={() => {
+                        props.setMagnetMode(id);
+                        if (!props.magnet) props.setMagnet(true);
+                        setMagnetMenuOpen(false);
+                      }}
+                    >
+                      <span class="drawing-tool-submenu-icon">
+                        <Icon name={icon} size={28} />
+                      </span>
+                      <span class="drawing-tool-submenu-label apply-overflow-tooltip">{label}</span>
+                    </button>
+                  )}
+                </For>
+                <div class="drawing-tool-submenu-divider" role="separator" />
+                {/* "Snap to indicators": a switch, the menu stays open; off
+                 *  while the magnet is off. */}
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={props.magnetSnapsToIndicators}
+                  disabled={!props.magnet}
+                  class="drawing-tool-submenu-item has-switch"
+                  onClick={() => props.setMagnetSnapsToIndicators(!props.magnetSnapsToIndicators)}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">Snap to indicators</span>
+                  <SwitchMark variant="toolbar" on={props.magnetSnapsToIndicators} />
+                </button>
+              </div>
+            </Show>
+          </div>
+          <Tooltip text="Keep drawing" side="right">
+            <button
+              type="button"
+              class={
+                "ot-toolbar-button drawing-tool-btn" +
+                (props.stayMode ? " active" : "")
+              }
+              aria-label="Keep drawing"
+              aria-pressed={props.stayMode}
+              onClick={() => props.setStayMode(!props.stayMode)}
+            >
+              <span class="drawing-tool-icon">
+                <Icon name="draw-stay-mode" size={28} />
+              </span>
+            </button>
+          </Tooltip>
+          {/* Lock and Hide — split controls: the icon toggles the button's mode
+           *  (icon and tooltip of the mode, pressed while on; Ctrl + Alt + H for
+           *  Hide), the caret opens the drawings / indicators / all menu, whose
+           *  row makes its mode the button's mode and toggles it. */}
+          {objectsGroup("lock")}
+          {objectsGroup("hide")}
+          {/* Sync drawings — `drawingSyncMode-button`. The icon turns sync on /
+           *  off (icon of the mode, pressed while on); the caret opens the
+           *  Sync-in-layout / Sync-globally menu. App keys the drawings store
+           *  by the mode (drawingKeyFor). */}
+          <div class={"drawing-tool-group" + (syncMenuOpen() ? " open" : "")}>
+            <Tooltip text={SYNC_TOOLTIPS[syncMode()]} side="right">
+              <button
+                type="button"
+                class={"ot-toolbar-button drawing-tool-btn" + (syncMode() !== "none" ? " active" : "")}
+                aria-label={SYNC_TOOLTIPS[syncMode()]}
+                aria-pressed={syncMode() !== "none"}
+                onClick={() => {
+                  setSyncMenuOpen(false);
+                  toggleSync();
+                }}
+              >
+                <span class="drawing-tool-icon">
+                  <Icon name={syncOnMode() === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
+                </span>
+              </button>
+            </Tooltip>
+            <Tooltip text="Sync drawings options" side="right">
+              <button
+                type="button"
+                class="ot-toolbar-button drawing-tool-arrow"
+                aria-label="Sync drawings options"
+                aria-haspopup="menu"
+                aria-expanded={syncMenuOpen()}
+                onClick={() => {
+                  setOpenGroup(null);
+                  setMagnetMenuOpen(false);
+                  setHideMenuOpen(false);
+                  setRemoveMenuOpen(false);
+                  setLockMenuOpen(false);
+                  setSyncMenuOpen(!syncMenuOpen());
+                }}
+              >
+                <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
+                  <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
+                </svg>
+              </button>
+            </Tooltip>
+            <Show when={syncMenuOpen()}>
+              <div ref={placeFlyout} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
+                {/* The two modes, with their icon; the mode in use is selected
+                 *  while sync is on; picking one turns sync on. */}
+                <For each={["layout", "global"] as const}>
+                  {(id) => (
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={syncMode() === id}
+                      class={"drawing-tool-submenu-item" + (syncMode() === id ? " current" : "")}
+                      onClick={() => {
+                        pickSyncMode(id);
+                        setSyncMenuOpen(false);
+                      }}
+                    >
+                      <span class="drawing-tool-submenu-icon">
+                        <Icon name={id === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
+                      </span>
+                      <span class="drawing-tool-submenu-label apply-overflow-tooltip">{SYNC_LABELS[id]}</span>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
         </div>
-      </div>
 
-      {/* Flex spacer — pushes the favorites toggle to the very bottom of the
-       *  rail; the toggle sits below Remove with a gap, not a separator. */}
-      <div class="drawing-toolbar-spacer" />
+        {/* Remove objects (standalone section) — split control: the icon clears
+         *  drawings; the caret opens a menu to scope the removal (drawings /
+         *  indicators / both). */}
+        <div class="drawing-toolbar-section">
+          <div class={"drawing-tool-group" + (removeMenuOpen() ? " open" : "")}>
+            <Tooltip text="Remove objects" side="right">
+              <button
+                type="button"
+                class="ot-toolbar-button drawing-tool-btn"
+                aria-label="Remove objects"
+                onClick={() => {
+                  setRemoveMenuOpen(false);
+                  props.onRemoveAll();
+                }}
+              >
+                <span class="drawing-tool-icon">
+                  <Icon name="draw-trash" size={28} />
+                </span>
+              </button>
+            </Tooltip>
+            <Tooltip text="Remove options" side="right">
+              <button
+                type="button"
+                class="ot-toolbar-button drawing-tool-arrow"
+                aria-label="Remove options"
+                aria-haspopup="menu"
+                aria-expanded={removeMenuOpen()}
+                onClick={() => {
+                  setOpenGroup(null);
+                  setMagnetMenuOpen(false);
+                  setSyncMenuOpen(false);
+                  setHideMenuOpen(false);
+                  setLockMenuOpen(false);
+                  setRemoveMenuOpen(!removeMenuOpen());
+                }}
+              >
+                <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
+                  <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
+                </svg>
+              </button>
+            </Tooltip>
+            <Show when={removeMenuOpen()}>
+              <div ref={placeFlyout} class="ot-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="drawing-tool-submenu-item"
+                  onClick={() => { setRemoveMenuOpen(false); props.onRemoveAll(); }}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", drawingsText(props.drawingCount))}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="drawing-tool-submenu-item"
+                  onClick={() => { setRemoveMenuOpen(false); props.onRemoveIndicators(); }}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">{translateWith("Remove {0}", indicatorsText(props.indicatorCount))}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="drawing-tool-submenu-item"
+                  onClick={() => { setRemoveMenuOpen(false); props.onRemoveAllObjects(); }}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">
+                    {translateWith("Remove {0} & {1}", drawingsText(props.drawingCount), indicatorsText(props.indicatorCount))}
+                  </span>
+                </button>
+                <div class="drawing-tool-submenu-divider" role="separator" />
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={props.alwaysRemoveLocked}
+                  class="drawing-tool-submenu-item has-switch"
+                  onClick={() => { setRemoveMenuOpen(false); props.onToggleAlwaysRemoveLocked(); }}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">Always remove locked drawings</span>
+                  <SwitchMark variant="toolbar" on={props.alwaysRemoveLocked} />
+                </button>
+              </div>
+            </Show>
+          </div>
+        </div>
 
-      {/* Show / hide the floating favorite-drawing-tools toolbar (bottom of the
-       *  rail). Mirrors the same `favoritesToolbarVisible` signal as the
-       *  right-click menu and the bar's own "Hide …" item, so all three stay in
-       *  sync. Active (blue) while the bar is shown. */}
-      <div class="drawing-toolbar-section">
-        {/* Static title, whatever the bar's state; the
-         *  button's active state shows whether the bar is visible. */}
-        <Tooltip text="Show Favorite Drawing Tools Toolbar" side="right">
-          <button
-            type="button"
-            class={
-              "ot-toolbar-button drawing-tool-btn drawing-fav-toggle" +
-              (favoritesToolbarVisible() ? " active" : "")
-            }
-            aria-label="Show Favorite Drawing Tools Toolbar"
-            aria-pressed={favoritesToolbarVisible()}
-            onClick={() => setFavoritesToolbarVisible(!favoritesToolbarVisible())}
-          >
-            <span class="drawing-tool-icon">
-              <Icon name="draw-show-favorite-drawing-tools-toolbar" size={28} />
-            </span>
-          </button>
-        </Tooltip>
-      </div>
+        {/* Flex spacer — pushes the favorites toggle to the very bottom of the
+         *  rail; the toggle sits below Remove with a gap, not a separator. */}
+        <div class="drawing-toolbar-spacer" />
+
+        {/* Show / hide the floating favorite-drawing-tools toolbar (bottom of the
+         *  rail). Mirrors the same `favoritesToolbarVisible` signal as the
+         *  right-click menu and the bar's own "Hide …" item, so all three stay in
+         *  sync. Active (blue) while the bar is shown. */}
+        <div class="drawing-toolbar-section">
+          {/* Static title, whatever the bar's state; the
+           *  button's active state shows whether the bar is visible. */}
+          <Tooltip text="Show Favorite Drawing Tools Toolbar" side="right">
+            <button
+              type="button"
+              class={
+                "ot-toolbar-button drawing-tool-btn drawing-fav-toggle" +
+                (favoritesToolbarVisible() ? " active" : "")
+              }
+              aria-label="Show Favorite Drawing Tools Toolbar"
+              aria-pressed={favoritesToolbarVisible()}
+              onClick={() => setFavoritesToolbarVisible(!favoritesToolbarVisible())}
+            >
+              <span class="drawing-tool-icon">
+                <Icon name="draw-show-favorite-drawing-tools-toolbar" size={28} />
+              </span>
+            </button>
+          </Tooltip>
+        </div>
+      </ScrollStrip>
 
       {/* Right-click context menu — the "Show / Hide Favorite Drawing Tools
        * Toolbar" toggle (the favorites bar's own "Hide …" lives in

@@ -5,6 +5,7 @@
 @import "./styles/base.css";
 @import "./styles/tabs.css";
 @import "./styles/toolbar-button.css";
+@import "./styles/scroll-strip.css";
 @import "./styles/header-toolbar.css";
 @import "./styles/tooltip.css";
 @import "./styles/chart-event-hint.css";

@@ -16,6 +16,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { ScrollStrip } from "../../components/ScrollStrip";
 import { avatarHue, ProfileMenu } from "./ProfileMenu";
 import { SECTIONS, SLUG_TO_INTERVAL, type Item, type Section } from "../../data/header-toolbar";
 import { CHART_TYPE_ICON, type ChartTypeId } from "../chart/chart-types";
@@ -305,156 +306,171 @@ export function HeaderToolbar(props: Props) {
   const userName = () => props.userName ?? "Trader";
   const [profileAnchor, setProfileAnchor] = createSignal<DOMRect | null>(null);
 
+  // Too narrow for the whole row: the icon-and-text buttons (Indicators, Alert, Replay) drop their text, and what
+  // still doesn't fit scrolls (#298). `fullWidth` is the row's width with the texts, to give them back.
+  const [compact, setCompact] = createSignal(false);
+  let fullWidth = 0;
+  const fitRow = (view: HTMLElement) => {
+    if (!compact() && view.scrollWidth > view.clientWidth + 1) {
+      fullWidth = view.scrollWidth;
+      setCompact(true);
+    } else if (compact() && view.clientWidth >= fullWidth) {
+      setCompact(false);
+    }
+  };
+
   return (
-    <div class="header-toolbar" role="toolbar" aria-label="Chart header">
-      {/* Account/main menu — circular avatar at the far left, before the
-          symbol field. No tooltip: there is no account to show. */}
-        <button
-          type="button"
-          class={"header-toolbar-profile" + (profileAnchor() ? " is-open" : "")}
-          data-qa-id="main-menu-button"
-          aria-label="Main menu"
-          aria-haspopup="menu"
-          aria-expanded={!!profileAnchor()}
-          onClick={(e) =>
-            setProfileAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()))
-          }
-        >
-          <span class="header-toolbar-avatar" style={{ "background-color": `hsl(${avatarHue(userName())}, 25%, 50%)` }}>
-            {userName().charAt(0).toUpperCase()}
-          </span>
-        </button>
-      <Show when={profileAnchor()}>
-        {(anchor) => (
-          <ProfileMenu
-            anchor={anchor()}
-            userName={userName()}
-            onClose={() => setProfileAnchor(null)}
-            onAction={(action) => {
-              if (action === "app-settings") props.onOpenAppSettings?.("general");
-            }}
-          />
-        )}
-      </Show>
-      <For each={SECTIONS}>
-        {(section: Section, si) => (
-          <>
-            <Show when={si() > 0}>
-              <div class="header-toolbar-sep" />
-            </Show>
-            <div class="header-toolbar-section">
-              {/* Indicators section: after the static buttons, the favourited
-                  indicator templates render as live letter badges (20×20
-                  round template favourites) — one click applies the template. */}
-              <Show when={section.sectionIndex === 3}>
-                <For each={section.items}>{(item) => renderItem(item)}</For>
-                <For each={favoriteIndicatorTemplates()}>
-                  {(tpl) => (
-                    <Tooltip text={tpl.name} side="bottom">
-                      <button
-                        type="button"
-                        data-name={`indicator-template-favorite-${tpl.id}`}
-                        aria-label={`Apply indicator template ${tpl.name}`}
-                        class="ot-toolbar-button header-toolbar-btn is-template"
-                        onClick={() => props.onApplyIndicatorTemplate?.(tpl.id)}
-                      >
-                        <span class="header-toolbar-template-badge">
-                          {tpl.name.charAt(0).toUpperCase()}
-                        </span>
-                      </button>
-                    </Tooltip>
-                  )}
-                </For>
+    <div class={"header-toolbar" + (compact() ? " is-compact" : "")} role="toolbar" aria-label="Chart header">
+      <ScrollStrip axis="x" arrowsOnHover class="header-toolbar-scroll" contentClass="header-toolbar-row" onResize={fitRow}>
+        {/* Account/main menu — circular avatar at the far left, before the
+            symbol field. No tooltip: there is no account to show. */}
+          <button
+            type="button"
+            class={"header-toolbar-profile" + (profileAnchor() ? " is-open" : "")}
+            data-qa-id="main-menu-button"
+            aria-label="Main menu"
+            aria-haspopup="menu"
+            aria-expanded={!!profileAnchor()}
+            onClick={(e) =>
+              setProfileAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()))
+            }
+          >
+            <span class="header-toolbar-avatar" style={{ "background-color": `hsl(${avatarHue(userName())}, 25%, 50%)` }}>
+              {userName().charAt(0).toUpperCase()}
+            </span>
+          </button>
+        <Show when={profileAnchor()}>
+          {(anchor) => (
+            <ProfileMenu
+              anchor={anchor()}
+              userName={userName()}
+              onClose={() => setProfileAnchor(null)}
+              onAction={(action) => {
+                if (action === "app-settings") props.onOpenAppSettings?.("general");
+              }}
+            />
+          )}
+        </Show>
+        <For each={SECTIONS}>
+          {(section: Section, si) => (
+            <>
+              <Show when={si() > 0}>
+                <div class="header-toolbar-sep" />
               </Show>
-              <Show
-                when={section.sectionIndex === 1}
-                fallback={
-                  <Show when={section.sectionIndex !== 3}>
-                    <For each={section.items}>
-                      {(item) => (
-                        <>
-                          {item.id === "candles" ? chartTypeStrip(item) : renderItem(item)}
-                          {/* Favorite layouts sit right after Manage layouts,
-                              inside the save-load group, sorted by name. */}
-                          <Show when={item.id === "save-load-menu"}>
-                            <For each={favoriteLayouts()}>
-                              {(l, i) => (
-                                <Tooltip text={l.name} side="bottom">
-                                  <button
-                                    type="button"
-                                    data-name={`favorite-layout-${l.id}`}
-                                    aria-label={l.name}
-                                    class={
-                                      "header-toolbar-fav-layout" +
-                                      (i() === favoriteLayouts().length - 1 ? " is-last" : "")
-                                    }
-                                    onClick={() => props.onOpenLayout?.(l.id)}
-                                  >
-                                    <span
-                                      class={
-                                        "header-toolbar-fav-layout-round" +
-                                        (l.id === props.activeLayoutId ? " is-active" : "")
-                                      }
-                                    >
-                                      {firstSegment(l.name)}
-                                    </span>
-                                  </button>
-                                </Tooltip>
-                              )}
-                            </For>
-                          </Show>
-                        </>
-                      )}
-                    </For>
-                  </Show>
-                }
-              >
-                {/* Interval strip: quick-access buttons regenerated from the
-                    global favourites store, then the chart-interval dropdown. */}
-                <For each={favoriteIntervals()}>
-                  {(id) => (
-                    <Tooltip text={longIntervalLabel(id)} side="bottom">
-                      <button
-                        type="button"
-                        data-name={`interval-${id}`}
-                        aria-label={id}
-                        class={`ot-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}${props.intervalAvailable?.(id) === false ? " is-disabled" : ""}`}
-                        disabled={props.intervalAvailable?.(id) === false}
-                        onClick={() => props.onIntervalChange?.(id)}
-                      >
-                        <span class="header-toolbar-label">{shortIntervalLabel(id)}</span>
-                      </button>
-                    </Tooltip>
-                  )}
-                </For>
-                {/* Active interval that isn't favourited: it surfaces as a
-                    highlighted button right before the chevron, so the current
-                    timeframe is always visible without opening the dropdown. */}
-                <Show when={props.interval && !favoriteIntervals().includes(props.interval)}>
-                  <Tooltip text={longIntervalLabel(props.interval!)} side="bottom">
-                    <button
-                      type="button"
-                      data-name={`interval-${props.interval}`}
-                      aria-label={props.interval}
-                      class="ot-toolbar-button header-toolbar-btn active"
-                      onClick={() => props.onIntervalChange?.(props.interval!)}
-                    >
-                      <span class="header-toolbar-label">{shortIntervalLabel(props.interval!)}</span>
-                    </button>
-                  </Tooltip>
+              <div class="header-toolbar-section">
+                {/* Indicators section: after the static buttons, the favourited
+                    indicator templates render as live letter badges (20×20
+                    round template favourites) — one click applies the template. */}
+                <Show when={section.sectionIndex === 3}>
+                  <For each={section.items}>{(item) => renderItem(item)}</For>
+                  <For each={favoriteIndicatorTemplates()}>
+                    {(tpl) => (
+                      <Tooltip text={tpl.name} side="bottom">
+                        <button
+                          type="button"
+                          data-name={`indicator-template-favorite-${tpl.id}`}
+                          aria-label={`Apply indicator template ${tpl.name}`}
+                          class="ot-toolbar-button header-toolbar-btn is-template"
+                          onClick={() => props.onApplyIndicatorTemplate?.(tpl.id)}
+                        >
+                          <span class="header-toolbar-template-badge">
+                            {tpl.name.charAt(0).toUpperCase()}
+                          </span>
+                        </button>
+                      </Tooltip>
+                    )}
+                  </For>
                 </Show>
-                <For each={section.items.filter((i) => i.id === "chart-interval")}>
-                  {(item) => renderItem(item)}
-                </For>
-              </Show>
-            </div>
-          </>
-        )}
-      </For>
-      {/* "Trade" at the right end while Bar Replay is on (paper trading). */}
-      <Show when={replayEnabled()}>
-        <TradeHeaderButton />
-      </Show>
+                <Show
+                  when={section.sectionIndex === 1}
+                  fallback={
+                    <Show when={section.sectionIndex !== 3}>
+                      <For each={section.items}>
+                        {(item) => (
+                          <>
+                            {item.id === "candles" ? chartTypeStrip(item) : renderItem(item)}
+                            {/* Favorite layouts sit right after Manage layouts,
+                                inside the save-load group, sorted by name. */}
+                            <Show when={item.id === "save-load-menu"}>
+                              <For each={favoriteLayouts()}>
+                                {(l, i) => (
+                                  <Tooltip text={l.name} side="bottom">
+                                    <button
+                                      type="button"
+                                      data-name={`favorite-layout-${l.id}`}
+                                      aria-label={l.name}
+                                      class={
+                                        "header-toolbar-fav-layout" +
+                                        (i() === favoriteLayouts().length - 1 ? " is-last" : "")
+                                      }
+                                      onClick={() => props.onOpenLayout?.(l.id)}
+                                    >
+                                      <span
+                                        class={
+                                          "header-toolbar-fav-layout-round" +
+                                          (l.id === props.activeLayoutId ? " is-active" : "")
+                                        }
+                                      >
+                                        {firstSegment(l.name)}
+                                      </span>
+                                    </button>
+                                  </Tooltip>
+                                )}
+                              </For>
+                            </Show>
+                          </>
+                        )}
+                      </For>
+                    </Show>
+                  }
+                >
+                  {/* Interval strip: quick-access buttons regenerated from the
+                      global favourites store, then the chart-interval dropdown. */}
+                  <For each={favoriteIntervals()}>
+                    {(id) => (
+                      <Tooltip text={longIntervalLabel(id)} side="bottom">
+                        <button
+                          type="button"
+                          data-name={`interval-${id}`}
+                          aria-label={id}
+                          class={`ot-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}${props.intervalAvailable?.(id) === false ? " is-disabled" : ""}`}
+                          disabled={props.intervalAvailable?.(id) === false}
+                          onClick={() => props.onIntervalChange?.(id)}
+                        >
+                          <span class="header-toolbar-label">{shortIntervalLabel(id)}</span>
+                        </button>
+                      </Tooltip>
+                    )}
+                  </For>
+                  {/* Active interval that isn't favourited: it surfaces as a
+                      highlighted button right before the chevron, so the current
+                      timeframe is always visible without opening the dropdown. */}
+                  <Show when={props.interval && !favoriteIntervals().includes(props.interval)}>
+                    <Tooltip text={longIntervalLabel(props.interval!)} side="bottom">
+                      <button
+                        type="button"
+                        data-name={`interval-${props.interval}`}
+                        aria-label={props.interval}
+                        class="ot-toolbar-button header-toolbar-btn active"
+                        onClick={() => props.onIntervalChange?.(props.interval!)}
+                      >
+                        <span class="header-toolbar-label">{shortIntervalLabel(props.interval!)}</span>
+                      </button>
+                    </Tooltip>
+                  </Show>
+                  <For each={section.items.filter((i) => i.id === "chart-interval")}>
+                    {(item) => renderItem(item)}
+                  </For>
+                </Show>
+              </div>
+            </>
+          )}
+        </For>
+        {/* "Trade" at the right end while Bar Replay is on (paper trading). */}
+        <Show when={replayEnabled()}>
+          <TradeHeaderButton />
+        </Show>
+      </ScrollStrip>
     </div>
   );
 }

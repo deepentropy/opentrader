@@ -20,10 +20,12 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* Must stay `visible` — the submenu popover positions itself at
-   * `left: calc(100% + 1px)` to spill into the chart-pane area; any
-   * non-visible overflow on either axis clips it. */
+  /* Must stay `visible`: the FontIconPicker spills into the chart-pane area. */
   overflow: visible;
+}
+/* The tools, scrolled when the window is too short for them (ScrollStrip, #297). */
+.drawing-toolbar-scroll {
+  flex: 1 1 auto;
 }
 
 /* The left drawing bar stacks visual "sections" (tool dropdowns, measure,
@@ -75,8 +77,7 @@
   height: 28px;
 }
 
-/* Each group is just a relative-positioning anchor so we can render the
- * submenu popover beside it. */
+/* Each group is the anchor its flyout is placed beside (placeFlyout). */
 .drawing-tool-group {
   position: relative;
 }
@@ -138,10 +139,8 @@
  * (bg / radius / shadow / padding) come from the shared `.ot-popover`
  * class; we only own the positioning and minimum width. */
 .drawing-tool-submenu {
-  position: absolute;
-  top: 0;
-  /* Physical: the toolbar stays on the left right to left too (#290). */
-  left: calc(100% + 1px);
+  /* Fixed beside its button (placeFlyout): the toolbar scrolls and clips what it holds. */
+  position: fixed;
   /* Flyouts are content-sized per group (190px for Annotation up to 354px for
    * Icons); 190 is the floor so short menus shrink. */
   min-width: 190px;
@@ -149,7 +148,7 @@
   display: flex;
   flex-direction: column;
 }
-/* A flyout taller than the window scrolls (keepInWindowHeight): its rows keep their height. */
+/* A flyout taller than the window scrolls (placeFlyout): its rows keep their height. */
 .drawing-tool-submenu > * {
   flex-shrink: 0;
 }
