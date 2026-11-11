@@ -95,6 +95,7 @@ export function OakScriptPanel(props: Props) {
   const [currentScript, setCurrentScript] = createSignal(startBuiltin ? storedFallback() : scripts.ensureCurrentScript());
   const [builtin, setBuiltin] = createSignal<{ typeId: string; name: string; source: string } | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
+  let nameBtn!: HTMLButtonElement;
   const [renaming, setRenaming] = createSignal(false);
   const [builtinDialog, setBuiltinDialog] = createSignal(false);
   let importInputRef: HTMLInputElement | undefined;
@@ -419,6 +420,7 @@ export function OakScriptPanel(props: Props) {
             }
           >
             <button
+              ref={nameBtn}
               type="button"
               class="oak-panel__name-btn"
               aria-haspopup="menu"
@@ -436,6 +438,7 @@ export function OakScriptPanel(props: Props) {
           </Show>
           <Show when={menuOpen()}>
             <OakScriptMenu
+              anchor={nameBtn}
               scriptsList={scripts.recentScripts((id) => {
                 const t = builtinTypeOf(id);
                 return t ? builtinName(t) : undefined;
