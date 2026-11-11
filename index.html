@@ -59,6 +59,10 @@
         line-height: 18px;
         text-align: center;
       }
+      /* The text waits for the interface language (index.tsx), so it is not shown in English first. */
+      #splash:not(.is-translated) :is(.splash-version, .splash-warning, .splash-web) {
+        color: transparent;
+      }
     </style>
   </head>
 

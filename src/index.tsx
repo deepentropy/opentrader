@@ -20,7 +20,7 @@ void hydrateKv().finally(async () => {
   initAppUpdate();
   // The interface language, before anything is drawn.
   const { startTranslation } = await import("./i18n/language");
-  await startTranslation();
+  await startTranslation().finally(() => document.getElementById("splash")?.classList.add("is-translated"));
   const { render } = await import("solid-js/web");
   // The screener's own window (placement "Separate window") holds the screener only.
   if (new URLSearchParams(location.search).get("view") === "screener") {
