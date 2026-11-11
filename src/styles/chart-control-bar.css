@@ -122,9 +122,10 @@
   z-index: 5;
   box-sizing: border-box;
   padding: 4px;
-  pointer-events: auto;
+  pointer-events: none;
 }
 .ot-price-currency-box {
+  pointer-events: auto;
   border: 1px solid var(--color-divider);
   border-radius: 4px;
 }

@@ -113,6 +113,13 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
     const next = { auto: !!o.autoScale, log: o.mode === PriceScaleMode.Logarithmic };
     setScaleModes((m) => (m.auto === next.auto && m.log === next.log ? m : next));
   }
+  /** The main pane's axis background (the chart draws a gradient background
+   *  over each pane's height), for the currency label's band at its top. */
+  const currencyBandBackground = () => {
+    const t = readChartTokens(appearance());
+    if (!t.bgGradient || t.bgBottom === t.bg) return t.bg;
+    return `linear-gradient(${t.bg}, ${t.bgBottom}) top / 100% ${mainAxis()?.h ?? 0}px no-repeat`;
+  };
   const overlayVisible = (b: NavButtonsBehavior, hovered: boolean) => b === "alwaysOn" || (b === "visibleOnMouseOver" && hovered);
   /** Symbol change with auto scale off: the price scale is fitted to the new
    *  symbol's visible bars once, then stays manual (the old symbol's price
@@ -147,10 +154,22 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
       <Show when={scaleGeom()}>
         {(g) => (
           <>
-            {/* Currency label (12 px row). */}
+            {/* Currency label (12 px row). While it shows, nothing of the axis
+                is drawn in its band (button and padding): the labels under it
+                (tick labels, High / Low, last price) are cut at its bottom edge
+                instead of peeking around the button. The band is painted with
+                the axis' own background (the pane's gradient, if any). */}
             <Show when={currency() && mainAxis() && overlayVisible(appearance().currencyUnit ?? "visibleOnMouseOver", axisHover() !== null)}>
-              <div class="ot-price-currency" style={{ [mainAxis()!.left ? "left" : "right"]: "0px", top: `${mainAxis()!.top}px`, width: `${mainAxis()!.w}px` }}>
-                <div class="ot-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
+              <div
+                class="ot-price-currency"
+                style={{
+                  [mainAxis()!.left ? "left" : "right"]: "0px",
+                  top: `${mainAxis()!.top}px`,
+                  width: `${mainAxis()!.w}px`,
+                  background: currencyBandBackground(),
+                }}
+              >
+                <div class="ot-price-currency-box">
                   <div class="ot-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
                     {/* No dropdown arrow: the reference menu converts the chart to
                         another currency, which needs intraday exchange rates
