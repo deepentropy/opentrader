@@ -1,18 +1,18 @@
 // Prepares a release (prepare-release.yml): bumps the three libraries to their
 // latest release, then the app version in every file that carries it.
 //
-//   node scripts/release-bump.mjs <when> <part>
-//     when: "libs"    release only if a library has a new version (daily run)
-//           "changes" release if a library changed or main has commits since
-//                     the last version tag (manual run)
+//   node scripts/release-bump.mjs <part>
 //     part: "patch" | "minor"
+//
+// Releases when a library has a new version or main has commits since the
+// last version tag.
 //
 // Writes release=true|false and version=<x.y.z> to $GITHUB_OUTPUT (stdout
 // without it). Files are changed only when release=true.
 import { execSync } from "node:child_process";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
-const [when = "changes", part = "patch"] = process.argv.slice(2);
+const [part = "patch"] = process.argv.slice(2);
 const sh = (cmd) => execSync(cmd, { encoding: "utf8" }).trim();
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
@@ -55,7 +55,7 @@ console.error(`lightweight-charts-drawing: ${drawing.from} -> ${drawing.to}`);
 console.error(`commits since v${current}: ${commits}`);
 
 const libsChanged = libChanges.length > 0 || drawingChanged;
-if (!libsChanged && (when === "libs" || commits === 0)) {
+if (!libsChanged && commits === 0) {
   console.error("Nothing to release.");
   output({ release: "false", version: current });
   process.exit(0);

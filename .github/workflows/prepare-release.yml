@@ -8,10 +8,9 @@ name: Prepare release
 #   4. commits "OpenTrader <version>" to main, tags v<version>, pushes both;
 #   5. runs the Release workflow for that tag, which publishes the release
 #      once all installers are built.
-# Triggers:
-#   - daily: releases only when a library has a new version;
-#   - manual (Actions tab -> "Run workflow"): releases when a library changed
-#     or main has commits since the last version tag.
+# Triggers: nightly (patch) and manual (Actions tab -> "Run workflow", patch
+# or minor). Releases only when a library has a new version or main has
+# commits since the last version tag.
 # Nothing is pushed when a check fails.
 on:
   schedule:
@@ -60,7 +59,7 @@ jobs:
         id: bump
         shell: bash
         working-directory: opentrader
-        run: node scripts/release-bump.mjs ${{ github.event_name == 'schedule' && 'libs' || 'changes' }} ${{ inputs.part || 'patch' }}
+        run: node scripts/release-bump.mjs ${{ inputs.part || 'patch' }}
 
       # The CI checks (ci.yml) on the bumped tree.
       - name: Read drawing core ref
