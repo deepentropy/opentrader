@@ -903,6 +903,31 @@ export class IndicatorLayer {
     const library = isLibraryEntry(entry) || (!isUserIndicatorId(entry.id) && !isStrategyId(entry.id));
     renderer.setPaneIndex(this.paneIndex);
     renderer.setFutureSlots(this.futureSlots());
+    try {
+      this.renderResult(renderer, entry, styled, plots, library, bars, overrides, ownScale, reuseSeries);
+    } catch (err) {
+      // A result the chart library refuses (times out of order…) must not stop the chart's own update (a symbol
+      // change left half applied, #307): the study shows the error instead.
+      renderer.clear();
+      this.error = studyErrorOf(err);
+      // eslint-disable-next-line no-console
+      console.warn(`[indicators] ${entry.id} failed to draw`, err);
+      return;
+    }
+    this.afterRender(entry, result, plots, overrides, ownScale, columns);
+  }
+
+  private renderResult(
+    renderer: IndicatorRenderer,
+    entry: IndicatorRegistryEntry,
+    styled: ReturnType<typeof applyStyleOverrides>,
+    plots: Record<string, PlotPoint[]>,
+    library: boolean,
+    bars: Bar[],
+    overrides: Record<string, PlotOverride>,
+    ownScale: boolean,
+    reuseSeries: boolean,
+  ): void {
     renderer.render(
       {
         overlay: this.rendererOverlay,
@@ -924,7 +949,6 @@ export class IndicatorLayer {
         reuseSeries,
       },
     );
-    this.afterRender(entry, result, plots, overrides, ownScale, columns);
   }
 
   /** Slots after the last bar of the times a drawing gives (xloc.bar_time) on the symbol's trading calendar, as the

@@ -14,6 +14,7 @@
  * a study pane: the allocator's `mainPane` is the pane of the series and of the
  * studies drawn over it. study-scales.ts picks each study's price scale.
  */
+import { pendingRange } from "../pending-range";
 import { type IChartApi, type ISeriesApi, type SeriesType, type Time } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
@@ -324,6 +325,9 @@ export class IndicatorController {
    */
   keepView<T>(change: () => T): T {
     const ts = this.chart.timeScale();
+    // A range asked for and not drawn yet: the time scale still answers the one before, which must not be put back
+    // (the asked one is drawn on the next frame).
+    if (pendingRange(this.chart)) return change();
     const before = ts.getVisibleLogicalRange();
     const lastBefore = before ? before.to - ts.scrollPosition() : null;
     const out = change();

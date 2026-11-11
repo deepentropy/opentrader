@@ -16,6 +16,7 @@
 import { Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { createStore } from "solid-js/store";
 import { CrosshairMode, createChartEx, type IChartApi, type MouseEventParams } from "lightweight-charts";
+import { trackPendingRange } from "./pending-range";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartNumberOptions, localizeLibraryNumbers } from "./price-format";
 import { chartBackgroundAt } from "./selection-markers";
@@ -395,6 +396,7 @@ export function ChartView(props: ChartViewProps) {
     }) as IChartApi;
     // The indexed-to-100 scale's values in the language's marks ("103,25").
     localizeLibraryNumbers(chart);
+    trackPendingRange(chart);
     cx.chart = chart;
     cx.lockViews = new CrosshairLockViews(chart, () => {
       const t = currentTokens();
