@@ -40,7 +40,7 @@ Windows is the main development platform. The macOS and Linux builds are produce
 
 ## Use with a coding agent
 
-A coding agent (Claude Code, Codex, Cursor, …) can work with the running app: read your charts, add indicators, write and test scripts, run strategies, draw, screen the market and save screens, manage watchlists, alerts and layouts, read the Community, and take screenshots of the result. It cannot place orders or post in the Community.
+A coding agent (Claude Code, Claude Desktop, Codex, Cursor, …) can work with the running app: read your charts, add indicators, write and test scripts, run strategies, draw, screen the market and save screens, manage watchlists, alerts and layouts, read the Community, and take screenshots of the result. It cannot place orders or post in the Community.
 
 1. In the app, open *Settings > Coding agents* and tick *Allow coding agents to use OpenTrader*. The app then listens on this computer only (`http://127.0.0.1:47821/mcp`), and only for requests that carry its token.
 2. Copy the setup for your agent from the same page. For Claude Code it is one command:
@@ -48,6 +48,22 @@ A coding agent (Claude Code, Codex, Cursor, …) can work with the running app: 
 ```bash
 claude mcp add --transport http opentrader http://127.0.0.1:47821/mcp --header "Authorization: Bearer <token>"
 ```
+
+Claude Desktop only starts servers from a command, so its setup bridges to the app with `mcp-remote` (needs Node.js). Add the `opentrader` entry to `mcpServers` in `claude_desktop_config.json`, keeping the servers already there:
+
+```json
+{
+  "mcpServers": {
+    "opentrader": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:47821/mcp", "--header", "Authorization:${OT_AUTH}"],
+      "env": { "OT_AUTH": "Bearer <token>" }
+    }
+  }
+}
+```
+
+Claude Desktop connects only when it starts: restart it once the app runs with coding agents allowed.
 
 The agent acts on the chart tab you focused last; every change is an undo step. The app also gives the agent the guides of the scripting, indicator and drawing libraries, so you can ask in plain words, for example "write an indicator that colours the bars by RSI and add it to my chart".
 

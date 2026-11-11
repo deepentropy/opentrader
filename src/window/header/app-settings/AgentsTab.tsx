@@ -39,10 +39,22 @@ export function AgentsTab() {
   };
   const setups = (s: AgentServerStatus) => [
     { id: "claude", label: "Claude Code (terminal)", command: `claude mcp add --transport http opentrader ${s.url} --header "Authorization: Bearer ${s.token}"` },
+    // Claude Desktop only starts stdio servers from a command: mcp-remote bridges to the endpoint. The header comes
+    // from env because npx on Windows can split an argument at its space.
+    {
+      id: "claude-desktop",
+      label: "Claude Desktop (claude_desktop_config.json)",
+      note: "Needs Node.js. Add the opentrader entry to mcpServers, keeping the servers already there. Claude Desktop connects only when it starts: restart it once OpenTrader runs with coding agents allowed.",
+      command: JSON.stringify(
+        { mcpServers: { opentrader: { command: "npx", args: ["-y", "mcp-remote", s.url, "--header", "Authorization:${OT_AUTH}"], env: { OT_AUTH: `Bearer ${s.token}` } } } },
+        null,
+        2,
+      ),
+    },
     { id: "codex", label: "Codex (~/.codex/config.toml)", command: `[mcp_servers.opentrader]
 url = "${s.url}"
 http_headers = { "Authorization" = "Bearer ${s.token}" }` },
-    { id: "json", label: "Other agents (MCP JSON config)", command: JSON.stringify({ mcpServers: { opentrader: { type: "http", url: s.url, headers: { Authorization: `Bearer ${s.token}` } } } }, null, 2) },
+    { id: "json", label: "Cursor and other agents (HTTP)", note: "Add the opentrader entry to mcpServers, keeping the servers already there.", command: JSON.stringify({ mcpServers: { opentrader: { type: "http", url: s.url, headers: { Authorization: `Bearer ${s.token}` } } } }, null, 2) },
   ];
   return (
     <div class="app-settings-network app-settings-agents">
@@ -99,6 +111,7 @@ http_headers = { "Authorization" = "Bearer ${s.token}" }` },
                       <button type="button" class="app-settings-btn" onClick={() => copy(x.id, x.command)}>{copied() === x.id ? "Copied" : "Copy"}</button>
                     </div>
                     <pre class="app-settings-code" data-no-translate>{shown() ? x.command : x.command.split(s().token).join("•".repeat(12))}</pre>
+                    <Show when={x.note}>{(n) => <div class="app-settings-note">{n()}</div>}</Show>
                   </div>
                 )}
               </For>

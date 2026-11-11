@@ -198,7 +198,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
       name: "get_chart",
       title: "Get chart",
       description:
-        "The focused chart tab: its layout, the focused pane, and for each pane the symbol, interval, chart type, session, studies (id, type, name, inputs the user changed) and compared symbols (symbol, label). Call it first.",
+        "The focused chart tab: its layout, the focused pane, and for each pane the symbol, interval, chart type, session, studies (id, type, name, input values) and compared symbols (symbol, label). Call it first.",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true },
       run: async () => {
