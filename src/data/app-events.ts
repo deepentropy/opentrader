@@ -96,7 +96,12 @@ export interface AppEvents {
   /** Trade journal: frame [from, to] (UTC s) on the active chart, once its
    *  symbol / interval change has loaded; then start Bar Replay at `replayAt`.
    *  `done`: called once the chart is framed (or Bar Replay started). */
-  "chart-show-range": { from: number; to: number; replayAt?: number; done?: () => void };
+  /** Frames [from, to] (UNIX seconds) on the active chart once its data is in, or on the chart at `paneIndex` of the
+   *  shown tab (a symbol note's charts put back, #301); `series` ("symbol|interval"): once that series is shown. */
+  "chart-show-range": { from: number; to: number; replayAt?: number; done?: () => void; paneIndex?: number; series?: string };
+  /** Asks the shown tab's charts for their visible time spans (UNIX seconds of the first and last visible bars), by
+   *  chart index; answered synchronously. */
+  "chart-view-query": { ranges: Record<number, { from: number; to: number }> };
   /** Go to dialog opening: the active chart fills the query in place. */
   "chart-goto-query": GotoQuery;
 
@@ -127,7 +132,8 @@ export interface AppEvents {
 
   // ── Watchlist ────────────────────────────────────────────────────────
   "watchlist-navigate": { dir: number };
-  "wl-open-note": undefined;
+  /** A symbol's notes in the Details panel; `write`: the cursor in the box to write one (the default). */
+  "wl-open-note": { write?: boolean } | undefined;
 }
 
 export type AppEventName = keyof AppEvents;

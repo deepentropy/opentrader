@@ -251,6 +251,8 @@ export interface ChartCore {
   setSettingsTab: Setter<DialogTab | undefined>;
   studySelectionBg: Accessor<ReturnType<typeof chartBackgroundAt>>;
   swapping: boolean;
+  /** "symbol|interval" of the bars shown, set when they are painted. */
+  shownSeries: string;
   syncLockPanes: () => void;
   toggleSourceHidden: (id: string) => void;
   whenShown: <T extends Event>(fn: (e: T) => void) => EventListener;

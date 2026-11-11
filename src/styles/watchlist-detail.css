@@ -92,7 +92,7 @@
   color: var(--color-main-text);
 }
 
-/* Header popovers (Settings checkboxes, Add-note editor). */
+/* Header popover (Settings checkboxes). */
 .watchlist-detail-popover {
   position: absolute;
   top: calc(100% + 4px);
@@ -128,39 +128,6 @@
 }
 .watchlist-detail-check input {
   accent-color: var(--color-brand);
-}
-.watchlist-detail-note-popover {
-  min-width: 240px;
-}
-.watchlist-detail-note-input {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 88px;
-  resize: vertical;
-  padding: 8px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--color-main-text);
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-divider-line-primary);
-  border-radius: 6px;
-  outline: none;
-}
-.watchlist-detail-note-input:focus {
-  border-color: var(--color-brand);
-}
-/* Saved-note block under the price/market-state. */
-.watchlist-detail-note {
-  margin: 2px 0;
-  padding: 8px 10px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--color-main-text);
-  background-color: var(--ot-tint-blue-8);
-  border-inline-start: 2px solid var(--color-brand);
-  border-radius: 4px;
-  white-space: pre-wrap;
-  cursor: text;
 }
 
 .watchlist-detail-body {

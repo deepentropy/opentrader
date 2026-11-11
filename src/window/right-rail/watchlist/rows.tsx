@@ -8,6 +8,8 @@ import { WL_ICONS } from "./ui";
 import { sectionId } from "../../../data/watchlist-store";
 import { flagOf } from "../../../data/symbol-flags";
 import { FlagMarker } from "./markers";
+import { NotesMark } from "../notes/SymbolNotes";
+import { emitAppEvent } from "../../../data/app-events";
 import { type WatchlistCx } from "./context";
 import type { JSX } from "solid-js";
 
@@ -167,6 +169,13 @@ export function createRows(cx: WatchlistCx): RowsApi {
         <Show when={dotClass(r)}>
           {(c) => <span class={c()} aria-hidden="true" />}
         </Show>
+        <NotesMark
+          symbol={r.ticker}
+          onOpen={() => {
+            selectRow(r.ticker);
+            emitAppEvent("wl-open-note", { write: false });
+          }}
+        />
       </div>
       <For each={visibleCols()}>
         {(c) => {

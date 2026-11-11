@@ -93,6 +93,12 @@ export function RightRail(props: Props) {
     }
   });
 
+  /** Grows the details to `px` (writing a note, #301), the watchlist kept at its minimum. */
+  function growDetail(px: number) {
+    const maxH = Math.max(DETAIL_MIN, (stackRef?.clientHeight ?? 0) - WATCHLIST_MIN);
+    if (detailHeight() < px) setDetailHeight(Math.min(maxH, px));
+  }
+
   function beginDetailResize(e: MouseEvent) {
     e.preventDefault();
     const startY = e.clientY;
@@ -212,6 +218,8 @@ export function RightRail(props: Props) {
                 height={detailHeight()}
                 collapsed={detailCollapsed()}
                 onToggleCollapse={() => setDetailCollapsed((c) => !c)}
+                onSymbolSelect={props.onSymbolSelect}
+                onMinHeight={growDetail}
               />
             </div>
           </Match>

@@ -1,0 +1,336 @@
+/*
+ * Symbol notes (#301) in the Details panel: a symbol's notes and the box to write one, all notes by symbol, the
+ * details' "Notes" card and the watchlist rows' notes mark (window/right-rail/notes/SymbolNotes.tsx).
+ */
+.notes-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notes-header {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 4px 8px;
+}
+.notes-header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-main-text);
+}
+
+.notes-icon-btn {
+  all: unset;
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--color-toolbar-button-text);
+}
+.notes-icon-btn:hover:not(:disabled) {
+  background-color: var(--color-toolbar-button-background-hover);
+  color: var(--color-main-text);
+}
+.notes-icon-btn:disabled {
+  opacity: 0.4;
+}
+
+.notes-logo,
+.notes-logo-img {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+/* ── The notes of a symbol ── */
+
+.notes-items {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px;
+}
+.notes-items.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--color-main-text);
+}
+.notes-empty svg {
+  color: var(--color-default-gray);
+}
+
+.notes-item {
+  padding: 8px;
+  border-radius: 6px;
+}
+.notes-item:hover,
+.notes-item.is-editing {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+.notes-item-text {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-main-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.notes-item-text a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+.notes-item-text a:hover {
+  text-decoration: underline;
+}
+.notes-item-snapshot {
+  all: unset;
+  display: block;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.notes-item-snapshot img {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  object-position: right center;
+}
+.notes-item-info {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 2px;
+}
+.notes-item-date {
+  flex: 1;
+  font-size: 12px;
+  color: var(--color-default-gray);
+}
+.notes-item-actions {
+  display: flex;
+  visibility: hidden;
+}
+.notes-item-actions .notes-icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.notes-item:hover .notes-item-actions,
+.notes-item.is-editing .notes-item-actions {
+  visibility: visible;
+}
+
+/* ── The box to write a note ── */
+
+.notes-composer {
+  flex-shrink: 0;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--color-divider-line-primary);
+}
+.notes-input-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding-block: 4px;
+  padding-inline: 0 4px;
+  border: 1px solid var(--color-divider-line-primary);
+  border-radius: 8px;
+  background: var(--ot-chart-bg);
+}
+.notes-composer.is-open .notes-input-box {
+  flex-direction: column;
+  align-items: stretch;
+  border-color: var(--color-brand);
+}
+.notes-input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-main-text);
+}
+.notes-input::placeholder {
+  color: var(--color-default-gray);
+}
+.notes-input-tools {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.notes-composer.is-open .notes-input-tools {
+  justify-content: space-between;
+  padding-inline-start: 8px;
+}
+.notes-snapshot-btn {
+  margin-inline-start: auto;
+}
+.notes-snapshot-btn.is-busy {
+  cursor: progress;
+}
+.notes-draft-snapshot {
+  position: relative;
+  width: 96px;
+  height: 54px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.notes-draft-snapshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+}
+.notes-draft-remove {
+  all: unset;
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ot-shadow-50);
+  color: var(--color-white);
+}
+.notes-composer-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.notes-btn {
+  flex: 1;
+  justify-content: center;
+  height: 34px;
+  font-size: 14px;
+}
+.notes-btn:disabled {
+  opacity: 0.4;
+}
+
+/* ── All notes ── */
+
+.notes-group {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 6px;
+}
+.notes-group:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+.notes-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notes-group-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-main-text);
+}
+.notes-group-text,
+.notes-card-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-main-text);
+}
+.notes-group-text.is-empty {
+  color: var(--color-default-gray);
+}
+.notes-group-date {
+  font-size: 12px;
+  color: var(--color-default-gray);
+}
+
+/* ── The details' Notes card ── */
+
+.notes-card {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-divider-line-primary);
+  border-radius: 8px;
+}
+.notes-card:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+.notes-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-main-text);
+}
+.notes-card-footer {
+  font-size: 13px;
+  color: var(--color-brand);
+}
+
+/* ── The watchlist rows' mark of a symbol with notes ── */
+
+.watchlist-notes-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: 4px;
+  color: var(--color-default-gray);
+}
+.watchlist-notes-mark:hover {
+  color: var(--color-main-text);
+}
+.watchlist-notes-mark svg {
+  width: 14px;
+  height: 14px;
+}
+.notes-item.has-view {
+  cursor: pointer;
+}

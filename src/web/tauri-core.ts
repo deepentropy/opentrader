@@ -5,7 +5,7 @@
  * The rest of the module is the original (other packages import from it).
  */
 import { call } from "./server";
-import { readImage, saveImage } from "./images";
+import { deleteImage, NOTE_MAX_BYTES, readImage, saveImage } from "./images";
 import { localSeriesCommands } from "./local-series";
 
 // By path: the package name is aliased to this file.
@@ -25,6 +25,9 @@ const LOCAL: Record<string, (args: Args) => Promise<unknown>> = {
   },
   save_drawing_image: (a) => saveImage(String(a.dataBase64 ?? ""), String(a.ext ?? "")),
   read_drawing_image: (a) => readImage(String(a.name ?? "")),
+  save_note_image: (a) => saveImage(String(a.dataBase64 ?? ""), String(a.ext ?? ""), NOTE_MAX_BYTES),
+  read_note_image: (a) => readImage(String(a.name ?? "")),
+  delete_note_image: (a) => deleteImage(String(a.name ?? "")),
   // Imported series: kept in the browser for the session.
   ...localSeriesCommands,
 };

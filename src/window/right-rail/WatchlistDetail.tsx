@@ -32,6 +32,8 @@ import { abbreviatedPrice } from "../chart/price-format";
 import { localNumber } from "../../i18n/format";
 import { createPopover } from "../../components/popover";
 import { translateWith } from "../../i18n/translator";
+import { lastNoteOf } from "../../data/symbol-notes";
+import { AllNotesPage, NotesCard, SymbolNotesPage } from "./notes/SymbolNotes";
 
 const DASH = "—";
 
@@ -124,7 +126,14 @@ type Props = {
    *  header (chevron + logo + symbol) that collapses the body away. */
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Shows a symbol on the chart (a symbol picked in All notes). */
+  onSymbolSelect?: (fullTicker: string) => void;
+  /** Asks for at least this height (px): the box to write a note open. */
+  onMinHeight?: (px: number) => void;
 };
+
+/** Height the details take while a note is written: its notes above the box, its buttons shown. */
+const NOTES_WRITING_HEIGHT = 420;
 
 type QuoteData = {
   info: TickerInfo | null;
@@ -135,9 +144,7 @@ const PERIODS = ["1W", "1M", "3M", "6M", "YTD", "1Y"] as const;
 
 // ── Detail-panel preferences (Settings header button) ──
 // Settings toggles which sections show.
-// Persists to kv, alongside per-symbol notes (the "Add note" button).
 const PREFS_KEY = "ot:watchlist:detail-prefs:v1";
-const NOTES_KEY = "ot:watchlist:notes:v1";
 
 type DetailPrefs = {
   sections: { keyStats: boolean; performance: boolean; profile: boolean };
@@ -160,15 +167,6 @@ function loadPrefs(): DetailPrefs {
   }
   return { sections: { ...DEFAULT_PREFS.sections } };
 }
-function loadNotes(): Record<string, string> {
-  try {
-    const raw = kv.getItem(NOTES_KEY);
-    if (raw) return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    /* malformed — start empty */
-  }
-  return {};
-}
 
 export function WatchlistDetail(props: Props) {
   const short = () => shortFromSymbol(props.activeSymbol);
@@ -176,11 +174,20 @@ export function WatchlistDetail(props: Props) {
    *  note key (the provider tells listings apart). */
   const full = () => (props.activeSymbol ?? "").split(",")[0].trim().toUpperCase();
 
-  // Header-button state: persisted prefs + per-symbol notes, and which header
-  // popover (if any) is open.
+  // Header-button state: persisted prefs and the open settings popover.
   const [prefs, setPrefs] = createSignal<DetailPrefs>(loadPrefs());
-  const [notes, setNotes] = createSignal<Record<string, string>>(loadNotes());
-  const [openPanel, setOpenPanel] = createSignal<"note" | "settings" | null>(null);
+  const [openPanel, setOpenPanel] = createSignal<"settings" | null>(null);
+  // The notes pages shown in place of the details (#301): the symbol's notes or all notes; `allFrom`: where All
+  // notes goes back to. `compose` changes when the box to write a note takes the cursor.
+  const [notesView, setNotesView] = createSignal<"symbol" | "all" | null>(null);
+  const [allFrom, setAllFrom] = createSignal<"symbol" | null>(null);
+  const [compose, setCompose] = createSignal(0);
+  const openNotes = (write: boolean) => {
+    if (props.collapsed) props.onToggleCollapse?.();
+    setOpenPanel(null);
+    setNotesView("symbol");
+    if (write) setCompose((n) => n + 1);
+  };
   createEffect(() => {
     try {
       kv.setItem(PREFS_KEY, JSON.stringify(prefs()));
@@ -188,30 +195,12 @@ export function WatchlistDetail(props: Props) {
       /* best-effort */
     }
   });
-  createEffect(() => {
-    try {
-      kv.setItem(NOTES_KEY, JSON.stringify(notes()));
-    } catch {
-      /* best-effort */
-    }
-  });
-  // Live cross-window sync for prefs + per-symbol notes (raw signal setters; the
-  // persist effects above then re-write identical strings, which kv dedups).
+  // Live cross-window sync for prefs (raw signal setter; the persist effect
+  // above then re-writes an identical string, which kv dedups).
   onCleanup(kv.onExternalChange(PREFS_KEY, () => setPrefs(loadPrefs())));
-  onCleanup(kv.onExternalChange(NOTES_KEY, () => setNotes(loadNotes())));
 
-  // Notes are keyed by the full name; a note saved under the bare ticker
-  // (before full names) is read until the symbol's note is next written.
-  const note = () => notes()[full()] ?? notes()[short()] ?? "";
-  const setNote = (text: string) =>
-    setNotes((prev) => {
-      const next = { ...prev };
-      delete next[short()];
-      if (text.trim()) next[full()] = text;
-      else delete next[full()];
-      return next;
-    });
-  const togglePanel = (p: "note" | "settings") => {
+  const hasNotes = () => !!lastNoteOf(full());
+  const togglePanel = (p: "settings") => {
     const opening = openPanel() !== p;
     setOpenPanel(opening ? p : null);
     // Header popovers drop BELOW the 48px header; while collapsed the pane clips
@@ -231,16 +220,9 @@ export function WatchlistDetail(props: Props) {
     on: { target: "window", capture: false },
   });
   onMount(() => {
-    // Watchlist's row context menu ("Add note for …") selects the row, then
-    // asks this pane to open its note editor.
-    const onOpenNote = () => {
-      // The context-menu "Add note for X" can fire while the pane is collapsed —
-      // expand it first so the note popover (and its auto-focused textarea)
-      // isn't rendered into the clipped 48px header.
-      if (props.collapsed) props.onToggleCollapse?.();
-      setOpenPanel("note");
-    };
-    const offOpenNote = onAppEvent("wl-open-note", onOpenNote);
+    // Watchlist rows ("Add note for …" in their menu, their notes mark) select
+    // the row, then ask this pane for the symbol's notes.
+    const offOpenNote = onAppEvent("wl-open-note", (d) => openNotes(d?.write ?? true));
     onCleanup(offOpenNote);
   });
 
@@ -367,6 +349,29 @@ export function WatchlistDetail(props: Props) {
       data-test-id-widget-type="detail"
       style={props.collapsed ? undefined : props.height != null ? { height: `${props.height}px` } : undefined}
     >
+      <Show when={notesView() === "symbol" && !props.collapsed}>
+        <SymbolNotesPage
+          symbol={full()}
+          logoUrl={quote()?.info?.iconUrl}
+          compose={compose()}
+          onWriting={() => props.onMinHeight?.(NOTES_WRITING_HEIGHT)}
+          onBack={() => setNotesView(null)}
+          onAllNotes={() => {
+            setAllFrom("symbol");
+            setNotesView("all");
+          }}
+        />
+      </Show>
+      <Show when={notesView() === "all" && !props.collapsed}>
+        <AllNotesPage
+          onBack={() => setNotesView(allFrom())}
+          onOpen={(symbol) => {
+            if (symbol !== full()) props.onSymbolSelect?.(symbol);
+            setNotesView("symbol");
+          }}
+        />
+      </Show>
+      <Show when={!notesView() || props.collapsed}>
       <header
         class="watchlist-detail-header"
         onClick={() => props.onToggleCollapse?.()}
@@ -402,13 +407,11 @@ export function WatchlistDetail(props: Props) {
           <button
             type="button"
             class="watchlist-detail-action"
-            classList={{ "is-active": openPanel() === "note" || note().trim() !== "" }}
+            classList={{ "is-active": hasNotes() }}
             data-name="details-add-note-button"
-            title={note().trim() ? "Edit note" : "Add note"}
+            title="Add note"
             aria-label="Add note"
-            aria-haspopup="dialog"
-            aria-expanded={openPanel() === "note"}
-            onClick={() => togglePanel("note")}
+            onClick={() => openNotes(true)}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="22" height="22" aria-hidden="true">
               <path fill="currentColor" d="M15 6H7.5C6.67 6 6 6.67 6 7.5v13c0 .83.67 1.5 1.5 1.5h13c.83 0 1.5-.67 1.5-1.5V16h1v4.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 20.5v-13A2.5 2.5 0 0 1 7.5 5H15v1Z" />
@@ -449,20 +452,6 @@ export function WatchlistDetail(props: Props) {
               </label>
             </div>
           </Show>
-
-          {/* Add-note popover — a per-symbol note, persisted locally. */}
-          <Show when={openPanel() === "note"}>
-            <div class="watchlist-detail-popover watchlist-detail-note-popover" role="dialog" aria-label="Note">
-              <div class="watchlist-detail-popover-title">{translateWith("Note · {0}", short() || DASH)}</div>
-              <textarea
-                class="watchlist-detail-note-input"
-                placeholder="Write a note for this symbol…"
-                value={note()}
-                onInput={(e) => setNote(e.currentTarget.value)}
-                ref={(el) => queueMicrotask(() => el.focus())}
-              />
-            </div>
-          </Show>
         </div>
       </header>
 
@@ -489,9 +478,7 @@ export function WatchlistDetail(props: Props) {
               <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
             </Show>
           </div>
-          <Show when={note().trim()}>
-            <div class="watchlist-detail-note" onClick={() => setOpenPanel("note")}>{note()}</div>
-          </Show>
+          <NotesCard symbol={full()} onOpen={() => openNotes(false)} />
         </Show>
         <Show when={!econ()}>
         <div class="watchlist-detail-row">
@@ -557,9 +544,7 @@ export function WatchlistDetail(props: Props) {
           </div>
         </Show>
 
-        <Show when={note().trim()}>
-          <div class="watchlist-detail-note" onClick={() => setOpenPanel("note")}>{note()}</div>
-        </Show>
+        <NotesCard symbol={full()} onOpen={() => openNotes(false)} />
 
         <div class="watchlist-detail-range">
           <span class="watchlist-detail-range-low">{localNumber(fmtPrice(s()?.dayLow))}</span>
@@ -659,6 +644,7 @@ export function WatchlistDetail(props: Props) {
         </Show>
         </Show>
       </div>
+      </Show>
       </Show>
     </aside>
   );

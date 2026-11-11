@@ -33,6 +33,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
   function flushShowRange() {
     const d = pendingShowRange;
     if (!d || !cx.chart || cx.raw.length === 0 || cx.history.loading || cx.swapping) return;
+    if (d.series !== undefined && d.series !== cx.shownSeries) return;
     pendingShowRange = null;
     // Bar Replay frames its own start: the range would fight it.
     if (d.replayAt !== undefined) {
@@ -150,9 +151,17 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
     // Trade journal (the active chart): its symbol / interval may have just
     // changed, so the range waits for the data (see symbol-load).
     listenWhenShown("chart-show-range", (d) => {
-      if (!props.active) return;
+      if (d.paneIndex === undefined ? !props.active : d.paneIndex !== props.paneIndex) return;
       pendingShowRange = d;
       flushShowRange();
+    });
+    // A symbol note keeps the time span every chart shows (#301).
+    listenWhenShown("chart-view-query", (q) => {
+      const lr = cx.chart?.timeScale().getVisibleLogicalRange();
+      if (!lr || cx.raw.length === 0) return;
+      const first = Math.min(cx.raw.length - 1, Math.max(0, Math.ceil(lr.from)));
+      const last = Math.max(first, Math.min(cx.raw.length - 1, Math.floor(lr.to)));
+      q.ranges[props.paneIndex] = { from: cx.raw[first].time as number, to: cx.raw[last].time as number };
     });
 
     // Custom range tab (the reference app `setTimeFrame`): the active chart, or every chart

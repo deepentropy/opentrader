@@ -309,6 +309,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // New data is painted — end the transition (drop the dim, re-enable the
     // live poller).
     cx.swapping = false;
+    cx.shownSeries = `${props.symbol}|${props.interval}`;
     // A date-range target that arrived while this pane was loading.
     if (cx.syncTarget) cx.scheduleSyncRun(0);
     // A linked time that arrived while this pane was loading.

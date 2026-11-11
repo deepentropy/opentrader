@@ -16,7 +16,7 @@ import { activeChartProbe } from "./window/chart/active-chart";
 import { openCreateAlertOnSelection } from "./window/shell/create-alert";
 import { findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
-import { layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
+import { LAYOUT_SPECS, layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
 import { DrawingToolbar } from "./window/drawings/DrawingToolbar";
 import { drawingPanelVisible } from "./data/drawing-panel";
 import { FavoritesToolbar } from "./window/drawings/FavoritesToolbar";
@@ -63,7 +63,7 @@ import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
 import * as oakScripts from "./data/oakscript-store";
 import { APPLY_TEMPLATE_PREFIX, buildIndicatorTemplatesMenu, SAVE_TEMPLATE_ROW_ID } from "./data/indicator-template-store";
 import { buildSaveLoadMenu, layoutAutosave } from "./data/layout-store";
-import { emitAppEvent, onAppEvent } from "./data/app-events";
+import { emitAppEvent, onAppEvent, type AppEvents } from "./data/app-events";
 import { setTimezone, timezone } from "./data/chart-timezone";
 import { createAppTheme, createChartThemeSync } from "./window/shell/app-theme";
 import { createAppTabs } from "./window/shell/app-tabs";
@@ -86,6 +86,7 @@ import { replayBroker } from "./data/trading/replay-broker";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
+import { setNotesChartHost } from "./data/symbol-notes";
 import { requestShare } from "./data/community/share";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -453,6 +454,48 @@ function App() {
     emitAppEvent("chart-show-range", { from, to, replayAt: r.replayAt, done: r.onFramed });
   });
   onCleanup(() => tradeJournal.setNavigator(null));
+
+  // Symbol notes (#301): a note keeps the shown charts; a click on it puts them back, each chart framed on its span
+  // once its data is in (the charts a larger template adds listen from their first frame).
+  setNotesChartHost({
+    view: () => {
+      const tab = activeTab();
+      if (!tab.isChart) return null;
+      const q: AppEvents["chart-view-query"] = { ranges: {} };
+      emitAppEvent("chart-view-query", q);
+      return {
+        layout: tab.layout,
+        activePane: tab.activePane,
+        panes: tab.panes.map((p, i) => ({ symbol: p.symbol, interval: p.interval, ...q.ranges[i] })),
+      };
+    },
+    show: (view) => {
+      if (!(view.layout in LAYOUT_SPECS)) return;
+      batch(() => {
+        const r = reconcilePanes(activeTab(), view.layout as LayoutId);
+        const panes = r.panes.map((p, i) => {
+          const v = view.panes[i];
+          if (!v) return p;
+          const next = { ...p, symbol: v.symbol, interval: symbolServesResolution(v.symbol, v.interval) ? v.interval : p.interval };
+          // The chart's own last view would frame it after its data loads: the note's span does.
+          if (v.from !== undefined) {
+            delete next.visibleLogicalRange;
+            delete next.initialScale;
+          }
+          return next;
+        });
+        patchActive({ ...r, panes, activePane: Math.min(view.activePane, panes.length - 1) });
+      });
+      setTimeout(() => {
+        view.panes.forEach((v, i) => {
+          const p = activeTab().panes[i];
+          if (p && v.from !== undefined && v.to !== undefined)
+            emitAppEvent("chart-show-range", { from: v.from, to: v.to, paneIndex: i, series: `${p.symbol}|${p.interval}` });
+        });
+      }, 0);
+    },
+  });
+  onCleanup(() => setNotesChartHost(null));
 
   // The order ticket's default symbol; it closes with Bar Replay.
   createEffect(() => tradingUi.setActiveSymbol(activeFullSymbol() ?? symbol()));

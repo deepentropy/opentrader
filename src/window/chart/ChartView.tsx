@@ -319,6 +319,7 @@ export function ChartView(props: ChartViewProps) {
     setReloadTick,
     chartReady,
     swapping: false,
+    shownSeries: "",
     pendingRangeSpan: null,
     rangePersistTimer: undefined,
     coords,
