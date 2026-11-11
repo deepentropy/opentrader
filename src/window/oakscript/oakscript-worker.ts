@@ -130,7 +130,8 @@ function metaOf(mod: UserModule): OakCompiledMeta {
 function callsAlert(source: string): boolean {
   // One pass, so that "//" in a string and quotes in a comment are read as such.
   const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|(["'`])(?:\\.|(?!\1)[^\\])*\1/g, " ");
-  return /(?<![\w$.])alert\s*\(/.test(code);
+  // No lookbehind: the macOS 12 WebView (Safari 15) rejects it, which failed every compile.
+  return /(?:^|[^\w$.])alert\s*\(/.test(code);
 }
 
 /** ScriptRunResult (meta + configs) → the compile-response meta shape. `source`: the script's source. */
