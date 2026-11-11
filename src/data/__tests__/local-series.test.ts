@@ -34,8 +34,10 @@ import {
   localServesResolution,
   localSession,
   localSnapshot,
+  localTradingDays,
   renameLocalSeries,
 } from "../local-series";
+import { barmerge, close, executeScript, request } from "oakscriptjs/script";
 
 /** 1-minute bars over two UTC days, 10:00-10:09 each day. */
 function minuteCsv(): string {
@@ -76,7 +78,7 @@ describe("local series", () => {
     const before = await localBarsBefore("LOCAL:MIN1", "1", Date.UTC(2024, 0, 3) / 1000, 1);
     expect(before).toHaveLength(10);
 
-    expect(await localSession("LOCAL:MIN1")).toMatchObject({ timezone: "Etc/UTC", session: "24x7", pricescale: 10 });
+    expect(await localSession("LOCAL:MIN1")).toMatchObject({ timezone: "Etc/UTC", session: "0000-0000:34", holidays: "", pricescale: 10 });
     expect(await localSnapshot("LOCAL:MIN1")).toMatchObject({ last: 109.5, change: 0, dayVolume: 100 });
   });
 
@@ -88,5 +90,44 @@ describe("local series", () => {
     await deleteLocalSeries("NEW");
     await expect(localDailyBars("LOCAL:NEW")).rejects.toThrow();
     await expect(importLocalSeries({ name: "bad name", csv: "time,close\n2024-01-01,1", timeZone: "Etc/UTC" })).rejects.toThrow();
+  });
+});
+
+describe("localTradingDays (#303)", () => {
+  const DAY = 86400;
+  /** Weekday daily bars at UTC midnight from 01/10/2026 to 04/12/2026, without `off` ("MM-DD"). */
+  const weekdays = (off: string[] = []) => {
+    const out: number[] = [];
+    for (let t = Date.UTC(2026, 9, 1) / 1000; t <= Date.UTC(2026, 11, 4) / 1000; t += DAY) {
+      const d = new Date(t * 1000);
+      if (d.getUTCDay() % 6 !== 0 && !off.includes(d.toISOString().slice(5, 10))) out.push(t);
+    }
+    return out;
+  };
+
+  it("trades on the weekdays that have bars; a weekday without a bar is a day off", () => {
+    expect(localTradingDays(weekdays(), "Etc/UTC")).toEqual({ session: "0000-0000:23456", holidays: "" });
+    expect(localTradingDays(weekdays(["11-26"]), "Etc/UTC")).toEqual({ session: "0000-0000:23456", holidays: "20261126" });
+    const all = Array.from({ length: 10 }, (_, i) => Date.UTC(2026, 9, 1) / 1000 + i * DAY);
+    expect(localTradingDays(all, "Etc/UTC")).toEqual({ session: "24x7", holidays: "" });
+    expect(localTradingDays([], "Etc/UTC")).toEqual({ session: "24x7", holidays: "" });
+  });
+
+  it("a month ending on a weekend or a day off completes on its last bar (lookahead off)", () => {
+    // 31/10/2026 is a Saturday; 30/11/2026 (a Monday) is left out as a day off.
+    const times = weekdays(["11-30"]);
+    const bars = times.map((t, i) => ({ time: t, open: i, high: i, low: i, close: i, volume: 1 }));
+    const { session, holidays } = localTradingDays(times, "Etc/UTC");
+    let out: number[] = [];
+    executeScript(() => {
+      out = request.security("", "M", () => close, barmerge.gaps_off, barmerge.lookahead_off).toArray();
+    }, bars, {}, { tickerid: "LOCAL:TEST", timeframe: "1D", timezone: "Etc/UTC", session: { session, holidays } });
+    const at = (md: string) => out[times.findIndex((t) => new Date(t * 1000).toISOString().slice(5, 10) === md)];
+    const index = (md: string) => times.findIndex((t) => new Date(t * 1000).toISOString().slice(5, 10) === md);
+    expect(at("10-29")).toBeNaN();
+    expect(at("10-30")).toBe(index("10-30"));
+    expect(at("11-02")).toBe(index("10-30"));
+    expect(at("11-26")).toBe(index("10-30"));
+    expect(at("11-27")).toBe(index("11-27"));
   });
 });

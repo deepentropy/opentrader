@@ -16,6 +16,7 @@ import { listen, emit } from "@tauri-apps/api/event";
 import { commands, type Candle, type LocalSeries, type LocalSource, type SymbolSession, type TickerInfo } from "../bindings";
 import type { Snapshot } from "./datafeed-rest";
 import { localDay, localToUtc } from "./session/zone";
+import { weekdayOf } from "./session/spec";
 import { parseBarsCsv, ROW, SERIES_NAME, type ParsedBars } from "./local-series-csv";
 import { emitAppEvent } from "./app-events";
 import { forgetSymbolSessions } from "./session/symbol-sessions";
@@ -210,15 +211,44 @@ export async function localBarsBefore(symbol: string, resolution: string, before
   return bars.slice(lowerBound(bars, from), lowerBound(bars, beforeSec));
 }
 
-/** A local series trades around the clock in its time zone (its bars are
- *  where it traded); its price grid is the file's. */
+/** "YYYYMMDD" of a local day number. */
+function dateText(day: number): string {
+  return new Date(day * 86400000).toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+/** Trading days of a series from its daily bars: all day in its time zone, on
+ *  the weekdays that have bars ("24x7" when every weekday has), and none on
+ *  such a weekday without a bar between its first and last bar. A period of a
+ *  higher timeframe (request.security, time_close) then ends on its last bar,
+ *  as for a symbol with an exchange calendar, and not on a weekend the series
+ *  never trades (#303). */
+export function localTradingDays(dailyTimes: number[], timeZone: string): { session: string; holidays: string } {
+  const days = dailyTimes.map((t) => localDay(timeZone, t));
+  const weekdays = [...new Set(days.map(weekdayOf))].sort();
+  if (days.length === 0) return { session: "24x7", holidays: "" };
+  const session = weekdays.length === 7 ? "24x7" : `0000-0000:${weekdays.join("")}`;
+  const traded = new Set(days);
+  const open = new Set(weekdays);
+  const holidays: string[] = [];
+  for (let d = days[0] + 1; d < days[days.length - 1]; d++) {
+    if (!traded.has(d) && open.has(weekdayOf(d))) holidays.push(dateText(d));
+  }
+  return { session, holidays: holidays.join(",") };
+}
+
+/** A local series trades all day in its time zone, on the days of its bars
+ *  (localTradingDays); its price grid is the file's. */
 export async function localSession(symbol: string): Promise<SymbolSession> {
-  const meta = await metaOf(symbol);
+  const [meta, daily] = await Promise.all([metaOf(symbol), localDailyBars(symbol)]);
+  const { session, holidays } = localTradingDays(
+    daily.map((b) => b.time as number),
+    meta.timezone,
+  );
   return {
     timezone: meta.timezone,
-    session: "24x7",
-    subsessions: [{ id: "regular", description: "Regular Trading Hours", session: "24x7", corrections: "" }],
-    holidays: "",
+    session,
+    subsessions: [{ id: "regular", description: "Regular Trading Hours", session, corrections: "" }],
+    holidays,
     corrections: "",
     pricescale: meta.pricescale,
     minmov: 1,
