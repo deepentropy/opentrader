@@ -261,14 +261,25 @@ function reviveCtrl(raw: unknown, def: CtrlValue): CtrlValue {
  *  theme's line colour); earlier drafts stored the up colour as the factory
  *  value. Rev 7 (21/10/2026): the Trading tab rows (and Status line → Buy/sell
  *  buttons) are live with the reference factory values; earlier drafts stored
- *  them while they were inert, so they go back to the factory values. */
-export const SETTINGS_REV = 7;
+ *  them while they were inert, so they go back to the factory values. Rev 8
+ *  (11/11/2026): Canvas → Watermark gained "Replay mode", on by default;
+ *  earlier drafts stored the list without it. */
+export const SETTINGS_REV = 8;
 /** The up colour drafts before rev 6 stored as the alert-line factory colour. */
 const UP_DEFAULT = '#089981';
 
 function migrateValues(rows: Record<string, StoredRow>, rev: number): Record<string, StoredRow> {
-  if (rev >= 7) return rows;
+  if (rev >= 8) return rows;
   const out = { ...rows };
+  const wm = out['canvas:Watermark'];
+  const wmList = wm && Array.isArray(wm.controls) ? asObj((wm.controls as unknown[])[0]) : undefined;
+  if (wm && wmList && Array.isArray(wmList.on) && !wmList.on.includes('Replay mode')) {
+    out['canvas:Watermark'] = {
+      ...wm,
+      controls: [{ ...wmList, on: [...wmList.on, 'Replay mode'] }, ...(wm.controls as unknown[]).slice(1)],
+    };
+  }
+  if (rev >= 7) return out;
   for (const key of Object.keys(out)) if (key.startsWith('trading:') || key === 'legend:Buy/sell buttons') delete out[key];
   if (rev >= 6) return out;
   const al = out['alerts:Alert lines'];
@@ -818,6 +829,7 @@ export type ChartAppearance = {
   watermarkTicker?: boolean;
   watermarkInterval?: boolean;
   watermarkDescription?: boolean;
+  watermarkReplay?: boolean;
   /** Status line → Title select: "Name" | "Symbol" | "Symbol and name". */
   legendTitleMode?: string;
   indLastValue?: boolean;
@@ -1014,6 +1026,7 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     watermarkTicker: C.member('Watermark', 'Ticker'),
     watermarkInterval: C.member('Watermark', 'Interval'),
     watermarkDescription: C.member('Watermark', 'Description'),
+    watermarkReplay: C.member('Watermark', 'Replay mode'),
     legendTitleMode: L.sel('Title'),
     indLastValue: Sc.member('Indicators and financials', 'Value'),
     indNameLabel: Sc.member('Indicators and financials', 'Name'),

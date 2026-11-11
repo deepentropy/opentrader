@@ -53,7 +53,7 @@ export interface ReplayApi {
   replayOnPrepend: (older: OHLC[]) => void;
   /** Legend status of this chart. */
   replayStatus: Accessor<ReplayLegendStatus>;
-  /** The "Replay" watermark is on (the symbol watermark draws it). */
+  /** The chart is in Bar Replay: the replay watermark draws the symbol lines. */
   replayWatermark: Accessor<boolean>;
   ReplaySelectLayer: () => JSX.Element;
 }
@@ -432,7 +432,8 @@ export function createReplay(cx: ChartCx): ReplayApi {
     cx.chartReady();
     const pane = cx.mainPane();
     cx.mainPaneEpoch();
-    const color = cx.appearance() && cx.currentTokens().watermarkColor;
+    cx.appearance();
+    const tokens = cx.currentTokens();
     const lines = cx.watermarkLines();
     if (!cx.chart) return;
     if (wmPane !== null) {
@@ -440,7 +441,10 @@ export function createReplay(cx: ChartCx): ReplayApi {
       wmPane = null;
     }
     if (!on) return;
-    wm.set([...lines, { text: translate("Replay"), icon: true }], color, readFontFamily());
+    // The Watermark list's "Replay mode" adds the Replay line; the symbol
+    // lines stay as the list sets them.
+    const all = tokens.watermarkReplay ? [...lines, { text: translate("Replay"), icon: true }] : lines;
+    wm.set(all, tokens.watermarkColor, readFontFamily());
     cx.chart.panes()[pane]?.attachPrimitive(wm);
     wmPane = pane;
   });

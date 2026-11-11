@@ -223,6 +223,15 @@ describe("reviveDraft / persistence", () => {
     expect(ctrl(cur, "alerts", "Alert lines")).toEqual({ kind: "color", color: "#089981" });
   });
 
+  it("the watermark's Replay mode is on by default and can be turned off", () => {
+    expect(appearanceFrom(makeDefaultDraft("dark")).watermarkReplay).toBe(true);
+    const wm = (on: string[]) => ({ "canvas:Watermark": { checked: null, controls: [{ kind: "multicheck", on }] } });
+    // Rev < 8 stored the list without the option: it comes back on, the others kept.
+    const old = appearanceFrom(reviveDraft(wm(["Ticker"]), SETTINGS_FINGERPRINT, 7)!);
+    expect([old.watermarkTicker, old.watermarkReplay]).toEqual([true, true]);
+    expect(appearanceFrom(reviveDraft(wm([]), SETTINGS_FINGERPRINT, SETTINGS_REV)!).watermarkReplay).toBe(false);
+  });
+
   it("legacy index-keyed drafts are converted", () => {
     // pil70i layout: legend index 2 = Title, scales index 8 = Countdown to bar close.
     const legacy = reviveDraft(

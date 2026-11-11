@@ -409,8 +409,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Horizontal grid lines', controls: [{ c: 'color', color: 'rgba(242, 242, 242, 0.2)', style: 2 }] }),
     row({ label: 'Crosshair', controls: [{ c: 'color', color: 'rgb(156, 156, 156)', width: 1, style: 1 }] }),
     // Watermark: check-list select (Ticker / Interval / Description /
-    // Replay mode) + colour. Replay mode is omitted (no replay in this app).
-    row({ label: 'Watermark', controls: [{ c: 'multicheck', options: ['Ticker', 'Interval', 'Description'], on: [] }, { c: 'color', color: 'rgba(80, 83, 94, 0.3)' }] }),
+    // Replay mode) + colour. "Replay mode" = the Replay line drawn in Bar Replay.
+    row({ label: 'Watermark', controls: [{ c: 'multicheck', options: ['Ticker', 'Interval', 'Description', 'Replay mode'], on: ['Replay mode'] }, { c: 'color', color: 'rgba(80, 83, 94, 0.3)' }] }),
     section('Scales'),
     row({ label: 'Text', controls: [{ c: 'color', color: 'rgb(184, 184, 184)' }, { c: 'select', value: '12', options: FONT_SIZES }] }),
     row({ label: 'Lines', controls: [{ c: 'color', color: 'rgba(242, 242, 242, 0)' }] }),

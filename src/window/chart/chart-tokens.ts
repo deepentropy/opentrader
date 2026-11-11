@@ -98,6 +98,8 @@ export type ChartTokens = {
   watermarkTicker: boolean;
   watermarkInterval: boolean;
   watermarkDescription: boolean;
+  /** The "Replay" line of the watermark in Bar Replay. */
+  watermarkReplay: boolean;
   // Scales → "Indicators and financials": study-series last-value axis labels
   // ("Value") and plot-name labels next to them ("Name").
   indLastValue: boolean;
@@ -239,6 +241,7 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     watermarkTicker: o.watermarkTicker ?? false,
     watermarkInterval: o.watermarkInterval ?? false,
     watermarkDescription: o.watermarkDescription ?? false,
+    watermarkReplay: o.watermarkReplay ?? true,
     // "Indicators and financials" value labels default OFF
     // (showStudyLastValue: false), and stacked study badges have no overlap
     // management here. The dialog row re-enables them.
