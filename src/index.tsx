@@ -2,9 +2,12 @@
 import "./styles.css";
 import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";
+import { installBrowserMenuBlock } from "./components/browser-menu";
 
 // A tooltip on menu labels only when they are cut.
 installOverflowTooltip();
+// No web-view menu (Back, Reload, Save as…) on a right-click.
+installBrowserMenuBlock();
 
 // Hydrate the persistence layer BEFORE App (and its module graph) loads: many
 // modules seed signals/stores from kv synchronously at import time, so the
