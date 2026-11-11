@@ -17,7 +17,7 @@ import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { currentLanguage, currentLanguageLabel, menuLanguages, setLanguage } from "../../i18n/language";
 import { createPopover } from "../../components/popover";
-import { isRtl, startAlignedClamped } from "../../components/reading-direction";
+import { besideLeft, startAlignedClamped } from "../../components/reading-direction";
 
 type Row =
   | { type: "sep" }
@@ -35,7 +35,9 @@ type Row =
 
 const SETTINGS_ROW: Row = { type: "item", label: "Settings", icon: "profile-app-settings", hotkey: "Ctrl + ,", action: "app-settings" };
 const ONBOARDING_ROW: Row = { type: "item", label: "App onboarding...", icon: "main-menu-onboarding", action: "app-onboarding" };
-const DRAWINGS_ROW: Row = { type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
+/** The language list's width (`.profile-menu-languages`). */
+const LANGUAGES_WIDTH = 148;
+const DRAWINGS_ROW: Row ={ type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
 
 /** Settings, App onboarding... (desktop app), the reopen row (Ctrl + Shift + T)
  *  when there is something to reopen, Drawings panel, Language. */
@@ -85,13 +87,10 @@ export function ProfileMenu(props: Props) {
 
   // Under the button, start edges aligned (right edges right to left), 8 px inside the window.
   const menuLeft = () => startAlignedClamped(props.anchor, 260, window.innerWidth, 8);
-  // The language list beside the menu on the end side.
-  const languagesSide = () => {
-    const r = root.getBoundingClientRect();
-    return isRtl()
-      ? { right: `${Math.round(document.documentElement.clientWidth - r.left)}px` }
-      : { left: `${Math.round(r.right)}px` };
-  };
+  // The language list beside the menu on the end side, on the other side when the menu is at the window's edge
+  // (the desktop main menu, at the top right).
+  const languagesLeft = () =>
+    besideLeft(root.getBoundingClientRect(), LANGUAGES_WIDTH, document.documentElement.clientWidth, 8);
 
   return (
     <div
@@ -163,7 +162,7 @@ export function ProfileMenu(props: Props) {
             role="menu"
             aria-label="Language"
             data-no-translate
-            style={{ position: "fixed", ...languagesSide(), top: `${Math.round(row().getBoundingClientRect().top)}px` }}
+            style={{ position: "fixed", left: `${Math.round(languagesLeft())}px`, top: `${Math.round(row().getBoundingClientRect().top)}px` }}
           >
             <For each={menuLanguages()}>
               {(l) => (

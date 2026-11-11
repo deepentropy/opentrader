@@ -83,6 +83,15 @@ export function startAlignedClamped(r: Horizontal, width: number, windowWidth: n
 }
 
 /**
+ * The left of a submenu `width` wide beside a menu box: on its end side, or on its start side when the end side has
+ * no room (`margin` from the window's edges), as for a menu opened at the window's right edge (#295).
+ */
+export function besideLeft(r: Horizontal, width: number, windowWidth: number, margin = 0): number {
+  if (!isRtl()) return r.right + width > windowWidth - margin && r.left - width >= margin ? r.left - width : r.right;
+  return r.left - width < margin && r.right + width <= windowWidth - margin ? r.right : r.left - width;
+}
+
+/**
  * How far along a horizontal track a pointer is, from its start edge (0) to its end edge (1), not clamped: a slider
  * that fills from the right right to left (its track mirrored with `ot-flip-rtl`).
  */

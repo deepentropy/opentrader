@@ -1,5 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import {
+  besideLeft,
   endEdge,
   endSide,
   fractionFromStart,
@@ -57,6 +58,13 @@ describe("reading direction (#290), left to right: the left-to-right values", ()
     expect(startAlignedClamped({ left: 2, right: 30 }, 250, 1000, 8)).toBe(8);
   });
 
+  it("opens a submenu beside its menu on the right, on the left at the window's right edge (#295)", () => {
+    expect(besideLeft({ left: 100, right: 360 }, 148, 1000, 8)).toBe(360);
+    expect(besideLeft({ left: 732, right: 992 }, 148, 1000, 8)).toBe(584);
+    // no room on either side: the end side
+    expect(besideLeft({ left: 100, right: 900 }, 148, 1000, 8)).toBe(900);
+  });
+
   it("keeps the popover anchor points", () => {
     const r = { ...box, top: 40, bottom: 74 };
     expect(anchorPoint(r)).toEqual({ x: 100, y: 74, endX: false, endY: false });
@@ -89,6 +97,12 @@ describe("reading direction (#290), right to left: mirrored", () => {
     expect(startAlignedClamped(box, 50, 1000, 8)).toBe(130);
     expect(startAlignedClamped({ left: 20, right: 60 }, 250, 1000, 8)).toBe(8);
     expect(startAlignedClamped({ left: 990, right: 1000 }, 250, 1000, 8)).toBe(742);
+  });
+
+  it("opens a submenu beside its menu on the left, on the right at the window's left edge", () => {
+    setDir("rtl");
+    expect(besideLeft({ left: 600, right: 860 }, 148, 1000, 8)).toBe(452);
+    expect(besideLeft({ left: 8, right: 268 }, 148, 1000, 8)).toBe(268);
   });
 
   it("anchors a popover by the start and end edges of the reading direction", () => {
