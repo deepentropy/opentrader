@@ -7,16 +7,19 @@
  *
  * The buttons sit in a group stuck to the top and one stuck to the bottom
  * (right-rail-layout.ts). Dragging a button moves it: a placeholder shows
- * where it lands, in either group.
+ * where it lands, in either group. A right-click on the toolbar lists its
+ * buttons to show or hide them (#306).
  */
 import { For, Show, createSignal, onCleanup } from "solid-js";
+import { Portal } from "solid-js/web";
+import { ChartContextMenu, type CtxNode } from "../chart/ChartContextMenu";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { TOP_TABS, type Tab } from "../../data/right-rail-tabs";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
 import { isTauri } from "../shell/window-bridge";
 import { unread as communityUnread } from "../../data/community/notifications";
-import { moveInLayout, railLayout, setRailLayout, type RailGroup } from "../../data/right-rail-layout";
+import { moveInLayout, railLayout, resetRailLayout, setHiddenInLayout, setRailLayout, type RailGroup } from "../../data/right-rail-layout";
 
 // The AI assistant needs the desktop app (its requests go through Rust).
 const SHOWN_TABS = TOP_TABS.filter((t) => (t.id !== "community" || COMMUNITY_ENABLED) && (t.id !== "assistant-button" || isTauri()));
@@ -42,7 +45,44 @@ export function RightRailTabs(props: Props) {
   let topRef!: HTMLDivElement;
   let bottomRef!: HTMLDivElement;
   const [drag, setDrag] = createSignal<Drag | null>(null);
+  const [menu, setMenu] = createSignal<{ x: number; y: number } | null>(null);
   const layout = () => railLayout(IDS);
+  const isHidden = (id: string) => !!layout().hidden?.includes(id);
+  /** A hidden button's panel closes: the rail page, or the panel the button toggles (screener, editor…). */
+  const closePanelOf = (id: string) => {
+    if (props.active === id) props.setActive(null);
+    else if (props.pressed?.(id)) props.setActive(id);
+  };
+  const toggleHidden = (id: string) => {
+    const hide = !isHidden(id);
+    const next = setHiddenInLayout(layout(), id, hide);
+    if (next === layout()) return;
+    setRailLayout(next);
+    if (hide) closePanelOf(id);
+  };
+  const menuNodes = (): CtxNode[] => {
+    const shownCount = IDS.length - (layout().hidden?.length ?? 0);
+    const row = (id: string): CtxNode => {
+      const shown = () => !isHidden(id);
+      return {
+        kind: "item",
+        id,
+        label: TAB_BY_ID.get(id)!.label,
+        checked: shown,
+        // The last shown button stays: the toolbar keeps a place to open this menu.
+        disabled: !isHidden(id) && shownCount <= 1,
+        keepOpen: true,
+        onSelect: () => toggleHidden(id),
+      };
+    };
+    const { top, bottom } = layout();
+    return [
+      ...top.map(row),
+      ...(bottom.length ? [{ kind: "separator" } as CtxNode, ...bottom.map(row)] : []),
+      { kind: "separator" },
+      { kind: "item", id: "reset", label: "Reset to default", onSelect: resetRailLayout },
+    ];
+  };
   /** A drag just ended on a button: its click is not a selection. */
   let swallowClick = false;
   let stopDrag: (() => void) | null = null;
@@ -116,7 +156,7 @@ export function RightRailTabs(props: Props) {
   /** A group's buttons while dragging: the dragged one out, the placeholder in. */
   const entries = (group: RailGroup) => {
     const d = drag();
-    const ids = layout()[group].filter((id) => id !== d?.id);
+    const ids = layout()[group].filter((id) => id !== d?.id && !isHidden(id));
     if (d?.group === group) ids.splice(d.index, 0, PLACEHOLDER);
     return ids;
   };
@@ -145,7 +185,15 @@ export function RightRailTabs(props: Props) {
   const renderEntry = (id: string) => (id === PLACEHOLDER ? <div class="right-rail-drop-slot" aria-hidden="true" /> : renderTab(TAB_BY_ID.get(id)!));
 
   return (
-    <nav class="right-rail-tabs" classList={{ "is-dragging": !!drag() }} aria-label="Right rail">
+    <nav
+      class="right-rail-tabs"
+      classList={{ "is-dragging": !!drag() }}
+      aria-label="Right rail"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (!drag()) setMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div class="right-rail-tabs-group" ref={topRef}>
         <For each={entries("top")}>{renderEntry}</For>
       </div>
@@ -153,6 +201,13 @@ export function RightRailTabs(props: Props) {
       <div class="right-rail-tabs-group" ref={bottomRef}>
         <For each={entries("bottom")}>{renderEntry}</For>
       </div>
+      <Show when={menu()}>
+        {(m) => (
+          <Portal>
+            <ChartContextMenu x={m().x} y={m().y} endX nodes={menuNodes()} onClose={() => setMenu(null)} />
+          </Portal>
+        )}
+      </Show>
       <Show when={drag()}>
         {(d) => (
           <div class="right-rail-ghost" style={{ left: `${d().x - 22}px`, top: `${d().y - 22}px` }} aria-hidden="true">
