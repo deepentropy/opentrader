@@ -61,11 +61,9 @@
   color: var(--color-text-primary);
 }
 
-/* The drawer hugs the window bottom — the menu opens upward. */
+/* Placed against the script name button by createPopover (popover.ts). */
 .oak-script-menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  inset-inline-start: 0;
+  position: fixed;
   z-index: 60;
   min-width: 220px;
   /* At least this wide; a longer translation widens it. */

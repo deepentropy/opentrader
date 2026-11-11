@@ -55,6 +55,23 @@ export function anchorPoint(r: { left: number; right: number; top: number; botto
   return { x: end ? endEdge(r) : startEdge(r), y: above ? r.top - gap : r.bottom + gap, endX: end, endY: above };
 }
 
+/** The side a popover `height` px tall goes on against an anchor rectangle: the side asked for, or the other one
+ *  when it does not fit there and the other side has more room (a menu asked above a button near the window top). */
+export function fittedSide(
+  r: { top: number; bottom: number },
+  p: PopoverPlacement,
+  height: number,
+  windowHeight: number,
+): "below" | "above" {
+  const gap = p.gap ?? 0;
+  const side = p.side ?? "below";
+  const above = r.top - gap;
+  const below = windowHeight - r.bottom - gap;
+  const [room, other] = side === "above" ? [above, below] : [below, above];
+  if (height <= room || other <= room) return side;
+  return side === "above" ? "below" : "above";
+}
+
 /** Wires a popover; returns the ref for the popover element. */
 export function createPopover(
   anchor: (() => Element | PopoverPoint | null | undefined) | undefined,
@@ -70,7 +87,13 @@ export function createPopover(
     if (!el || opts.placement === false) return;
     const a = anchor?.();
     if (!a) return;
-    const p = a instanceof Element ? anchorPoint(a.getBoundingClientRect(), opts.placement) : a;
+    let p: PopoverPoint;
+    if (a instanceof Element) {
+      const r = a.getBoundingClientRect();
+      const placement = opts.placement ?? {};
+      const side = fittedSide(r, placement, el.getBoundingClientRect().height, document.documentElement.clientHeight);
+      p = anchorPoint(r, { ...placement, side });
+    } else p = a;
     fitToWindow(el, p.x, p.y, p.endX, p.endY);
   };
 
