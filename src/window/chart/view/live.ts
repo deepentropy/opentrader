@@ -198,6 +198,8 @@ export function createLive(cx: ChartCx): LiveApi {
     if (cx.swapping) return null;
     // Bar Replay shows past bars: live bars wait for the end of the replay.
     if (cx.replayActive) return null;
+    // A window of past bars: live bars come again once it reaches now.
+    if (cx.pastWindowEnd !== null) return null;
     const lastTime = cx.raw.length > 0 ? (cx.raw[cx.raw.length - 1].time as number) : -1;
     let next: OHLC;
     let appended = false;
@@ -385,7 +387,7 @@ export function createLive(cx: ChartCx): LiveApi {
         .catch(() => { /* transient fetch failure — next poll retries */ });
     const timer = window.setInterval(() => {
       // Not in a browser tab left in the background: the first poll back fills the gap.
-      if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0) return;
+      if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0 || cx.pastWindowEnd !== null) return;
       const lastTime = cx.raw[cx.raw.length - 1].time as number;
       const tail = getSecondBarsTail(sym, id, lastTime - TAIL_SEC, sess);
       if (!tail) return;

@@ -242,12 +242,19 @@ export function ChartView(props: ChartViewProps) {
   // value-comparable string key dedupes those no-op invalidations.
   const historyKey = () =>
     `${props.symbol ?? "AAPL"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`;
+  /** See ChartCore.nextBars. */
+  let nextBars: ChartCore["nextBars"] = null;
   const [history] = createResource<BarsResult | null, string>(
     historyKey,
     async (key) => {
       // sym/interval/session — none contain spaces, so a plain split is safe
       // (the trailing reload counter is key-only).
       const [sym, interval, session] = key.split(" ") as [string, string, SessionId];
+      if (nextBars) {
+        const given = nextBars;
+        nextBars = null;
+        if (given.series === `${sym} ${interval} ${session}`) return given.result;
+      }
       try {
         const t0 = performance.now();
         {
@@ -324,6 +331,12 @@ export function ChartView(props: ChartViewProps) {
     shownSeries,
     setShownSeries,
     pendingRangeSpan: null,
+    get nextBars() {
+      return nextBars;
+    },
+    set nextBars(v: ChartCore["nextBars"]) {
+      nextBars = v;
+    },
     rangePersistTimer: undefined,
     coords,
     setCoords,
@@ -450,11 +463,13 @@ export function ChartView(props: ChartViewProps) {
       // (a follower would save a clamped view), or be broadcast.
       if (cx.syncGuard) return;
       cx.maybeLoadOlder();
+      cx.maybeLoadNewer();
       // Persist the user's anchor (debounced) so it survives tab switches +
       // reloads. Skipped while a symbol swap is mid-flight (the apply effect is
       // about to set the range itself — capturing the outgoing/transient range
-      // here would clobber the new pane's saved view).
-      if (!cx.swapping && cx.chart) {
+      // here would clobber the new pane's saved view), and in a window of past
+      // bars (a reload opens on the latest bars, where its indices mean nothing).
+      if (!cx.swapping && cx.chart && cx.pastWindowEnd === null) {
         const lr = cx.chart.timeScale().getVisibleLogicalRange();
         if (lr) {
           // Tag the scheduled write with the pane this range belongs to. The

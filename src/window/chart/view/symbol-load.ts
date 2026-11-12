@@ -95,7 +95,13 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // Interval/session switch on the SAME symbol: keep the bar spacing and the
     // right offset (see pendingScaleKeep). Captured now, while the old
     // interval is still painted. A symbol change frames its own window.
-    if (cx.chart && sym === lastClearedSym && (int !== lastClearedInt || sess !== lastClearedSess)) {
+    if (cx.chart && cx.pastWindowEnd !== null) {
+      // A window of past bars: its distance to the last bar is not one to the
+      // latest bar. The new series opens on its latest bars at the same spacing.
+      const bs = cx.raw.length > 0 ? liveBarSpacing(cx.chart) : null;
+      pendingScaleKeep = bs ? { barSpacing: bs, rightOffset: currentTokens().rightOffset, symbol: sym !== lastClearedSym } : null;
+      if (sym !== lastClearedSym) cx.pendingRangeSpan = null;
+    } else if (cx.chart && sym === lastClearedSym && (int !== lastClearedInt || sess !== lastClearedSess)) {
       const bs = liveBarSpacing(cx.chart);
       const leftTime = currentTokens().saveLeftEdge ? (cx.chart.timeScale().getVisibleRange()?.from as number | undefined) : undefined;
       pendingScaleKeep = bs ? { barSpacing: bs, rightOffset: cx.chart.timeScale().scrollPosition(), leftTime } : null;
@@ -165,6 +171,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     if (!real || real.bars.length === 0) {
       cx.raw = [];
       cx.rawDaily = [];
+      cx.loadLanded();
       cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });
       cx.applyScriptChart();
       cx.liveVolBase = null;
@@ -177,6 +184,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
       cx.swapping = false;
       cx.replayAfterApply();
+      cx.loadApplied();
       return;
     }
     // The datafeed already aggregated 1W/1M; `real.daily` carries the
@@ -184,6 +192,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // re-aggregate the full set.
     cx.rawDaily = real.daily ?? [];
     cx.raw = toOHLC(real.bars);
+    cx.loadLanded();
     // The studies calculate below on these bars: their chart context is this series'.
     cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });
     cx.applyScriptChart();
@@ -341,6 +350,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     }
     // Bar Replay: the new bars are cut again at the replay time.
     cx.replayAfterApply();
+    // A window of past bars a Go to handed to this load, or the latest bars again.
+    cx.loadApplied();
   });
 
   // Dim-and-hold transition: rather than a spinner on a

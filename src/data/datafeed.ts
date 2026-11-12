@@ -157,6 +157,12 @@ export function initialViewBars(resolution: string): number | null {
   return dailyConfig(resolution).view;
 }
 
+/** Trading days of one history page of a resolution (what getBarsBefore loads
+ *  without `spanDays`). */
+export function historyPageDays(resolution: string): number {
+  return SECOND_INTERVALS[resolution]?.days ?? minuteConfig(resolution)?.days ?? dailyConfig(resolution).days;
+}
+
 /** True when this resolution is served as second-granularity REST aggregates. */
 export function isSecondResolution(resolution: string): boolean {
   return resolution in SECOND_INTERVALS;

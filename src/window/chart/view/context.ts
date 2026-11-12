@@ -233,6 +233,9 @@ export interface ChartCore {
   onShownHooks: Set<() => void>;
   paneRoot: HTMLDivElement;
   pendingRangeSpan: string | null;
+  /** Bars the next load of `series` ("symbol interval session") takes instead of fetching them (a window of past
+   *  bars a Go to loaded). */
+  nextBars: { series: string; result: BarsResult } | null;
   pointerOverHost: boolean;
   raw: OHLC[];
   rawDaily: Candle[];

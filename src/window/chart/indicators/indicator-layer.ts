@@ -541,6 +541,11 @@ export class IndicatorLayer {
   ): void {
     this.inPreservedPane(() => {
       const drewBefore = this.lastDraw && this.entry === entry;
+      // Same study and settings, other bars (a load, a page of history, a Go to): the series drawn take the new
+      // points. Removing and adding them again rebuilt the time scale over every bar each time, seconds on a long
+      // history (.tmp/goto-window, 12/11/2026).
+      const settings = draw ? JSON.stringify([inputs, styles]) : null;
+      const sameSettings = drewBefore && draw && settings === this.drawnSettings;
       this.entry = entry;
       this.lastInputs = inputs;
       this.lastStyles = styles;
@@ -552,10 +557,13 @@ export class IndicatorLayer {
       else { this.lastResult = null; this.error = null; this.loading = false; }
       // A live update while the worker calculates: the result drawn stays as it is.
       if (live && drewBefore && draw && this.workerResult !== null && this.workerResult === this.drawnWorkerResult) return;
-      this.draw(live);
+      this.draw(live || sameSettings);
       this.drawnWorkerResult = draw ? this.workerResult : null;
+      this.drawnSettings = settings;
     });
   }
+  /** Inputs and styles of the last drawn render (null: not drawn). */
+  private drawnSettings: string | null = null;
 
   /** The last render did not calculate. */
   private stale = false;

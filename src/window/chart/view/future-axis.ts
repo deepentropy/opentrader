@@ -63,10 +63,14 @@ export function createFutureAxis(cx: ChartCx): FutureAxisApi {
     futureSeries = null;
     futureBuilt = null;
   }
-  /** Future bars the view needs after the last bar. */
+  /** Future bars the view needs after the last bar: at most its width. While
+   *  new bars far before the old ones land (a Go to far back), the range still
+   *  counts the old bars and studies after them: 100k future bars were built
+   *  then, and every series' data change after went through them. */
   function futureBarsNeeded(): number {
-    const to = cx.chart?.timeScale().getVisibleLogicalRange()?.to ?? 0;
-    return Math.max(0, Math.ceil(to - (cx.mainLastIndex() ?? 0))) + FUTURE_BARS_SPARE;
+    const r = cx.chart?.timeScale().getVisibleLogicalRange();
+    const after = r ? Math.min(Math.ceil(r.to - (cx.mainLastIndex() ?? 0)), Math.ceil(r.to - r.from)) : 0;
+    return Math.max(0, after) + FUTURE_BARS_SPARE;
   }
   /** Built future bars after the last bar. */
   function futureBarsLeft(times: number[], last: number): number {

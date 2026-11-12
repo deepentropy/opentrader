@@ -138,8 +138,9 @@ export function tradingDays(from: number, to: number): number {
 
 // ── Showing a trade ──────────────────────────────────────────────────────────
 
-/** Most bars the chart loads to show a trade (the depth of SYNC_LOAD_MAX_BARS):
- *  a finer interval would load a long history back to an old trade. */
+/** An older trade opens on a coarser interval: the bars from the trade to today
+ *  stay under SYNC_LOAD_MAX_BARS, so the chart shows it with the bars after it
+ *  up to today. */
 const MAX_HISTORY_BARS = 90_000;
 /** Bars of a trading day with extended hours, per minute interval. */
 const DAY_MINUTES = 16 * 60;

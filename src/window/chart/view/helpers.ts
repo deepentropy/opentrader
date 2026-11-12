@@ -31,11 +31,16 @@ export const SYMBOL_CHANGE_MAX_BACK = 298;
  *  visible bar count). */
 export const SYNC_MIN_BARS = 2;
 /** Depth cap for history loaded on behalf of date-range / time sync (display
- *  bars); the user's own scroll-back pager and Go to are not capped. Measured 29/09/2026
+ *  bars) and the Go to dialog; the user's own scroll-back pager is not capped. Measured 29/09/2026
  *  (.tmp/goto-sync): a 1m pane at ~94k bars blocks the main thread up to
  *  ~190 ms per load, at 250k bars up to 853 ms. 100k = about one year of 1m
  *  regular-session bars (20k reached only ~50 sessions back). */
 export const SYNC_LOAD_MAX_BARS = 100_000;
+/** A Go to more than this many history pages of the interval before the loaded
+ *  bars loads a window of bars around the date instead of all the bars up to
+ *  them: on 10S AAPL back to 20/01 all the bars froze the app 25 s, the window
+ *  takes 0.2 s (12/11/2026, .tmp/goto-window). */
+export const GOTO_WINDOW_PAGES = 2;
 /** Pause after the last landed history page before studies recompute. */
 export const INDICATOR_RENDER_DEBOUNCE_MS = 150;
 /** Date-range sync: a follower loads missing history once the driving pane

@@ -14,6 +14,7 @@ import {
   aggregateUnitFor,
   getBars,
   getBarsBefore,
+  historyPageDays,
   isIntradayResolution,
   isSecondResolution,
   splitSymbol,
@@ -30,6 +31,7 @@ import {
   MIN_VISIBLE_BARS,
   SYNC_MIN_BARS,
   SYNC_LOAD_MAX_BARS,
+  GOTO_WINDOW_PAGES,
   INDICATOR_RENDER_DEBOUNCE_MS,
   SYNC_LOAD_QUIET_MS,
 } from "./helpers";
@@ -38,6 +40,7 @@ import { emitAppEvent } from "../../../data/app-events";
 import { waitBeforeRetry } from "../../../data/connection";
 import type { SessionId } from "../../../data/session";
 import { lastAtOrBefore, lowerBound } from "../time-search";
+import { pendingRange } from "../pending-range";
 
 export type GotoOpts = {
   /** Centre the target even when it is already in view (the reference app Go to). */
@@ -60,7 +63,17 @@ export interface HistoryApi {
   historyExhausted: boolean;
   holdLinkQuiet: () => void;
   loadingMore: boolean;
+  maybeLoadNewer: () => void;
   maybeLoadOlder: () => void;
+  /** A load's bars are set: the window of past bars handed to it, or the latest bars. */
+  loadLanded: () => void;
+  /** A load's bars are framed: the Go to or the action waiting for it goes on. */
+  loadApplied: () => void;
+  /** End of the window of past bars a Go to far back loaded (the next newer
+   *  page starts there); null while the bars run to the latest one. */
+  readonly pastWindowEnd: number | null;
+  /** Leave a window of past bars: load the latest bars again, then `then`. */
+  returnToLive: (then?: () => void) => void;
   openHistoryEndDialog: () => void;
   pendingLinkTime: number | null;
   prefetch: {
@@ -132,6 +145,18 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  backend reports no older bars. Reset on symbol/interval change. */
   let loadingMore = false;
   let historyExhausted = false;
+  /** See HistoryApi.pastWindowEnd. Live bars wait while it is set: they would
+   *  follow the window's last bar with a gap. */
+  let pastWindowEnd: number | null = null;
+  /** Read-ahead of the next newer page of a window of past bars. */
+  let newerPrefetch: { gen: number; from: number; to: number; rows: Promise<Candle[] | null> } | null = null;
+  /** Run once the latest bars are back (returnToLive). */
+  let afterLive: (() => void) | null = null;
+  /** A window of past bars handed to the next load (series key, end, null when it reaches now), told when applied. */
+  let pendingLoad: { series: string; end: number | null; resolve: (applied: boolean) => void } | null = null;
+  /** A window of past bars is landing: the views the chart passes through
+   *  before the Go to frames the date do not page. */
+  let landing = false;
 
   let historyEndClose: (() => void) | null = null;
   // The notice goes with the chart.
@@ -230,6 +255,13 @@ export function createHistory(cx: ChartCx): HistoryApi {
     prefetch = { gen, beforeSec, rows: fetchOlder(sym, int, beforeSec) };
   }
 
+  /** The view: the range asked for when the chart has not drawn it yet (it
+   *  answers the one before until its next frame, and pages landing in the
+   *  same frame moved the view from that one), else the drawn one. */
+  function viewRange() {
+    return cx.chart ? (pendingRange(cx.chart) ?? cx.chart.timeScale().getVisibleLogicalRange()) : null;
+  }
+
   /** Scroll-back: when the visible range's left edge nears the oldest loaded
    *  bar, take one older window — from the read-ahead buffer if it's ready, else
    *  fetched inline — prepend it, shift the visible range by the number of bars
@@ -238,7 +270,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  overlapping/duplicate fetches and a stale page landing after a
    *  symbol/interval switch. Mirrors the mock (ChartView.tsx:685-747). */
   function maybeLoadOlder() {
-    if (!cx.chart || !cx.series || loadingMore || historyExhausted) return;
+    if (!cx.chart || !cx.series || loadingMore || historyExhausted || landing) return;
     // Don't page while the initial/refetch window is still loading: the live
     // poller can seed `raw` with a single forming bar before history lands, and
     // paging off that would compute a bogus `before` (the newest bar) and
@@ -249,8 +281,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const isDaily = cx.rawDaily.length > 0;
     const oldestSrc: { time: unknown }[] = isDaily ? cx.rawDaily : cx.raw;
     if (oldestSrc.length === 0) return;
-    const ts = cx.chart.timeScale();
-    const range = ts.getVisibleLogicalRange();
+    const range = viewRange();
     if (!range || range.from > LOAD_MORE_THRESHOLD) return;
     // Don't page when the whole loaded series is in view — the initial
     // fitContent() (and a fully zoomed-out chart) sits at from≈0 / to≈len-1.
@@ -307,7 +338,71 @@ export function createHistory(cx: ChartCx): HistoryApi {
       .finally(() => {
         loadingMore = false;
         updateHistoryEnd();
+        // The newer side of a window of past bars waited for this page.
+        maybeLoadNewer();
       });
+  }
+
+  /** Newer page of a window of past bars: [from, to), `to` at most now. */
+  function newerPage(sym: string, int: string, gen: number, from: number) {
+    const to = Math.min(Date.now() / 1000, from + Math.ceil((historyPageDays(int) * 7) / 5 + 1) * 86400);
+    if (!newerPrefetch || newerPrefetch.gen !== gen || newerPrefetch.from !== from) {
+      // The trading days from `from`'s day on, holidays counted in.
+      newerPrefetch = { gen, from, to, rows: fetchOlder(sym, int, to, tradingDaysBetween(from, to)) };
+    }
+    return newerPrefetch;
+  }
+
+  /** Scroll forward in a window of past bars: when the view nears its last
+   *  bar, the next newer page is appended (the view stays on the same bars)
+   *  and the following one is read ahead. The page that reaches now ends the
+   *  window: live bars come again. */
+  function maybeLoadNewer() {
+    if (pastWindowEnd === null || !cx.chart || !cx.series || loadingMore || landing || cx.history.loading) return;
+    if (cx.replayActive || cx.raw.length === 0) return;
+    const range = viewRange();
+    if (!range || range.to < cx.raw.length - 1 - LOAD_MORE_THRESHOLD) return;
+    loadingMore = true;
+    const sym = props.symbol ?? "";
+    const int = props.interval ?? "1D";
+    const gen = fetchGen;
+    const page = newerPage(sym, int, gen, pastWindowEnd);
+    let empty = false;
+    void page.rows
+      .then((rows) => {
+        if (gen !== fetchGen || pastWindowEnd !== page.from || !cx.chart || !cx.series) return;
+        if (rows === null) return; // transient error: the next scroll tries again
+        newerPrefetch = null;
+        const lastSec = cx.raw[cx.raw.length - 1].time as number;
+        const newer = rows.filter((r) => (r.time as number) > lastSec);
+        pastWindowEnd = page.to < Date.now() / 1000 ? page.to : null;
+        empty = newer.length === 0;
+        if (!empty) appendNewer(newer);
+        if (pastWindowEnd === null) cx.refreshControlBars();
+        else newerPage(sym, int, gen, pastWindowEnd);
+      })
+      .finally(() => {
+        loadingMore = false;
+        // A page without bars (holidays): the next one, the view is still at
+        // the end. Else the older side, which waited for this page.
+        if (empty) maybeLoadNewer();
+        else maybeLoadOlder();
+      });
+  }
+
+  /** Put `newer` (display bars after every loaded one) at the end of the
+   *  series, the view kept on the same bars. */
+  function appendNewer(newer: Candle[]) {
+    if (!cx.chart || !cx.series) return;
+    const ts = cx.chart.timeScale();
+    const prevRange = viewRange();
+    cx.raw = cx.raw.concat(toOHLC(newer));
+    setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
+    cx.afterSeriesData();
+    cx.updateSessionBreaks();
+    scheduleIndicatorRender();
+    if (!cx.crosshairActive) refreshLegend();
+    if (prevRange) ts.setVisibleLogicalRange(prevRange);
   }
 
   /** Put `older` (bars older than every loaded one: daily rows for the daily
@@ -317,7 +412,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
   function prependOlder(older: Candle[], isDaily: boolean, int: string): boolean {
     if (!cx.chart || !cx.series) return false;
     const ts = cx.chart.timeScale();
-    const prevRange = ts.getVisibleLogicalRange();
+    const prevRange = viewRange();
     // Brick types re-derive their items from the whole history (item
     // count unrelated to the bars added): keep the distance to the last
     // item, at the same bar spacing.
@@ -375,7 +470,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
     if (unit && !spec) return 0;
     const ts = cx.chart.timeScale();
-    const prevRange = ts.getVisibleLogicalRange();
+    const prevRange = viewRange();
     // Brick types re-derive their items from the whole history: keep the
     // distance to the last item instead.
     const prevLast = isTransformType(cx.activeType) ? cx.mainLastIndex() : null;
@@ -497,7 +592,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
   onCleanup(() => window.clearTimeout(syncTimer));
 
   /** True when the target predates the loaded bars and more can be loaded
-   *  (below `maxBars`). The daily family holds its full history already. */
+   *  (below `maxBars`: Infinity asks whether the target is loaded at all). The
+   *  daily family holds its full history already. */
   function needsSyncLoad(fromSec: number, maxBars = SYNC_LOAD_MAX_BARS): boolean {
     return (
       cx.rawDaily.length === 0 &&
@@ -537,27 +633,21 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  during the load is honoured; normally one round, more only when the
    *  trading-day estimate fell short (holidays) or the target moved further
    *  back. Every round must add older bars, else the loop stops. Depth is
-   *  capped at `maxBars` (sync: SYNC_LOAD_MAX_BARS; Go to: none). `minDays`:
-   *  least trading days per request (date-range sync loads one more screen, so
-   *  a continued scroll lands on loaded bars instead of prepending on every
-   *  move). Returns false when the series changed underneath (the caller must
-   *  stop). */
-  async function loadHistoryTo(
-    target: () => number | null,
-    wanted: () => boolean,
-    minDays = 0,
-    maxBars = SYNC_LOAD_MAX_BARS,
-  ): Promise<boolean> {
+   *  capped at SYNC_LOAD_MAX_BARS. `minDays`: least trading days per request
+   *  (date-range sync loads one more screen, so a continued scroll lands on
+   *  loaded bars instead of prepending on every move). Returns false when the
+   *  series changed underneath (the caller must stop). */
+  async function loadHistoryTo(target: () => number | null, wanted: () => boolean, minDays = 0): Promise<boolean> {
     const reqGen = fetchGen;
     const reqSym = props.symbol ?? "";
     const reqInt = props.interval ?? "1D";
     let t = target();
-    while (t != null && needsSyncLoad(t, maxBars) && wanted()) {
+    while (t != null && needsSyncLoad(t) && wanted()) {
       const beforeSec = cx.raw[0].time as number;
       // Size the request so the depth cap holds: bars per day measured on the
       // loaded bars, window clipped to the bars still allowed.
-      const perDay = Math.max(1, cx.raw.length / loadedSessionDays());
-      const allowedDays = Math.floor((maxBars - cx.raw.length) / perDay);
+      const perDay = barsPerDay();
+      const allowedDays = Math.floor((SYNC_LOAD_MAX_BARS - cx.raw.length) / perDay);
       if (allowedDays < 1) break;
       const spanDays = Math.min(Math.max(tradingDaysBetween(t, beforeSec), minDays), allowedDays);
       syncLoading = true;
@@ -578,7 +668,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
         break;
       }
       const ts = cx.chart.timeScale();
-      const prevRange = ts.getVisibleLogicalRange();
+      const prevRange = viewRange();
       const prevLast = isTransformType(cx.activeType) ? cx.mainLastIndex() : null;
       const prevLen = cx.raw.length;
       // In Bar Replay the replayed series takes them in front.
@@ -662,7 +752,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     // depth cap): show the oldest bars at the current zoom instead of
     // collapsing onto one bar.
     if (toSec < (cx.raw[0].time as number)) {
-      const cur = ts.getVisibleLogicalRange();
+      const cur = viewRange();
       const span = cur ? Math.max(MIN_VISIBLE_BARS, cur.to - cur.from) : 100;
       guard();
       ts.setVisibleLogicalRange({ from: -0.5, to: span - 0.5 });
@@ -675,6 +765,122 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (l >= last) l = Math.max(l, last + (ts.options().rightOffset ?? 0));
     guard();
     ts.setVisibleLogicalRange({ from: i - 0.5, to: l + 0.5 });
+  }
+
+  /** Display bars per trading day, measured on the loaded bars. */
+  function barsPerDay(): number {
+    return Math.max(1, cx.raw.length / loadedSessionDays());
+  }
+
+  /** True when a Go to [fromSec, toSec] loads a window of past bars: more than
+   *  GOTO_WINDOW_PAGES pages of history lie between the date and the loaded
+   *  bars, or the range is after the window shown. */
+  function wantsWindow(fromSec: number, toSec: number): boolean {
+    if (cx.rawDaily.length > 0 || cx.replayActive || cx.raw.length === 0) return false;
+    if (pastWindowEnd !== null && toSec > (cx.raw[cx.raw.length - 1].time as number)) return true;
+    if (!needsSyncLoad(fromSec, Infinity)) return false;
+    const pages = tradingDaysBetween(fromSec, cx.raw[0].time as number) / historyPageDays(props.interval ?? "1D");
+    return pages > GOTO_WINDOW_PAGES;
+  }
+
+  /** Replace the bars by a window around [fromSec, toSec], half a page of the
+   *  interval on each side, in one request. Older bars come with the
+   *  scroll-back pager, newer ones with maybeLoadNewer; a window that reaches
+   *  now is the live series again. False when the series changed underneath or
+   *  a newer jump took over. */
+  async function loadPastWindow(fromSec: number, toSec: number, wanted: () => boolean): Promise<boolean> {
+    const sym = props.symbol ?? "";
+    const int = props.interval ?? "1D";
+    const gen = fetchGen;
+    // Half a page of the interval on each side: about the bars of a first load.
+    const side = Math.ceil(historyPageDays(int) / 2);
+    const now = Date.now() / 1000;
+    const end = Math.min(now, toSec + Math.ceil((side * 7) / 5) * 86400);
+    const rangeDays = Math.ceil(((toSec - fromSec) / 86400) * (5 / 7));
+    loadingMore = true;
+    let rows: Candle[] | null;
+    try {
+      rows = await fetchOlder(sym, int, end, 2 * side + 1 + rangeDays);
+    } finally {
+      loadingMore = false;
+    }
+    if (gen !== fetchGen || !wanted() || !cx.chart || !cx.series) return false;
+    // Nothing there (before the history floor) or an error: the loaded bars stay.
+    if (!rows || rows.length === 0) return true;
+    console.log(`[goto] ${sym} ${int}: window of ${rows.length} bars (${side} days each side)${end < now ? "" : ", up to now"}`);
+    // Applied as a load of the series, through the chart's data apply (the
+    // studies, compared symbols, framing and Bar Replay of a symbol switch).
+    const series = seriesKey();
+    const applied = new Promise<boolean>((resolve) => {
+      pendingLoad?.resolve(false);
+      pendingLoad = { series, end: end < now ? end : null, resolve };
+    });
+    cx.nextBars = { series, result: { bars: rows, daily: null, aggregate: null, partial: false } };
+    landing = true;
+    clearOldPoints();
+    reload();
+    return applied;
+  }
+
+  /** Before a load whose bars do not overlap the shown ones (a window of past
+   *  bars, the latest bars after one): the studies and the future bars are
+   *  cleared. Their old points would stay on the time scale until the studies'
+   *  worker results come, and the view, kept by bar index across a study's
+   *  redraw, would move to other dates when they go. */
+  function clearOldPoints() {
+    const shown = cx.raw;
+    cx.raw = [];
+    cx.controller?.renderAll();
+    cx.raw = shown;
+    cx.dropFutureSeries();
+  }
+
+  /** The shown series, as ChartCore.nextBars names it. */
+  const seriesKey = () => `${props.symbol ?? ""} ${props.interval ?? "1D"} ${props.session ?? "RTH"}`;
+
+  /** Load the series again (its next load takes cx.nextBars when set). */
+  function reload() {
+    fetchGen++;
+    historyExhausted = false;
+    prefetch = null;
+    newerPrefetch = null;
+    cx.setReloadTick((n) => n + 1);
+  }
+
+  function returnToLive(then?: () => void) {
+    afterLive = then ?? null;
+    clearOldPoints();
+    reload();
+  }
+
+  /** The load the pending window was handed to (not a symbol or interval switch that came first). */
+  let landedWindow = false;
+  function loadLanded() {
+    landedWindow = pendingLoad !== null && pendingLoad.series === seriesKey();
+    pastWindowEnd = landedWindow ? pendingLoad!.end : null;
+    newerPrefetch = null;
+  }
+
+  function loadApplied() {
+    const load = pendingLoad;
+    pendingLoad = null;
+    if (pastWindowEnd !== null) newerPage(props.symbol ?? "", props.interval ?? "1D", fetchGen, pastWindowEnd);
+    cx.refreshControlBars();
+    load?.resolve(landedWindow);
+    // The Go to frames the date right after (its awaited continuation), painted in the next frame.
+    // Then a view wider than the window (a thin symbol) pages in what it lacks on either side.
+    if (landing) {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          landing = false;
+          maybeLoadOlder();
+          maybeLoadNewer();
+        }),
+      );
+    }
+    const then = afterLive;
+    afterLive = null;
+    then?.();
   }
 
   /** Bar index for a "Go to" date (the reference app `_gotoTimeImpl`): intraday, the bar
@@ -699,13 +905,14 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  history back to it if needed (one request, capped) and centres it at the
    *  current bar spacing. It only scrolls: the crosshair is the crosshair
    *  sync's business. The Go to dialog uses it with `alignIfVisible` and
-   *  `driver` (the reference app `gotoTime`). */
+   *  `driver` (the reference app `gotoTime`); far back it loads a window of
+   *  bars around the date. */
   async function goToTime(targetSec: number, opts: GotoOpts = {}) {
     if (!cx.chart || !cx.series || cx.raw.length === 0) return;
     const ts = cx.chart.timeScale();
     const indexOf = opts.index ?? syncIndex;
     const loaded = (cx.raw[0].time as number) <= targetSec || cx.rawDaily.length > 0 || historyExhausted;
-    const cur = ts.getVisibleLogicalRange();
+    const cur = viewRange();
     if (loaded && cur && !opts.alignIfVisible) {
       const idx = indexOf(targetSec);
       if (idx >= cur.from && idx <= cur.to) return;
@@ -716,17 +923,23 @@ export function createHistory(cx: ChartCx): HistoryApi {
       return;
     }
     const myGoto = ++gotoGen;
-    // The user's own jump loads all the history back to the target (the
-    // reference app does): stopping at the sync cap left a 10S chart months
-    // short of the date, centred on its oldest bar.
-    const maxBars = opts.driver ? Infinity : SYNC_LOAD_MAX_BARS;
+    const wanted = () => myGoto === gotoGen;
+    // The user's own jump far back (the Go to dialog) loads a window around the
+    // date, not all the bars up to today.
+    const windowed = !!opts.driver && wantsWindow(targetSec, targetSec);
     // Darken while the target history loads (same dim-and-hold treatment as a
     // symbol load), debounced so an in-memory jump never flashes it.
-    const dimTimer = needsSyncLoad(targetSec, maxBars) ? window.setTimeout(() => cx.setDimmed(true), 160) : 0;
+    const dimTimer = windowed || needsSyncLoad(targetSec) ? window.setTimeout(() => cx.setDimmed(true), 160) : 0;
     try {
-      if (!(await loadHistoryTo(() => targetSec, () => myGoto === gotoGen, 0, maxBars))) return;
+      if (windowed) {
+        if (!(await loadPastWindow(targetSec, targetSec, wanted))) return;
+      } else {
+        if (!(await loadHistoryTo(() => targetSec, wanted))) return;
+        // The cap stopped short of the date (more bars per day than estimated).
+        if (opts.driver && needsSyncLoad(targetSec, Infinity) && !(await loadPastWindow(targetSec, targetSec, wanted))) return;
+      }
       if (myGoto !== gotoGen || !cx.chart) return;
-      const r = ts.getVisibleLogicalRange();
+      const r = viewRange();
       const span = r ? r.to - r.from : 120;
       const idx = indexOf(targetSec);
       if (!opts.driver) holdSyncGuard();
@@ -738,9 +951,10 @@ export function createHistory(cx: ChartCx): HistoryApi {
     }
   }
 
-  /** Go to "Custom range" (the reference app `setTimeFrame` with a time range): load all the
-   *  history back to `fromSec` if needed, then frame [fromSec, toSec] like a
-   *  date-range sync target. The user's own move: persisted and sent to synced panes. */
+  /** Go to "Custom range" (the reference app `setTimeFrame` with a time range): load the
+   *  history back to `fromSec` if needed (far back, a window around the range),
+   *  then frame [fromSec, toSec] like a date-range sync target. The user's own
+   *  move: persisted and sent to synced panes. */
   async function goToRange(fromSec: number, toSec: number) {
     if (!cx.chart || !cx.series || cx.raw.length === 0) return;
     // Retried once the other loader is done; the caller waits for the frame (a journal share pictures it).
@@ -749,9 +963,16 @@ export function createHistory(cx: ChartCx): HistoryApi {
       return goToRange(fromSec, toSec);
     }
     const myGoto = ++gotoGen;
-    const dimTimer = needsSyncLoad(fromSec, Infinity) ? window.setTimeout(() => cx.setDimmed(true), 160) : 0;
+    const wanted = () => myGoto === gotoGen;
+    const windowed = wantsWindow(fromSec, toSec);
+    const dimTimer = windowed || needsSyncLoad(fromSec) ? window.setTimeout(() => cx.setDimmed(true), 160) : 0;
     try {
-      if (!(await loadHistoryTo(() => fromSec, () => myGoto === gotoGen, 0, Infinity))) return;
+      if (windowed) {
+        if (!(await loadPastWindow(fromSec, toSec, wanted))) return;
+      } else {
+        if (!(await loadHistoryTo(() => fromSec, wanted))) return;
+        if (needsSyncLoad(fromSec, Infinity) && !(await loadPastWindow(fromSec, toSec, wanted))) return;
+      }
       if (myGoto !== gotoGen || !cx.chart) return;
       // The reference app `gotoTimeRange`: both ends go to the first bar at/after their time.
       applySyncRange(fromSec, toSec, true, indexAtOrAfter);
@@ -786,8 +1007,15 @@ export function createHistory(cx: ChartCx): HistoryApi {
     set loadingMore(v: typeof loadingMore) {
       loadingMore = v;
     },
+    loadApplied,
+    loadLanded,
+    maybeLoadNewer,
     maybeLoadOlder,
     openHistoryEndDialog,
+    get pastWindowEnd() {
+      return pastWindowEnd;
+    },
+    returnToLive,
     get pendingLinkTime() {
       return pendingLinkTime;
     },
