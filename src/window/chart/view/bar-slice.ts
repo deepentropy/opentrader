@@ -15,9 +15,9 @@ import { pendingRange } from "../pending-range";
 import { type ChartCx } from "./context";
 
 /** Most bars the chart library is given. */
-export const CHART_BARS = 60_000;
+export const CHART_BARS = 12_000;
 /** The slice moves once the view is closer than this to one of its ends (and loaded bars go on past it). */
-export const CHART_BARS_MARGIN = 15_000;
+export const CHART_BARS_MARGIN = 3_000;
 
 export interface BarSliceApi {
   /** Index in `cx.allBars` of the chart's first bar. */
@@ -49,7 +49,8 @@ export interface BarSliceApi {
 
 export function createBarSlice(cx: ChartCx): BarSliceApi {
   let from = 0;
-  const sliceable = () => !isTransformType(cx.activeType) && !cx.replayActive;
+  // The daily family is loaded whole (a few thousand bars to about 20,000): not sliced.
+  const sliceable = () => !isTransformType(cx.activeType) && !cx.replayActive && cx.rawDaily.length === 0;
 
   /** The chart's bars [a, b) of `cx.allBars` (the same list when it is all of them). */
   function cut(a: number, b: number): void {
@@ -62,9 +63,12 @@ export function createBarSlice(cx: ChartCx): BarSliceApi {
   function around(centre: number): [number, number] {
     const n = cx.allBars.length;
     if (n <= CHART_BARS || !sliceable()) return [0, n];
-    let a = Math.max(0, Math.round(centre - CHART_BARS / 2));
-    const b = Math.min(n, a + CHART_BARS);
-    a = Math.max(0, b - CHART_BARS);
+    // Wider than a view zoomed far out (a wide screen shows several thousand bars), with its margins.
+    const r = view();
+    const size = Math.max(CHART_BARS, r ? Math.ceil(r.to - r.from) + 2 * CHART_BARS_MARGIN : 0);
+    let a = Math.max(0, Math.round(centre - size / 2));
+    const b = Math.min(n, a + size);
+    a = Math.max(0, b - size);
     return [a, b];
   }
 

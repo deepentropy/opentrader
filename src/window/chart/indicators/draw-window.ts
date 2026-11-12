@@ -10,9 +10,9 @@
 import { lowerBound, upperBound } from "../time-search";
 
 /** Most bars the studies draw. */
-export const DRAW_WINDOW_BARS = 30_000;
+export const DRAW_WINDOW_BARS = 6_000;
 /** The window moves once the view is closer than this to one of its ends (and the bars go on past it). */
-export const DRAW_WINDOW_MARGIN = 5_000;
+export const DRAW_WINDOW_MARGIN = 1_500;
 
 /** Times of the first and last bar drawn: -Infinity / Infinity for a window that reaches the first / last bar. */
 export type DrawWindow = { from: number; to: number };
