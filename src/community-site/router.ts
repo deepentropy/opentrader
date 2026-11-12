@@ -10,7 +10,8 @@
  *   /notifications, /account, /mod (moderation queue), /contact, /signin?next=
  *
  * Addresses of the former communities (/c/options, /following) land on
- * General and on the home page.
+ * General and on the home page (the server redirects them); any other
+ * address is "not found".
  */
 import { createSignal } from "solid-js";
 
@@ -30,7 +31,8 @@ export type Route =
   | { page: "account" }
   | { page: "queue" }
   | { page: "contact" }
-  | { page: "signin"; next: string };
+  | { page: "signin"; next: string }
+  | { page: "notfound" };
 
 export function parseRoute(path: string, search: string): Route {
   const q = new URLSearchParams(search);
@@ -39,10 +41,13 @@ export function parseRoute(path: string, search: string): Route {
   if (a === "t" && b) return c === "about" ? { page: "about", community: `t:${b.toUpperCase()}` } : { page: "ticker", ticker: b.toUpperCase() };
   if (a === "c") return c === "about" ? { page: "about", community: "c:general" } : { page: "general" };
   switch (a) {
+    case undefined:
+    case "following":
+      return { page: "home" };
     case "p":
-      return b ? { page: "post", id: b } : { page: "home" };
+      return b ? { page: "post", id: b } : { page: "notfound" };
     case "u":
-      return b ? { page: "user", name: b } : { page: "home" };
+      return b ? { page: "user", name: b } : { page: "notfound" };
     case "submit":
       return { page: "submit", to: q.get("to"), type: q.get("type") };
     case "search":
@@ -59,7 +64,7 @@ export function parseRoute(path: string, search: string): Route {
     case "signin":
       return { page: "signin", next: q.get("next") || "/" };
     default:
-      return { page: "home" };
+      return { page: "notfound" };
   }
 }
 

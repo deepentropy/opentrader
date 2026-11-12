@@ -147,6 +147,12 @@ export default {
       if (blockedNetwork(request, env)) return new Response("network not allowed", { status: 403 });
       return getContainer(env.SERVER, INSTANCE).fetch(request);
     }
-    return env.ASSETS.fetch(request);
+    // Not one of the app's files: no page here (search engines drop the address).
+    return new Response(NOT_FOUND, { status: 404, headers: { "content-type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" } });
   },
 };
+
+const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · OpenTrader online demo</title><meta name="robots" content="noindex">
+<style>body{margin:0;min-height:100vh;display:grid;place-content:center;gap:12px;text-align:center;background:#0f0f0f;color:#d9dbe0;font:16px system-ui,sans-serif}a{color:#82a4ff}</style>
+</head><body><h1>Page not found</h1><p>This page doesn't exist. <a href="/">Open the demo</a> or visit <a href="https://opentrader.markets/">opentrader.markets</a>.</p></body></html>`;

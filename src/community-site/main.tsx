@@ -46,6 +46,7 @@ const TITLES: Partial<Record<Route["page"], string>> = {
   queue: "Moderation queue · OpenTrader Community",
   contact: "Contact and reports · OpenTrader Community",
   signin: "Sign in · OpenTrader Community",
+  notfound: "Page not found · OpenTrader Community",
 };
 
 function back(): void {
@@ -114,6 +115,9 @@ function Site() {
           </Match>
           <Match when={r().page === "contact"}><Narrow><div class="cs-panel-page"><ContactPage onBack={back} /></div></Narrow></Match>
           <Match when={r().page === "signin" && (r() as { next: string }).next}>{(next) => <Narrow><SignInPage next={next()} /></Narrow>}</Match>
+          <Match when={r().page === "notfound"}>
+            <Narrow><p class="cs-page-msg">This page doesn't exist. <a href="/" onClick={go("/")}>Back to the community</a>.</p></Narrow>
+          </Match>
         </Switch>
       </div>
       <footer class="cs-foot">
@@ -129,4 +133,9 @@ function Site() {
   );
 }
 
-void hydrateKv().finally(() => render(() => <Site />, document.getElementById("root")!));
+// The server writes the page's content in for search engines (deploy/community/src/pages.ts): the live page replaces it.
+void hydrateKv().finally(() => {
+  const root = document.getElementById("root")!;
+  root.textContent = "";
+  render(() => <Site />, root);
+});

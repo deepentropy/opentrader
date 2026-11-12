@@ -21,7 +21,7 @@ import { HttpError, hotRank, json, newId, now } from "./util";
 /** UTC days since 1970. */
 const today = (at = now()) => Math.floor(at / 86_400);
 
-const BOT = "bot";
+export const BOT = "bot";
 const DAY = 86_400;
 /** Active ticker communities that get a daily thread, at most. */
 const DAILY_MAX = 15;

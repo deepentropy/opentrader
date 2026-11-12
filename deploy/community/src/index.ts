@@ -9,7 +9,7 @@
 import { Env } from "./env";
 import * as auth from "./auth";
 import * as api from "./api";
-import { page } from "./pages";
+import { isFile, notFound, page } from "./pages";
 import { serveImage } from "./charts";
 import * as check from "./check";
 import * as live from "./live";
@@ -30,8 +30,6 @@ const DESKTOP_ORIGINS = ["http://tauri.localhost", "tauri://localhost"];
 const MAX_BODY = 64 * 1024;
 /** A new post, a reply or a snapshot may carry a chart's picture. */
 const MAX_POST_BODY = 2_500_000;
-/** Website pages whose address the API also answers (with JSON). */
-const BOTH = /^\/(search|tickers|suggestions)\/?$/;
 const PICTURED = /^\/(communities\/[^/]+\/posts|posts\/[a-z0-9]+\/comments|me\/snapshots)$/;
 
 function cors(request: Request, env: Env): Record<string, string> {
@@ -171,10 +169,9 @@ export default {
     }
     let res: Response;
     try {
+      // The website's pages (an address the API also uses, such as /search or /contact, is a page for a browser).
       const html = await page(env, request, url);
       if (html) return html;
-      // Addresses both a page and an API answer: a browser opening the page gets the website.
-      if (request.method === "GET" && env.ASSETS && BOTH.test(url.pathname) && (request.headers.get("Accept") ?? "").includes("text/html")) return env.ASSETS.fetch(request);
       const path = decodeURIComponent(url.pathname).replace(/\/+$/, "") || "/";
       let handler: Handler | null = null;
       let params: string[] = [];
@@ -189,8 +186,11 @@ export default {
           break;
         }
       }
-      // The website's files and pages (an address the API also uses, /contact, is a page for a browser).
-      if (!handler && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
+      // The website's files (the sign-in page answers without its .html too); any other address is no page of it.
+      if (!handler && (request.method === "GET" || request.method === "HEAD") && env.ASSETS) {
+        const file = await env.ASSETS.fetch(request);
+        return file.status === 404 && !isFile(url.pathname) ? notFound(env, url) : file;
+      }
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
       // The payment provider's deliveries come in bursts from a few addresses.
       const raw = path === "/billing/webhook";

@@ -86,6 +86,12 @@ mark { background: rgba(41, 98, 255, 0.32); color: inherit; font-weight: 600; }
 .cs-note a { color: var(--cs-signal-text); }
 .cs-quiet { color: var(--cs-dim); font-size: 13px; line-height: 1.55; }
 .cs-warn { margin-top: 6px; color: var(--cs-down); font-size: 13px; }
+/* The content the server writes in for search engines, shown until the live page replaces it. */
+.cs-ssr { max-width: 760px; margin: 0 auto; padding: 28px 20px 48px; color: var(--cs-chalk); line-height: 1.5; }
+.cs-ssr nav { margin-block-end: 20px; color: var(--cs-fog); }
+.cs-ssr small { color: var(--cs-fog); }
+.cs-ssr ul { padding: 0; list-style: none; }
+.cs-ssr li, .cs-ssr article + section article { margin-block-end: 16px; }
 .cs-loading, .cs-page-msg { padding: 48px 20px; color: var(--cs-fog); text-align: center; }
 .cs-page-msg .cs-btn { margin-top: 12px; }
 .cs-error { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--ot-tint-red-12); color: #ff6b77; font-size: 14px; }
