@@ -12,7 +12,7 @@
 import { setSourceResolver, type Bar } from "oakscriptjs";
 import { MissingSymbolDataError } from "oakscriptjs/script";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
-import { ACCESSORS, callKey, deltaSnapshot, encodeDelta, type StudyCall, type StudyJob, type StudyReply } from "./study-worker-types";
+import { ACCESSORS, callKey, deltaSnapshot, encodeDelta, withoutEmptyPlots, type StudyCall, type StudyJob, type StudyReply } from "./study-worker-types";
 import { restoreTimes, scriptBars } from "../../../backtester/oakscript";
 
 /** A run of a library study (lightweight-charts-indicators `createRun`, on the ported studies): `update` gives the
@@ -118,6 +118,8 @@ export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
       result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, c: unknown) => unknown)(st.seen, job.inputs, ctx);
     }
     if (st.seen !== st.bars && result && typeof result === "object") restoreTimes(result, st.seen, st.bars);
+    // Before the snapshot, so the next reply's changes are counted from what this one sent.
+    result = withoutEmptyPlots(result);
     const prev = st.sent;
     const snapshot = deltaSnapshot(result, st.bars.length);
     st.sent = { id: job.id, result: snapshot };

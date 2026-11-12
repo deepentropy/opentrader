@@ -192,6 +192,61 @@ export function deltaSnapshot(result: unknown, bars: number, depth = 0): unknown
   return result;
 }
 
+const hasValue = (p: unknown) => {
+  const v = (p as { value?: unknown } | null)?.value;
+  return typeof v === "number" && Number.isFinite(v);
+};
+
+/**
+ * `result` with its plots that have no value on any bar (a switched-off option: an RSI's bands, an SMA's smoothing)
+ * as empty lists: they held one point per bar in the worker and in the window, more than half of a study's result
+ * (12/11/2026, .tmp/memory-proto). The readers take a missing point as no value. A new object when one changed.
+ */
+export function withoutEmptyPlots<T>(result: T): T {
+  const plots = (result as { plots?: Record<string, unknown[]> } | null)?.plots;
+  if (!plots || typeof plots !== "object") return result;
+  let out: Record<string, unknown[]> | null = null;
+  for (const [id, points] of Object.entries(plots)) {
+    if (!Array.isArray(points) || points.length === 0 || points.some(hasValue)) continue;
+    out ??= { ...plots };
+    out[id] = [];
+  }
+  return out ? { ...result, plots: out } : result;
+}
+
+/** One string per text: a reply comes through the worker boundary with its own copy of every string, so a colour
+ *  given on each bar (a gradient, a coloured volume) was held as many times as there are bars. */
+const strings = new Map<string, string>();
+const STRINGS_KEPT = 10_000;
+function one(s: string): string {
+  if (s.length > 64) return s;
+  const kept = strings.get(s);
+  if (kept !== undefined) return kept;
+  if (strings.size >= STRINGS_KEPT) strings.clear();
+  strings.set(s, s);
+  return s;
+}
+
+/** The short strings of `v` (arrays of strings, fields of plain objects and of their arrays' points, `depth` levels
+ *  down) replaced by one copy each, in place. */
+export function shareStrings(v: unknown, depth = 4): void {
+  if (depth < 0 || v === null || typeof v !== "object") return;
+  if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) {
+      const x = v[i];
+      if (typeof x === "string") v[i] = one(x);
+      else if (x !== null && typeof x === "object") shareStrings(x, depth - 1);
+    }
+    return;
+  }
+  if (!isPlain(v)) return;
+  for (const k in v) {
+    const x = v[k];
+    if (typeof x === "string") v[k] = one(x);
+    else if (x !== null && typeof x === "object") shareStrings(x, depth - 1);
+  }
+}
+
 /** The result `delta` (encodeDelta) describes from `prev`. Its arrays are those of `prev`, changed in place (a copy
  *  of every array of a heavy study cost tens of milliseconds per update): `prev` is not read again. */
 export function applyDelta(delta: unknown, prev: unknown, changed = new Set<unknown[]>()): unknown {

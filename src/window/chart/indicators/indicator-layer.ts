@@ -53,7 +53,7 @@ import { isLibraryEntry } from './registry';
 import { translatedPlotConfig, translatedStudyResult } from '../../../i18n/study-text';
 import { isUserIndicatorId } from './user-scripts';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
-import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
+import { ACCESSORS, applyDelta, callKey, jobChanges, shareStrings, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 import { windowResult, type DrawWindow } from './draw-window';
 
@@ -687,6 +687,8 @@ export class IndicatorLayer {
       // The worker holds this job's state now, unless it did not take it: the next job sends everything again.
       if (reply.retry) { off.sent.stateId = null; off.version = null; off.raw = null; }
       else off.sent.stateId = reply.id;
+      // The new points only (a delta) or the whole result: each text once.
+      shareStrings(reply.result);
       if (reply.base != null) {
         reply.result = reply.base === off.version && off.raw !== null ? applyDelta(reply.result, off.raw) : undefined;
         // The result it changed is not the one held here: ask again for a whole one.

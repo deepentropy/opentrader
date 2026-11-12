@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDelta, encodeDelta } from "../study-worker-types";
+import { applyDelta, deltaSnapshot, encodeDelta, shareStrings, withoutEmptyPlots } from "../study-worker-types";
 
 const points = (n: number, last = 0) => Array.from({ length: n }, (_, i) => ({ time: i, value: i === n - 1 ? last : i, color: "#fff" }));
 
@@ -39,5 +39,31 @@ describe("study worker result changes", () => {
     const delta = structuredClone(encodeDelta(next, prev));
     const out = applyDelta(delta, structuredClone(prev)) as typeof next;
     expect(out).toEqual(next);
+  });
+});
+
+describe("smaller results", () => {
+  const nan = (n: number) => Array.from({ length: n }, (_, i) => ({ time: i, value: NaN }));
+
+  it("sends a plot without any value as an empty list, a plot that gets values whole", () => {
+    const empty = withoutEmptyPlots({ plots: { a: points(100), bands: nan(100) }, metadata: { title: "x" } });
+    expect(empty.plots.bands).toEqual([]);
+    expect(empty.plots.a).toHaveLength(100);
+    const prev = deltaSnapshot(empty, 100);
+    const later = withoutEmptyPlots({ plots: { a: points(100, 7), bands: [...nan(99), { time: 99, value: 4 }] }, metadata: { title: "x" } });
+    const delta = encodeDelta(later, prev);
+    expect(applyDelta(structuredClone(delta), structuredClone(empty))).toEqual(later);
+  });
+
+  it("keeps a result with every plot valued as it is", () => {
+    const r = { plots: { a: points(10) } };
+    expect(withoutEmptyPlots(r)).toBe(r);
+  });
+
+  it("keeps the texts when it shares them", () => {
+    const r = structuredClone({ plots: { v: points(3) }, fills: [{ gradient: { topColor: ["#4CAF50", null] } }] });
+    shareStrings(r);
+    expect(r.plots.v.map((p) => p.color)).toEqual(["#fff", "#fff", "#fff"]);
+    expect(r.fills[0].gradient.topColor).toEqual(["#4CAF50", null]);
   });
 });
