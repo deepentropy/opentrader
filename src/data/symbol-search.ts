@@ -144,110 +144,8 @@ export const SYMBOLS: SymbolRow[] = [
     category: 'funds',
   },
 
-  // ── Futures ────────────────────────────────────────────────────────────
-  {
-    symbolName: 'CME_MINI:ES1!', ticker: 'ES1!', description: 'E-Mini S&P 500 Futures',
-    marketType: 'futures', exchange: 'CME',
-    exchangeTooltip: 'CME — Chicago Mercantile Exchange', primaryExchange: true,
-    category: 'futures',
-  },
-  {
-    symbolName: 'CME_MINI:NQ1!', ticker: 'NQ1!', description: 'E-Mini Nasdaq-100 Futures',
-    marketType: 'futures', exchange: 'CME',
-    exchangeTooltip: 'CME — Chicago Mercantile Exchange', primaryExchange: true,
-    category: 'futures',
-  },
-  {
-    symbolName: 'NYMEX:CL1!', ticker: 'CL1!', description: 'Crude Oil Futures',
-    marketType: 'futures', exchange: 'NYMEX',
-    exchangeTooltip: 'NYMEX — New York Mercantile Exchange', primaryExchange: true,
-    category: 'futures',
-  },
-  {
-    symbolName: 'COMEX:GC1!', ticker: 'GC1!', description: 'Gold Futures',
-    marketType: 'futures', exchange: 'COMEX',
-    exchangeTooltip: 'COMEX — Commodity Exchange', primaryExchange: true,
-    category: 'futures',
-  },
-
-  // ── Forex ──────────────────────────────────────────────────────────────
-  {
-    symbolName: 'FX:EURUSD', ticker: 'EURUSD', description: 'Euro / U.S. Dollar',
-    marketType: 'forex', exchange: 'FX', primaryExchange: true,
-    category: 'forex', recent: true,
-  },
-  {
-    symbolName: 'FX:GBPUSD', ticker: 'GBPUSD', description: 'British Pound / U.S. Dollar',
-    marketType: 'forex', exchange: 'FX', primaryExchange: true,
-    category: 'forex',
-  },
-  {
-    symbolName: 'FX:USDJPY', ticker: 'USDJPY', description: 'U.S. Dollar / Japanese Yen',
-    marketType: 'forex', exchange: 'FX', primaryExchange: true,
-    category: 'forex',
-  },
-  {
-    symbolName: 'OANDA:XAUUSD', ticker: 'XAUUSD', description: 'Gold Spot / U.S. Dollar',
-    marketType: 'forex', exchange: 'OANDA',
-    exchangeTooltip: 'OANDA — OANDA', primaryExchange: false,
-    category: 'forex',
-  },
-
-  // ── Crypto ─────────────────────────────────────────────────────────────
-  {
-    symbolName: 'BINANCE:BTCUSDT', ticker: 'BTCUSDT', description: 'Bitcoin / TetherUS',
-    marketType: 'crypto', exchange: 'BINANCE', primaryExchange: true,
-    category: 'crypto', recent: true,
-  },
-  {
-    symbolName: 'BINANCE:ETHUSDT', ticker: 'ETHUSDT', description: 'Ethereum / TetherUS',
-    marketType: 'crypto', exchange: 'BINANCE', primaryExchange: true,
-    category: 'crypto',
-  },
-  {
-    symbolName: 'COINBASE:SOLUSD', ticker: 'SOLUSD', description: 'Solana / U.S. Dollar',
-    marketType: 'crypto', exchange: 'COINBASE', primaryExchange: true,
-    category: 'crypto',
-  },
-  {
-    symbolName: 'CRYPTOCAP:BTC', ticker: 'BTC', description: 'Bitcoin Total Market Cap, $',
-    marketType: 'index', exchange: 'CRYPTOCAP', primaryExchange: true,
-    category: 'crypto',
-  },
-
-  // ── Indices ────────────────────────────────────────────────────────────
-  {
-    symbolName: 'TVC:SPX', ticker: 'SPX', description: 'S&P 500 Index',
-    marketType: 'index', exchange: 'TVC', primaryExchange: true,
-    category: 'indices',
-  },
-  {
-    symbolName: 'TVC:NDX', ticker: 'NDX', description: 'NASDAQ 100 Index',
-    marketType: 'index', exchange: 'TVC', primaryExchange: true,
-    category: 'indices',
-  },
-  {
-    symbolName: 'TVC:DJI', ticker: 'DJI', description: 'Dow Jones Industrial Average Index',
-    marketType: 'index', exchange: 'TVC', primaryExchange: true,
-    category: 'indices',
-  },
-  {
-    symbolName: 'TVC:VIX', ticker: 'VIX', description: 'Volatility S&P 500 Index',
-    marketType: 'index', exchange: 'TVC', primaryExchange: true,
-    category: 'indices',
-  },
-
-  // ── Bonds ──────────────────────────────────────────────────────────────
-  {
-    symbolName: 'TVC:US10Y', ticker: 'US10Y', description: 'US Government Bonds 10 YR Yield',
-    marketType: 'bond', exchange: 'TVC', primaryExchange: true,
-    category: 'bonds',
-  },
-  {
-    symbolName: 'TVC:US02Y', ticker: 'US02Y', description: 'US Government Bonds 2 YR Yield',
-    marketType: 'bond', exchange: 'TVC', primaryExchange: true,
-    category: 'bonds',
-  },
+  // Futures, forex, crypto, indices, bonds: not offered, the data source serves US stocks and funds only
+  // (picked, they answered "invalid ticker").
 
   // ── Economy ────────────────────────────────────────────────────────────
   // Popular US economic series (the gateway's economic catalog).
@@ -260,17 +158,6 @@ export const SYMBOLS: SymbolRow[] = [
     ['PAYEMS', 'All Employees, Total Nonfarm', 'BLS'],
   ] as const).map(([ticker, description, source]): SymbolRow => economicRow(ticker, description, source)),
 
-  // ── Options ────────────────────────────────────────────────────────────
-  {
-    symbolName: 'OPRA:SPY250620C580', ticker: 'SPY 6/20/25 $580 C', description: 'SPY June 20 2025 580 Call',
-    marketType: 'options', exchange: 'OPRA', primaryExchange: true,
-    category: 'options',
-  },
-  {
-    symbolName: 'OPRA:AAPL250620C220', ticker: 'AAPL 6/20/25 $220 C', description: 'AAPL June 20 2025 220 Call',
-    marketType: 'options', exchange: 'OPRA', primaryExchange: true,
-    category: 'options',
-  },
 ];
 
 /**

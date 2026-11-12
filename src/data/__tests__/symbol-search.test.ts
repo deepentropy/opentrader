@@ -32,7 +32,8 @@ describe("filterSymbols", () => {
   it("filters by tab", () => {
     expect(filterSymbols("funds", "").every((r) => r.category === "funds")).toBe(true);
     expect(filterSymbols("stocks", "").length).toBeGreaterThan(0);
-    expect(filterSymbols("options", "zzz")).toEqual([]);
+    expect(filterSymbols("options", "")).toEqual([]);
+    expect(filterSymbols("all", "").every((r) => ["stocks", "funds", "economy"].includes(r.category))).toBe(true);
   });
 
   it("matches ticker or description with highlight ranges, exact ticker first", () => {

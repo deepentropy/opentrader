@@ -20,11 +20,18 @@
  * symbol gets its last values at once instead. Many views changing together
  * (the web server's visitors) then cost one poll, not one each.
  *
+ * Outside the session (trading days 04:00-20:20 New York, the delayed feed
+ * lagging 15 minutes) the snapshot does not move: one poll per
+ * `QUIET_INTERVAL` then, instead of one per `POLL_INTERVAL` all night.
+ *
  * It always runs. When the probe grants 1-second bars, the second-bars
  * stream (`market_stream::spawn_second_bars`) runs next to it for the
  * seconds charts only (see `provider/gateway.rs` spawn).
  */
 use crate::data::market_rest::{self, LiveTick};
+use crate::data::trading_calendar;
+use crate::screener::clock::ny_offset_hours;
+use chrono::{DateTime, Timelike, Utc};
 use crate::data::market_stream::{ticker_of, ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
 use crate::host::{Event, HostRef};
 use std::collections::{HashMap, HashSet};
@@ -37,6 +44,9 @@ use tokio::time::{interval, Instant, MissedTickBehavior};
 /// hammering. The cadence is purely a UI-freshness choice (a rate-limited
 /// answer is retried by the REST client after its `Retry-After`).
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
+
+/// How often to poll outside the session: the values do not change then.
+const QUIET_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Shortest wait between two polls asked by subscription changes.
 const MIN_GAP: Duration = Duration::from_secs(1);
@@ -74,7 +84,9 @@ async fn run_poller(app: HostRef, mut rx: mpsc::Receiver<SubscribeMsg>) {
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                p.poll().await;
+                if p.due(Utc::now()) {
+                    p.poll().await;
+                }
             }
             msg = rx.recv() => {
                 let Some(msg) = msg else { return; }; // mpsc closed → app shutting down
@@ -100,7 +112,28 @@ async fn run_poller(app: HostRef, mut rx: mpsc::Receiver<SubscribeMsg>) {
     }
 }
 
+/// True while the snapshot moves: a trading day from 04:00 to 20:20 New York
+/// (the extended session, plus the delayed feed's 15 minutes).
+fn in_session(utc: DateTime<Utc>) -> bool {
+    let local = utc + chrono::Duration::hours(ny_offset_hours(utc));
+    let day = local.date_naive();
+    if trading_calendar::trading_days_in_range(day, day).is_empty() {
+        return false;
+    }
+    let minute = local.hour() * 60 + local.minute();
+    (4 * 60..20 * 60 + 20).contains(&minute)
+}
+
 impl Poller {
+    /// A timer tick polls in the session, else once per `QUIET_INTERVAL`
+    /// (a tick of slack: the timer may fire a little early).
+    fn due(&self, now: DateTime<Utc>) -> bool {
+        match self.last_poll {
+            None => true,
+            Some(t) => in_session(now) || t.elapsed() + POLL_INTERVAL / 2 >= QUIET_INTERVAL,
+        }
+    }
+
     /// The last values of the symbols `msg` subscribes, to its owner only,
     /// for the tickers already polled (the others come with the next poll).
     fn replay(&self, msg: &SubscribeMsg) {
@@ -208,4 +241,26 @@ fn chart_aggregate(symbol: &str, t: &LiveTick) -> Option<ChartAggregate> {
         // update exactly (see bucketLiveTick).
         day: t.day.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::in_session;
+    use chrono::{TimeZone, Utc};
+
+    #[test]
+    fn session_window() {
+        let at = |y, m, d, h, min| Utc.with_ymd_and_hms(y, m, d, h, min, 0).unwrap();
+        // Thu 12/11/2026, New York = UTC-5.
+        assert!(!in_session(at(2026, 11, 12, 8, 59)), "03:59 New York");
+        assert!(in_session(at(2026, 11, 12, 9, 0)), "04:00");
+        assert!(in_session(at(2026, 11, 13, 1, 19)), "20:19");
+        assert!(!in_session(at(2026, 11, 13, 1, 20)), "20:20");
+        // Sat 14/11/2026 and Thanksgiving 26/11/2026.
+        assert!(!in_session(at(2026, 11, 14, 15, 0)));
+        assert!(!in_session(at(2026, 11, 26, 15, 0)));
+        // Summer time: Tue 07/07/2026 04:00 New York = 08:00 UTC.
+        assert!(in_session(at(2026, 7, 7, 8, 0)));
+        assert!(!in_session(at(2026, 7, 7, 7, 59)));
+    }
 }

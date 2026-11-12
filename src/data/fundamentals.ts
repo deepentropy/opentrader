@@ -2,8 +2,9 @@
  * Company fundamentals — the financial statement items per fiscal quarter /
  * year, the earnings releases, the profile, the dated filing events and the
  * projected next earnings date of the company behind a symbol, as the
- * backend serves them (`get_fundamentals`). One request per symbol per run
- * while it answers; a failed lookup is asked again on the next call.
+ * backend serves them (`get_fundamentals`). One request per symbol per run,
+ * "none" included; a lookup that could not reach the server is asked again on
+ * the next call.
  *
  * Read by the Fundamentals metrics (indicators) and the Events → Earnings
  * markers.
@@ -26,14 +27,18 @@ export function getFundamentals(symbol: string): Promise<Fundamentals | null> {
   if (!hasFundamentals(key)) return Promise.resolve(null);
   let p = memo.get(key);
   if (!p) {
-    p = retryTransient(async () => {
+    const asked = retryTransient(async () => {
       const r = await commands.getFundamentals(key);
       if (r.status === "ok") return r.data;
       if (isTransientError(r.error)) throw new Error(r.error);
+      // No fundamentals (a fund, an index…): kept for the run, not asked again.
       return null;
-    }).catch(() => null);
-    // A lookup that failed is not kept: the next call asks again.
-    p.then((f) => { if (!f) memo.delete(key); });
+    });
+    // A lookup that failed (server unreachable) is not kept: the next call asks again.
+    p = asked.catch(() => {
+      memo.delete(key);
+      return null;
+    });
     memo.set(key, p);
   }
   return p;
