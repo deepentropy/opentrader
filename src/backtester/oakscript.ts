@@ -39,6 +39,7 @@ import {
   type StrategyTrade,
   type StrategyVariable,
 } from 'oakscriptjs/script';
+import { isPackedSeries } from 'lightweight-charts-indicators/helpers';
 import { Broker } from './broker';
 import { backtestReport, binIntrabars, heikinAshiBars } from './run';
 import { SessionSpec } from '../data/session/spec';
@@ -411,7 +412,13 @@ export function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
     if (!node || typeof node !== 'object' || done.has(node)) return;
     done.add(node);
     if (Array.isArray(node)) {
-      for (const item of node) walk(item);
+      // A packed list (lightweight-charts-indicators) reads each point as a new object: the point is written back.
+      const packed = isPackedSeries(node);
+      for (let i = 0; i < node.length; i++) {
+        const item = node[i];
+        walk(item);
+        if (packed && item !== undefined) node[i] = item;
+      }
       return;
     }
     const obj = node as Record<string, unknown>;

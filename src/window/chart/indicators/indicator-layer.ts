@@ -56,7 +56,7 @@ import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, shareStrings, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 import { windowResult, type DrawWindow } from './draw-window';
-import { packPlots, withField } from './packed-points';
+import { fromPost, packPlots, withField } from './packed-points';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -689,8 +689,10 @@ export class IndicatorLayer {
       // The worker holds this job's state now, unless it did not take it: the next job sends everything again.
       if (reply.retry) { off.sent.stateId = null; off.version = null; off.raw = null; }
       else off.sent.stateId = reply.id;
-      // The new points only (a delta) or the whole result: each text once.
-      shareStrings(reply.result);
+      // The new points only (a delta) or the whole result: each text once (also in the columns of the packed lists
+      // it carries), the packed lists made again.
+      shareStrings(reply.result, 6);
+      reply.result = fromPost(reply.result);
       if (reply.base != null) {
         reply.result = reply.base === off.version && off.raw !== null ? applyDelta(reply.result, off.raw) : undefined;
         // The result it changed is not the one held here: ask again for a whole one.

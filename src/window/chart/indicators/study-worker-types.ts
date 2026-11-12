@@ -1,6 +1,6 @@
 /* Messages between the window and the study workers (study-calc.ts). */
 import type { Bar } from "oakscriptjs";
-import { isPacked, packPoints, packedPrefix } from "./packed-points";
+import { isPacked, noValue, packPoints, packedPrefix } from "./packed-points";
 
 /** Accessors of the chart context a study may call (StudyCalcContext). */
 export const ACCESSORS = ["bars", "symbolInfo", "lowerBars", "chartEvents", "fundamentals"] as const;
@@ -194,11 +194,6 @@ export function deltaSnapshot(result: unknown, bars: number, depth = 0): unknown
   return result;
 }
 
-const hasValue = (p: unknown) => {
-  const v = (p as { value?: unknown } | null)?.value;
-  return typeof v === "number" && Number.isFinite(v);
-};
-
 /**
  * `result` with its plots that have no value on any bar (a switched-off option: an RSI's bands, an SMA's smoothing)
  * as empty lists: they held one point per bar in the worker and in the window, more than half of a study's result
@@ -209,7 +204,7 @@ export function withoutEmptyPlots<T>(result: T): T {
   if (!plots || typeof plots !== "object") return result;
   let out: Record<string, unknown[]> | null = null;
   for (const [id, points] of Object.entries(plots)) {
-    if (!Array.isArray(points) || points.length === 0 || points.some(hasValue)) continue;
+    if (!Array.isArray(points) || points.length === 0 || !noValue(points)) continue;
     out ??= { ...plots };
     out[id] = [];
   }

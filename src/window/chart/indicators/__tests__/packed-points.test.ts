@@ -39,7 +39,8 @@ describe("packed points", () => {
     expect(p[999]).toEqual({ time: 5001, value: 2 });
     p[1005] = { time: 6000, value: 3 };
     expect(p.length).toBe(1006);
-    expect(p[1002].value).toBeNaN();
+    // an index past the end leaves holes, as in an array
+    expect(p[1002]).toBeUndefined();
   });
 
   it("puts a worker's changes back as the plain result would", () => {

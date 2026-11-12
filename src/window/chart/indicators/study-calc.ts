@@ -13,6 +13,7 @@ import { setSourceResolver, type Bar } from "oakscriptjs";
 import { MissingSymbolDataError } from "oakscriptjs/script";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { ACCESSORS, callKey, deltaSnapshot, encodeDelta, withoutEmptyPlots, type StudyCall, type StudyJob, type StudyReply } from "./study-worker-types";
+import { forPost } from "./packed-points";
 import { restoreTimes, scriptBars } from "../../../backtester/oakscript";
 
 /** A run of a library study (lightweight-charts-indicators `createRun`, on the ported studies): `update` gives the
@@ -41,6 +42,8 @@ const STATES_KEPT = 48;
 
 /** The library, loaded with the first study job (a worker running backtests only does not load it). */
 let registry: Promise<Map<string, RunEntry>> | null = null;
+/** The library's packed mode switch (set with the library: it is loaded when a study first needs it). */
+let setPackedSeries: (on: boolean) => void = () => {};
 
 export function isStudyJob(m: unknown): m is StudyJob {
   return (m as { kind?: unknown } | null)?.kind === "study";
@@ -83,7 +86,10 @@ function stateOf(job: StudyJob): StudyState | null {
 }
 
 export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
-  registry ??= import("lightweight-charts-indicators").then((m) => new Map(m.indicatorRegistry.map((e) => [e.id, e as RunEntry])));
+  registry ??= import("lightweight-charts-indicators").then((m) => {
+    setPackedSeries = m.setPackedSeries;
+    return new Map(m.indicatorRegistry.map((e) => [e.id, e as RunEntry]));
+  });
   const entry = (await registry).get(job.entryId);
   const missing: StudyCall[] = [];
   if (!entry) return { id: job.id, error: `Unknown study ${job.entryId}`, missing, ms: 0 };
@@ -108,7 +114,14 @@ export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
     if (entry.createRun) {
       const inputs = JSON.stringify(job.inputs);
       if (!st.run || st.runInputs !== inputs) {
-        st.run = entry.createRun(job.inputs, ctx);
+        // The run holds its per-bar outputs as numbers (lightweight-charts-indicators packed mode): kept here between
+        // updates, as objects they were most of a long history's memory in the workers.
+        setPackedSeries(true);
+        try {
+          st.run = entry.createRun(job.inputs, ctx);
+        } finally {
+          setPackedSeries(false);
+        }
         st.runInputs = inputs;
       }
       const { from: first, ...out } = st.run.update(st.seen, ctx) as { from: number };
@@ -125,9 +138,9 @@ export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
     st.sent = { id: job.id, result: snapshot };
     const ms = performance.now() - t0;
     if (prev && prev.id === job.base) {
-      return { id: job.id, base: prev.id, result: encodeDelta(result, prev.result, 0, from > 0 ? { from, bars: st.bars.length } : undefined), missing, ms };
+      return { id: job.id, base: prev.id, result: forPost(encodeDelta(result, prev.result, 0, from > 0 ? { from, bars: st.bars.length } : undefined)), missing, ms };
     }
-    return { id: job.id, result, missing, ms };
+    return { id: job.id, result: forPost(result), missing, ms };
   } catch (err) {
     // A run that stopped halfway is not resumed: the next job makes a new one.
     st.run = null;

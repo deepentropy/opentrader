@@ -45,6 +45,7 @@ function createRun() {
 }
 
 vi.mock("lightweight-charts-indicators", () => ({
+  setPackedSeries: () => {},
   indicatorRegistry: [
     { id: "run-sum", calculate: (bars: Bar[]) => full(bars), createRun },
     { id: "plain-sum", calculate: (bars: Bar[]) => full(bars) },
@@ -53,6 +54,7 @@ vi.mock("lightweight-charts-indicators", () => ({
 
 const { calculateStudy } = await import("../study-calc");
 const { applyDelta, jobChanges } = await import("../study-worker-types");
+const { fromPost } = await import("../packed-points");
 
 /** The window's side of the protocol (as IndicatorLayer.runOffThread): changes only, results rebuilt from deltas. */
 function client(entryId: string, study: string) {
@@ -69,6 +71,7 @@ function client(entryId: string, study: string) {
         const job = structuredClone({ kind: "study" as const, id: ++id + Math.floor(Math.random() * 1e6) * 100, entryId, study, base: version, restamp: false, inputs: {}, ctx: {}, accessors: [], sources: {}, ...changes });
         jobBytes.push(JSON.stringify(job.bars).length);
         const reply = structuredClone(await calculateStudy(job));
+        reply.result = fromPost(reply.result);
         if (reply.retry) { sent.stateId = null; version = null; raw = null; continue; }
         sent.stateId = reply.id;
         if (reply.base != null) reply.result = applyDelta(reply.result, raw);
