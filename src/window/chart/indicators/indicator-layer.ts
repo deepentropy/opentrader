@@ -55,6 +55,7 @@ import { isUserIndicatorId } from './user-scripts';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
+import { windowResult, type DrawWindow } from './draw-window';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -427,6 +428,15 @@ export class IndicatorLayer {
 
   setVisibleRange(range: StudyVisibleRange): void {
     this.visibleRange = range;
+  }
+
+  /** Bars the study draws (null: all), set by the controller as the view moves. */
+  private drawWindow: DrawWindow | null = null;
+  /** Draw in another window; `redraw`: the last result now, keeping the series drawn (no calculation). */
+  setDrawWindow(win: DrawWindow | null, redraw = true): void {
+    if (win === this.drawWindow) return;
+    this.drawWindow = win;
+    if (redraw && this.entry && this.lastResult && this.lastDraw) this.inPreservedPane(() => this.draw(true));
   }
 
   /** The chart shows Volume Candles: column plots take the widths of the candles (applied at the next draw). */
@@ -850,9 +860,9 @@ export class IndicatorLayer {
     this.removeExtras();
     this.plotSeries = [];
     const entry = this.entry;
-    const result = this.lastResult;
+    const full = this.lastResult;
     const renderer = this.rendererFor();
-    if (!entry || !result || !this.lastDraw) {
+    if (!entry || !full || !this.lastDraw) {
       renderer.clear();
       // A study in its own pane that draws nothing (eye off, or off its
       // Visibility intervals) keeps its pane and status line. The library
@@ -864,7 +874,8 @@ export class IndicatorLayer {
       return;
     }
 
-    const bars = this.lastBars;
+    // On a long history only the bars around the view are drawn (draw-window.ts).
+    const { bars, result } = this.drawWindow ? windowResult(this.lastBars, full, this.drawWindow) : { bars: this.lastBars, result: full };
     const styles = this.lastStyles;
     const ownScale = !!(entry.metadata as OwnScaleMeta | undefined)?.ownScaleId && !this.scalePinned;
     const overrides: Record<string, PlotOverride> = {};

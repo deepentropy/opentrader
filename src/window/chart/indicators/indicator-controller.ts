@@ -15,6 +15,7 @@
  * studies drawn over it. study-scales.ts picks each study's price scale.
  */
 import { pendingRange } from "../pending-range";
+import { nextDrawWindow, type DrawWindow } from "./draw-window";
 import { type IChartApi, type ISeriesApi, type SeriesType, type Time } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
@@ -214,9 +215,29 @@ export class IndicatorController {
     if (this.visibleTimer) clearTimeout(this.visibleTimer);
     this.visibleTimer = setTimeout(() => {
       this.visibleTimer = null;
+      this.followView();
       this.renderVisibleRangeStudies();
     }, VISIBLE_RANGE_DELAY_MS);
   };
+
+  /** Bars the studies draw on a long history (draw-window.ts); null: all. */
+  private drawWindow: DrawWindow | null = null;
+  /** The window for the view now; true when it changed. */
+  private updateDrawWindow(): boolean {
+    const view = pendingRange(this.chart) ?? this.chart.timeScale().getVisibleLogicalRange();
+    if (!view) return false;
+    const next = nextDrawWindow(this.host.bars(), view, this.drawWindow);
+    if (next === this.drawWindow) return false;
+    this.drawWindow = next;
+    return true;
+  }
+  /** The view settled near an edge of the window: the studies draw the bars around it (their results are kept). */
+  private followView(): void {
+    if (!this.updateDrawWindow()) return;
+    this.keepView(() => {
+      for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setDrawWindow(this.drawWindow);
+    });
+  }
 
   /** Bars of the other symbols the studies read; keys that moved wait here for one recalculation. */
   private readonly otherSymbols: OtherSymbolBars;
@@ -476,6 +497,8 @@ export class IndicatorController {
    *  the newest bars changed (a live update), the studies keep their series. */
   renderAll(live = false): void {
     const bars = this.host.bars();
+    // Other bars (a load, a page of history): the window is found again for them.
+    if (!live) this.updateDrawWindow();
     if (!live) this.otherSymbols.setChartSpan(bars[0]?.time as number | undefined, intervalSeconds(this.scriptChart?.timeframe ?? '1D'), this.scriptChart?.timeframe ?? '1D');
     for (const [id, inst] of this.instances) {
       const entry = getIndicatorEntry(id);
@@ -594,6 +617,7 @@ export class IndicatorController {
     inst.layer.setDetachedScale(det?.id ?? null, det?.axis ?? false, !!o.scale);
     const drawn = !this.hidden.has(id) && this.onInterval(id);
     const inputs = this.effectiveInputs(id, entry);
+    inst.layer.setDrawWindow(this.drawWindow, false);
     // The studies it reads that were not calculated (hidden) calculate now.
     this.ensureSources(id, entry, inputs);
     // Not drawn: nothing shows its values (legend, data window, export), so it does not calculate, except a strategy
