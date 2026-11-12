@@ -56,6 +56,7 @@ import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, shareStrings, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 import { windowResult, type DrawWindow } from './draw-window';
+import { packPlots, withField } from './packed-points';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -80,7 +81,8 @@ function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: I
     const opacity = 100 - (p.paletteTransparency ?? 0);
     const shaded = colors.map((c) => (c.startsWith("#") && c.length === 7 ? applyOpacity(c, opacity) : c));
     if (out === result) out = { ...result, plots: { ...result.plots } };
-    out.plots[p.id] = pts.map((d) => (d.paletteIndex != null && shaded[d.paletteIndex] ? { ...d, color: shaded[d.paletteIndex] } : d));
+    // A packed plot takes a colour column of its own: no point is made.
+    out.plots[p.id] = withField(pts, 'color', 'paletteIndex', (ix) => (ix != null ? shaded[ix as number] || undefined : undefined));
   }
   return out;
 }
@@ -695,6 +697,8 @@ export class IndicatorLayer {
         if (reply.result === undefined) { reply.retry = true; off.version = null; off.raw = null; }
       }
       if (!reply.retry && !reply.error && !reply.pending && reply.result !== undefined) {
+        // Held packed (packed-points.ts): a plot sent whole is packed, one packed before took its changes in place.
+        reply.result = packPlots(reply.result);
         off.version = reply.id;
         off.raw = reply.result;
       }
@@ -840,6 +844,8 @@ export class IndicatorLayer {
         restoreTimes(result, seen, bars);
         restored.add(result);
       }
+      // A result calculated here is held packed too (a worker's is packed when it comes).
+      if (!offThread) result = packPlots(result);
       return withPaletteColors(entry, result, styles);
     } catch (err) {
       // Bars of other symbols still loading: the chart calculates the study again when they arrive.

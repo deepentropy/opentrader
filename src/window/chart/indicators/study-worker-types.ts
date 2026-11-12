@@ -1,5 +1,6 @@
 /* Messages between the window and the study workers (study-calc.ts). */
 import type { Bar } from "oakscriptjs";
+import { isPacked, packPoints, packedPrefix } from "./packed-points";
 
 /** Accessors of the chart context a study may call (StudyCalcContext). */
 export const ACCESSORS = ["bars", "symbolInfo", "lowerBars", "chartEvents", "fundamentals"] as const;
@@ -164,8 +165,8 @@ function samePoint(a: unknown, b: unknown): boolean {
 export function encodeDelta(next: unknown, prev: unknown, depth = 0, bound?: { from: number; bars: number }): unknown {
   if (Array.isArray(next) && Array.isArray(prev)) {
     const n = Math.min(next.length, prev.length, bound && next.length === bound.bars ? bound.from : Infinity);
-    let k = 0;
-    while (k < n && samePoint(next[k], prev[k])) k++;
+    let k = packedPrefix(next, prev, n) ?? 0;
+    if (!isPacked(prev)) while (k < n && samePoint(next[k], prev[k])) k++;
     // A short shared prefix is not worth it.
     return k < 32 ? next : ({ [TAIL]: k, items: next.slice(k) } satisfies Tail);
   }
@@ -183,7 +184,8 @@ export function encodeDelta(next: unknown, prev: unknown, depth = 0, bound?: { f
  * (markers, labels: a run may change one in place); the points of the per-bar arrays are bounded by `from` instead.
  */
 export function deltaSnapshot(result: unknown, bars: number, depth = 0): unknown {
-  if (Array.isArray(result)) return result.length === bars ? result.slice() : result.map((p) => (isPlain(p) ? { ...p } : p));
+  // A list of one point per bar packed (packed-points.ts): the worker keeps it until the next update.
+  if (Array.isArray(result)) return result.length === bars ? packPoints(result.slice()) : result.map((p) => (isPlain(p) ? { ...p } : p));
   if (depth < 3 && isPlain(result)) {
     const out: Record<string, unknown> = {};
     for (const k in result) out[k] = deltaSnapshot(result[k], bars, depth + 1);
