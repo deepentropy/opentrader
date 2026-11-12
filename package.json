@@ -44,7 +44,7 @@
     "@tauri-apps/plugin-store": "^2",
     "fancy-canvas": "^2.1.0",
     "flag-icons": "^7.5.0",
-    "lightweight-charts": "^5.2.1",
+    "lightweight-charts": "^5.3.0",
     "lightweight-charts-indicators": "^0.20.3",
     "monaco-editor": "^0.55.1",
     "oakscriptjs": "^0.17.1",
