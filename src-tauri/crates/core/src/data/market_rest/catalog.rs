@@ -55,13 +55,35 @@ pub(super) struct Catalog {
 }
 
 static CATALOG: OnceLock<RwLock<Option<Arc<Catalog>>>> = OnceLock::new();
+/// True once the start's load is over (the disk copy read and the first
+/// download tried), whatever its outcome.
+static SETTLED: OnceLock<tokio::sync::watch::Sender<bool>> = OnceLock::new();
+/// Longest a search waits for the start's load before it asks the gateway.
+const START_WAIT: Duration = Duration::from_secs(10);
 
 fn slot() -> &'static RwLock<Option<Arc<Catalog>>> {
     CATALOG.get_or_init(|| RwLock::new(None))
 }
 
+fn settled() -> &'static tokio::sync::watch::Sender<bool> {
+    SETTLED.get_or_init(|| tokio::sync::watch::channel(false).0)
+}
+
 pub(super) fn current() -> Option<Arc<Catalog>> {
     slot().read_locked().clone()
+}
+
+/// The catalog, after waiting for the start's load when it is still under way
+/// (a first start downloads it while the splash shows): a search typed meanwhile
+/// is answered from it rather than from the gateway. `None` when the load failed.
+pub(super) async fn loaded() -> Option<Arc<Catalog>> {
+    if let Some(c) = current() {
+        return Some(c);
+    }
+    // No load started (`init` not called): nothing to wait for.
+    let mut rx = SETTLED.get()?.subscribe();
+    let _ =tokio::time::timeout(START_WAIT, rx.wait_for(|done| *done)).await;
+    current()
 }
 
 fn dir() -> PathBuf {
@@ -172,6 +194,7 @@ fn install(c: Catalog) {
 
 /// Read the disk copy, then keep the catalog current in the background.
 pub fn init() {
+    settled();
     crate::rt::spawn(async {
         if let Ok(bytes) = tokio::fs::read(dir().join(FILE)).await {
             if let Some(c) = Catalog::parse(&bytes) {
@@ -186,6 +209,7 @@ pub fn init() {
                     RETRY_AFTER
                 }
             };
+            settled().send_replace(true);
             tokio::time::sleep(wait).await;
         }
     });

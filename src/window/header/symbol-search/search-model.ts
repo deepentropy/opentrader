@@ -2,7 +2,7 @@
  * Symbol search state: the query (and the token under the caret in the watchlist's comma mode), the category tab
  * and type filter, the live and Economy results, the rows shown and the highlighted one.
  */
-import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, untrack } from "solid-js";
 import {
   CATEGORIES,
   TYPE_FILTERS,
@@ -182,16 +182,15 @@ export function createSymbolSearch(props: SymbolSearchProps) {
     const q = searchText().trim();
     const source = econSource();
     const cat = econCategory();
+    // A local catalog: asked on every keystroke, the latest answer kept.
     const my = ++econSeq;
-    const handle = window.setTimeout(async () => {
-      try {
-        const data = await searchEconomic(q, source, cat);
+    searchEconomic(q, source, cat)
+      .then((data) => {
         if (econSeq === my) setEconRaw(data);
-      } catch {
+      })
+      .catch(() => {
         if (econSeq === my) setEconRaw([]);
-      }
-    }, q ? 250 : 0);
-    onCleanup(() => window.clearTimeout(handle));
+      });
   });
   createEffect(() => {
     if (economy() && untrack(sources).length === 0) economicSources().then(setSources).catch(() => {});
@@ -219,21 +218,21 @@ export function createSymbolSearch(props: SymbolSearchProps) {
       setSearching(false);
       return;
     }
+    // Asked on every keystroke: the day's symbol catalog answers locally (the backend
+    // waits for a typing pause only when it has to ask the gateway instead).
     setSearching(true);
     const my = ++reqSeq;
-    const handle = window.setTimeout(async () => {
-      try {
-        const data = await searchSymbols(q, type);
-        if (reqSeq !== my) return; // a newer keystroke superseded this
-        setLiveRaw(data);
-      } catch {
+    searchSymbols(q, type)
+      .then((data) => {
+        if (reqSeq === my) setLiveRaw(data); // else a newer keystroke superseded this
+      })
+      .catch(() => {
         // command errored / offline / no key → fall back to the static catalogue.
         if (reqSeq === my) setLiveRaw(null);
-      } finally {
+      })
+      .finally(() => {
         if (reqSeq === my) setSearching(false);
-      }
-    }, 250);
-    onCleanup(() => window.clearTimeout(handle));
+      });
   });
   // Displayed rows — derived synchronously from the live results (or the static
   // catalogue) and the active category, so switching tabs updates immediately

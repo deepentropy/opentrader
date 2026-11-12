@@ -1,9 +1,11 @@
-//! Symbol search: the day's symbol catalog (`catalog`), else a ticker-prefix
-//! match on the gateway.
+//! Symbol search: the day's symbol catalog (`catalog`), else (no catalog
+//! could be loaded) a ticker-prefix match on the gateway.
 use super::{catalog, get_json};
 use crate::data::ticker_case;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 // ── Symbol search (`tickers?prefix=`) ────────────────────────────────────
 
@@ -49,9 +51,8 @@ struct SearchRow {
 
 /// Typeahead over the active listings. With the day's catalog loaded the
 /// search is local: ticker prefix first, then company names holding the query
-/// at the start of a word (see `catalog::Catalog::search`). Without it, or
-/// when it has no match (a listing newer than the catalog), the gateway is
-/// asked for a ticker prefix. An optional `type_filter` (a security type,
+/// at the start of a word (see `catalog::Catalog::search`). Only when it could
+/// not be loaded is the gateway asked for a ticker prefix. An optional `type_filter` (a security type,
 /// "stock", "etf"…) keeps one type.
 pub async fn search_tickers(
     query: &str,
@@ -69,9 +70,22 @@ pub async fn search_tickers(
     Ok(out)
 }
 
+/// Searches that fell back to the gateway, counted to drop the superseded ones.
+static GATEWAY_SEARCHES: AtomicU64 = AtomicU64::new(0);
+/// Typing pause before a gateway search: the dialog searches on every
+/// keystroke, which only the local catalog answers for free.
+const GATEWAY_PAUSE: Duration = Duration::from_millis(250);
+
 async fn listings(query: &str, type_filter: Option<&str>) -> Result<Vec<SymbolSearchResult>> {
-    if let Some(found) = catalog::current().map(|c| c.search(query, type_filter)).filter(|r| !r.is_empty()) {
-        return Ok(found);
+    // The catalog holds every listing of the day: no match there is the answer.
+    if let Some(c) = catalog::loaded().await {
+        return Ok(c.search(query, type_filter));
+    }
+    let my = GATEWAY_SEARCHES.fetch_add(1, Ordering::Relaxed) + 1;
+    tokio::time::sleep(GATEWAY_PAUSE).await;
+    if GATEWAY_SEARCHES.load(Ordering::Relaxed) != my {
+        // A newer keystroke's search replaces this one (the dialog keeps the latest only).
+        return Ok(Vec::new());
     }
     // The prefix range is sorted alphabetically, so a low cap truncates good
     // matches before the frontend can re-rank them (e.g. "MU" has 43 tickers —
