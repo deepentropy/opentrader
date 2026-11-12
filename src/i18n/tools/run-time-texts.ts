@@ -112,7 +112,10 @@ const GROUPS: Record<string, string[]> = {
   ],
   "index.html, the splash card": ["Version"],
   "data/chart-properties.ts, Scales > Time hours format (written like an id, the scanner leaves them)": ["24-hours", "12-hours"],
-  "data/community/api.ts, the error the community panel shows when the server can't be reached": ["Community is unreachable. Check your connection."],
+  "data/community/api.ts, the errors the community panel shows when the server can't be reached (offline, or online but no answer)": [
+    "Community is unreachable. Check your connection.",
+    "The community server is not responding. Try again later.",
+  ],
   // "Update" is also the verb of a button: a reply kind of a community post is a noun.
   "community-shared/post-thread.ts KIND_LABEL, the kind of a reply to a community post": ["Update|post"],
   "data/screener-catalog.ts DEFAULT_SCREEN_TITLE and data/oakscript-store.ts DEFAULT_SCRIPT_NAME, a new screen's and script's name, translated while it is unchanged": [

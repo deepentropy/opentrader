@@ -3796,6 +3796,7 @@
 "The calculation took too long.": "計算耗時過長。",
 "The cause could be that some exchanges align the open of new bars on the close of the previous one, resulting in charts with no gaps. Alternatively, your Minimal Deviation might be too high.": "原因可能是部分交易所將新K線的開盤價對齊前一根K線的收盤價，因此圖表上沒有缺口；也可能是您的最小偏差設定過高。",
 "The change percentage cutoff for maximum color intensity. Absolute percentages at or above this level correspond to the same color intensity.": "達到最大顏色強度的漲跌百分比閾值。絕對百分比達到或超過此水準時顏色強度相同。",
+"The community server is not responding. Try again later.": "社群伺服器沒有回應。請稍後再試。",
 "The cutoff for maximum color intensity. Absolute values at or above this level have the same color.": "達到最大顏色強度的閾值。絕對值達到或超過此水準時顏色相同。",
 "The folder has no CSV file.": "該資料夾中沒有 CSV 檔案。",
 "The indicator scans lower timeframe data to approximate Net volume. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe. \n\nHigher timeframes provide more historical data, but the data will be less precise.": "指標掃描更低時間週期的資料，以估算淨成交量。預設自動選擇時間週期。這些輸入可改用自訂時間週期。\n\n更高的時間週期提供更多歷史資料，但資料精度更低。",

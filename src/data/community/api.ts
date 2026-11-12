@@ -71,7 +71,11 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   try {
     res = await fetch(COMMUNITY_URL + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    throw new CommunityError(0, "Community is unreachable. Check your connection.");
+    // A failed fetch doesn't say why: only blame the connection when the system reports none.
+    throw new CommunityError(
+      0,
+      navigator.onLine ? "The community server is not responding. Try again later." : "Community is unreachable. Check your connection.",
+    );
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

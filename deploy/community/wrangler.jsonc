@@ -43,7 +43,8 @@
   ],
   "vars": {
     "PUBLIC_URL": "https://community.opentrader.markets",
-    "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
+    // The app's dev builds (Vite) too: the session is a bearer token, never a cookie, so another local page gains nothing.
+    "ALLOWED_ORIGINS": "https://demo.opentrader.markets,http://localhost:1420,http://localhost:1430,http://localhost:1440,http://localhost:1450",
     "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html,https://community.opentrader.markets/community-auth.html",
     // provider:provider_id, comma-separated.
     "ADMINS": "google:112079201386783875064",
