@@ -184,8 +184,13 @@ export function encodeDelta(next: unknown, prev: unknown, depth = 0, bound?: { f
  * (markers, labels: a run may change one in place); the points of the per-bar arrays are bounded by `from` instead.
  */
 export function deltaSnapshot(result: unknown, bars: number, depth = 0): unknown {
-  // A list of one point per bar packed (packed-points.ts): the worker keeps it until the next update.
-  if (Array.isArray(result)) return result.length === bars ? packPoints(result.slice()) : result.map((p) => (isPlain(p) ? { ...p } : p));
+  // A list of one point per bar packed (packed-points.ts): the worker keeps it until the next update. A long list of
+  // points of another length (a plot that starts a few bars late) too: packing copies its points' fields.
+  if (Array.isArray(result)) {
+    if (result.length === bars || isPacked(result)) return packPoints(result.slice());
+    const packed = packPoints(result);
+    return packed !== result ? packed : result.map((p) => (isPlain(p) ? { ...p } : p));
+  }
   if (depth < 3 && isPlain(result)) {
     const out: Record<string, unknown> = {};
     for (const k in result) out[k] = deltaSnapshot(result[k], bars, depth + 1);
