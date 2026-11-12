@@ -11,7 +11,7 @@
  */
 import { setSourceResolver, type Bar } from "oakscriptjs";
 import { MissingSymbolDataError } from "oakscriptjs/script";
-import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
+import type { LoadedIndicator } from "lightweight-charts-indicators/loader";
 import { ACCESSORS, callKey, deltaSnapshot, encodeDelta, isBarList, withoutEmptyPlots, type StudyCall, type StudyJob, type StudyReply } from "./study-worker-types";
 import { forPost } from "./packed-points";
 import { restoreTimes, scriptBars } from "../../../backtester/oakscript";
@@ -19,7 +19,7 @@ import { restoreTimes, scriptBars } from "../../../backtester/oakscript";
 /** A run of a library study (lightweight-charts-indicators `createRun`, on the ported studies): `update` gives the
  *  result of `calculate` on these bars, calculated from bar `from` (the newest bars on a live update). */
 type IndicatorRun = { update(bars: Bar[], chart?: unknown): object & { from: number }; readonly fullRunReason: string | null };
-type RunEntry = IndicatorRegistryEntry & { createRun?: (inputs?: Record<string, unknown>, chart?: unknown) => IndicatorRun };
+type RunEntry = Omit<LoadedIndicator, "createRun"> & { createRun?: (inputs?: Record<string, unknown>, chart?: unknown) => IndicatorRun };
 
 /** What the worker holds for a study between its jobs. */
 type StudyState = {
@@ -84,9 +84,11 @@ function dropUnusedPools(): void {
   for (const p of barPools.keys()) if (!used.has(p)) barPools.delete(p);
 }
 
-/** The library, loaded with the first study job (a worker running backtests only does not load it). */
-let registry: Promise<Map<string, RunEntry>> | null = null;
-/** The library's packed mode switch (set with the library: it is loaded when a study first needs it). */
+/** The library's loader (lightweight-charts-indicators/loader), loaded with the first study job (a worker running
+ *  backtests only does not load it): it loads the code of the studies the worker calculates, not the whole library
+ *  (~20 MB of script, held in every worker). */
+let loader: Promise<typeof import("lightweight-charts-indicators/loader")> | null = null;
+/** The library's packed mode switch (set with the loader: its runs read the loader's own). */
 let setPackedSeries: (on: boolean) => void = () => {};
 
 export function isStudyJob(m: unknown): m is StudyJob {
@@ -142,11 +144,11 @@ function stateOf(job: StudyJob): StudyState | null {
 }
 
 export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
-  registry ??= import("lightweight-charts-indicators").then((m) => {
+  loader ??= import("lightweight-charts-indicators/loader").then((m) => {
     setPackedSeries = m.setPackedSeries;
-    return new Map(m.indicatorRegistry.map((e) => [e.id, e as RunEntry]));
+    return m;
   });
-  const entry = (await registry).get(job.entryId);
+  const entry = (await (await loader).loadIndicator(job.entryId)) as RunEntry | null;
   const missing: StudyCall[] = [];
   if (!entry) return { id: job.id, error: `Unknown study ${job.entryId}`, missing, ms: 0 };
   const st = stateOf(job);

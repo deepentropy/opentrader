@@ -5,9 +5,10 @@
  */
 import type { FilledOrder, MarginPoint, OrderType, Trade } from '../types';
 import { roundCommission } from './costs';
+import { addEquityEvent } from './equity-extremes';
 import { BrokerState } from './state';
 import { makeTrade } from './trade-report';
-import { EPS, type EntryOrder, type FillAlert, type OpenTrade } from './types';
+import { EPS, type EntryOrder, type EquityEvent, type FillAlert, type OpenTrade } from './types';
 
 export abstract class TradeLedger extends BrokerState {
   /**
@@ -54,7 +55,7 @@ export abstract class TradeLedger extends BrokerState {
     this.openTrades.push(t);
     this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(price));
     this.noteMarginFill(price);
-    this.equityEvents.push({
+    this.addEquityEvent({
       t: 'e',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
       flat: false,
@@ -116,7 +117,7 @@ export abstract class TradeLedger extends BrokerState {
       t.exitsDropped.clear();
     }
     this.noteMarginFill(price);
-    this.equityEvents.push({
+    this.addEquityEvent({
       t: 'c',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
       flat: this.openTrades.length === 0,
@@ -141,12 +142,17 @@ export abstract class TradeLedger extends BrokerState {
     this.touchTrades(p, raw, this.openTrades);
   }
 
+  /** An equity event, for the max drawdown / run-up (see EquityEvent). */
+  protected addEquityEvent(e: EquityEvent): void {
+    addEquityEvent(this.equityExtremes, e, this.props.initialCapital);
+  }
+
   protected touchEquity(p: number): void {
     const r = this.roundPrice(p);
     if (this.openTrades.length) {
       this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(r));
       this.noteMarginPeak(this.marginPoint(r));
-      this.equityEvents.push({
+      this.addEquityEvent({
         t: 'p',
         v: this.props.initialCapital + this.netProfit + this.openProfitAt(r),
         flat: false,

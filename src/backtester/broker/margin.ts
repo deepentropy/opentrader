@@ -273,7 +273,7 @@ export abstract class MarginBook extends CloseFills {
       this.closeTradeQty(t, q, fill, 'Margin call', true);
       // The equity after the fill marks the trades left at the tick price, not at the fill price with the
       // slippage (largest drawdown percent of a history with calls filled at 0).
-      const event = this.equityEvents[this.equityEvents.length - 1];
+      const event = this.equityExtremes.last!;
       event.marginCall = true;
       event.v = this.props.initialCapital + this.netProfit + this.openProfitAt(p);
       next = this.marginCallAt(fill, before) ?? next;

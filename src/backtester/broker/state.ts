@@ -7,7 +7,8 @@ import type { Bar, FilledOrder, MarginPoint, MarginUsage, StrategyProperties, Sy
 import { localDay } from '../../data/session/zone';
 import { commission as orderCommission } from './costs';
 import * as tick from './ticks';
-import { StrategyRuntimeError, type CloseOrder, type EntryOrder, type EquityEvent, type ExitOrder, type MarginCallOrder, type OpenTrade } from './types';
+import { newEquityExtremes, type EquityExtremes } from './equity-extremes';
+import { StrategyRuntimeError, type CloseOrder, type EntryOrder, type ExitOrder, type MarginCallOrder, type OpenTrade } from './types';
 
 export abstract class BrokerState {
   readonly long = 'long' as const;
@@ -65,8 +66,8 @@ export abstract class BrokerState {
   protected grossProfit = 0;
   protected grossLoss = 0;
   commissionPaid = 0;
-  /** Equity events for the max drawdown / run-up metrics (see EquityEvent). */
-  readonly equityEvents: EquityEvent[] = [];
+  /** Max drawdown / run-up of the equity events (see EquityEvent), folded as they come. */
+  readonly equityExtremes: EquityExtremes = newEquityExtremes();
   maxContractsHeld = { all: 0, long: 0, short: 0 };
   /** Running sums over closedTrades (profit, profitPercent) for all, winning (> 0) and losing (< 0) trades. */
   readonly closedStats = {

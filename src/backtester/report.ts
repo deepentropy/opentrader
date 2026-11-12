@@ -9,7 +9,7 @@
  *   - largest win / loss percent is the largest trade percent, not the
  *     percent of the largest trade;
  *   - max drawdown / run-up use the equity marked to market at each price
- *     reached after a fill (Broker.equityEvents). The peak is the realized
+ *     reached after a fill (Broker.equityExtremes). The peak is the realized
  *     equity after each trade close (partial closes too); the trough is the
  *     realized equity when the position becomes flat, after a margin call or
  *     after the entry commission of any entry fill. At a tick where an order
@@ -20,7 +20,7 @@
  *     runs with trades (8 datasets, 5 m to 1 W): 87 / 87 from the reference's
  *     trade list (.tmp/backtester/code/explore_sharpe6.cjs).
  */
-import type { EquityEvent } from './broker';
+import { equityExtremes, type EquityExtremes } from './broker/equity-extremes';
 import type { Bar, Direction, Performance, SidePerformance, Trade } from './types';
 
 function side(trades: Trade[], open: Trade[], initialCapital: number, maxContracts: number): SidePerformance {
@@ -70,37 +70,6 @@ function side(trades: Trade[], open: Trade[], initialCapital: number, maxContrac
     avgBarsInLossTrade: avg(losses, bars) ?? 0,
     maxContractsHeld: maxContracts,
   };
-}
-
-/** Max drawdown / run-up from the broker's equity events. */
-function equityExtremes(events: EquityEvent[], initialCapital: number) {
-  let peak = initialCapital;
-  let trough = initialCapital;
-  const r = { dd: 0, ddPct: 0, ru: 0, ruPct: 0 };
-  // Percent = the largest ratio (drawdown / peak, run-up / equity reached), not the ratio at the largest amount.
-  const low = (v: number) => {
-    const dd = peak - v;
-    if (dd > r.dd) r.dd = dd;
-    if (peak > 0 && dd / peak > r.ddPct) r.ddPct = dd / peak;
-  };
-  const high = (v: number) => {
-    const ru = v - trough;
-    if (ru > r.ru) r.ru = ru;
-    if (v > 0 && ru / v > r.ruPct) r.ruPct = ru / v;
-  };
-  for (let k = 0; k < events.length; k++) {
-    const e = events[k];
-    // The equity of a tick where an order fills is read after the fill: the price event right before a fill
-    // does not count.
-    const beforeFill = e.t === 'p' && k + 1 < events.length && events[k + 1].t !== 'p';
-    if (e.t !== 'e' && !beforeFill) {
-      low(e.v);
-      high(e.v);
-    }
-    if (e.t === 'c') peak = Math.max(peak, e.realized);
-    if ((e.t === 'c' && (e.flat || e.marginCall)) || e.t === 'e') trough = Math.min(trough, e.realized);
-  }
-  return r;
 }
 
 /** Months since year 0, UTC (calendar month buckets). */
@@ -160,7 +129,8 @@ export function computePerformance(
   maxContracts: { all: number; long: number; short: number },
   /** Open trades' price move at the last close, without commission. */
   openPL: number,
-  events: EquityEvent[],
+  /** Broker.equityExtremes. */
+  events: EquityExtremes,
   /** Last close on the tick grid (buy & hold; Heikin Ashi closes are off the grid). Default: the last close. */
   lastClose?: number,
   /** Broker.maxMarginUsed, avgMarginUsed and marginUsed (the open margin used). */

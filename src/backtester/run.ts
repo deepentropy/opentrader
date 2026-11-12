@@ -235,7 +235,7 @@ export function backtestReport(bars: Bar[], broker: Broker, equity: number[], t0
       properties.initialCapital,
       broker.maxContractsHeld,
       bars.length ? broker.openProfitAt(broker.roundPrice(bars[bars.length - 1].close)) : 0,
-      broker.equityEvents,
+      broker.equityExtremes,
       bars.length ? broker.roundPrice(bars[bars.length - 1].close) : undefined,
       { max: broker.maxMarginUsed, avg: broker.avgMarginUsed, open: broker.marginUsed },
     ),

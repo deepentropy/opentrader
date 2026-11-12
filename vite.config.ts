@@ -105,7 +105,7 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
   // is held two bytes per character, and the indicator library's chunk (~11 MB) is loaded in the window and in every
   // study worker (12/11/2026: 22,920 such characters in it). The dev server's copy keeps its comments, which have some.
   esbuild: { charset: "ascii" },
-  optimizeDeps: { include: ["lightweight-charts-indicators/helpers", "lightweight-charts-indicators/sources"] },
+  optimizeDeps: { include: ["lightweight-charts-indicators/helpers", "lightweight-charts-indicators/sources", "lightweight-charts-indicators/loader"] },
   resolve: {
     alias: [
       { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },

@@ -47,14 +47,14 @@ function createRun() {
 /** The bars each calculation of "seen-sum" was given. */
 const seenBars: Bar[][] = vi.hoisted(() => []);
 
-vi.mock("lightweight-charts-indicators", () => ({
-  setPackedSeries: () => {},
-  indicatorRegistry: [
+vi.mock("lightweight-charts-indicators/loader", () => {
+  const entries = [
     { id: "run-sum", calculate: (bars: Bar[]) => full(bars), createRun },
     { id: "plain-sum", calculate: (bars: Bar[]) => full(bars) },
     { id: "seen-sum", calculate: (bars: Bar[]) => (seenBars.push(bars), full(bars)) },
-  ],
-}));
+  ];
+  return { setPackedSeries: () => {}, loadIndicator: async (id: string) => entries.find((e) => e.id === id) ?? null };
+});
 
 const { calculateStudy } = await import("../study-calc");
 const { applyDelta, jobChanges } = await import("../study-worker-types");

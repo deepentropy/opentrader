@@ -1,6 +1,7 @@
 /** Sharpe / Sortino ratios of the report (monthly returns, the reference app's rule; see report.ts). */
 import { describe, expect, it } from "vitest";
 import { computePerformance } from "../report";
+import { newEquityExtremes } from "../broker/equity-extremes";
 import type { Bar, Trade } from "../types";
 
 const ms = (iso: string) => Date.parse(iso);
@@ -31,7 +32,7 @@ function expected(returns: number[]) {
 }
 
 const run = (closed: Trade[], open: Trade[], openPL: number, lastBar: string) =>
-  computePerformance([bar("2024-01-02T14:30:00Z"), bar(lastBar)], closed, open, 10000, { all: 1, long: 1, short: 1 }, openPL, []);
+  computePerformance([bar("2024-01-02T14:30:00Z"), bar(lastBar)], closed, open, 10000, { all: 1, long: 1, short: 1 }, openPL, newEquityExtremes());
 
 describe("Sharpe / Sortino", () => {
   it("monthly returns from the month after the first entry; open PnL in the last bar's month", () => {
