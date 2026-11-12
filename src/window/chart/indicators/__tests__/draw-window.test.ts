@@ -77,6 +77,16 @@ describe("windowResult", () => {
     expect(r.lines).toBe(result.lines);
   });
 
+  it("cuts the colours of a fill between two levels along the bars, keeps a whole window's fills as they are", () => {
+    const bars = barsOf(10);
+    const colors = bars.map((_, i) => `c${i}`);
+    const result = { plots: { p: bars.slice(0, 8).map((b) => ({ time: b.time, value: 1 })) }, fills: [{ plot1: "hline_upper", plot2: "hline_lower", colors }, { plot1: "p", plot2: "hline_lower", colors }] };
+    const { result: r } = windowResult(bars, result, { from: bars[5].time, to: bars[7].time });
+    expect(r.fills[0].colors).toEqual(["c5", "c6", "c7"]);
+    const whole = windowResult(bars, result, { from: -Infinity, to: Infinity }).result;
+    expect(whole.fills).toEqual(result.fills);
+  });
+
   it("keeps the points after the last bar when the window reaches it", () => {
     const bars = barsOf(5);
     const result = { plots: { p: [...bars, { time: 9999 }].map((b) => ({ time: b.time, value: 1 })) } };

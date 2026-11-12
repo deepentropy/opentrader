@@ -67,8 +67,8 @@ type Fill = { plot1: number | string; colors?: string[]; gradient?: Gradient };
 
 /**
  * `bars` and `result` cut to the window. Per-bar outputs keyed by time (plots, markers, arrows, colours,
- * candles) keep the points in it; per-point arrays (a fill's colours, along its first plot; a gradient, along
- * the bars) keep the same positions as the points they go with. Drawings, lines and tables are kept whole.
+ * candles) keep the points in it; per-point arrays (a fill's colours, along its first plot or, between two levels,
+ * along the bars; a gradient, along the bars) keep the same positions as the points they go with. Drawings, lines and tables are kept whole.
  * Points after the last bar (a plot offset, a projection) stay when the window reaches the last bar.
  */
 export function windowResult<B extends Timed, R extends { plots?: Record<string, readonly Timed[]> }>(
@@ -81,25 +81,29 @@ export function windowResult<B extends Timed, R extends { plots?: Record<string,
   const to = b === bars.length ? Infinity : timeOf(bars[b - 1]);
   const r = result as R & Record<string, unknown>;
   const out: Record<string, unknown> = { ...r };
-  const plotCuts = new Map<string, { a: number; b: number }>();
+  const plotCuts = new Map<string, { a: number; b: number; n: number }>();
   if (r.plots) {
     const plots: Record<string, Timed[]> = {};
     for (const [id, points] of Object.entries(r.plots)) {
       const cut = cutSorted(points, from, to);
       plots[id] = cut.items;
-      plotCuts.set(id, cut);
+      plotCuts.set(id, { a: cut.a, b: cut.b, n: points.length });
     }
     out.plots = plots;
   }
   const fills = r.fills as Fill[] | undefined;
   if (fills) {
+    const wholeBars = a === 0 && b === bars.length;
     out.fills = fills.map((f) => {
-      const cut = plotCuts.get(String(f.plot1));
+      // A fill between two plots takes its colours along its first plot's points; between two levels (hlines),
+      // along the bars (the library reads them so).
+      const plot = plotCuts.get(String(f.plot1));
+      const [ca, cb, whole] = plot ? [plot.a, plot.b, plot.a === 0 && plot.b === plot.n] : [a, b, wholeBars];
       const g = f.gradient;
       return {
         ...f,
-        ...(f.colors && cut && { colors: f.colors.slice(cut.a, cut.b) }),
-        ...(g && {
+        ...(f.colors && !whole && { colors: f.colors.slice(ca, cb) }),
+        ...(g && !wholeBars && {
           gradient: { topValue: g.topValue.slice(a, b), bottomValue: g.bottomValue.slice(a, b), topColor: g.topColor.slice(a, b), bottomColor: g.bottomColor.slice(a, b) },
         }),
       };
