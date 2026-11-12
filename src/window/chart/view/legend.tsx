@@ -25,7 +25,7 @@ import { FLAG_HEX } from "../../../data/watchlist";
 import { type PriceSource } from "../../header/chart-settings";
 import { intervalLabel, isEconomicSymbol, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
 import { flagUrl } from "../../../data/country-flags";
-import { CHART_TYPE_ICON, isTransformType, transformBarsOf } from "../chart-types";
+import { CHART_TYPE_ICON, isTransformType, transformBarsOf, type OHLC } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
 import { IndicatorLegend } from "../IndicatorLegend";
 import { OAKSCRIPT_OPEN_EVENT } from "../indicators/user-scripts";
@@ -129,23 +129,25 @@ export function createLegend(cx: ChartCx): LegendApi {
       setLegend(buildLegend(bricks, k, cx.activeType, null, mainPriceSource()));
       return;
     }
-    let idx = cx.raw.length - 1;
+    // Not hovering on a chart given a slice of older bars (bar-slice.ts): the newest loaded bar.
+    const bars = time == null && !cx.sliceAtEnd() ? cx.allBars : cx.raw;
+    let idx = bars.length - 1;
     if (time != null) {
-      const hit = indexOfTime(cx.raw, time);
+      const hit = indexOfTime(bars, time);
       if (hit >= 0) idx = hit;
     }
-    setLegend(buildLegend(cx.raw, idx, cx.activeType, cx.prevDayClose[idx] ?? null, mainPriceSource()));
-    publishDataWindowIfOwner(idx, time);
+    setLegend(buildLegend(bars, idx, cx.activeType, bars === cx.raw ? (cx.prevDayClose[idx] ?? null) : null, mainPriceSource()));
+    publishDataWindowIfOwner(bars, idx, time);
   }
 
   /** Publish this pane's data-window snapshot for the bar at `idx`, but only
    *  when this pane owns the data window: the crosshair is over it, or it's the
    *  focused pane (so a sibling pane's live tick can't steal it), and not under a mirrored crosshair. Indicator
    *  values resolve at the same `time` the legend used. */
-  function publishDataWindowIfOwner(idx: number, time?: number) {
+  function publishDataWindowIfOwner(bars: OHLC[], idx: number, time?: number) {
     if (cx.crosshairMirrored || !(props.active || cx.crosshairActive)) return;
-    const bar = cx.raw[idx];
-    const prevClose = idx > 0 ? cx.raw[idx - 1].close : null;
+    const bar = bars[idx];
+    const prevClose = idx > 0 ? bars[idx - 1].close : null;
     const changeAbs = prevClose == null ? 0 : bar.close - prevClose;
     const changePct = prevClose ? (changeAbs / prevClose) * 100 : 0;
     const { ticker, exchange } = splitSymbol(props.symbol ?? "");

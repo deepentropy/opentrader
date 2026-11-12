@@ -68,6 +68,7 @@ import { createPanes } from "./view/panes";
 import { createDecorations } from "./view/decorations";
 import { createAlertLayer } from "./view/alert-layer";
 import { createHistory } from "./view/history";
+import { createBarSlice } from "./view/bar-slice";
 import { createCompare } from "./view/compare";
 import { createScales } from "./view/scales";
 import { createSources } from "./view/sources";
@@ -321,6 +322,7 @@ export function ChartView(props: ChartViewProps) {
     controller: null,
     activeType: props.chartType ?? "candle",
     raw: [],
+    allBars: [],
     rawDaily: [],
     appliedSeriesPane: null,
     history,
@@ -388,7 +390,7 @@ export function ChartView(props: ChartViewProps) {
   // Markers fall back to gap-aware positioning when a date isn't on a bar.
   core.eventMarkers.setBarsAccessor(() => cx.raw);
   core.eventMarkers.setBricksAccessor(() => (isTransformType(cx.activeType) ? transformBarsOf(cx.series) : null));
-  core.newsLollipop.setLastTimeAccessor(() => (cx.raw.length ? (cx.raw[cx.raw.length - 1].time as number) : null));
+  core.newsLollipop.setLastTimeAccessor(() => (cx.latestBar()?.time as number | undefined) ?? null);
 
   // The chart is created first: every part's effects find it on their first run.
   onMount(() => {
@@ -425,7 +427,7 @@ export function ChartView(props: ChartViewProps) {
     });
     cx.lockAxis = new CrosshairLockAxisPrimitive(cx.lockViews);
     // Start empty; real candles arrive from the history resource.
-    cx.raw = [];
+    cx.loadBars([]);
     cx.rebuildSeries();
 
     cx.controller = cx.createController(chart);
@@ -462,6 +464,8 @@ export function ChartView(props: ChartViewProps) {
       // (the sync loader fetched its history in one request), be persisted
       // (a follower would save a clamped view), or be broadcast.
       if (cx.syncGuard) return;
+      // The slice of the loaded bars the chart is given follows the view (bar-slice.ts), then history pages in.
+      cx.followSlice();
       cx.maybeLoadOlder();
       cx.maybeLoadNewer();
       // Persist the user's anchor (debounced) so it survives tab switches +
@@ -469,7 +473,7 @@ export function ChartView(props: ChartViewProps) {
       // about to set the range itself — capturing the outgoing/transient range
       // here would clobber the new pane's saved view), and in a window of past
       // bars (a reload opens on the latest bars, where its indices mean nothing).
-      if (!cx.swapping && cx.chart && cx.pastWindowEnd === null) {
+      if (!cx.swapping && cx.chart && cx.pastWindowEnd === null && cx.sliceAtEnd()) {
         const lr = cx.chart.timeScale().getVisibleLogicalRange();
         if (lr) {
           // Tag the scheduled write with the pane this range belongs to. The
@@ -534,6 +538,7 @@ export function ChartView(props: ChartViewProps) {
     createDecorations,
     createAlertLayer,
     createHistory,
+    createBarSlice,
     createPointer,
     createWindowEvents,
     createFutureAxis,
@@ -581,15 +586,16 @@ export function ChartView(props: ChartViewProps) {
     const key = (props.symbol ?? "").toUpperCase();
     if (!key) return;
     registerChartState(key, {
-      lastPrice: () => (cx.raw.length ? cx.raw[cx.raw.length - 1].close : null),
+      lastPrice: () => cx.latestBar()?.close ?? null,
       lastBarTime: () => {
-        const t = cx.raw.length ? cx.raw[cx.raw.length - 1].time : null;
+        const t = cx.latestBar()?.time;
         return typeof t === "number" ? t * 1000 : null;
       },
       indicatorLegend: () => cx.controller?.getLegend() ?? [],
       resolution: () => props.interval ?? "",
       session: () => props.session ?? "RTH",
-      bars: () => cx.raw as ChartBar[],
+      // Every loaded bar (the chart may be given a slice of them, bar-slice.ts).
+      bars: () => (cx.replayActive ? cx.raw : cx.allBars) as ChartBar[],
       compares: () => cx.compareSources(),
       loading: () => cx.swapping,
     });

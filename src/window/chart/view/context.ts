@@ -38,6 +38,7 @@ import type { PanesApi } from "./panes";
 import type { DecorationsApi } from "./decorations";
 import type { AlertLayerApi } from "./alert-layer";
 import type { HistoryApi } from "./history";
+import type { BarSliceApi } from "./bar-slice";
 import type { CompareApi } from "./compare";
 import type { SourcesApi } from "./sources";
 import type { SnapshotApi } from "./snapshot";
@@ -237,7 +238,11 @@ export interface ChartCore {
    *  bars a Go to loaded). */
   nextBars: { series: string; result: BarsResult } | null;
   pointerOverHost: boolean;
+  /** The bars the chart is given (its logical indices): every loaded bar, or a slice of them on a long history
+   *  (bar-slice.ts). */
   raw: OHLC[];
+  /** Every loaded bar (the studies, the latest values, the alerts read them); `raw` itself when not sliced. */
+  allBars: OHLC[];
   rawDaily: Candle[];
   reloadTick: Accessor<number>;
   removeStudy: (id: string) => void;
@@ -283,6 +288,7 @@ export type ChartCx = ChartCore &
   DecorationsApi &
   AlertLayerApi &
   HistoryApi &
+  BarSliceApi &
   CompareApi &
   SourcesApi &
   SnapshotApi &

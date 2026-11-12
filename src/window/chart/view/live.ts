@@ -164,7 +164,10 @@ export function createLive(cx: ChartCx): LiveApi {
   function paintLiveData(next: OHLC | null, appended: boolean) {
     if (!cx.series) return;
     const st = currentTokens().styles;
+    // The chart given a slice of older bars (bar-slice.ts) keeps its series as it is; the studies update.
+    const onChart = cx.sliceAtEnd();
     if (
+      onChart &&
       next &&
       // Per-bar colours (prev-close colouring, hollow candles) are computed
       // in setDataForType; a bare update() would paint the live bar with the
@@ -174,7 +177,7 @@ export function createLive(cx: ChartCx): LiveApi {
       // ISeriesApi<"Candlestick"|"Bar">.update accepts CandlestickData; our
       // OHLC is shape-compatible (time + o/h/l/c).
       (cx.series as { update: (d: OHLC) => void }).update(next);
-    } else {
+    } else if (onChart) {
       setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
       cx.afterSeriesData();
     }
@@ -200,12 +203,13 @@ export function createLive(cx: ChartCx): LiveApi {
     if (cx.replayActive) return null;
     // A window of past bars: live bars come again once it reaches now.
     if (cx.pastWindowEnd !== null) return null;
-    const lastTime = cx.raw.length > 0 ? (cx.raw[cx.raw.length - 1].time as number) : -1;
+    const all = cx.allBars;
+    const lastTime = all.length > 0 ? (all[all.length - 1].time as number) : -1;
     let next: OHLC;
     let appended = false;
     let unchanged = false;
     if (lastTime === bar.time) {
-      const last = cx.raw[cx.raw.length - 1];
+      const last = all[all.length - 1];
       // Volume semantics per source: 1-minute buckets + 1D day bars carry the
       // bucket's authoritative cumulative volume → replace. 1W/1M ticks carry
       // TODAY'S day volume only, not the forming week/month's cumulative —
@@ -252,7 +256,7 @@ export function createLive(cx: ChartCx): LiveApi {
         close: bar.close,
         volume: vol,
       };
-      cx.raw[cx.raw.length - 1] = next;
+      cx.liveBar(next, false);
       // The feed repeats a bar until it moves: nothing to repaint then.
       unchanged = next.high === last.high && next.low === last.low && next.close === last.close && next.volume === last.volume;
     } else if (bar.time > lastTime) {
@@ -264,7 +268,7 @@ export function createLive(cx: ChartCx): LiveApi {
         close: bar.close,
         volume: bar.volume,
       };
-      cx.raw.push(next);
+      cx.liveBar(next, true);
       appended = true;
       // A fresh 1W/1M bar starts with today's volume only → baseline 0, so a
       // same-day merge tick doesn't re-snap the baseline onto today's volume
@@ -380,7 +384,7 @@ export function createLive(cx: ChartCx): LiveApi {
       getBars(sym, id, sess)
         .then((r) => {
           if (stale()) return;
-          const lastTime = cx.raw.length > 0 ? (cx.raw[cx.raw.length - 1].time as number) : undefined;
+          const lastTime = cx.allBars.length > 0 ? (cx.allBars[cx.allBars.length - 1].time as number) : undefined;
           if (lastTime === undefined) return;
           mergeRows(toOHLC(r.bars), lastTime);
         })
@@ -388,7 +392,7 @@ export function createLive(cx: ChartCx): LiveApi {
     const timer = window.setInterval(() => {
       // Not in a browser tab left in the background: the first poll back fills the gap.
       if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0 || cx.pastWindowEnd !== null) return;
-      const lastTime = cx.raw[cx.raw.length - 1].time as number;
+      const lastTime = cx.allBars[cx.allBars.length - 1].time as number;
       const tail = getSecondBarsTail(sym, id, lastTime - TAIL_SEC, sess);
       if (!tail) return;
       tail

@@ -21,6 +21,7 @@ import {
   type GroupId,
 } from "../control-bar";
 import { barsSpan, projectionBars } from "./helpers";
+import { pendingRange } from "../pending-range";
 import { isTransformType } from "../chart-types";
 import { lowerBound } from "../time-search";
 import { type ChartCx } from "./context";
@@ -111,6 +112,11 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       return;
     }
     const ts = cx.chart.timeScale();
+    // The chart was given a slice of older bars (bar-slice.ts): the newest ones now, at the end at once.
+    if (cx.sliceToEnd()) {
+      ts.scrollToPosition(realtimeTarget(cx.chart), false);
+      return;
+    }
     const target = realtimeTarget(cx.chart);
     const from = ts.scrollPosition();
     if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
@@ -190,8 +196,10 @@ export function createNavigation(cx: ChartCx): NavigationApi {
   const scrollToFirstBar = () => {
     if (!cx.chart || cx.raw.length === 0) return;
     const ts = cx.chart.timeScale();
-    const r = ts.getVisibleLogicalRange();
+    const r = pendingRange(cx.chart) ?? ts.getVisibleLogicalRange();
     if (!r) return;
+    // The oldest loaded bars on the chart (a slice of newer ones before: bar-slice.ts).
+    cx.sliceToStart();
     ts.setVisibleLogicalRange({ from: 0, to: r.to - r.from });
   };
 
@@ -211,6 +219,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       cx.returnToLive(resetTimeScale);
       return;
     }
+    cx.sliceToEnd();
     if (zoomAnim !== null) cancelAnimationFrame(zoomAnim);
     if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
     if (scrollAnim !== null) {
@@ -244,7 +253,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
   /** Time-scale reset available: bar spacing or right offset off default. */
   const timeScaleOffDefault = () => {
     if (!cx.chart) return false;
-    if (cx.pastWindowEnd !== null) return true;
+    if (cx.pastWindowEnd !== null || !cx.sliceAtEnd()) return true;
     const bs = liveBarSpacing(cx.chart);
     // Derived from width/span, so sub-pixel drift is expected; 0.05px of bar
     // spacing is far below anything a user could set deliberately.
@@ -269,6 +278,8 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       cx.returnToLive();
       return false;
     }
+    // The presets count back from the newest bar: the chart is given it (bar-slice.ts).
+    cx.sliceToEnd();
     const ts = cx.chart.timeScale();
     if (id === "All") {
       // The bars, not the future bars the time scale goes on with.
@@ -341,7 +352,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       }
       setGotoShown(
         canShow(behavior, nearGoto) &&
-          (cx.pastWindowEnd !== null || cx.chart.timeScale().scrollPosition() + projectionBars(cx.chart, cx.mainLastIndex()) < 0),
+          (cx.pastWindowEnd !== null || !cx.sliceAtEnd() || cx.chart.timeScale().scrollPosition() + projectionBars(cx.chart, cx.mainLastIndex()) < 0),
       );
       setBarShown(canShow(behavior, nearBar));
       setResetAvailable(scalesOffDefault());

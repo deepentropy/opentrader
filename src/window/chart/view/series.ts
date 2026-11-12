@@ -429,6 +429,7 @@ export function createSeries(cx: ChartCx): SeriesApi {
 }
 
 /** Bars the studies run on: a price-based type's bricks (reference app), else the chart's bars. */
-export function studyBars(cx: Pick<ChartCx, "activeType" | "series" | "raw">): Bar[] {
-  return ((isTransformType(cx.activeType) ? transformBarsOf(cx.series)?.bars : null) ?? cx.raw) as unknown as Bar[];
+export function studyBars(cx: Pick<ChartCx, "activeType" | "series" | "raw" | "allBars" | "replayActive">): Bar[] {
+  // Every loaded bar (the chart may be given a slice of them, bar-slice.ts); in Bar Replay the bars replayed.
+  return ((isTransformType(cx.activeType) ? transformBarsOf(cx.series)?.bars : null) ?? (cx.replayActive ? cx.raw : cx.allBars)) as unknown as Bar[];
 }

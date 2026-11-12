@@ -897,7 +897,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   function TradingButtons() {
     const price = createMemo(() => {
       replayBroker.version();
-      const last = cx.raw[cx.raw.length - 1];
+      const last = cx.latestBar();
       return last ? snapToTick(last.close, tick()) : null;
     });
     const preset = () => tradingUi.activePreset();

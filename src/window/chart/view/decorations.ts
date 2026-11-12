@@ -334,7 +334,8 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
    *  label. */
   function updateCountdown() {
     const t = currentTokens();
-    const last = cx.raw.length > 0 ? cx.raw[cx.raw.length - 1] : null;
+    // The newest bar, also when the chart is given a slice of older ones (bar-slice.ts).
+    const last = cx.latestBar() ?? null;
     // The countdown shows for time-based styles only (renko, line break,
     // kagi, P&F and range bars have no bar close to count to).
     const timeBased = !isTransformType(cx.activeType);

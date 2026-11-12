@@ -20,7 +20,7 @@ import {
   splitSymbol,
 } from "../../../data/datafeed";
 import { type Candle } from "../../../bindings";
-import { isTransformType, setDataForType } from "../chart-types";
+import { isTransformType, setDataForType, type OHLC } from "../chart-types";
 import { layoutSync } from "../layout-sync";
 import { dayKeyer } from "../day-key";
 import { cachedSymbolSessions } from "../../../data/session";
@@ -181,17 +181,18 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  week), else "end" (with at least 400 bars). Hidden while the floor is
    *  unknown. */
   function historyEndKind(): HistoryEndKind | null {
-    if (!historyExhausted || loadingMore || cx.raw.length === 0) return null;
+    // The chart's first bar is the oldest loaded one (not a slice further on).
+    if (!historyExhausted || loadingMore || loaded().length === 0 || cx.sliceFrom > 0) return null;
     const ent = providerCapabilities()?.entitlements;
     if (!ent) return null;
     const iv = props.interval ?? "1D";
     const daily = cx.rawDaily.length > 0;
     const floor = daily ? ent.historyFloor.day : isSecondResolution(iv) ? ent.historyFloor.second : ent.historyFloor.minute;
-    const oldest = (daily ? cx.rawDaily[0].time : cx.raw[0].time) as number;
+    const oldest = (daily ? cx.rawDaily[0].time : loaded()[0].time) as number;
     const floorSec = floor ? Date.parse(`${floor}T00:00:00Z`) / 1000 : NaN;
     if (Number.isFinite(floorSec) && oldest - floorSec <= 7 * 86400) return "limit";
     if (daily && oldest - Date.parse(`${DAILY_ARCHIVE_START}T00:00:00Z`) / 1000 <= 7 * 86400) return "limit";
-    return cx.raw.length >= HISTORY_END_MIN_BARS ? "end" : null;
+    return loaded().length >= HISTORY_END_MIN_BARS ? "end" : null;
   }
   function updateHistoryEnd() {
     const kind = historyEndKind();
@@ -255,6 +256,9 @@ export function createHistory(cx: ChartCx): HistoryApi {
     prefetch = { gen, beforeSec, rows: fetchOlder(sym, int, beforeSec) };
   }
 
+  /** Every loaded bar (the chart may be given a slice of them, bar-slice.ts); in Bar Replay the bars replayed. */
+  const loaded = (): OHLC[] => (cx.replayActive ? cx.raw : cx.allBars);
+
   /** The view: the range asked for when the chart has not drawn it yet (it
    *  answers the one before until its next frame, and pages landing in the
    *  same frame moved the view from that one), else the drawn one. */
@@ -276,10 +280,12 @@ export function createHistory(cx: ChartCx): HistoryApi {
     // paging off that would compute a bogus `before` (the newest bar) and
     // duplicate the recent window. Wait until real history has populated `raw`.
     if (cx.history.loading) return;
+    // Older bars are loaded already: the slice moves to them (followSlice).
+    if (cx.sliceFrom > 0) return;
     // The daily family pages its underlying daily bars (so 1W/1M re-aggregate);
     // second/minute page the displayed bars directly.
     const isDaily = cx.rawDaily.length > 0;
-    const oldestSrc: { time: unknown }[] = isDaily ? cx.rawDaily : cx.raw;
+    const oldestSrc: { time: unknown }[] = isDaily ? cx.rawDaily : loaded();
     if (oldestSrc.length === 0) return;
     const range = viewRange();
     if (!range || range.from > LOAD_MORE_THRESHOLD) return;
@@ -324,7 +330,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
         if (rows === null) return; // transient error — allow a later retry
         // Another prepend (the date-range sync loader) landed first: this page
         // would overlap it.
-        if (((isDaily ? cx.rawDaily[0]?.time : cx.raw[0]?.time) as number | undefined) !== beforeSec) return;
+        if (((isDaily ? cx.rawDaily[0]?.time : loaded()[0]?.time) as number | undefined) !== beforeSec) return;
         const older = rows.filter((r) => (r.time as number) < beforeSec);
         if (older.length === 0) {
           historyExhausted = true;
@@ -332,7 +338,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
         }
         if (!prependOlder(older, isDaily, reqInt)) return;
         // Pipeline the next older window so the following scroll-back is instant.
-        const nextOldest = (isDaily ? cx.rawDaily[0]?.time : cx.raw[0]?.time) as number | undefined;
+        const nextOldest = (isDaily ? cx.rawDaily[0]?.time : loaded()[0]?.time) as number | undefined;
         if (nextOldest !== undefined) startPrefetch(reqSym, reqInt, reqGen, nextOldest);
       })
       .finally(() => {
@@ -360,6 +366,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
   function maybeLoadNewer() {
     if (pastWindowEnd === null || !cx.chart || !cx.series || loadingMore || landing || cx.history.loading) return;
     if (cx.replayActive || cx.raw.length === 0) return;
+    // Newer bars are loaded already: the slice moves to them (followSlice).
+    if (!cx.sliceAtEnd()) return;
     const range = viewRange();
     if (!range || range.to < cx.raw.length - 1 - LOAD_MORE_THRESHOLD) return;
     loadingMore = true;
@@ -373,7 +381,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
         if (gen !== fetchGen || pastWindowEnd !== page.from || !cx.chart || !cx.series) return;
         if (rows === null) return; // transient error: the next scroll tries again
         newerPrefetch = null;
-        const lastSec = cx.raw[cx.raw.length - 1].time as number;
+        const lastSec = cx.allBars[cx.allBars.length - 1].time as number;
         const newer = rows.filter((r) => (r.time as number) > lastSec);
         pastWindowEnd = page.to < Date.now() / 1000 ? page.to : null;
         empty = newer.length === 0;
@@ -396,13 +404,13 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (!cx.chart || !cx.series) return;
     const ts = cx.chart.timeScale();
     const prevRange = viewRange();
-    cx.raw = cx.raw.concat(toOHLC(newer));
+    const shift = cx.appendBars(toOHLC(newer));
     setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
     cx.afterSeriesData();
     cx.updateSessionBreaks();
     scheduleIndicatorRender();
     if (!cx.crosshairActive) refreshLegend();
-    if (prevRange) ts.setVisibleLogicalRange(prevRange);
+    if (prevRange) ts.setVisibleLogicalRange({ from: prevRange.from + shift, to: prevRange.to + shift });
   }
 
   /** Put `older` (bars older than every loaded one: daily rows for the daily
@@ -427,12 +435,12 @@ export function createHistory(cx: ChartCx): HistoryApi {
       const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
       if (unit && !spec) return false;
       cx.rawDaily = [...older, ...cx.rawDaily];
-      cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
+      cx.replaceBars(toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily));
     } else if (cx.replayActive) {
       cx.replayOnPrepend(toOHLC(older));
-    } else {
-      cx.raw = [...toOHLC(older), ...cx.raw];
     }
+    // Bars added in front of the chart's first bar (a slice keeps its bars: bar-slice.ts).
+    const shift = !isDaily && !cx.replayActive ? cx.prependBars(toOHLC(older)) : null;
     setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
     cx.afterSeriesData();
     cx.updateSessionBreaks();
@@ -440,7 +448,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (!cx.crosshairActive) refreshLegend();
     // Pin the view by the bars actually added — aggregation can change the
     // count for 1W/1M, so use the length delta, not the raw page length.
-    const delta = cx.raw.length - prevLen;
+    const delta = shift ?? cx.raw.length - prevLen;
     if (isTransformType(cx.activeType)) {
       const last = cx.mainLastIndex();
       if (prevRange && prevLast != null && last != null) {
@@ -459,7 +467,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
   function mergeMissing(rows: Candle[], isDaily: boolean, int: string): number {
     // Bar Replay: completed when the chart is back to live data.
     if (!cx.chart || !cx.series || cx.replayActive) return 0;
-    const src: readonly { time: unknown }[] = isDaily ? cx.rawDaily : cx.raw;
+    const src: readonly { time: unknown }[] = isDaily ? cx.rawDaily : cx.allBars;
     if (src.length === 0) return 0;
     const lastSec = src[src.length - 1].time as number;
     const have = new Set(src.map((b) => b.time as number));
@@ -479,9 +487,9 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const byTime = (a: { time: unknown }, b: { time: unknown }) => (a.time as number) - (b.time as number);
     if (isDaily) {
       cx.rawDaily = [...cx.rawDaily, ...missing].sort(byTime);
-      cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
+      cx.replaceBars(toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily));
     } else {
-      cx.raw = [...cx.raw, ...toOHLC(missing)].sort(byTime);
+      cx.replaceBars([...cx.allBars, ...toOHLC(missing)].sort(byTime));
     }
     setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
     cx.afterSeriesData();
@@ -598,9 +606,9 @@ export function createHistory(cx: ChartCx): HistoryApi {
     return (
       cx.rawDaily.length === 0 &&
       !historyExhausted &&
-      cx.raw.length > 0 &&
-      cx.raw.length < maxBars &&
-      (cx.raw[0].time as number) > fromSec
+      loaded().length > 0 &&
+      loaded().length < maxBars &&
+      (loaded()[0].time as number) > fromSec
     );
   }
 
@@ -613,12 +621,13 @@ export function createHistory(cx: ChartCx): HistoryApi {
 
   /** Distinct local calendar days among the loaded bars (≥ 1). */
   function loadedSessionDays(): number {
-    if (cx.raw.length === 0) return 1;
+    const bars = loaded();
+    if (bars.length === 0) return 1;
     const dayOf = dayKeyer(props.timeZone ?? "UTC");
     let days = 1;
-    let cur = dayOf(cx.raw[0].time as number);
-    for (let i = 1; i < cx.raw.length; i++) {
-      const d = dayOf(cx.raw[i].time as number);
+    let cur = dayOf(bars[0].time as number);
+    for (let i = 1; i < bars.length; i++) {
+      const d = dayOf(bars[i].time as number);
       if (d !== cur) {
         days++;
         cur = d;
@@ -643,11 +652,11 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const reqInt = props.interval ?? "1D";
     let t = target();
     while (t != null && needsSyncLoad(t) && wanted()) {
-      const beforeSec = cx.raw[0].time as number;
+      const beforeSec = loaded()[0].time as number;
       // Size the request so the depth cap holds: bars per day measured on the
       // loaded bars, window clipped to the bars still allowed.
       const perDay = barsPerDay();
-      const allowedDays = Math.floor((SYNC_LOAD_MAX_BARS - cx.raw.length) / perDay);
+      const allowedDays = Math.floor((SYNC_LOAD_MAX_BARS - loaded().length) / perDay);
       if (allowedDays < 1) break;
       const spanDays = Math.min(Math.max(tradingDaysBetween(t, beforeSec), minDays), allowedDays);
       syncLoading = true;
@@ -672,8 +681,9 @@ export function createHistory(cx: ChartCx): HistoryApi {
       const prevLast = isTransformType(cx.activeType) ? cx.mainLastIndex() : null;
       const prevLen = cx.raw.length;
       // In Bar Replay the replayed series takes them in front.
+      let shift: number | null = null;
       if (cx.replayActive) cx.replayOnPrepend(toOHLC(older));
-      else cx.raw = toOHLC(older).concat(cx.raw);
+      else shift = cx.prependBars(toOHLC(older));
       prefetch = null;
       // The prepend itself fires a range change (same logical range, older
       // dates) before the view is put back below: guard it too, so it is not
@@ -684,7 +694,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
       cx.updateSessionBreaks();
       scheduleIndicatorRender();
       if (!cx.crosshairActive) refreshLegend();
-      const delta = cx.raw.length - prevLen;
+      const delta = shift ?? cx.raw.length - prevLen;
       if (isTransformType(cx.activeType)) {
         const last = cx.mainLastIndex();
         if (prevRange && prevLast != null && last != null) {
@@ -697,7 +707,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
       }
       t = target();
     }
-    const nextOldest = (cx.rawDaily.length > 0 ? cx.rawDaily[0]?.time : cx.raw[0]?.time) as number | undefined;
+    const nextOldest = (cx.rawDaily.length > 0 ? cx.rawDaily[0]?.time : loaded()[0]?.time) as number | undefined;
     if (nextOldest !== undefined) startPrefetch(reqSym, reqInt, reqGen, nextOldest);
     return true;
   }
@@ -746,6 +756,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
   function applySyncRange(fromSec: number, toSec: number, driver = false, indexOf: (sec: number) => number = syncIndex) {
     const guard = () => { if (!driver) holdSyncGuard(); };
     if (!cx.chart || cx.raw.length === 0) return;
+    // The chart is given the loaded bars of the range (a slice elsewhere: bar-slice.ts).
+    cx.sliceAround(toSec < (loaded()[0]?.time as number) ? toSec : fromSec);
     const ts = cx.chart.timeScale();
     const last = cx.raw.length - 1;
     // Target entirely older than the loaded history (history floor or the sync
@@ -769,17 +781,17 @@ export function createHistory(cx: ChartCx): HistoryApi {
 
   /** Display bars per trading day, measured on the loaded bars. */
   function barsPerDay(): number {
-    return Math.max(1, cx.raw.length / loadedSessionDays());
+    return Math.max(1, loaded().length / loadedSessionDays());
   }
 
   /** True when a Go to [fromSec, toSec] loads a window of past bars: more than
    *  GOTO_WINDOW_PAGES pages of history lie between the date and the loaded
    *  bars, or the range is after the window shown. */
   function wantsWindow(fromSec: number, toSec: number): boolean {
-    if (cx.rawDaily.length > 0 || cx.replayActive || cx.raw.length === 0) return false;
-    if (pastWindowEnd !== null && toSec > (cx.raw[cx.raw.length - 1].time as number)) return true;
+    if (cx.rawDaily.length > 0 || cx.replayActive || cx.allBars.length === 0) return false;
+    if (pastWindowEnd !== null && toSec > (cx.allBars[cx.allBars.length - 1].time as number)) return true;
     if (!needsSyncLoad(fromSec, Infinity)) return false;
-    const pages = tradingDaysBetween(fromSec, cx.raw[0].time as number) / historyPageDays(props.interval ?? "1D");
+    const pages = tradingDaysBetween(fromSec, cx.allBars[0].time as number) / historyPageDays(props.interval ?? "1D");
     return pages > GOTO_WINDOW_PAGES;
   }
 
@@ -829,9 +841,12 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  redraw, would move to other dates when they go. */
   function clearOldPoints() {
     const shown = cx.raw;
+    const all = cx.allBars;
     cx.raw = [];
+    cx.allBars = [];
     cx.controller?.renderAll();
     cx.raw = shown;
+    cx.allBars = all;
     cx.dropFutureSeries();
   }
 
@@ -911,9 +926,10 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (!cx.chart || !cx.series || cx.raw.length === 0) return;
     const ts = cx.chart.timeScale();
     const indexOf = opts.index ?? syncIndex;
-    const loaded = (cx.raw[0].time as number) <= targetSec || cx.rawDaily.length > 0 || historyExhausted;
+    const isLoaded = (loaded()[0].time as number) <= targetSec || cx.rawDaily.length > 0 || historyExhausted;
     const cur = viewRange();
-    if (loaded && cur && !opts.alignIfVisible) {
+    const onChart = targetSec >= (cx.raw[0].time as number) && targetSec <= (cx.raw[cx.raw.length - 1].time as number);
+    if (isLoaded && onChart && cur && !opts.alignIfVisible) {
       const idx = indexOf(targetSec);
       if (idx >= cur.from && idx <= cur.to) return;
     }
@@ -939,6 +955,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
         if (opts.driver && needsSyncLoad(targetSec, Infinity) && !(await loadPastWindow(targetSec, targetSec, wanted))) return;
       }
       if (myGoto !== gotoGen || !cx.chart) return;
+      // The chart is given the loaded bars around the date (a slice elsewhere: bar-slice.ts).
+      cx.sliceAround(targetSec);
       const r = viewRange();
       const span = r ? r.to - r.from : 120;
       const idx = indexOf(targetSec);

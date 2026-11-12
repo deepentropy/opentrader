@@ -122,6 +122,9 @@ export interface IndicatorHost {
   readonly chartId: string;
   /** Bars the studies run on (read on demand, so a recalculation always sees the freshest set). */
   bars(): Bar[];
+  /** Bars the chart is given, whose indices the view's are (a slice of `bars` on a long history, bar-slice.ts);
+   *  default `bars`. */
+  chartBars?(): Bar[];
   /** The newest bar is still forming (a realtime bar for strategies). */
   lastBarOpen(): boolean;
   /** The chart's main price series (study markers and bar colours). */
@@ -226,10 +229,27 @@ export class IndicatorController {
   private updateDrawWindow(): boolean {
     const view = pendingRange(this.chart) ?? this.chart.timeScale().getVisibleLogicalRange();
     if (!view) return false;
-    const next = nextDrawWindow(this.host.bars(), view, this.drawWindow);
+    const all = this.host.bars();
+    const chart = this.host.chartBars?.() ?? all;
+    let next = nextDrawWindow(chart, view, this.drawWindow);
+    // A slice of the bars: the studies draw on it only (their points on bars the chart does not have would move
+    // its bars' indices).
+    if (chart !== all && chart.length > 0) {
+      const lo = chart[0] !== all[0] ? (chart[0].time as number) : -Infinity;
+      const hi = chart[chart.length - 1] !== all[all.length - 1] ? (chart[chart.length - 1].time as number) : Infinity;
+      const w = next ?? { from: -Infinity, to: Infinity };
+      const clipped = { from: Math.max(w.from, lo), to: Math.min(w.to, hi) };
+      const cur = this.drawWindow;
+      next = cur && cur.from === clipped.from && cur.to === clipped.to ? cur : clipped.from === -Infinity && clipped.to === Infinity ? null : clipped;
+    }
     if (next === this.drawWindow) return false;
     this.drawWindow = next;
     return true;
+  }
+  /** The chart was given other bars of the loaded ones (bar-slice.ts): the studies draw on them now. */
+  followChart(): void {
+    if (!this.updateDrawWindow()) return;
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setDrawWindow(this.drawWindow);
   }
   /** The view settled near an edge of the window: the studies draw the bars around it (their results are kept). */
   private followView(): void {

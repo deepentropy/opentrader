@@ -35,7 +35,8 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
   // "Download chart data" source: time, the main series values, the visible
   // studies' plots, then the compared symbols (chart-export.ts).
   const exportData = (): { times: number[]; columns: ExportColumn[] } => {
-    const bars = cx.raw;
+    // Every loaded bar (the chart may be given a slice of them, bar-slice.ts).
+    const bars = cx.replayActive ? cx.raw : cx.allBars;
     const times = bars.map((b) => b.time as number);
     const col = (title: string, rows: OHLC[], f: (b: OHLC) => number): ExportColumn => ({
       title,

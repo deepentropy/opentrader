@@ -169,7 +169,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // Clear the previous symbol's candles instead of leaving them painted —
     // otherwise switching tabs looks like the price never changes.
     if (!real || real.bars.length === 0) {
-      cx.raw = [];
+      cx.loadBars([]);
       cx.rawDaily = [];
       cx.loadLanded();
       cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });
@@ -191,7 +191,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // underlying daily bars (null for second/minute) so scroll-back can
     // re-aggregate the full set.
     cx.rawDaily = real.daily ?? [];
-    cx.raw = toOHLC(real.bars);
+    // Every bar; the chart given the newest ones on a long history (bar-slice.ts).
+    cx.loadBars(toOHLC(real.bars));
     cx.loadLanded();
     // The studies calculate below on these bars: their chart context is this series'.
     cx.setShownSeries({ symbol: props.symbol, interval: props.interval, session: props.session });

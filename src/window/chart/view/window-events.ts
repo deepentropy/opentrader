@@ -72,7 +72,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
           // Vertical line aligns by time; the horizontal line uses the source
           // cursor's price (so it mirrors too). Fall back to the latest close
           // only if no price was sent (older broadcast / off-scale cursor).
-          const price = d.price != null ? d.price : (cx.raw.length ? cx.raw[cx.raw.length - 1].close : 0);
+          const price = d.price != null ? d.price : (cx.latestBar()?.close ?? 0);
           // The bar holding the time (another interval's time falls inside one): the library would take the next.
           const k = lastAtOrBefore(cx.raw, d.time);
           const past = k === cx.raw.length - 1 && d.time > (cx.raw[k].time as number);

@@ -331,7 +331,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   function openSeriesMoreMenu(anchor: DOMRect) {
     const full = props.symbol ?? "";
     const sym = splitSymbol(full).ticker;
-    const last = cx.raw.length ? cx.raw[cx.raw.length - 1].close : null;
+    const last = cx.latestBar()?.close ?? null;
     const p = last == null ? "—" : menuPrice(last);
     const hidden = !!props.seriesHidden;
     const row = { ticker: full, short: full.split(":").pop() || full, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null };
@@ -797,7 +797,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       ...(alerts.length ? [{ kind: "separator" } as CtxNode] : []),
       { kind: "item", id: "plus-hline", label: translateWith("Draw horizontal line at {0}", priceStr), shortcut: "Alt + H", icon: <Icon name="draw-horizontal-line" size={18} />,
         onSelect: () => {
-          const last = cx.raw.length > 0 ? cx.raw[cx.raw.length - 1] : null;
+          const last = cx.latestBar();
           if (!last) return;
           const id = cx.edits.placeDrawing({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line"), ...(owner ? { owner } : {}) } as never);
           if (id) props.setSelectedDrawingId?.(id);

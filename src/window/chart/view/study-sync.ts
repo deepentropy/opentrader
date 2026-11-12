@@ -30,6 +30,8 @@ export function createStudySync(cx: ChartCx): StudySyncApi {
       chartId: String(cx.paneId),
       // The controller reads the bars on demand, so it always recomputes against the freshest dataset.
       bars: () => studyBars(cx),
+      // The chart's bars: a slice of the loaded ones on a long history (bar-slice.ts).
+      chartBars: () => (cx.raw !== cx.allBars && !cx.replayActive ? (cx.raw as unknown as ReturnType<typeof studyBars>) : studyBars(cx)),
       lastBarOpen: () => cx.lastBarForming(),
       mainSeries: () => cx.series as ISeriesApi<SeriesType> | null,
       // Studies over the series take its scale (its side when it has no scale).
