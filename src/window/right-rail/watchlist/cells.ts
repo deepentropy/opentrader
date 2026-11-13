@@ -41,7 +41,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
 
   function lastForRow(row: { ticker: string; last: string }): string {
     const q = quoteFor(row.ticker);
-    if (q?.last != null) return formatLast(q.last);
+    if (q?.last != null) return formatLast(q.last, row.ticker);
     return localNumber(row.last);
   }
 
@@ -114,7 +114,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
       case "change": {
         // No static fallback in the sectioned capture → "—" (untinted) until a
         // live snapshot lands.
-        const text = q?.change != null ? fmtChange(q.change) : localNumber(r.change ?? "—");
+        const text = q?.change != null ? fmtChange(q.change, { symbol: r.ticker, price: q.last }) : localNumber(r.change ?? "—");
         return { text, tint: text === "—" ? undefined : isNegative(text) ? "down" : "up" };
       }
       case "change_percent": {

@@ -4,17 +4,35 @@
  * state of a symbol's own session.
  */
 import { marketSession } from "../../../data/market-session";
+import { cachedSymbolSessions } from "../../../data/session";
 import { localNumber } from "../../../i18n/format";
+import { groupThousands } from "../../chart/price-format";
 
 export function isNegative(v: string): boolean {
   return v.startsWith("−") || v.startsWith("-");
 }
-export function formatLast(price: number): string {
-  return localNumber(price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+/** A price of `symbol` on its tick grid (`minmov / pricescale`), as the chart's "Default" precision: "1.08646" for a
+ *  currency pair quoted to 0.00001, "189.84" for a US stock. 2 decimals until the symbol's session (which carries
+ *  the grid) resolves; reactive, so the text follows once it does. English marks, not grouped. */
+export function priceText(price: number, symbol?: string): string {
+  return (symbol ? cachedSymbolSessions(symbol) : null)?.formatPrice(price) ?? price.toFixed(2);
 }
-/** Signed change, 2 decimals, Unicode minus (e.g. "0.76", "−3.04"). */
-export function fmtChange(v: number): string {
-  return localNumber((v < 0 ? "−" : "") + Math.abs(v).toFixed(2));
+/** Size of a move of `symbol`'s `price` (a change, unsigned), with the decimals of that price's tick: a currency
+ *  pair's change keeps its 5 decimals. 2 until the symbol's session resolves. */
+export function moveText(move: number, symbol: string | undefined, price: number): string {
+  const decimals = (symbol ? cachedSymbolSessions(symbol) : null)?.decimalsAt(price) ?? 2;
+  return Math.abs(move).toFixed(decimals);
+}
+
+/** Last price on the symbol's tick grid, grouped by thousands (e.g. "1,641.64", "1.08646"). */
+export function formatLast(price: number, symbol?: string): string {
+  return localNumber(groupThousands(priceText(price, symbol)));
+}
+/** Signed change, Unicode minus (e.g. "0.76", "−3.04"), with the decimals of the tick of the price `of` moved
+ *  (2 without it). */
+export function fmtChange(v: number, of?: { symbol: string; price: number }): string {
+  return localNumber((v < 0 ? "−" : "") + (of ? moveText(v, of.symbol, of.price) : Math.abs(v).toFixed(2)));
 }
 /** Signed percent with Unicode minus (e.g. "6.92%", "−3.07%"). */
 export function fmtPercent(v: number): string {

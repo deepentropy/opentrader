@@ -102,6 +102,12 @@ describe("SymbolSessions", () => {
     expect(s.formatPrice(0.123456)).toBe("0.1235");
   });
 
+  it("gives the decimals of the tick at a price (a move is written with them)", () => {
+    expect(s.decimalsAt(123.45)).toBe(2);
+    expect(s.decimalsAt(0.5)).toBe(4);
+    expect(new SymbolSessions(usStock({ pricescale: 100000, variableTickSize: "" })).decimalsAt(1.08)).toBe(5);
+  });
+
   it("formats on multi-band grids (NSE-like)", () => {
     const nse = new SymbolSessions(usStock({ timezone: "Asia/Kolkata", session: "0915-1530", subsessions: [], holidays: "", pricescale: 10, minmov: 1, variableTickSize: "0.05 1000 0.1 5000 5" }));
     expect(nse.formatPrice(500.1)).toBe("500.10");

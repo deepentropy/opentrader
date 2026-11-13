@@ -23,11 +23,11 @@ import {
   type TickerInfo,
 } from "../../data/datafeed";
 import { computeYearRange, type YearRange } from "./ticker-stats";
+import { moveText, priceText } from "./watchlist/format";
 import * as kv from "../../data/kv";
 import { onAppEvent } from "../../data/app-events";
 import { marketSession as marketSessionOf, type MarketSession } from "../../data/market-session";
 import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
-import { cachedSymbolSessions } from "../../data/session";
 import { abbreviatedPrice } from "../chart/price-format";
 import { localNumber } from "../../i18n/format";
 import { createPopover } from "../../components/popover";
@@ -72,14 +72,15 @@ function toTitleCase(s: string | null | undefined): string {
     .join(" ");
 }
 
-function fmtPrice(n: number | null | undefined): string {
+/** A price on `symbol`'s tick grid (2 decimals without it, or until its session resolves). */
+function fmtPrice(n: number | null | undefined, symbol?: string): string {
   if (n == null || !Number.isFinite(n)) return DASH;
-  return n.toFixed(2);
+  return priceText(n, symbol);
 }
-function fmtSignedPrice(n: number | null | undefined): string {
+/** A signed move of `symbol`'s price `price`, with that price's tick decimals (2 without the price). */
+function fmtSignedPrice(n: number | null | undefined, symbol?: string, price?: number | null): string {
   if (n == null || !Number.isFinite(n)) return DASH;
-  if (n === 0) return "0.00";
-  const abs = Math.abs(n).toFixed(2);
+  const abs = price == null ? Math.abs(n).toFixed(2) : moveText(n, symbol, price);
   return n < 0 ? `−${abs}` : abs;
 }
 function fmtSignedPercent(n: number | null | undefined): string {
@@ -253,18 +254,21 @@ export function WatchlistDetail(props: Props) {
   });
 
   const i = () => quote()?.info ?? null;
+  // Prices on the symbol's own tick grid, as the chart's "Default" precision (EURUSD 1.08646, a US stock 189.84);
+  // a change keeps the decimals of the price it moved.
+  const price = (n: number | null | undefined) => fmtPrice(n, full());
+  const move = (n: number | null | undefined, from: number | null | undefined) => fmtSignedPrice(n, full(), from);
   // An economic series (reference): name, source agency and "Economy", its value and change abbreviated (no
   // percentage), no session, ranges, stats or profile.
   // An imported series (data/local-series) shows the same, with "Imported", its prices on its own grid and the
   // percentage.
   const local = () => isLocalSymbol(full());
   const econ = () => isEconomicSymbol(full()) || local();
-  const localPrice = (n: number) => cachedSymbolSessions(full() ?? "")?.formatPrice(n) ?? fmtPrice(n);
   const econValue = (n: number | null | undefined) =>
-    n == null || !Number.isFinite(n) ? DASH : localNumber(local() ? localPrice(n) : abbreviatedPrice(n, fmtPrice));
+    n == null || !Number.isFinite(n) ? DASH : localNumber(local() ? price(n) : abbreviatedPrice(n, fmtPrice));
   const econChange = (n: number | null | undefined) => {
     if (n == null || !Number.isFinite(n)) return DASH;
-    if (local()) return localNumber(`${n > 0 ? "+" : n < 0 ? "−" : ""}${localPrice(Math.abs(n))}`);
+    if (local()) return localNumber(`${n > 0 ? "+" : n < 0 ? "−" : ""}${price(Math.abs(n))}`);
     return localNumber(n > 0 ? `+${abbreviatedPrice(n, fmtPrice)}` : abbreviatedPrice(n, fmtSignedPrice));
   };
   const s = () => quote()?.snap ?? null;
@@ -499,9 +503,9 @@ export function WatchlistDetail(props: Props) {
             inline and left-packed at the price's baseline. (No realtime "R"
             badge: our data is delayed.) */}
         <div class="watchlist-detail-price-row">
-          <span class="watchlist-detail-price">{localNumber(fmtPrice(s()?.last))}</span>
+          <span class="watchlist-detail-price">{localNumber(price(s()?.last))}</span>
           <span class="watchlist-detail-currency" data-no-translate>{i()?.currency ?? ""}</span>
-          <span class={`watchlist-detail-change${changeSign()}`}>{localNumber(fmtSignedPrice(s()?.change))}</span>
+          <span class={`watchlist-detail-change${changeSign()}`}>{localNumber(move(s()?.change, s()?.last))}</span>
           <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
         </div>
 
@@ -537,9 +541,9 @@ export function WatchlistDetail(props: Props) {
             session icon lives on the state row above). */}
         <Show when={sessionActive() && extPrice() != null}>
           <div class="watchlist-detail-ext-row">
-            <span class="watchlist-detail-ext-price">{localNumber(fmtPrice(extPrice()))}</span>
+            <span class="watchlist-detail-ext-price">{localNumber(price(extPrice()))}</span>
             <span class="watchlist-detail-currency" data-no-translate>{i()?.currency ?? ""}</span>
-            <span class={`watchlist-detail-change${extSign()}`}>{localNumber(fmtSignedPrice(extChange()))}</span>
+            <span class={`watchlist-detail-change${extSign()}`}>{localNumber(move(extChange(), extPrice()))}</span>
             <span class={`watchlist-detail-change${extSign()}`}>{fmtSignedPercent(s()?.extChangePercent)}</span>
           </div>
         </Show>
@@ -547,14 +551,14 @@ export function WatchlistDetail(props: Props) {
         <NotesCard symbol={full()} onOpen={() => openNotes(false)} />
 
         <div class="watchlist-detail-range">
-          <span class="watchlist-detail-range-low">{localNumber(fmtPrice(s()?.dayLow))}</span>
+          <span class="watchlist-detail-range-low">{localNumber(price(s()?.dayLow))}</span>
           <span class="watchlist-detail-range-label">Day's Range</span>
-          <span class="watchlist-detail-range-high">{localNumber(fmtPrice(s()?.dayHigh))}</span>
+          <span class="watchlist-detail-range-high">{localNumber(price(s()?.dayHigh))}</span>
         </div>
         <div class="watchlist-detail-range">
-          <span class="watchlist-detail-range-low">{localNumber(fmtPrice(y()?.low))}</span>
+          <span class="watchlist-detail-range-low">{localNumber(price(y()?.low))}</span>
           <span class="watchlist-detail-range-label">52wk Range</span>
-          <span class="watchlist-detail-range-high">{localNumber(fmtPrice(y()?.high))}</span>
+          <span class="watchlist-detail-range-high">{localNumber(price(y()?.high))}</span>
         </div>
 
         <Show when={prefs().sections.keyStats}>
