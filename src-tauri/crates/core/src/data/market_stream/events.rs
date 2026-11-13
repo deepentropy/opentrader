@@ -78,6 +78,13 @@ pub struct TradeTick {
     pub trade_high: Option<f64>,
     #[serde(default)]
     pub trade_low: Option<f64>,
+    /// The regular session's high and low (today's once traded, else the prior
+    /// session's, as `last`), so the details panel's day range moves with the
+    /// quote. `None` on the WS push path: the UI keeps the prior range.
+    #[serde(default)]
+    pub day_high: Option<f64>,
+    #[serde(default)]
+    pub day_low: Option<f64>,
 }
 
 /// The live stream left or joined real-time data (#252). Sent when a session
@@ -276,6 +283,8 @@ fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
         // Filled in from the minute's trades as they arrive (`Pending::trade`).
         trade_high: None,
         trade_low: None,
+        day_high: None,
+        day_low: None,
     })
 }
 
@@ -327,7 +336,7 @@ mod tests {
     fn every_trade_reaches_the_alert_rules_with_its_minute_so_far() {
         let quotes = std::sync::Arc::new(Quotes::default());
         let host: HostRef = quotes.clone();
-        let trade = |price: f64, time: Option<f64>| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: time, trade_high: None, trade_low: None };
+        let trade = |price: f64, time: Option<f64>| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: time, trade_high: None, trade_low: None, day_high: None, day_low: None };
         let mut p = Pending::new(&host);
         p.trade(trade(10.0, Some(60.0)));
         p.trade(trade(12.0, Some(60.0)));
@@ -379,7 +388,7 @@ mod tests {
     fn pending_sends_trades_every_trade_flush() {
         let rec = std::sync::Arc::new(Recorder(Default::default()));
         let host: HostRef = rec.clone();
-        let trade = |price: f64| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: None, trade_high: None, trade_low: None };
+        let trade = |price: f64| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: None, trade_high: None, trade_low: None, day_high: None, day_low: None };
         let mut p = Pending::new(&host);
         p.trade(trade(1.0));
         p.trade(trade(2.0));

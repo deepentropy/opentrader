@@ -26,6 +26,9 @@ pub struct LiveTick {
     pub ext_change_percent: Option<f64>,
     /// Regular-session volume (today's once traded, else the prior session's).
     pub volume: f64,
+    /// Regular-session high and low (today's once traded, else the prior session's).
+    pub day_high: f64,
+    pub day_low: f64,
     /// "live" when today's regular session has traded, else "prev".
     pub source: String,
     /// Most recent minute bar, when the snapshot carries one — fed to the
@@ -94,6 +97,8 @@ pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
                 change_percent: s.change_percent,
                 ext_change_percent: s.ext_change_percent,
                 volume: s.day_volume,
+                day_high: s.day_high,
+                day_low: s.day_low,
                 source: s.source.to_string(),
                 minute,
                 day,

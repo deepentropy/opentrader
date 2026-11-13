@@ -543,6 +543,8 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
         trade_time: minute.as_ref().map(|m| m.time),
         trade_high: minute.as_ref().map(|m| m.high),
         trade_low: minute.as_ref().map(|m| m.low),
+        day_high: q.day.map(|d| d[2]),
+        day_low: q.day.map(|d| d[3]),
     }
     .emit(app);
     // The desktop alert engine reads the quotes the host gets.

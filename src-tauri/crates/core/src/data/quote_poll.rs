@@ -204,7 +204,8 @@ impl Poller {
 
 /// The watchlist quote of a snapshot: regular-session last + change / Chg% /
 /// Vol, plus the pre/post Ext move and session source so the UI can blank Ext
-/// during regular hours. None without a price.
+/// during regular hours, and the session's range for the details panel. None
+/// without a price.
 fn trade_tick(symbol: &str, t: &LiveTick) -> Option<TradeTick> {
     (t.last > 0.0).then(|| TradeTick {
         symbol: symbol.to_string(),
@@ -218,6 +219,8 @@ fn trade_tick(symbol: &str, t: &LiveTick) -> Option<TradeTick> {
         trade_time: t.minute.as_ref().map(|m| m.time),
         trade_high: t.minute.as_ref().map(|m| m.high),
         trade_low: t.minute.as_ref().map(|m| m.low),
+        day_high: Some(t.day_high),
+        day_low: Some(t.day_low),
     })
 }
 

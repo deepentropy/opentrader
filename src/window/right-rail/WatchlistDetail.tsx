@@ -4,7 +4,8 @@
  *
  * Data sources (all per-ticker, light):
  *   • reference info → get_ticker_info  (gateway tickers/<T>)
- *   • live snapshot  → get_ticker_snapshot (gateway snapshot/<T>)
+ *   • live snapshot  → get_ticker_snapshot (gateway snapshot/<T>), then
+ *     moved by the live quotes the watchlist rows read (data/quotes.ts)
  *   • 52w / perf / avg vol → computed client-side from daily candles
  *     (datafeed.getBars(sym, "1D"), the same series the chart uses)
  *
@@ -13,7 +14,7 @@
  * ticker handles staleness, so a late reply for a previously-selected row
  * can't overwrite the current one.
  */
-import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import {
   exchangeName,
   getBars,
@@ -23,6 +24,9 @@ import {
   type TickerInfo,
 } from "../../data/datafeed";
 import { computeYearRange, type YearRange } from "./ticker-stats";
+import { detailQuote, widenYearRange } from "./detail-quote";
+import { quoteFor } from "../../data/quotes";
+import { clearSubscription, setSubscription } from "../../data/subscriptions";
 import { moveText, priceText } from "./watchlist/format";
 import * as kv from "../../data/kv";
 import { onAppEvent } from "../../data/app-events";
@@ -137,6 +141,8 @@ type Props = {
 const NOTES_WRITING_HEIGHT = 420;
 
 type QuoteData = {
+  /** The symbol these were read for: the live quote merged over them is this symbol's. */
+  sym: string;
   info: TickerInfo | null;
   snap: Snapshot | null;
 };
@@ -236,6 +242,7 @@ export function WatchlistDetail(props: Props) {
       getTickerSnapshot(sym, () => untrack(full) === sym),
     ]);
     return {
+      sym,
       info: info.status === "fulfilled" ? info.value : null,
       snap: snap.status === "fulfilled" ? snap.value : null,
     };
@@ -271,13 +278,22 @@ export function WatchlistDetail(props: Props) {
     if (local()) return localNumber(`${n > 0 ? "+" : n < 0 ? "−" : ""}${price(Math.abs(n))}`);
     return localNumber(n > 0 ? `+${abbreviatedPrice(n, fmtPrice)}` : abbreviatedPrice(n, fmtSignedPrice));
   };
-  const s = () => quote()?.snap ?? null;
-  const y = () => yr() ?? null;
+  // The symbol's live quote moves the snapshot, as it moves its watchlist row. A symbol in no list gets one through
+  // its own slot of the shared subscription (data/subscriptions.ts), released when the symbol changes. Economic and
+  // imported series have no live feed: they keep the value read.
+  createEffect(() => setSubscription("details", full() && !econ() ? [full()] : []));
+  onCleanup(() => clearSubscription("details"));
+  const s = createMemo(() => {
+    const q = quote();
+    if (!q) return null;
+    return detailQuote(q.snap, econ() ? undefined : quoteFor(q.sym));
+  });
+  const y = () => widenYearRange(yr() ?? null, econ() ? null : s());
 
   const changeSign = () => {
-    const snap = s();
-    if (!snap) return "";
-    return snap.change < 0 ? " down" : snap.change > 0 ? " up" : "";
+    const c = s()?.change;
+    if (c == null) return "";
+    return c < 0 ? " down" : c > 0 ? " up" : "";
   };
 
   // Extended-hours (pre/post-market) price, derived from the regular close +
