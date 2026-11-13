@@ -22,6 +22,7 @@ import { numberFormat } from "../../i18n/format";
  * the Symbol header searches the rows. Shift+F: Add new filter, Shift+C:
  * Manage columns. Intraday intervals scan INTRADAY_MAX_SYMBOLS symbols at most.
  */
+import { trackScreener } from "../../data/screener-telemetry";
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { Icon } from "../../components/Icon";
@@ -221,6 +222,14 @@ export function ScriptScreener(props: Props) {
     const my = ++gen;
     const list = symbols();
     const key = scanKey();
+    const id = screen().indicatorId ?? "";
+    const src = screen().source;
+    trackScreener("script_screen_run", {
+      indicator: id.startsWith("user:") ? "user-script" : id,
+      interval: runInterval(),
+      source: src.kind === "index" ? `index:${src.code}` : "watchlist",
+      symbols: list.length,
+    });
     batch(() => {
       setScanning(true);
       setProgress({ done: 0, total: list.length });

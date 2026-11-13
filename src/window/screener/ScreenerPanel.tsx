@@ -36,6 +36,7 @@ import { numberText } from "../../i18n/format";
  * Refresh badge counts down to the next ("Time to refresh").
  */
 import { track } from "../../data/analytics";
+import { trackScreener } from "../../data/screener-telemetry";
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
 import type { FieldInfo, ScreenerProgress } from "../../bindings";
@@ -127,8 +128,10 @@ export function ScreenerPanel(props: Props) {
   let scriptRows: () => ScriptRow[] = () => [];
   let scriptColumns: () => ScriptColumn[] = () => [];
   let scriptNames: () => ReadonlyMap<string, string> = () => new Map();
-  const downloadCsv = () =>
+  const downloadCsv = () => {
+    trackScreener("screener_exported", { screener: "script", to: "csv" });
     downloadText(csvFileName(scriptScreenStore.current()?.name ?? "Script screener"), scriptResultsCsv(scriptRows(), scriptColumns(), scriptNames()));
+  };
   /** Move the screener: the main window shows it in its new place (App opens its own window for "window"). From its
    *  own window: the main window is told (event), then the window closes. */
   const place = (p: ScreenerPlacement) => {
@@ -182,6 +185,7 @@ export function ScreenerPanel(props: Props) {
         "again on every scan, so they take 200 symbols at most. Market data is delayed by 15 minutes.",
     });
   const saveAsWatchlist = () => {
+    trackScreener("screener_exported", { screener: "script", to: "watchlist" });
     const rows = scriptRows().filter((r) => !r.error);
     promptNewWatchlist((name) =>
       watchlistStore.createListWith(
@@ -193,6 +197,11 @@ export function ScreenerPanel(props: Props) {
 
   const screen = screenerStore.screen;
   const view = (): ViewMode => screen().viewMode ?? "table";
+  /** A result opened on the chart. */
+  const pick = (t: string) => {
+    trackScreener("screener_result_opened", script() ? { screener: "script", view: "table" } : { screener: screenerStore.type(), view: view() });
+    props.onSymbolPicked(t);
+  };
   const refreshNow = () => {
     setLastRefresh(Date.now());
     setRefreshTick((k) => k + 1);
@@ -572,7 +581,7 @@ export function ScreenerPanel(props: Props) {
           when={!script()}
           fallback={
             <ScriptScreener
-              onSymbolPicked={props.onSymbolPicked}
+              onSymbolPicked={pick}
               flagOf={(t) => flags().get(t) ?? null}
               onShownRows={(rows, cols, names) => {
                 scriptRows = rows;
@@ -665,7 +674,7 @@ export function ScreenerPanel(props: Props) {
               fields={plan()?.fields ?? []}
               onPick={(t) => {
                 setSelected(t);
-                props.onSymbolPicked(t);
+                pick(t);
               }}
               flagOf={(t) => flags().get(t) ?? null}
               resetKey={resetKey()}
@@ -681,7 +690,7 @@ export function ScreenerPanel(props: Props) {
                 has={has}
                 onPick={(t) => {
                   setSelected(t);
-                  props.onSymbolPicked(t);
+                  pick(t);
                 }}
                 refreshTick={refreshTick()}
                 onTotal={setHeatTotal}
@@ -699,7 +708,7 @@ export function ScreenerPanel(props: Props) {
               onSort={(col, order) => screenerStore.update((s) => ({ ...s, sort: { sortBy: col, sortOrder: order } }))}
               onRowClick={(t) => {
                 setSelected(t);
-                props.onSymbolPicked(t);
+                pick(t);
               }}
               selected={selected()}
               flagOf={(t) => flags().get(t) ?? null}

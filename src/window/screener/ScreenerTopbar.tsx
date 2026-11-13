@@ -15,6 +15,7 @@
  * tools (`tools`, from the panel), the gear and Minimize, whose badge counts the filters (each active filter, the
  * market, the watchlist). Undo / Redo are not shown.
  */
+import { trackScreener } from "../../data/screener-telemetry";
 import { For, Show, createSignal, type JSX } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { LayoutNameDialog } from "../header/LayoutNameDialog";
@@ -66,6 +67,7 @@ export function ScreenerTopbar(props: Props) {
   /** Every row of the screen (its own scan), in the reference CSV format. */
   const downloadCsv = async () => {
     const s = screenerStore.screen();
+    trackScreener("screener_exported", { screener: s.type ?? "stock", to: "csv" });
     const known = new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
     const plan = planScreen(s, (f) => known.has(f), watchlistTickers(s.watchlistId));
     const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, MAX_ROWS], tickers: plan.tickers });

@@ -19,6 +19,7 @@
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
 import { oneOf, persisted } from "./persisted";
+import { trackScreenChange, trackScreener } from "./screener-telemetry";
 import { LEGACY_DEFAULT_PILLS, defaultScreen, newScreen, popularScreens, screenType, type Screen, type ScreenerType } from "./screener-catalog";
 
 /** `autosave`: the screen menu's "Autosave" switch of this screen (off by default). */
@@ -147,13 +148,16 @@ export const screenerStore = {
   kind: (): ScreenerKind => (store.shown() === "script" ? "script" : "stock"),
   /** Show the Script Screener, or the Stock / ETF one it was left for. */
   setKind(k: ScreenerKind): void {
-    store.setShown(k === "script" ? "script" : store.type());
+    const to = k === "script" ? "script" : store.type();
+    if (store.shown() !== to) trackScreener("screener_switched", { to });
+    store.setShown(to);
   },
   /** The stock-side screener: Stock or ETF. */
   type: store.type,
   /** Show the other screener: its own current screen comes back. */
   setType(t: ScreenerType): void {
     if (store.type() === t) return;
+    trackScreener("screener_switched", { to: t });
     parked[store.type()] = { screen: store.screen(), savedId: store.savedId(), popularId: store.popularId() };
     const d = parked[t] ?? readDraft(t);
     load(d.screen, d.savedId, d.popularId);
@@ -189,6 +193,7 @@ export const screenerStore = {
     store.setScreenRaw(next);
     persistDraft();
     autosaveNow();
+    trackScreenChange(cur, next);
   },
 
   /** "Autosave" of the current saved screen. */
@@ -226,14 +231,15 @@ export const screenerStore = {
   },
 
   /** Save in place. Returns false when the screen has never been saved (the
-   *  caller asks for a name, then calls saveAs). */
-  save(): boolean {
+   *  caller asks for a name, then calls saveAs). `counted`: false for autosave (usage statistics). */
+  save(counted = true): boolean {
     const id = store.savedId();
     if (!id || !store.screens().some((s) => s.id === id)) return false;
     const snap = clone(store.screen());
     store.setScreens(store.screens().map((s) => (s.id === id ? { ...s, screen: snap, updatedAt: Date.now() } : s)));
     touchRecent(id);
     persistScreens();
+    if (counted) trackScreener("screener_screen_saved", { screener: store.type(), as: "save" });
     return true;
   },
 
@@ -249,6 +255,7 @@ export const screenerStore = {
     store.setSavedId(id);
     store.setPopularId(null);
     persistDraft();
+    trackScreener("screener_screen_saved", { screener: store.type(), as: "new" });
   },
 
   /** Rename the current screen (and its saved copy). */
@@ -270,6 +277,7 @@ export const screenerStore = {
     touchRecent(id);
     persistScreens();
     load(s, id);
+    trackScreener("screener_screen_opened", { screener: store.type(), from: "new" });
   },
 
   open(id: string): void {
@@ -278,12 +286,15 @@ export const screenerStore = {
     touchRecent(id);
     persistScreens();
     load(s.screen, id);
+    trackScreener("screener_screen_opened", { screener: store.type(), from: "saved" });
   },
 
   /** Open a reference app popular screen (not saved: Save asks for a name). */
   openPopular(id: string): void {
     const p = popularScreens(store.type()).find((x) => x.id === id);
-    if (p) load(p.screen(), null, id);
+    if (!p) return;
+    load(p.screen(), null, id);
+    trackScreener("screener_screen_opened", { screener: store.type(), from: "popular", popular: id });
   },
 
   /** Save a copy of a saved or popular screen under `name`, without opening
@@ -319,7 +330,7 @@ export const screenerStore = {
 
 /** A change to a saved screen with "Autosave" on is saved at once. */
 function autosaveNow(): void {
-  if (screenerStore.autosave()) screenerStore.save();
+  if (screenerStore.autosave()) screenerStore.save(false);
 }
 
 // ── Split-view panel state ────────────────────────────────────────────────
