@@ -7,7 +7,7 @@
  * one net position on the chart; the account manager lists them all. Commands go to the plugin and answer later: a
  * refusal comes back as a rejected-order toast.
  */
-import { createRoot, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { commands, events, type BrokerState, type BrokerStatus, type Execution, type Order, type OrderTicket, type Position as WirePosition } from "../../bindings";
 import type { Finite } from "../datafeed-rest";
 import { getTickerInfo } from "../datafeed";
@@ -266,6 +266,17 @@ export const pluginBroker = createRoot(() => {
 
   const findOrder = (id: string) => account()?.orders.find((o) => o.id === id) ?? null;
 
+  // The bid / ask of the focused chart's ticker (`broker.quote`), asked again when it changes.
+  let watched = "";
+  createEffect(() => {
+    const t = connected() ? tickerOf(activeSymbol()) : null;
+    // A plugin that connected again is asked again.
+    const next = `${status()?.active}|${status()?.pluginConnected}|${t ?? ""}`;
+    if (next === watched) return;
+    watched = next;
+    if (HAS_TAURI && status()?.pluginConnected) void commands.brokerWatchQuotes(t ? [t] : []);
+  });
+
   const api = {
     version,
     status,
@@ -425,12 +436,6 @@ export const pluginBroker = createRoot(() => {
     setActive: (id: string | null) => commands.brokerSetActive(id).then((r) => (r.status === "ok" ? take(r.data) : undefined)),
     setTradingEnabled: (on: boolean) => commands.brokerSetTradingEnabled(on).then((r) => (r.status === "ok" ? take(r.data) : undefined)),
     selectAccount: (account: string) => void commands.brokerSelectAccount(account),
-    /** The bid / ask of the order ticket's ticker. */
-    watchQuotes: (symbols: string[]) => {
-      if (!connected()) return;
-      const list = symbols.map((s) => tickerOf(s)).filter((t): t is string => !!t);
-      void commands.brokerWatchQuotes(list);
-    },
   };
   return api;
 });
