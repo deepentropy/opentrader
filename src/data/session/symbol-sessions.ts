@@ -83,7 +83,7 @@ export class SymbolSessions {
     const bands: [number, number][] = [];
     for (let i = 0; i < v.length; i += 2) bands.push([i + 1 < v.length ? v[i + 1] : Infinity, v[i]]);
     this.tickBands = bands;
-    this.intervals = info.intervals;
+    this.intervals = info.intervals ?? [];
   }
 
   /** Tick at `price`: the tick of the first band whose bound is at or above it (1 is written 1.0000 on a US stock), else the current-price tick. */
