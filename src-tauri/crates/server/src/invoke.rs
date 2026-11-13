@@ -19,7 +19,7 @@ use opentrader_core::commands::{self as core, args};
 use opentrader_core::data::types::SubscribeMsg;
 use opentrader_core::error::Error;
 use opentrader_core::sync::LockExt;
-use opentrader_core::{funding, history};
+use opentrader_core::history;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::net::SocketAddr;
@@ -170,7 +170,6 @@ routes!(
     read_filing,
     get_data_provider,
     get_provider_capabilities,
-    get_funding_status,
     screener_open,
     screener_close,
     screener_scan,
@@ -327,10 +326,6 @@ async fn get_data_provider(state: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
 
 async fn get_provider_capabilities(state: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
     ok(core::provider_capabilities(&state.provider))
-}
-
-async fn get_funding_status(_: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
-    ok(funding::get_funding_status().await?)
 }
 
 // ── Screener (owners prefixed with the client, so tabs stay apart) ──

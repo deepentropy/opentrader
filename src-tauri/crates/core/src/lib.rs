@@ -9,7 +9,6 @@ pub mod commands;
 pub mod data;
 pub mod error;
 pub mod files;
-pub mod funding;
 pub mod history;
 pub mod host;
 pub mod images;

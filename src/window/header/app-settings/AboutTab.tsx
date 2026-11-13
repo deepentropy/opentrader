@@ -1,6 +1,5 @@
-import { dateText } from "../../../i18n/format";
 /*
- * Settings > About: version, update status, notices and funding.
+ * Settings > About: version, update status and notices.
  */
 import { createSignal, onMount, Show, type JSX } from "solid-js";
 import { Icon } from "../../../components/Icon";
@@ -8,7 +7,6 @@ import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../.
 import type { BuildInfo } from "../../../bindings";
 import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../../data/community/api";
 import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../../data/economic-notice";
-import { fundingStatus, type Funding } from "../../../data/funding";
 import { openLink } from "./io";
 import { translateWith } from "../../../i18n/translator";
 
@@ -36,7 +34,6 @@ export function AboutTab() {
         <SuggestLink />
       </Show>
       <EconomicDataNotice />
-      <FundingBlock />
     </div>
   );
 }
@@ -76,52 +73,6 @@ function SuggestLink() {
         </a>
       </span>
     </div>
-  );
-}
-
-/** This month's running cost and how much donations cover (data/funding.ts).
- *  Hidden while loading and when the gateway has no status. */
-function FundingBlock() {
-  const [status, setStatus] = createSignal<Funding | null>(null);
-  onMount(() => void fundingStatus().then(setStatus));
-  const money = (n: number, currency: string) => `${Math.round(n)} ${currency}`;
-  const monthName = (m: string) => dateText(new Date(`${m}-01T00:00:00Z`), { month: "long", year: "numeric", timeZone: "UTC" });
-  const open = (url: string) => openLink(url, "funding link");
-  return (
-    <Show when={status()}>
-      {(s) => (
-        <div class="app-settings-funding">
-          <div class="app-settings-funding-title">Support OpenTrader</div>
-          <div class="app-settings-funding-text">
-            {translateWith("OpenTrader is free. Market data, servers and development tools cost {0} in {1}.", money(s().total, s().currency), monthName(s().month))}
-          </div>
-          <div class="app-settings-funding-bar">
-            <div
-              class="app-settings-funding-fill"
-              style={{ width: `${s().total > 0 ? Math.min(100, (s().raised / s().total) * 100) : 100}%` }}
-            />
-          </div>
-          <div class="app-settings-funding-numbers">
-            <span>{translateWith("{0} covered", money(s().raised, s().currency))}</span>
-            <span>
-              {s().remaining > 0 ? translateWith("{0} left to cover", money(s().remaining, s().currency)) : "Covered, thank you"}
-            </span>
-          </div>
-          <div class="app-settings-funding-links">
-            <Show when={s().links.github}>
-              <button type="button" class="app-settings-btn" onClick={() => open(s().links.github)}>
-                Sponsor on GitHub
-              </button>
-            </Show>
-            <Show when={s().links.bmc}>
-              <button type="button" class="app-settings-btn" onClick={() => open(s().links.bmc)}>
-                Buy Me a Coffee
-              </button>
-            </Show>
-          </div>
-        </div>
-      )}
-    </Show>
   );
 }
 

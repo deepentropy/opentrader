@@ -15,7 +15,7 @@ It is an early work in progress: some features are stubbed or partially wired. C
 > **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform, broker or data provider. It is for charting and research and is **not financial advice**. Trading through a broker plugin you install sends real orders to your broker: you do it at your own risk, OpenTrader is not a broker and does not check your orders. Trading is off until you turn it on, and orders to a live account are confirmed first. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
 > [!WARNING]
-> **Market data is delayed by 15 minutes for now.** Once sponsoring starts, we will be able to support live streaming data. See [Support the project](#support-the-project).
+> **Market data is delayed by 15 minutes for now.**
 >
 > **Second and minute history is limited to 5 years.** Daily history goes back to 2003.
 
@@ -66,17 +66,6 @@ Claude Desktop only starts servers from a command, so its setup bridges to the a
 Claude Desktop connects only when it starts: restart it once the app runs with coding agents allowed.
 
 The agent acts on the chart tab you focused last; every change is an undo step. The app also gives the agent the guides of the scripting, indicator and drawing libraries, so you can ask in plain words, for example "write an indicator that colours the bars by RSI and add it to my chart".
-
-## Support the project
-
-OpenTrader is free, but running it is not: market data, servers and development tools are paid every month. Donations pay these costs. Only the monthly total is published.
-
-[![Monthly costs](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.opentrader.markets%2Ffunding%2Fv1%2Fbadge)](https://github.com/sponsors/deepentropy)
-
-- [Sponsor on GitHub](https://github.com/sponsors/deepentropy)
-- [Buy Me a Coffee](https://buymeacoffee.com/opentrader)
-
-The same status is in the app: *Settings > About*.
 
 ## Build from source
 

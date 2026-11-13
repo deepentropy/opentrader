@@ -47,7 +47,6 @@ pub const SERVED: &[&str] = &[
     "read_filing",
     "get_data_provider",
     "get_provider_capabilities",
-    "get_funding_status",
     "screener_open",
     "screener_close",
     "screener_scan",

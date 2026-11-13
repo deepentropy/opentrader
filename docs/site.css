@@ -139,21 +139,6 @@ p { margin: 0; }
 .lib code { display: block; margin-top: 18px; padding: 10px 12px; background: var(--paper); border-radius: 6px; font: 400 13px var(--mono); overflow-x: auto; white-space: nowrap; }
 .lib .lib-links { margin-top: auto; padding-top: 18px; display: flex; gap: 18px; font-size: 15px; font-weight: 500; }
 
-/* Funding */
-.fund { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 56px; align-items: start; margin-top: 8px; }
-.fund-text p { margin-top: 16px; color: var(--ink-soft); max-width: 56ch; }
-.fund-text .hero-actions { margin-top: 28px; }
-.ladder { background: var(--pane); color: #d5d8e4; border-radius: 12px; padding: 12px 0 12px 24px; }
-.rung { padding: 20px 0; }
-.rung .level { margin-bottom: 12px; }
-.rung .level::before { border-top-color: #3a3f55; }
-.rung .level span { background: #2a2e3e; color: #d5d8e4; }
-.rung.is-now .level::before { border-top-color: var(--violet); }
-.rung.is-now .level span { background: var(--brand); color: #fff; }
-.rung h3 { font-size: 1.1rem; color: #fff; padding-right: 24px; }
-.rung p { margin-top: 6px; font-size: 15px; color: #a3a8ba; padding-right: 24px; }
-.rung img { margin-top: 12px; height: 20px; }
-
 /* Call to action band */
 .cta { margin-top: 88px; background: var(--mist); padding: 56px 0; }
 .cta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
@@ -212,7 +197,7 @@ p { margin: 0; }
 
 @media (max-width: 860px) {
   body { font-size: 16px; }
-  .feature, .feature.is-flipped, .fund, .notes { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .feature, .feature.is-flipped, .notes { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .feature.is-flipped .feature-text { order: 0; }
   .grid, .libs, .feature-cards { grid-template-columns: minmax(0, 1fr); }
   .os { grid-template-columns: minmax(0, 1fr); gap: 16px; }
