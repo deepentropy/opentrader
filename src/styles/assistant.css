@@ -302,6 +302,78 @@
 .asst-composer:focus-within {
   border-color: var(--color-cold-gray-450);
 }
+.asst-composer.is-dropping {
+  border-color: var(--color-cold-gray-200);
+  border-style: dashed;
+}
+/* Files attached to the message being written, and to a sent one */
+.asst-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 4px;
+}
+.asst-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding-block: 2px;
+  padding-inline: 8px 4px;
+  border: 1px solid var(--color-cold-gray-800);
+  border-radius: 6px;
+  background-color: #1a1a1a;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 12px;
+  line-height: 18px;
+}
+.asst-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asst-file-remove {
+  display: inline-flex;
+  padding: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-cold-gray-300);
+  cursor: pointer;
+}
+.asst-file-remove:hover {
+  color: var(--color-white);
+  background-color: #333;
+}
+.asst-attach {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-cold-gray-300);
+  cursor: pointer;
+}
+.asst-attach:hover:not(:disabled) {
+  color: var(--color-white);
+  background-color: #2a2a2a;
+}
+.asst-attach:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.asst-file-error {
+  margin: 4px 0 0;
+  color: var(--color-content-primary-danger);
+  font-size: 12px;
+  line-height: 16px;
+}
 .asst-input {
   min-height: 18px;
   max-height: 160px;

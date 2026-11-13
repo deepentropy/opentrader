@@ -43,6 +43,7 @@ import { createWatchlistTools } from "./watchlist-tools";
 import { createAlertTools } from "./alert-tools";
 import { createCommunityTools } from "./community-tools";
 import { createFilingsTools } from "./filings-tools";
+import { createNotesTools } from "./notes-tools";
 import { createLayoutTools, type LayoutHost } from "./layout-tools";
 
 /** What App hands the tools. */
@@ -353,7 +354,9 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     {
       name: "describe_indicator",
       title: "Describe indicator",
-      description: "An indicator's or strategy's inputs (id, type, default, options, range) and outputs, by id from list_indicators.",
+      description:
+        "An indicator's or strategy's help text (about: what it computes, how to read it, its main inputs), inputs (id, type, default, options, range) " +
+        "and outputs, by id from list_indicators. Explain an indicator from its about, not from memory.",
       inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
       annotations: { readOnlyHint: true },
       run: async (args) => {
@@ -361,12 +364,15 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
         const id = str(args, "id");
         const e = getIndicatorEntry(id);
         if (!e) throw new AgentError(`Unknown indicator "${id}". Call list_indicators.`);
+        // The library's help texts load on the first explanation (about 700 kB).
+        const { aboutIndicator } = await import("lightweight-charts-indicators/about");
+        const about = aboutIndicator(typeIdOf(id)) ?? e.description;
         return {
           id: typeIdOf(id),
           name: e.name,
           overlay: e.overlay,
           strategy: isStrategyId(typeIdOf(id)),
-          description: e.description,
+          ...(about ? { about } : {}),
           inputs: describeInputs(e.inputConfig),
           plots: (e.plotConfig ?? []).map((p) => ({ id: p.id, title: p.title })),
         };
@@ -664,6 +670,8 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     ...createCommunityTools(),
     // ── Company fundamentals and filings (read only) ───────────────────
     ...createFilingsTools(() => pane().symbol),
+    // ── Symbol notes ───────────────────────────────────────────────────
+    ...createNotesTools(() => pane().symbol),
   ];
   return tools;
 }

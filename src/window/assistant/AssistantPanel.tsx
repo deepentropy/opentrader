@@ -13,7 +13,8 @@ import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCle
 import { Icon } from "../../components/Icon";
 import { AnswerText, symbolsOf } from "./AnswerText";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
-import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAnswer, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
+import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAnswer, renameChat, running, send, stop, type AttachedFile, type ChatMessage, type ToolStep } from "../../data/assistant/session";
+import { attach, MAX_ATTACHMENT_BYTES } from "../../data/assistant/attachments";
 import { Popup } from "./Popup";
 import { AssistantSetup } from "./LocalModel";
 import { localInfo, refreshLocal, removeLocal } from "../../data/assistant/local";
@@ -115,8 +116,32 @@ export function AssistantPanel(props: { ticker: string }) {
 function ChatView(props: { ticker: string; onOpenChats: () => void }) {
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [draft, setDraft] = createSignal("");
+  // Files attached to the message being written (a file of trades to import, read by the tools by id).
+  const [files, setFiles] = createSignal<AttachedFile[]>([]);
+  const [fileError, setFileError] = createSignal("");
+  const [dropping, setDropping] = createSignal(false);
   let list!: HTMLDivElement;
   let area!: HTMLTextAreaElement;
+  const addFiles = async (picked: File[]) => {
+    setFileError("");
+    for (const f of picked) {
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        setFileError(translateWith("{0} is too large: 5 MB at most.", f.name));
+        continue;
+      }
+      const a = attach(f.name, await f.text());
+      setFiles((l) => [...l, { id: a.id, name: a.name }]);
+    }
+    area?.focus();
+  };
+  const pickFiles = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.accept = ".csv,.tsv,.txt,text/csv,text/plain";
+    input.onchange = () => void addFiles([...(input.files ?? [])]);
+    input.click();
+  };
   const messages = () => activeChat()?.messages ?? [];
   // The symbols the chat's tools met (bare ticker → full name): the answers link them.
   const known = createMemo(() => {
@@ -139,10 +164,13 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
     if (pinned) queueMicrotask(() => (list.scrollTop = list.scrollHeight));
   });
   const submit = (text = draft()) => {
-    if (!text.trim() || running() || !localInfo()?.installed) return;
+    if ((!text.trim() && !files().length) || running() || !localInfo()?.installed) return;
+    const attached = files();
     setDraft("");
+    setFiles([]);
+    setFileError("");
     pinned = true;
-    void send(text);
+    void send(text, attached);
     queueMicrotask(() => area?.focus());
   };
   return (
@@ -195,7 +223,36 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
           </Show>
         </Show>
       </div>
-      <div class="asst-composer">
+      <div
+        class="asst-composer"
+        classList={{ "is-dropping": dropping() }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer?.types.includes("Files")) return;
+          e.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer?.files.length) return;
+          e.preventDefault();
+          setDropping(false);
+          void addFiles([...e.dataTransfer.files]);
+        }}
+      >
+        <Show when={files().length}>
+          <div class="asst-files">
+            <For each={files()}>
+              {(f) => (
+                <span class="asst-file">
+                  <span class="asst-file-name" data-no-translate>{f.name}</span>
+                  <button type="button" class="asst-file-remove" title="Remove file" aria-label="Remove file" onClick={() => setFiles((l) => l.filter((x) => x.id !== f.id))}>
+                    <Icon name="tab-close" size={12} />
+                  </button>
+                </span>
+              )}
+            </For>
+          </div>
+        </Show>
         <textarea
           ref={area}
           class="asst-input"
@@ -215,10 +272,13 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
           }}
         />
         <div class="asst-composer-row">
+          <button type="button" class="asst-attach" title="Attach a file" aria-label="Attach a file" disabled={running()} onClick={pickFiles}>
+            <Icon name="ai-attach" size={28} />
+          </button>
           <Show
             when={running()}
             fallback={
-              <button type="button" class="asst-send" title="Send message" aria-label="Send message" disabled={!draft().trim() || !localInfo()?.installed} onClick={() => submit()}>
+              <button type="button" class="asst-send" title="Send message" aria-label="Send message" disabled={(!draft().trim() && !files().length) || !localInfo()?.installed} onClick={() => submit()}>
                 <Icon name="ai-send" size={28} class="ot-flip-rtl" />
               </button>
             }
@@ -229,7 +289,24 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
           </Show>
         </div>
       </div>
+      <Show when={fileError()}>
+        <p class="asst-file-error">{fileError()}</p>
+      </Show>
       <p class="asst-note">AI can make mistakes. Nothing here is financial advice.</p>
+    </div>
+  );
+}
+
+/** The user's message, and the names of the files attached to it. */
+function UserMessage(props: { message: Extract<ChatMessage, { role: "user" }> }) {
+  return (
+    <div class="asst-user">
+      <Show when={props.message.files?.length}>
+        <div class="asst-files">
+          <For each={props.message.files}>{(f) => <span class="asst-file asst-file-name" data-no-translate>{f.name}</span>}</For>
+        </div>
+      </Show>
+      <Show when={props.message.text}>{props.message.text}</Show>
     </div>
   );
 }
@@ -244,7 +321,7 @@ function Message(props: { message: ChatMessage; known: Map<string, string> }) {
   return (
     <Show
       when={props.message.role === "assistant" ? (props.message as Extract<ChatMessage, { role: "assistant" }>) : null}
-      fallback={<div class="asst-user">{(props.message as Extract<ChatMessage, { role: "user" }>).text}</div>}
+      fallback={<UserMessage message={props.message as Extract<ChatMessage, { role: "user" }>} />}
     >
       {(m) => (
         <div class="asst-answer">

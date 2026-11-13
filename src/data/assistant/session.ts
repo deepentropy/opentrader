@@ -13,6 +13,7 @@ import { commands } from "../../bindings";
 import type { AgentServerDef, AgentTool, ToolResult } from "../../agent/mcp";
 import { AgentError } from "../../agent/mcp";
 import * as kv from "../kv";
+import { attachmentLine } from "./attachments";
 import { newTraceId, trackFeedback, trackGeneration, trackToolSpan, trackTrace } from "./telemetry";
 import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls, type ToolCall, type Turn } from "./stream";
 // The short tool list the model was trained with, byte for byte (its sha256 is checked by a test).
@@ -30,8 +31,11 @@ export type ToolStep = {
   image?: string;
 };
 
+/** A file attached to a message: its text stays in attachments.ts, the chat keeps its id and name. */
+export type AttachedFile = { id: string; name: string };
+
 export type ChatMessage =
-  | { role: "user"; text: string }
+  | { role: "user"; text: string; files?: AttachedFile[] }
   | {
       role: "assistant";
       text: string;
@@ -104,11 +108,16 @@ export function describeTool(tools: AgentTool[]): AgentTool {
   };
 }
 
+/** Tools the local model is not given: writing scripts is left to the coding agents of Settings > Coding agents (a
+ *  small model can't hold the OakScript guide), so it answers such requests in words. */
+const NOT_LOCAL = new Set(["write_script"]);
+
 async function toolList(): Promise<AgentTool[]> {
   // A message sent right after the window opened waits for the tools.
   await Promise.race([host, new Promise((r) => setTimeout(r, 30_000))]);
   if (!server) throw new Error("The app's tools are not ready: try again in a moment.");
-  return [...server.tools, describeTool(server.tools)];
+  const tools = server.tools.filter((t) => !NOT_LOCAL.has(t.name));
+  return [...tools, describeTool(tools)];
 }
 
 /** A tool's answer as the text the model reads, and a picture to show. */
@@ -204,7 +213,8 @@ function wireMessages(c: Chat) {
   const out: unknown[] = [{ role: "system", content: COMPACT_V1 }];
   for (const m of c.messages) {
     if (m.role === "user") {
-      out.push({ role: "user", content: m.text });
+      // The model reads an attached file as a line with its name and id (the tools read it by id).
+      out.push({ role: "user", content: [m.text, ...(m.files ?? []).map(attachmentLine)].filter(Boolean).join("\n") });
       continue;
     }
     const calls = (m.tools ?? []).filter((t) => t.status !== "pending");
@@ -317,20 +327,22 @@ async function runStep(tools: AgentTool[], call: ToolCall, stepId: string): Prom
   }
 }
 
-/** Sends a message in the active chat (a new chat when there is none) and runs the answer to its end. */
-export async function send(text: string): Promise<void> {
+/** Sends a message (and the files attached to it) in the active chat (a new chat when there is none) and runs the
+ *  answer to its end. */
+export async function send(text: string, files: AttachedFile[] = []): Promise<void> {
   const t = text.trim();
-  if (!t || running()) return;
+  if ((!t && !files.length) || running()) return;
   if (!state.activeId) {
     const now = Date.now();
     // Its id from the time, made unique: two chats begun in the same millisecond would share one.
     let id = `c${now.toString(36)}`;
     for (let n = 1; state.chats.some((c) => c.id === id); n++) id = `c${now.toString(36)}-${n}`;
-    const chat: Chat = { id, title: t.length > 60 ? `${t.slice(0, 57)}…` : t, createdAt: now, updatedAt: now, messages: [] };
+    const title = t || files[0].name;
+    const chat: Chat = { id, title: title.length > 60 ? `${title.slice(0, 57)}…` : title, createdAt: now, updatedAt: now, messages: [] };
     setState("chats", (cs) => [...cs, chat]);
     setState("activeId", chat.id);
   }
-  edit((c) => c.messages.push({ role: "user", text: t }));
+  edit((c) => c.messages.push(files.length ? { role: "user", text: t, files: files.map(({ id, name }) => ({ id, name })) } : { role: "user", text: t }));
   setRunning(true);
   stopped = false;
   const trace: Trace = { trace: newTraceId(), chat: state.activeId! };
