@@ -537,9 +537,15 @@ function strategyOptions(body: () => void, opts: OakScriptRunOptions, symbol: Sy
       // "On order fill" / "On history bar tick": the script runs again inside the bar, on the bars up to it.
       if (recorder && (props.calcOnOrderFills || props.calcOnEveryHistoryTick)) {
         const { seen, chart } = pass;
+        // One array for all the ticks (a copy per tick was most of the time on long histories): the main run's bars up
+        // to the tick's bar, then the bar as it stands at the tick, which the next tick puts back.
+        const upTo: Bar[] = [];
         e.broker.onIntrabar = (i, tick) => {
-          const bar = { ...seen[i], high: tick.high, low: tick.low, close: tick.close, volume: tick.volume };
-          executeIntrabar(body, [...seen.slice(0, i), bar], opts.inputs ?? {}, chart, { bar: i, lastBarIndex: seen.length - 1, engine: e, recorder });
+          if (upTo.length) upTo[upTo.length - 1] = seen[upTo.length - 1];
+          if (upTo.length > i) upTo.length = i;
+          while (upTo.length < i) upTo.push(seen[upTo.length]);
+          upTo.push({ ...seen[i], high: tick.high, low: tick.low, close: tick.close, volume: tick.volume });
+          executeIntrabar(body, upTo, opts.inputs ?? {}, chart, { bar: i, lastBarIndex: seen.length - 1, engine: e, recorder });
         };
       }
       return e;

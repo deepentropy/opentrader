@@ -1,6 +1,6 @@
 /** The OakScript bridge: strategy() properties, chart context, script bar times and a small script run end to end. */
 import { describe, expect, it } from "vitest";
-import { strategy } from "oakscriptjs/script";
+import { close, strategy } from "oakscriptjs/script";
 import type { StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { localToUtc } from "../../data/session/zone";
 import { brokerProperties, chartWithSymbols, restoreTimes, runOakScriptStrategy, scriptBars, symbolOf } from "../oakscript";
@@ -74,6 +74,17 @@ describe("intrabar runs (calc_on_order_fills)", () => {
   it("without it the close waits for the bar close and fills at the next open", () => {
     const trades = runOakScriptStrategy(body(false), BARS).report!.trades;
     expect(trades.map((t) => [t.entry.bar, t.exit.bar, t.exit.price])).toEqual([[3, 4, 13]]);
+  });
+  it("the ticks of a bar see the bars before it as the main run's, not as a previous tick left them", () => {
+    const seen: [number, number][] = [];
+    runOakScriptStrategy(() => {
+      strategy("T", { calc_on_every_history_tick: true });
+      strategy.eachBar((c) => {
+        seen.push([c.i, c.get(close, 1)]);
+      });
+    }, BARS);
+    expect(seen.length).toBeGreaterThan(BARS.length);
+    for (const [i, prev] of seen.filter(([i]) => i > 0)) expect(prev).toBe(BARS[i - 1].close);
   });
 });
 
