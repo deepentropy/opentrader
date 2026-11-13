@@ -16,6 +16,9 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Parted from the chart's bottom bar by the 4 px window-background gutter of the other panel seams (the chart
+     pane column is painted that colour). */
+  margin-top: 4px;
   background: var(--color-bg-primary-hover);
   font-family: var(--st-font);
   color: var(--st-text);
@@ -24,11 +27,11 @@
   flex: 1 1 auto;
 }
 
-/* Resize handle: 7 px over the top edge, ns-resize. */
+/* Resize handle: 7 px over the top gutter, ns-resize. */
 .st-resize-handle {
   position: absolute;
   inset-inline: 0;
-  top: -3px;
+  top: -6px;
   height: 7px;
   cursor: ns-resize;
   z-index: 2;

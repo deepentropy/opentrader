@@ -16,6 +16,12 @@
   padding: 2px 0;
 }
 
+/* An open panel is parted from the strip by a 1 px seam of the window background, like the reference app. Drawn
+ * inside the strip so the panel and buttons keep their sizes; physical left: the panel stays left of the strip. */
+.right-rail-container.has-panel .right-rail-tabs {
+  box-shadow: inset 1px 0 0 var(--color-widget-border);
+}
+
 .right-rail-tabs-group {
   display: flex;
   flex-direction: column;
