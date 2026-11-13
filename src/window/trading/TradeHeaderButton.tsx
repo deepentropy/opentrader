@@ -1,6 +1,7 @@
 /*
  * Header "Trade" button. In Bar Replay it trades through the replay broker: the pill shows / hides the order ticket,
- * the "Trading options" chevron offers "Replay settings…" and "Exit replay mode". Otherwise it trades through the
+ * the "Trading options" chevron offers "Replay settings…", "Connect to broker…" (leaves replay for the broker
+ * selection) and "Exit replay mode". Otherwise it trades through the
  * broker plugin the user connected (#315): the pill opens the broker picker until one is connected, then the order
  * ticket; the chevron opens the trading settings, connects another broker, turns trading on or off, shows the account
  * manager and disconnects.
@@ -16,7 +17,7 @@ import { pluginBroker } from "../../data/trading/plugin-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
 import { translate } from "../../i18n/translator";
 import { requestCloseReplay } from "../replay/ReplayHeaderButton";
-import { BrokerPicker } from "./BrokerPicker";
+import { leaveReplayForBroker } from "./connect-broker";
 
 export function TradeHeaderButton() {
   let chevron: HTMLButtonElement | undefined;
@@ -72,6 +73,8 @@ export function TradeHeaderButton() {
               <>
                 <PopItem icon="header-settings" title="Replay settings…" onClick={run(() => tradingUi.openReplaySettings())} />
                 <PopDivider />
+                <PopItem icon="trade-connect-broker" title={translate("Connect to broker…")} onClick={run(leaveReplayForBroker)} />
+                <PopDivider />
                 <PopItem icon="trade-exit-replay" title="Exit replay mode" onClick={run(requestCloseReplay)} />
               </>
             }
@@ -95,9 +98,6 @@ export function TradeHeaderButton() {
             </Show>
           </Show>
         </Popover>
-      </Show>
-      <Show when={tradingUi.brokerPicker()}>
-        <BrokerPicker />
       </Show>
     </div>
   );

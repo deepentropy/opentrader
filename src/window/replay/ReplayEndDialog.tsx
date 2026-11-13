@@ -2,7 +2,8 @@ import { translateWith } from "../../i18n/translator";
 /*
  * End of a Bar Replay session with trades (end of the data, Jump to
  * real-time): "Congrats, trader!" / "Keep training" with the profit, the win
- * rate and the best trade, and "Open full report" (the Replay Trading tab).
+ * rate and the best trade, "Open full report" (the Replay Trading tab) and
+ * "Trade through broker" (leaves replay for the broker selection).
  * One dialog per chart that ended, stacked; ×, Escape and an outside click
  * close the top one. A one-shot confetti falls over it (green when the
  * session made money, a few red pieces when it lost).
@@ -12,6 +13,7 @@ import { Portal } from "solid-js/web";
 import { createDialogKeys } from "../../components/Dialog";
 import { replayBroker, type SessionResult } from "../../data/trading/replay-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
+import { leaveReplayForBroker } from "../trading/connect-broker";
 import { money, percent } from "../strategy-tester/format";
 
 const GREEN = ["#22ab94", "#42bda8", "#70ccbd", "#089981", "#ace5dc", "#2ec4a6"];
@@ -117,6 +119,16 @@ function EndDialog(props: { r: SessionResult; top: boolean }) {
             }}
           >
             Open full report
+          </button>
+          <button
+            type="button"
+            class="re-btn is-secondary"
+            onClick={() => {
+              close();
+              leaveReplayForBroker();
+            }}
+          >
+            Trade through broker
           </button>
         </div>
         <Confetti win={win} />

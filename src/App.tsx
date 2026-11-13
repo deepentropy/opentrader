@@ -80,6 +80,7 @@ import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabS
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
 import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
 import { OrderTicket } from "./window/trading/OrderTicket";
+import { BrokerPicker } from "./window/trading/BrokerPicker";
 import { TradingToasts } from "./window/trading/TradingToasts";
 import { tradingUi } from "./data/trading/trading-ui";
 import { replayBroker } from "./data/trading/replay-broker";
@@ -1031,6 +1032,10 @@ function App() {
       <DialogHost />
       <ReplaySettingsDialog />
       <ReplayEndDialog />
+      {/* Here, not under the Trade button: leaving replay for a broker hides the button when no plugin is enabled. */}
+      <Show when={tradingUi.brokerPicker()}>
+        <BrokerPicker />
+      </Show>
       <TradingToasts />
       <Show when={symbolInfoFor()}>{(s) => <SymbolInfoDialog symbol={s()} onClose={() => setSymbolInfoFor(null)} />}</Show>
       <SavedLayoutDialogs layouts={layouts} activeId={activeTab().savedLayoutId} />
