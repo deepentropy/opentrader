@@ -16,6 +16,7 @@ import {
   subscribeBars,
   type LiveBar,
 } from "../../../data/datafeed";
+import { cachedSymbolSessions } from "../../../data/session";
 import { setDataForType, type OHLC } from "../chart-types";
 import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
@@ -353,6 +354,15 @@ export function createLive(cx: ChartCx): LiveApi {
     const sess = props.session ?? "RTH";
     if (!sym || !isSecondResolution(id)) return;
     const TAIL_SEC = 600;
+    /** The delayed feed lags 15 minutes: bars keep arriving that long after the session closes. */
+    const FEED_LAG_SEC = 20 * 60;
+    /** No new bar can come while the market is closed (and was already closed a feed delay ago):
+     *  the tail would ask again for the same empty window all night. Unknown sessions poll. */
+    const closed = () => {
+      const s = cachedSymbolSessions(sym);
+      const now = Date.now() / 1000;
+      return !!s && s.status(now) === "closed" && s.status(now - FEED_LAG_SEC) === "closed";
+    };
     /** Batch-merge refreshed bars at/after `lastTime`, then paint ONCE
      *  (per-bar repaints would re-derive the series data dozens of times per
      *  poll). Full-redraw path (next=null) so every series type repaints. */
@@ -391,7 +401,7 @@ export function createLive(cx: ChartCx): LiveApi {
         .catch(() => { /* transient fetch failure — next poll retries */ });
     const timer = window.setInterval(() => {
       // Not in a browser tab left in the background: the first poll back fills the gap.
-      if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0 || cx.pastWindowEnd !== null) return;
+      if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0 || cx.pastWindowEnd !== null || closed()) return;
       const lastTime = cx.allBars[cx.allBars.length - 1].time as number;
       const tail = getSecondBarsTail(sym, id, lastTime - TAIL_SEC, sess);
       if (!tail) return;
