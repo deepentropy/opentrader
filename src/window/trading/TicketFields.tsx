@@ -10,7 +10,7 @@ import { Switch } from "../../components/form";
 import { parsePositive } from "./format";
 import { localNumber } from "../../i18n/format";
 import { priceFieldProps } from "../../i18n/price-field";
-import { EXIT_TYPES, QTY_TYPES, exitTypeDisabled, marketHint, priceBase, type ExitKind, type ExitType, type PriceField } from "./ticket";
+import { EXIT_TYPES, exitTypeDisabled, marketHint, priceBase, type ExitKind, type ExitType, type PriceField } from "./ticket";
 import { NO_MONEY_SL, exitInfo, exitLabel, exitTitle, exitUnit, qtyInfo, qtyTitle, qtyUnit } from "./ticket-labels";
 import type { TicketModel } from "./ticket-model";
 import { EquivButton, LabelMenu, SwapButton, type MenuRow } from "./TicketMenus";
@@ -149,17 +149,20 @@ export function QtyInput(props: { m: TicketModel }) {
         <Show when={qtyTypes().includes(eq())}>
           <SwapButton onClick={() => setQtyType(eq(), type())} />
         </Show>
-        <EquivButton
-          value={localNumber(qtyValueText(eq()))}
-          unit={qtyUnit(eq(), ccy(), stock())}
-          rows={QTY_TYPES.filter((t) => t !== type()).map((t) => ({
-            title: qtyTitle(t, ccy(), stock()),
-            info: qtyInfo(t),
-            value: localNumber(qtyValueText(t)),
-            selected: t === eq(),
-            onSelect: () => patch({ qtyEquiv: t }),
-          }))}
-        />
+        {/* The other types are risks, measured to the stop loss: a broker without brackets has none to show. */}
+        <Show when={qtyTypes().length > 1}>
+          <EquivButton
+            value={localNumber(qtyValueText(eq()))}
+            unit={qtyUnit(eq(), ccy(), stock())}
+            rows={qtyTypes().filter((t) => t !== type()).map((t) => ({
+              title: qtyTitle(t, ccy(), stock()),
+              info: qtyInfo(t),
+              value: localNumber(qtyValueText(t)),
+              selected: t === eq(),
+              onSelect: () => patch({ qtyEquiv: t }),
+            }))}
+          />
+        </Show>
       </span>
     </div>
   );
