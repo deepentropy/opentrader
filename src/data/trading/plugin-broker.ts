@@ -47,8 +47,12 @@ export const pluginBroker = createRoot(() => {
   const take = (s: BrokerStatus) => {
     const prev = status();
     if (prev && s.version < prev.version) return;
-    // Another broker, or the same reconnected: its tickers are asked again.
-    if (!prev || prev.active !== s.active || prev.pluginConnected !== s.pluginConnected) tickers.clear();
+    // Another broker, or the same reconnected: its tickers are asked again, and the previous broker's bid / ask
+    // (keyed by its own tickers, often the same names) must not show as the new one's.
+    if (!prev || prev.active !== s.active || prev.pluginConnected !== s.pluginConnected) {
+      tickers.clear();
+      bidAsk.clear();
+    }
     setStatus(s);
     bump();
   };
