@@ -1,0 +1,27 @@
+{
+  "id": "ibkr",
+  "name": "Interactive Brokers",
+  "version": "0.1.0",
+  "publisher": "OpenTrader",
+  "description": "Your Interactive Brokers account in OpenTrader through IB Gateway or TWS: balances, positions, orders and trading from the charts.",
+  "api": 1,
+  "provides": ["broker"],
+  "runtime": { "type": "process", "entry": "opentrader-ibkr.exe", "args": [] },
+  "settings": [
+    { "key": "host", "label": "Host", "type": "text", "default": "127.0.0.1",
+      "help": "The computer IB Gateway or TWS runs on. Keep 127.0.0.1 when it runs on this computer." },
+    { "key": "port", "label": "Port", "type": "select", "default": "4002",
+      "options": [
+        { "value": "4002", "label": "IB Gateway paper (4002)" },
+        { "value": "4001", "label": "IB Gateway live (4001)" },
+        { "value": "7497", "label": "TWS paper (7497)" },
+        { "value": "7496", "label": "TWS live (7496)" }
+      ],
+      "help": "The socket port set in the API settings of IB Gateway or TWS." },
+    { "key": "clientId", "label": "Client ID", "type": "number", "default": "17",
+      "help": "Any number another API program connected to the same IB Gateway or TWS does not use." }
+  ],
+  "setup": "In IB Gateway or TWS, log in, then open Configure > Settings > API > Settings:\n1. Tick \"Enable ActiveX and Socket Clients\".\n2. Check that \"Socket port\" matches the Port setting of the plugin (4002 for IB Gateway paper, 4001 live; 7497 for TWS paper, 7496 live).\n3. Untick \"Read-Only API\" to trade from OpenTrader.\n4. Keep \"Allow connections from localhost only\" ticked, or add 127.0.0.1 to the trusted IPs.\nThe plugin connects within a few seconds and retries while IB Gateway or TWS is closed. Then choose Trade > Connect broker > Interactive Brokers.",
+  "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
+  "platforms": ["windows"]
+}

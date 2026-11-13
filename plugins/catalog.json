@@ -18,6 +18,24 @@
       "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.1.0/mt5-0.1.0.zip",
       "sha256": "b3fbe813588df88ef576a5717806aa7c8182cef49741572646c48caf082e5d7a",
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2lLS2xoRnhpMXhkbjhTQVZNMExleWtWZEZ1OGhYUEI2aE9BcktnL1o4MUVnVXRnVUZqV1BGZVdYSmI5RUU5Zzdzdm1qSkpMOEU0c1F2VWJHREdXOFFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTYwMDQxCWZpbGU6bXQ1LTAuMS4wLnppcAp6VThpUWM3LzlwaFJEK0J1OE05SmlwUWpHeGFTK1IrTzRNdFdGbGJkRm81N1NEelVrRG5WWm5BN1NjREVYOWtIZDM2aXVBT1R3SkdwWkd6NEtYUDNCUT09Cg=="
+    },
+    {
+      "id": "ibkr",
+      "name": "Interactive Brokers",
+      "version": "0.1.0",
+      "publisher": "OpenTrader",
+      "description": "Your Interactive Brokers account in OpenTrader through IB Gateway or TWS: balances, positions, orders and trading from the charts.",
+      "provides": [
+        "broker"
+      ],
+      "api": 1,
+      "platforms": [
+        "windows"
+      ],
+      "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.1.0/ibkr-0.1.0.zip",
+      "sha256": "871e183dd0108504ef945539b668d62950a76789ad7a5068f507172f234a9f8a",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3YwRlUrTkRoekxvcHQ4R1dVaTYvUWI5WmdGazhWSW9jcWVUMnlxM3NHOFJLajNzS2lTTmxJOGIzcXJ3N2l6OWtwd29ob0hOZUkzMHFoK1hjNHQ4TVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTYxNzYwCWZpbGU6aWJrci0wLjEuMC56aXAKWGNyY0JwN3FtOWdUbG91a0FsRDlBTTV2VWZsZGhCWUtLaC85S1d4MFR2M3dCVXdtNTI3bU1qTUhLR3NIYUNCNS90RmQrUjJKdmFvL0ZWWHlRcWwyQ1E9PQo="
     }
   ]
 }

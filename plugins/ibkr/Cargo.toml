@@ -1,0 +1,25 @@
+[package]
+name = "opentrader-ibkr"
+version = "0.1.0"
+description = "OpenTrader broker plugin for Interactive Brokers (IB Gateway / TWS socket API)"
+edition = "2021"
+publish = false
+
+# A standalone program, never part of the app's build: its own workspace keeps any parent workspace out.
+[workspace]
+
+[[bin]]
+name = "opentrader-ibkr"
+path = "src/main.rs"
+
+[dependencies]
+ibapi = "=5.1.0"
+tokio = { version = "1.52", features = ["full"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+chrono-tz = "0.10"
+
+[profile.release]
+strip = true
