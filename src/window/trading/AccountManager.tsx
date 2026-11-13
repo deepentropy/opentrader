@@ -3,17 +3,21 @@
  * account header (account selector, balance, equity, P&L, margin), the pages (Positions, Orders, Trade history,
  * Account summary, Notifications log) and their tables. A row click shows its symbol on the chart.
  */
-import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import type { BrokerNotice } from "../../bindings";
 import { showConfirm } from "../../components/Dialogs";
+import { CheckField, NumberField } from "../../components/form";
 import { Tooltip } from "../../components/Tooltip";
 import { pluginBroker, type BrokerFill, type BrokerOrder, type BrokerPosition } from "../../data/trading/plugin-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
+import { emitAppEvent } from "../../data/app-events";
 import * as kv from "../../data/kv";
 import { translate } from "../../i18n/translator";
 import { Popover, PopItem, PopSectionTitle } from "../screener/Popover";
 import { cachedSymbolSessions } from "../../data/session";
 import { fmtMoney, fmtPct, fmtPnl, fmtPrice as fmtAnyPrice, fmtQty, fmtTime, pnlClass } from "./format";
+import { AccountTable, tableCsv, type Column, type RowMenuItem } from "./AccountTable";
+import { DownloadTradingDataDialog } from "./DownloadTradingDataDialog";
 import { CloseIcon, PencilIcon } from "./icons";
 
 /** A price of `ticker` on its symbol's tick (once the chart symbol's sessions are known). */
@@ -65,20 +69,70 @@ function cancelOrder(o: BrokerOrder) {
   });
 }
 
-/** Ask, then close the position. */
+/** Ask, then close the position, all of it or, with "Partial close", the quantity typed. */
 function closePosition(p: BrokerPosition) {
+  const [partial, setPartial] = createSignal(false);
+  const [qty, setQty] = createSignal(String(p.qty));
+  const part = () => {
+    const n = parseFloat(qty());
+    return Number.isFinite(n) && n > 0 && n < p.qty ? n : null;
+  };
   showConfirm({
     title: translate("Close position"),
     text: `${p.side === "buy" ? translate("Long") : translate("Short")} ${fmtQty(p.qty)} ${p.ticker} @ ${fmtPrice(p.avgPrice, p.ticker)}`,
     mainText: translate("Close position"),
     cancelText: translate("Cancel"),
     intent: "danger",
-    onConfirm: () => pluginBroker.closePositionById(p.id),
+    body: () => (
+      <div class="trd-partial-close">
+        <CheckField variant="settings" label={translate("Partial close")} checked={partial()} onChange={setPartial} />
+        <Show when={partial()}>
+          <NumberField value={qty()} width={160} num={{ min: 0, max: p.qty, step: 1 }} onChange={setQty} />
+        </Show>
+      </div>
+    ),
+    onConfirm: () => pluginBroker.closePositionById(p.id, partial() ? part() : null),
   });
 }
 
+/** Reverse a position: a market order of twice its quantity the other way (from the chart that trades it). */
+function reversePosition(p: BrokerPosition) {
+  const at = pluginBroker.positionPane(p);
+  if (at) pluginBroker.reverse(at.paneId);
+}
+
+/** Right click on a position, as the reference app's: protect, close, reverse, a new order, the settings. */
+function positionMenu(p: BrokerPosition): RowMenuItem[] {
+  const at = pluginBroker.positionPane(p);
+  return [
+    { title: translate("Protect position…"), disabled: !at, onClick: () => at && tradingUi.editPosition(at.position, at.paneId) },
+    { title: translate("Close position"), onClick: () => closePosition(p) },
+    { title: translate("Reverse position"), disabled: !at, onClick: () => reversePosition(p) },
+    "divider",
+    { title: translate("Create new order…"), onClick: () => tradingUi.openOrderTicket({ symbol: pluginBroker.chartSymbolFor(p.ticker) ?? undefined }) },
+    { title: translate("Trading settings…"), onClick: () => emitAppEvent("chart-open-settings", { tab: "trading" }) },
+  ];
+}
+
+/** Right click on a working order: modify, cancel. */
+function orderMenu(o: BrokerOrder): RowMenuItem[] {
+  if (!isActiveOrder(o)) return [];
+  const edit = pluginBroker.editable(o);
+  return [
+    { title: translate("Modify order…"), disabled: !edit, onClick: () => edit && tradingUi.editOrder(edit.order, edit.paneId) },
+    { title: translate("Cancel order"), onClick: () => cancelOrder(o) },
+  ];
+}
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="currentColor" d="M10 8.91V2H9v6.91L6.33 6.62l-.66.76 3.5 3 .33.28.33-.28 3.5-3-.66-.76L10 8.92zM4 14v-3H3v3a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-3h-1v3H4z" />
+  </svg>
+);
+
 export function AccountManager(props: { onSymbol: (symbol: string) => void; height: number }) {
   const [page, setPage] = createSignal<Page>("positions");
+  const [exporting, setExporting] = createSignal(false);
   const [filter, setFilter] = createSignal<Filter>("all");
   const st = () => pluginBroker.account();
   const show = (ticker: string) => {
@@ -131,7 +185,19 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
               );
             }}
           </For>
+          <Tooltip text="Download data" side="top">
+            <button type="button" class="trd-row-btn trd-am-download" aria-label={translate("Download data")} data-name="download-data" onClick={() => setExporting(true)}>
+              <DownloadIcon />
+            </button>
+          </Tooltip>
         </div>
+        <Show when={exporting()}>
+          <DownloadTradingDataDialog
+            broker={pluginBroker.status()?.activeName ?? translate("Broker")}
+            tabs={pages.map(([id, title]) => ({ id, title, csv: () => pageCsv(id) }))}
+            onClose={() => setExporting(false)}
+          />
+        </Show>
         <Show when={page() === "orders"}>
           <div class="trd-am-filters" role="tablist">
             <For each={filters}>
@@ -208,18 +274,18 @@ function AccountHeader() {
   const acc = () => s()?.account ?? null;
   const many = () => (s()?.accounts?.length ?? 0) > 1;
   /** The values the broker reports (one that it leaves out is not shown). */
-  const fields = (): { title: string; value: string; cls?: string }[] => {
+  const fields = (): { title: string; value: string; cls?: string; hint?: string }[] => {
     const a = acc();
-    const rows: [string, number | null | undefined, boolean][] = [
+    const rows: [string, number | null | undefined, boolean, string?][] = [
       [translate("Unrealized PnL"), a?.unrealizedPnl, true],
       [translate("Realized PnL"), a?.realizedPnl, true],
       [translate("Equity"), a?.equity, false],
-      [translate("Account margin"), a?.marginUsed, false],
-      [translate("Available funds"), a?.marginFree, false],
+      [translate("Account margin"), a?.marginUsed, false, "The margin your open positions hold"],
+      [translate("Available funds"), a?.marginFree, false, "What is left for new orders"],
     ];
     return rows
       .filter(([, v]) => v != null)
-      .map(([title, v, pnl]) => (pnl ? { title, value: fmtPnl(v), cls: pnlClass(v) } : { title, value: fmtMoney(v) }));
+      .map(([title, v, pnl, hint]) => (pnl ? { title, value: fmtPnl(v), cls: pnlClass(v), hint } : { title, value: fmtMoney(v), hint }));
   };
   return (
     <div class="trd-am-header" classList={{ "is-expanded": !valuesHidden() }} data-name="account-bar">
@@ -268,7 +334,13 @@ function AccountHeader() {
             <For each={fields()}>
               {(f) => (
                 <div class="trd-am-field">
-                  <span class="trd-am-field-title">{f.title}</span>
+                  <Show when={f.hint} fallback={<span class="trd-am-field-title">{f.title}</span>}>
+                    <Tooltip text={f.hint!} side="top">
+                      <span class="trd-am-field-title is-hint" tabIndex={0}>
+                        {f.title}
+                      </span>
+                    </Tooltip>
+                  </Show>
                   <span class={`trd-am-field-value ot-value ${f.cls ?? ""}`}>{f.value}</span>
                 </div>
               )}
@@ -291,126 +363,177 @@ function AccountHeader() {
   );
 }
 
-/** A table: header row and rows, the last column holding the row's actions. */
-function Table<T>(props: {
-  columns: { title: string; num?: boolean; cell: (row: T) => JSX.Element }[];
-  rows: T[];
-  rowKey: (row: T) => string;
-  empty: string;
-  onRow?: (row: T) => void;
-  actions?: (row: T) => JSX.Element;
-  muted?: (row: T) => boolean;
-}) {
-  return (
-    <Show when={props.rows.length > 0} fallback={<div class="trd-empty"><div class="trd-empty-text">{props.empty}</div></div>}>
-      <table class="trd-table">
-        <thead>
-          <tr>
-            <For each={props.columns}>{(c) => <th classList={{ "is-num": c.num }}>{c.title}</th>}</For>
-            <Show when={props.actions}>
-              <th class="trd-actions-col" />
-            </Show>
-          </tr>
-        </thead>
-        <tbody>
-          <For each={props.rows}>
-            {(row) => (
-              <tr classList={{ "is-muted": props.muted?.(row) ?? false }} onClick={() => props.onRow?.(row)} data-key={props.rowKey(row)}>
-                <For each={props.columns}>{(c) => <td classList={{ "is-num": c.num }}>{c.cell(row)}</td>}</For>
-                <Show when={props.actions}>
-                  <td class="trd-actions-col" onClick={(e) => e.stopPropagation()}>
-                    <div class="trd-row-actions">{props.actions!(row)}</div>
-                  </td>
-                </Show>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
-    </Show>
-  );
-}
-
 const SymbolPill = (p: { ticker: string }) => (
   <span class="trd-symbol-pill" data-no-translate>
     {p.ticker}
   </span>
 );
 
-const SideCell = (p: { side: "buy" | "sell"; position?: boolean }) => (
-  <span class={p.side === "buy" ? "trd-buy" : "trd-sell"}>
-    {p.position ? (p.side === "buy" ? translate("Long") : translate("Short")) : p.side === "buy" ? translate("Buy") : translate("Sell")}
-  </span>
-);
+const sideText = (side: "buy" | "sell", position?: boolean) =>
+  position ? (side === "buy" ? translate("Long") : translate("Short")) : side === "buy" ? translate("Buy") : translate("Sell");
+const SideCell = (p: { side: "buy" | "sell"; position?: boolean }) => <span class={p.side === "buy" ? "trd-buy" : "trd-sell"}>{sideText(p.side, p.position)}</span>;
 
 const Num = (p: { text: string; cls?: string }) => <span class={`ot-value ${p.cls ?? ""}`}>{p.text}</span>;
+const dash = (v: number | null | undefined, ticker: string) => (v != null ? fmtPrice(v, ticker) : "—");
+/** A time in the CSV: ISO, UTC. */
+const timeText = (ms: number | null | undefined) => (ms ? new Date(ms).toISOString() : null);
+
+const positionPct = (p: BrokerPosition) => {
+  const cost = p.avgPrice * p.qty;
+  return p.unrealizedPnl != null && cost > 0 ? (p.unrealizedPnl / cost) * 100 : null;
+};
+const marketValue = (p: BrokerPosition) => (p.last != null ? p.last * p.qty : null);
+
+/** The pages' columns (`hidden`: shown once picked in Column setup), shared by the tables and their CSV. */
+const POSITION_COLUMNS: Column<BrokerPosition>[] = [
+  { id: "symbol", fixed: true, title: () => translate("Symbol"), cell: (p) => <SymbolPill ticker={p.ticker} />, value: (p) => p.ticker },
+  { id: "side", title: () => translate("Side"), cell: (p) => <SideCell side={p.side} position />, value: (p) => sideText(p.side, true) },
+  { id: "qty", num: true, title: () => translate("Quantity"), cell: (p) => <Num text={fmtQty(p.qty)} />, value: (p) => p.qty },
+  { id: "avg", num: true, title: () => translate("Avg price"), cell: (p) => <Num text={fmtPrice(p.avgPrice, p.ticker)} />, value: (p) => p.avgPrice },
+  { id: "last", num: true, title: () => translate("Last price"), cell: (p) => <Num text={fmtPrice(p.last, p.ticker)} />, value: (p) => p.last },
+  { id: "tp", num: true, title: () => translate("Take profit"), cell: (p) => <Num text={fmtPrice(p.takeProfit, p.ticker)} />, value: (p) => p.takeProfit },
+  { id: "sl", num: true, title: () => translate("Stop loss"), cell: (p) => <Num text={fmtPrice(p.stopLoss, p.ticker)} />, value: (p) => p.stopLoss },
+  { id: "upl", num: true, title: () => translate("Unrealized PnL"), cell: (p) => <Num text={fmtPnl(p.unrealizedPnl)} cls={pnlClass(p.unrealizedPnl)} />, value: (p) => p.unrealizedPnl },
+  { id: "uplPct", num: true, title: () => translate("Unrealized PnL %"), cell: (p) => <Num text={fmtPct(positionPct(p))} cls={pnlClass(positionPct(p))} />, value: (p) => positionPct(p) },
+  { id: "rpl", num: true, title: () => translate("Realized PnL"), cell: (p) => <Num text={fmtPnl(p.realizedPnl)} cls={pnlClass(p.realizedPnl)} />, value: (p) => p.realizedPnl },
+  { id: "value", num: true, hidden: true, title: () => translate("Market value"), cell: (p) => <Num text={fmtMoney(marketValue(p))} />, value: marketValue },
+  { id: "cost", num: true, hidden: true, title: () => translate("Cost basis"), cell: (p) => <Num text={fmtMoney(p.avgPrice * p.qty)} />, value: (p) => p.avgPrice * p.qty },
+  { id: "id", num: true, hidden: true, title: () => translate("Position ID"), cell: (p) => <span data-no-translate>{p.id}</span>, value: (p) => p.id },
+];
+
+const left = (o: BrokerOrder) => (o.qty != null ? Math.max(0, o.qty - (o.filledQty ?? 0)) : null);
+const ORDER_COLUMNS: Column<BrokerOrder>[] = [
+  { id: "symbol", fixed: true, title: () => translate("Symbol"), cell: (o) => <SymbolPill ticker={o.ticker} />, value: (o) => o.ticker },
+  { id: "side", title: () => translate("Side"), cell: (o) => <SideCell side={o.side} />, value: (o) => sideText(o.side) },
+  { id: "type", title: () => translate("Type"), cell: (o) => typeTitle(o.type), value: (o) => typeTitle(o.type) },
+  { id: "qty", num: true, title: () => translate("Quantity"), cell: (o) => <Num text={fmtQty(o.qty)} />, value: (o) => o.qty },
+  { id: "filled", num: true, hidden: true, title: () => translate("Filled quantity"), cell: (o) => <Num text={fmtQty(o.filledQty)} />, value: (o) => o.filledQty },
+  { id: "left", num: true, hidden: true, title: () => translate("Quantity left"), cell: (o) => <Num text={fmtQty(left(o))} />, value: left },
+  { id: "avgFill", num: true, title: () => translate("Avg fill price"), cell: (o) => <Num text={dash(o.avgFillPrice, o.ticker)} />, value: (o) => o.avgFillPrice },
+  { id: "limit", num: true, title: () => translate("Limit price"), cell: (o) => <Num text={dash(o.limitPrice, o.ticker)} />, value: (o) => o.limitPrice },
+  { id: "stop", num: true, title: () => translate("Stop price"), cell: (o) => <Num text={dash(o.stopPrice, o.ticker)} />, value: (o) => o.stopPrice },
+  { id: "tp", num: true, title: () => translate("Take profit"), cell: (o) => <Num text={dash(o.takeProfit, o.ticker)} />, value: (o) => o.takeProfit },
+  { id: "sl", num: true, title: () => translate("Stop loss"), cell: (o) => <Num text={dash(o.stopLoss, o.ticker)} />, value: (o) => o.stopLoss },
+  {
+    id: "status",
+    title: () => translate("Status"),
+    cell: (o) => (
+      <span class={`trd-status trd-status-${o.status ?? "working"}`} title={o.message ?? undefined}>
+        {statusTitle(o.status)}
+      </span>
+    ),
+    value: (o) => statusTitle(o.status),
+  },
+  { id: "duration", hidden: true, title: () => translate("Duration"), cell: (o) => <span data-no-translate>{o.duration ?? ""}</span>, value: (o) => o.duration },
+  { id: "updated", title: () => translate("Last update time"), cell: (o) => <Num text={fmtTime(o.updatedMs)} />, value: (o) => timeText(o.updatedMs) },
+  { id: "id", num: true, title: () => translate("Order ID"), cell: (o) => <span data-no-translate>{o.id}</span>, value: (o) => o.id },
+];
+
+const FILL_COLUMNS: Column<BrokerFill>[] = [
+  { id: "symbol", fixed: true, title: () => translate("Symbol"), cell: (e) => <SymbolPill ticker={e.ticker} />, value: (e) => e.ticker },
+  { id: "side", title: () => translate("Side"), cell: (e) => <SideCell side={e.side} />, value: (e) => sideText(e.side) },
+  { id: "qty", num: true, title: () => translate("Quantity"), cell: (e) => <Num text={fmtQty(e.qty)} />, value: (e) => e.qty },
+  { id: "price", num: true, title: () => translate("Fill price"), cell: (e) => <Num text={fmtPrice(e.price, e.ticker)} />, value: (e) => e.price },
+  { id: "time", title: () => translate("Time"), cell: (e) => <Num text={fmtTime(e.timeMs)} />, value: (e) => timeText(e.timeMs) },
+  { id: "commission", num: true, title: () => translate("Commission"), cell: (e) => <Num text={fmtMoney(e.commission)} />, value: (e) => e.commission },
+  { id: "rpl", num: true, title: () => translate("Realized PnL"), cell: (e) => <Num text={fmtPnl(e.realizedPnl)} cls={pnlClass(e.realizedPnl)} />, value: (e) => e.realizedPnl },
+  { id: "order", num: true, hidden: true, title: () => translate("Order ID"), cell: (e) => <span data-no-translate>{e.orderId ?? ""}</span>, value: (e) => e.orderId },
+];
+
+type SummaryRow = { label: string; value: string; own: boolean };
+const SUMMARY_COLUMNS: Column<SummaryRow>[] = [
+  { id: "label", fixed: true, title: () => translate("Account summary"), cell: (r) => (r.own ? r.label : <span data-no-translate>{r.label}</span>), value: (r) => r.label },
+  { id: "value", num: true, title: () => translate("Value"), cell: (r) => <span class="ot-value" data-no-translate>{r.value}</span>, value: (r) => r.value },
+];
+
+const noticeTitle = (n: BrokerNotice) => (n.level === "error" ? translate("Error") : n.level === "warn" ? translate("Warning") : translate("Info"));
+const NOTICE_COLUMNS: Column<BrokerNotice>[] = [
+  { id: "time", fixed: true, title: () => translate("Time"), cell: (n) => <Num text={fmtTime(n.timeMs ?? 0)} />, value: (n) => timeText(n.timeMs) },
+  { id: "title", title: () => translate("Title"), cell: (n) => <span class={`trd-notice-${n.level}`}>{noticeTitle(n)}</span>, value: noticeTitle },
+  { id: "text", title: () => translate("Text"), cell: (n) => <span class="trd-notice-text" data-no-translate>{n.message}</span>, value: (n) => n.message },
+];
+
+/** The rows of each page (trade history newest first). */
+const positionRows = () => pluginBroker.account()?.positions ?? [];
+const orderRows = (f: Filter) => (pluginBroker.account()?.orders ?? []).filter((o) => matches(o, f));
+const fillRows = () => [...(pluginBroker.account()?.executions ?? [])].sort((a, b) => b.timeMs - a.timeMs);
+const summaryRows = (): SummaryRow[] => {
+  const a = pluginBroker.account()?.account;
+  if (!a) return [];
+  const own = [
+    [translate("Balance"), fmtMoney(a.balance)],
+    [translate("Equity"), fmtMoney(a.equity)],
+    [translate("Unrealized PnL"), fmtPnl(a.unrealizedPnl)],
+    [translate("Realized PnL"), fmtPnl(a.realizedPnl)],
+    [translate("Margin"), fmtMoney(a.marginUsed)],
+    [translate("Free margin"), fmtMoney(a.marginFree)],
+  ].filter(([, v]) => v !== "—");
+  return [
+    ...own.map(([label, value]) => ({ label, value, own: true })),
+    ...(a.values ?? []).map((v) => ({ label: v.label ?? "", value: `${v.value ?? ""}${v.currency ? ` ${v.currency}` : ""}`, own: false })),
+  ];
+};
+const noticeRows = () => pluginBroker.status()?.notices ?? [];
+
+/** The CSV of a page ("Download data"); Orders: all of them. */
+export function pageCsv(page: Page): string {
+  switch (page) {
+    case "positions":
+      return tableCsv("positions", POSITION_COLUMNS, positionRows());
+    case "orders":
+      return tableCsv("orders", ORDER_COLUMNS, orderRows("all"));
+    case "history":
+      return tableCsv("history", FILL_COLUMNS, fillRows());
+    case "summary":
+      return tableCsv("summary", SUMMARY_COLUMNS, summaryRows());
+    default:
+      return tableCsv("notifications", NOTICE_COLUMNS, noticeRows());
+  }
+}
 
 function PositionsTable(props: { onRow: (ticker: string) => void }) {
-  const rows = () => (pluginBroker.account()?.positions ?? []);
-  const pct = (p: BrokerPosition) => {
-    const cost = p.avgPrice * p.qty;
-    return p.unrealizedPnl != null && cost > 0 ? (p.unrealizedPnl / cost) * 100 : null;
-  };
   return (
-    <Table<BrokerPosition>
-      rows={rows()}
+    <AccountTable<BrokerPosition>
+      id="positions"
+      columns={POSITION_COLUMNS}
+      rows={positionRows()}
       rowKey={(p) => p.id}
       empty={translate("There are no open positions in your trading account yet")}
       onRow={(p) => props.onRow(p.ticker)}
-      columns={[
-        { title: translate("Symbol"), cell: (p) => <SymbolPill ticker={p.ticker} /> },
-        { title: translate("Side"), cell: (p) => <SideCell side={p.side} position /> },
-        { title: translate("Quantity"), num: true, cell: (p) => <Num text={fmtQty(p.qty)} /> },
-        { title: translate("Avg price"), num: true, cell: (p) => <Num text={fmtPrice(p.avgPrice, p.ticker)} /> },
-        { title: translate("Last price"), num: true, cell: (p) => <Num text={fmtPrice(p.last, p.ticker)} /> },
-        { title: translate("Take profit"), num: true, cell: (p) => <Num text={fmtPrice(p.takeProfit, p.ticker)} /> },
-        { title: translate("Stop loss"), num: true, cell: (p) => <Num text={fmtPrice(p.stopLoss, p.ticker)} /> },
-        { title: translate("Unrealized PnL"), num: true, cell: (p) => <Num text={fmtPnl(p.unrealizedPnl)} cls={pnlClass(p.unrealizedPnl)} /> },
-        { title: translate("Unrealized PnL %"), num: true, cell: (p) => <Num text={fmtPct(pct(p))} cls={pnlClass(pct(p))} /> },
-      ]}
+      menu={positionMenu}
       actions={(p) => (
-        <Tooltip text="Close" side="top">
-          <button type="button" class="trd-row-btn" aria-label={translate("Close position")} onClick={() => closePosition(p)}>
-            <CloseIcon size={16} />
-          </button>
-        </Tooltip>
+        <>
+          <Show when={pluginBroker.positionPane(p)}>
+            {(at) => (
+              <Tooltip text="Protect position…" side="top">
+                <button type="button" class="trd-row-btn" aria-label={translate("Protect position…")} onClick={() => tradingUi.editPosition(at().position, at().paneId)}>
+                  <PencilIcon />
+                </button>
+              </Tooltip>
+            )}
+          </Show>
+          <Tooltip text="Close" side="top">
+            <button type="button" class="trd-row-btn" aria-label={translate("Close position")} onClick={() => closePosition(p)}>
+              <CloseIcon size={16} />
+            </button>
+          </Tooltip>
+        </>
       )}
     />
   );
 }
 
 function OrdersTable(props: { filter: Filter; onRow: (ticker: string) => void }) {
-  const rows = () => ((pluginBroker.account()?.orders ?? [])).filter((o) => matches(o, props.filter));
-  const price = (v: number | null | undefined, ticker: string) => <Num text={v != null ? fmtPrice(v, ticker) : "—"} />;
   return (
-    <Table<BrokerOrder>
-      rows={rows()}
+    <AccountTable<BrokerOrder>
+      id="orders"
+      columns={ORDER_COLUMNS}
+      rows={orderRows(props.filter)}
       rowKey={(o) => o.id}
       empty={translate("There is no trading data here yet")}
       onRow={(o) => props.onRow(o.ticker)}
       muted={(o) => props.filter === "all" && !isActiveOrder(o)}
-      columns={[
-        { title: translate("Symbol"), cell: (o) => <SymbolPill ticker={o.ticker} /> },
-        { title: translate("Side"), cell: (o) => <SideCell side={o.side} /> },
-        { title: translate("Type"), cell: (o) => typeTitle(o.type) },
-        { title: translate("Quantity"), num: true, cell: (o) => <Num text={fmtQty(o.qty)} /> },
-        { title: translate("Filled"), num: true, cell: (o) => <Num text={fmtQty(o.filledQty)} /> },
-        { title: translate("Avg fill price"), num: true, cell: (o) => price(o.avgFillPrice, o.ticker) },
-        { title: translate("Limit price"), num: true, cell: (o) => price(o.limitPrice, o.ticker) },
-        { title: translate("Stop price"), num: true, cell: (o) => price(o.stopPrice, o.ticker) },
-        { title: translate("Take profit"), num: true, cell: (o) => price(o.takeProfit, o.ticker) },
-        { title: translate("Stop loss"), num: true, cell: (o) => price(o.stopLoss, o.ticker) },
-        {
-          title: translate("Status"),
-          cell: (o) => (
-            <span class={`trd-status trd-status-${o.status ?? "working"}`} title={o.message ?? undefined}>
-              {statusTitle(o.status)}
-            </span>
-          ),
-        },
-        { title: translate("Last update time"), cell: (o) => <Num text={fmtTime(o.updatedMs)} /> },
-        { title: translate("Order ID"), num: true, cell: (o) => <span data-no-translate>{o.id}</span> },
-      ]}
+      menu={orderMenu}
       actions={(o) => (
         <Show when={isActiveOrder(o)}>
           <Show when={pluginBroker.editable(o)}>
@@ -434,66 +557,31 @@ function OrdersTable(props: { filter: Filter; onRow: (ticker: string) => void })
 }
 
 function HistoryTable(props: { onRow: (ticker: string) => void }) {
-  const rows = () => [...((pluginBroker.account()?.executions ?? []))].sort((a, b) => b.timeMs - a.timeMs);
   return (
-    <Table<BrokerFill>
-      rows={rows()}
+    <AccountTable<BrokerFill>
+      id="history"
+      columns={FILL_COLUMNS}
+      rows={fillRows()}
       rowKey={(e) => e.id}
       empty={translate("There is no trading data here yet")}
       onRow={(e) => props.onRow(e.ticker)}
-      columns={[
-        { title: translate("Symbol"), cell: (e) => <SymbolPill ticker={e.ticker} /> },
-        { title: translate("Side"), cell: (e) => <SideCell side={e.side} /> },
-        { title: translate("Quantity"), num: true, cell: (e) => <Num text={fmtQty(e.qty)} /> },
-        { title: translate("Fill price"), num: true, cell: (e) => <Num text={fmtPrice(e.price, e.ticker)} /> },
-        { title: translate("Time"), cell: (e) => <Num text={fmtTime(e.timeMs)} /> },
-        { title: translate("Commission"), num: true, cell: (e) => <Num text={fmtMoney(e.commission)} /> },
-        { title: translate("Realized PnL"), num: true, cell: (e) => <Num text={fmtPnl(e.realizedPnl)} cls={pnlClass(e.realizedPnl)} /> },
-      ]}
     />
   );
 }
 
 function SummaryTable() {
-  const rows = createMemo(() => {
-    const a = pluginBroker.account()?.account;
-    if (!a) return [];
-    const own = [
-      [translate("Balance"), fmtMoney(a.balance)],
-      [translate("Equity"), fmtMoney(a.equity)],
-      [translate("Unrealized PnL"), fmtPnl(a.unrealizedPnl)],
-      [translate("Realized PnL"), fmtPnl(a.realizedPnl)],
-      [translate("Margin"), fmtMoney(a.marginUsed)],
-      [translate("Free margin"), fmtMoney(a.marginFree)],
-    ].filter(([, v]) => v !== "—");
-    return [...own.map(([label, value]) => ({ label, value, own: true })), ...(a.values ?? []).map((v) => ({ label: v.label ?? "", value: `${v.value ?? ""}${v.currency ? ` ${v.currency}` : ""}`, own: false }))];
-  });
-  return (
-    <Table
-      rows={rows()}
-      rowKey={(r) => r.label}
-      empty={translate("There is no trading data here yet")}
-      columns={[
-        { title: translate("Account summary"), cell: (r) => (r.own ? r.label : <span data-no-translate>{r.label}</span>) },
-        { title: translate("Value"), num: true, cell: (r) => <span class="ot-value" data-no-translate>{r.value}</span> },
-      ]}
-    />
-  );
+  const rows = createMemo(summaryRows);
+  return <AccountTable id="summary" columns={SUMMARY_COLUMNS} rows={rows()} rowKey={(r) => r.label} empty={translate("There is no trading data here yet")} />;
 }
 
 function NotificationsTable() {
-  const rows = () => pluginBroker.status()?.notices ?? [];
-  const title = (n: BrokerNotice) => (n.level === "error" ? translate("Error") : n.level === "warn" ? translate("Warning") : translate("Info"));
   return (
-    <Table<BrokerNotice>
-      rows={rows()}
+    <AccountTable<BrokerNotice>
+      id="notifications"
+      columns={NOTICE_COLUMNS}
+      rows={noticeRows()}
       rowKey={(n) => `${n.timeMs}:${n.message}`}
       empty={translate("There is no trading data here yet")}
-      columns={[
-        { title: translate("Time"), cell: (n) => <Num text={fmtTime(n.timeMs ?? 0)} /> },
-        { title: translate("Title"), cell: (n) => <span class={`trd-notice-${n.level}`}>{title(n)}</span> },
-        { title: translate("Text"), cell: (n) => <span class="trd-notice-text" data-no-translate>{n.message}</span> },
-      ]}
     />
   );
 }

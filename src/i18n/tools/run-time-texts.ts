@@ -52,6 +52,7 @@ const GROUPS: Record<string, string[]> = {
     "Stop price",
   ],
   "data/trading/replay-account.ts, order comments and rejections": ["Close position (partial)", "Invalid quantity"],
+  "window/trading/AccountManager.tsx, the account bar's value explanations (a tuple)": ["The margin your open positions hold", "What is left for new orders"],
   "window/oakscript and chart/indicators, script and study errors shown in the console and on the chart": [
     "Protocol mismatch.",
     "Script no longer exists.",

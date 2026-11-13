@@ -418,9 +418,21 @@ export const pluginBroker = createRoot(() => {
       const o = findOrder(id);
       report(commands.brokerCancel(id), { symbol: o ? chartSymbolOf(o.ticker) : "", side: o?.side ?? "buy", type: o?.type ?? "limit", qty: o?.qty ?? 0 });
     },
-    closePositionById(id: string) {
+    /** Close a position of the account manager (`qty` null: all of it). */
+    closePositionById(id: string, qty: number | null = null) {
       const p = account()?.positions.find((x) => x.id === id);
-      report(commands.brokerClosePosition(id, null), { symbol: p ? chartSymbolOf(p.ticker) : "", side: p ? exitSide(p.side) : "sell", type: "market", qty: p?.qty ?? 0 });
+      report(commands.brokerClosePosition(id, qty), { symbol: p ? chartSymbolOf(p.ticker) : "", side: p ? exitSide(p.side) : "sell", type: "market", qty: qty ?? p?.qty ?? 0 });
+    },
+    /** The chart that can protect or reverse a position: one that shows its ticker, where it is the only position. */
+    positionPane(p: Position): { position: TradingPosition; paneId: number } | null {
+      version();
+      for (const [paneId, sym] of charts) {
+        const s = sym();
+        if (!s || tickerOf(s) !== p.ticker || positionsOf(paneId).length !== 1) continue;
+        const pos = position(paneId);
+        if (pos) return { position: pos, paneId };
+      }
+      return null;
     },
     /** An order the ticket can modify: a chart shows its ticker. */
     editable(o: Working): { order: TradingOrder; paneId: number } | null {

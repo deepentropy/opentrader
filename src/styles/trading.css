@@ -1419,6 +1419,15 @@ html.theme-light {
   color: var(--color-text-primary);
   white-space: nowrap;
 }
+/* A value with an explanation on hover: a dotted underline. */
+.trd-am-field-title.is-hint {
+  text-decoration: underline dotted var(--color-content-primary-neutral-light);
+  text-underline-offset: 3px;
+  outline: none;
+}
+.trd-am-field-title.is-hint:hover {
+  text-decoration-color: var(--color-content-primary-neutral-bold);
+}
 .trd-am-field-value {
   font: 600 13px/18px var(--trd-font);
   white-space: nowrap;
@@ -1450,6 +1459,7 @@ html.theme-light {
 .trd-am-tabs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   margin: 16px 0;
   padding-inline: 13px 16px;
@@ -1520,6 +1530,67 @@ html.theme-light {
   font-weight: 400;
   text-align: left;
   white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.trd-table th:not(.trd-actions-col):hover {
+  color: var(--color-text-primary);
+}
+.trd-th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.trd-sort-arrow.is-up {
+  transform: rotate(180deg);
+}
+/* Where a dragged header lands. */
+.trd-table th.is-drop {
+  box-shadow: inset 0 -1px var(--color-card-border), inset 2px 0 var(--trd-buy);
+}
+/* The Symbol column stays in view when the table scrolls sideways. */
+.trd-table th.is-fixed,
+.trd-table td.is-fixed {
+  position: sticky;
+  inset-inline-start: 0;
+}
+.trd-table th.is-fixed {
+  z-index: 2;
+}
+.trd-table td.is-fixed {
+  z-index: 1;
+  background: var(--color-bg-secondary);
+}
+.trd-table th.trd-actions-col {
+  padding-inline: 4px 12px;
+  text-align: end;
+}
+.trd-col-setup.is-open {
+  background: var(--color-container-fill-primary-neutral-light);
+}
+.trd-col-item {
+  gap: 12px;
+}
+.trd-menu-point {
+  position: fixed;
+  width: 0;
+  height: 0;
+}
+.trd-am-download {
+  width: 28px;
+  height: 28px;
+  margin-inline-start: auto;
+}
+.trd-partial-close {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.trd-export {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .trd-table td {
   height: 48px;
