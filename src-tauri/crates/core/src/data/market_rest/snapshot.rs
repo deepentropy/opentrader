@@ -167,13 +167,14 @@ pub(super) fn shape_snapshot(t: &SnapEntry, prior_close: Option<f64>) -> Option<
     let src = live.or(prev)?;
 
     let (change, change_percent) = if live.is_some() {
-        // Regular hours — the snapshot's change is already close-vs-prev-close.
+        // Regular hours: the change of the price shown (the day bar's close) vs the previous close. The sent
+        // change is measured from the latest trade, which runs ahead of the day bar: shown with the day bar's
+        // close it reads as a price and a change that don't add up. It is used only without a previous close.
         let prev_close = prev.map(|p| p.c).filter(|c| *c > 0.0);
-        match (t.change, t.change_pct, prev_close) {
-            (Some(c), Some(p), _) => (c, p),
-            (Some(c), None, Some(pc)) => (c, c / pc * 100.0),
-            (None, _, Some(pc)) => (src.c - pc, (src.c - pc) / pc * 100.0),
-            (c, _, None) => (c.unwrap_or(0.0), 0.0),
+        match (prev_close, t.change, t.change_pct) {
+            (Some(pc), _, _) => (src.c - pc, (src.c - pc) / pc * 100.0),
+            (None, Some(c), Some(p)) => (c, p),
+            (None, c, _) => (c.unwrap_or(0.0), 0.0),
         }
     } else if let Some(pc) = prior_close.filter(|p| *p > 0.0) {
         // Closed / pre-open — completed session's close vs the prior session's.
@@ -269,5 +270,21 @@ mod tests {
         let t = entry(r#"{"ticker":"Y","updated":null,"change":null,"changePct":null,"day":null,"prev":null,"minute":null}"#);
         assert!(shape_snapshot(&t, None).is_none());
         assert!(SnapEntry::from_wire(serde_json::from_str(r#"{"ticker":null}"#).unwrap()).is_none());
+    }
+
+    /// The sent change follows the latest trade (57.82 here) while the price shown is the day bar's close
+    /// (57.57): the change is the shown price's, vs the previous close, so the two add up.
+    #[test]
+    fn change_follows_the_price_shown() {
+        let t = entry(
+            r#"{"ticker":"INTC","updated":1792000000000,"change":-3.36,"changePct":-5.49,"day":{"o":60,"h":60.5,"l":57,"c":57.57,"v":100,"vw":null},
+               "prev":{"o":61,"h":62,"l":60,"c":61.18,"v":50,"vw":null},"minute":null}"#,
+        );
+        let s = shape_snapshot(&t, None).unwrap();
+        assert!((s.last - s.change - 61.18).abs() < 1e-9);
+        assert!((s.change_percent - (57.57 - 61.18) / 61.18 * 100.0).abs() < 1e-9);
+        // Without a previous close the sent change is all there is.
+        let t = entry(r#"{"ticker":"Z","updated":1,"change":-1,"changePct":-2,"day":{"o":1,"h":1,"l":1,"c":49,"v":1,"vw":null},"prev":null,"minute":null}"#);
+        assert_eq!(shape_snapshot(&t, None).map(|s| (s.change, s.change_percent)), Some((-1.0, -2.0)));
     }
 }
