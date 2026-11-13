@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "opentrader-ibkr"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "chrono-tz",

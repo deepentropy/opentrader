@@ -1,7 +1,7 @@
 {
   "id": "ibkr",
   "name": "Interactive Brokers",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "OpenTrader",
   "description": "Your Interactive Brokers account in OpenTrader through IB Gateway or TWS: balances, positions, orders and trading from the charts.",
   "api": 1,
