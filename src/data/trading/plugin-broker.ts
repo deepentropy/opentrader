@@ -15,6 +15,7 @@ import { onTradeTick } from "../datafeed-live";
 import { cachedSymbolSessions } from "../session";
 import { strategyTester } from "../strategy-tester-store";
 import { translate } from "../../i18n/translator";
+import { capabilitiesOf, type TradingCapabilities } from "./capabilities";
 import type { Tradability } from "./replay-broker";
 import { ORDER_LABEL, type OrderRequest, type Side, type TradingEvent, type TradingExecution, type TradingOrder, type TradingPosition, type TradingQuote } from "./types";
 
@@ -300,6 +301,11 @@ export const pluginBroker = createRoot(() => {
 
     activePane,
     tradability: () => tradabilityOf(activePane()),
+    /** What the broker supports (`broker.state.capabilities`). */
+    capabilities: (): TradingCapabilities => {
+      version();
+      return capabilitiesOf(account()?.capabilities);
+    },
     symbol: activeSymbol,
     description: (symbol: string) => {
       version();

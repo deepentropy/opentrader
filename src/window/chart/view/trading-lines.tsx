@@ -16,6 +16,9 @@
  * a chip of an order or a bracket drags the price (snapped to the tick), a
  * click on an order chip opens it in the order ticket.
  *
+ * A broker plugin's lines offer only what it supports (#320): no drag or
+ * Modify without order modification, no TP / SL chips without brackets.
+ *
  * Chart settings → Trading (per chart): Positions and orders (reverse button),
  * Profit and loss value of the position / brackets (money, ticks, %),
  * Execution marks (labels), Extended price lines, Order and position
@@ -38,6 +41,7 @@ import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm"
 import { BuySellPresetsButton, placePresetOrder } from "../../trading/OrderPresets";
 import { QtyCalculator, QtyPill } from "../../trading/QtyCalculator";
 import { moveOrder } from "../../trading/order-actions";
+import { canAddOrderBrackets, canMove } from "../../../data/trading/capabilities";
 import { Popover, PopDivider, PopItem } from "../../screener/Popover";
 import { lastAtOrBefore } from "../time-search";
 import {
@@ -121,6 +125,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   const position = () => (on() && ta().positions ? broker.position(paneId) : null);
   const orders = () => (on() && ta().positions ? broker.orders(paneId) : []);
   const executions = () => (on() && ta().executions ? broker.executions(paneId) : []);
+  /** What this chart's broker supports (#320): the lines offer only that. */
+  const caps = () => broker.capabilities(paneId);
   /** One-click trading (app-wide). */
   const oneClick = () => tradingPrefs.prefs().oneClick;
   /** Cancel / close: asked first, unless one-click trading is on. */
@@ -236,6 +242,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
+      // A broker that cannot modify it: no drag, and no Modify on a click.
+      if (!canMove(caps(), o)) return;
       const g = geom();
       const start = linePrice(o, limit);
       if (!g || start === null) return;
@@ -351,7 +359,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
        *  stop carries them on its limit line. */
       const canAdd = (kind: "tp" | "sl") => {
         const x = o();
-        if (!x || x.kind !== "order" || x.type === "market") return false;
+        if (!x || x.kind !== "order" || x.type === "market" || !canAddOrderBrackets(caps())) return false;
         if (hasLimitLine(x) !== p.line.limit) return false;
         return kind === "tp" ? x.takeProfit === null : x.stopLoss === null;
       };
@@ -382,10 +390,13 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 <Icon name="replay-status" size={14} />
                 {fmtQty(o()!.qty)}
               </span>
-              <Tooltip text="Modify order" side="top">
-                <span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>
-              </Tooltip>
-              <Show when={!p.line.limit}>
+              <Show when={canMove(caps(), o()!)} fallback={<span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>}>
+                <Tooltip text="Modify order" side="top">
+                  <span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>
+                </Tooltip>
+              </Show>
+              {/* A bracket goes by modifying its order or the position's brackets. */}
+              <Show when={!p.line.limit && (o()!.kind === "order" || canMove(caps(), o()!))}>
                 <Tooltip text={o()!.kind === "tp" ? "Cancel take profit" : o()!.kind === "sl" ? "Cancel stop loss" : "Cancel order"} side="top">
                   <button
                     type="button"
@@ -428,7 +439,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               </Tooltip>
               <span class="ot-trd-seg" />
             </Show>
-            <BracketChips tp={p.pos.takeProfit === null} sl={p.pos.stopLoss === null} set={setBracket} />
+            <BracketChips tp={caps().positionBrackets && p.pos.takeProfit === null} sl={caps().positionBrackets && p.pos.stopLoss === null} set={setBracket} />
             <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop} onContextMenu={(e) => openMenu(e, null)}>
               <Tooltip text={fmtPl(p.pos.pl, broker.currency(paneId))} side="top">
                 <span class="ot-trd-chip__part is-qty is-filled">
@@ -561,7 +572,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     const [projectMenu, setProjectMenu] = createSignal<HTMLElement | null>(null);
     /** Types the project order can switch to: Market only with "Project
      *  order for market orders". */
-    const projectTypes = (): TradingOrder["type"][] => (ta().projectMarket ? ["market", "limit", "stop", "stopLimit"] : ["limit", "stop", "stopLimit"]);
+    const projectTypes = (): TradingOrder["type"][] => caps().orderTypes.filter((t) => t !== "market" || ta().projectMarket);
 
     /** Default exit of the project order: the ticket's distance from its entry. */
     const defaultProjectExit = (kind: "tp" | "sl"): number | null => {
@@ -591,8 +602,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             </button>
             <span class="ot-trd-seg" />
             <BracketChips
-              tp={pr().tp === null}
-              sl={pr().sl === null}
+              tp={caps().brackets && pr().tp === null}
+              sl={caps().brackets && pr().sl === null}
               set={(kind, at) => pr().actions.setExit(kind, at ?? defaultProjectExit(kind))}
             />
             <div
@@ -782,14 +793,16 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                     when={m().order}
                     fallback={
                       <>
-                        <PopItem
-                          title="Protect position"
-                          onClick={() => {
-                            setMenu(null);
-                            const pos = position();
-                            if (pos) tradingUi.editPosition(pos, paneId);
-                          }}
-                        />
+                        <Show when={caps().positionBrackets}>
+                          <PopItem
+                            title="Protect position"
+                            onClick={() => {
+                              setMenu(null);
+                              const pos = position();
+                              if (pos) tradingUi.editPosition(pos, paneId);
+                            }}
+                          />
+                        </Show>
                         <PopItem
                           title="Close position"
                           onClick={() => {
@@ -811,8 +824,10 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                     {(o) => (
                       <>
                         <PopItem title={orderMenuTitle(o(), tick())} disabled />
-                        <PopDivider />
-                        <Show when={o().kind === "order"}>
+                        <Show when={o().kind === "order" || canMove(caps(), o())}>
+                          <PopDivider />
+                        </Show>
+                        <Show when={o().kind === "order" && caps().modifyOrders}>
                           <PopItem
                             title="Modify order"
                             onClick={() => {
@@ -822,14 +837,16 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                             }}
                           />
                         </Show>
-                        <PopItem
-                          title="Cancel order"
-                          onClick={() => {
-                            const x = o();
-                            setMenu(null);
-                            askCancel(x, () => broker.cancel(x.id, paneId));
-                          }}
-                        />
+                        <Show when={o().kind === "order" || canMove(caps(), o())}>
+                          <PopItem
+                            title="Cancel order"
+                            onClick={() => {
+                              const x = o();
+                              setMenu(null);
+                              askCancel(x, () => broker.cancel(x.id, paneId));
+                            }}
+                          />
+                        </Show>
                       </>
                     )}
                   </Show>
@@ -907,7 +924,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     const go = (side: "buy" | "sell") => {
       focusPane(paneId);
       const p = preset();
-      if (!oneClick()) {
+      // A broker without market orders takes the order from the ticket.
+      if (!oneClick() || (!p && !caps().orderTypes.includes("market"))) {
         tradingUi.openOrderTicket({ side, presetId: p?.id });
         return;
       }

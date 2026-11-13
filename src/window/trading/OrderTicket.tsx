@@ -19,7 +19,7 @@
  * "Long 1 @ 644.33", its take profit / stop loss, the trade and tick values,
  * Confirm / Discard. ArrowUp / ArrowDown step a price by the symbol's tick.
  * Off replay (or before a start point) the form gives way to "Launch replay
- * to start".
+ * to start". The order types and the exits are the ones the broker supports (#320).
  *
  * Its state and actions are ticket-model.ts, the fields TicketFields.tsx, the ⋯ menu TicketSettingsMenu.tsx.
  */
@@ -286,7 +286,7 @@ function TicketBody(props: { floating: boolean }) {
           </div>
 
           <div class="trd-tk-types" role="tablist">
-            <For each={TYPES}>
+            <For each={TYPES.filter(([t]) => m.caps().orderTypes.includes(t))}>
               {([t, title]) => (
                 <button
                   type="button"
@@ -324,18 +324,21 @@ function TicketBody(props: { floating: boolean }) {
 
           </Show>
 
-          <ExitsSection>
-            <ExitInput m={m} kind="tp" />
-            <ExitInput m={m} kind="sl" />
-            <Show when={rr()}>
-              {(v) => (
-                <div class="trd-tk-row">
-                  <span>Risk / Reward</span>
-                  <span class="trd-tk-row-value">{Number(v().toFixed(2))}</span>
-                </div>
-              )}
-            </Show>
-          </ExitsSection>
+          {/* An order's take profit / stop loss need a broker that takes brackets; the position's are Protect position. */}
+          <Show when={isPos() || m.caps().brackets}>
+            <ExitsSection>
+              <ExitInput m={m} kind="tp" />
+              <ExitInput m={m} kind="sl" />
+              <Show when={rr()}>
+                {(v) => (
+                  <div class="trd-tk-row">
+                    <span>Risk / Reward</span>
+                    <span class="trd-tk-row-value">{Number(v().toFixed(2))}</span>
+                  </div>
+                )}
+              </Show>
+            </ExitsSection>
+          </Show>
           <Show when={editingPos()}>
             {(pos) => (
               <div class="trd-tk-values">

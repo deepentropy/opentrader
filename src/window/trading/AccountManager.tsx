@@ -69,7 +69,8 @@ function cancelOrder(o: BrokerOrder) {
   });
 }
 
-/** Ask, then close the position, all of it or, with "Partial close", the quantity typed. */
+/** Ask, then close the position, all of it or, with "Partial close" (a broker that closes part of one), the
+ *  quantity typed. */
 function closePosition(p: BrokerPosition) {
   const [partial, setPartial] = createSignal(false);
   const [qty, setQty] = createSignal(String(p.qty));
@@ -83,14 +84,16 @@ function closePosition(p: BrokerPosition) {
     mainText: translate("Close position"),
     cancelText: translate("Cancel"),
     intent: "danger",
-    body: () => (
-      <div class="trd-partial-close">
-        <CheckField variant="settings" label={translate("Partial close")} checked={partial()} onChange={setPartial} />
-        <Show when={partial()}>
-          <NumberField value={qty()} width={160} num={{ min: 0, max: p.qty, step: 1 }} onChange={setQty} />
-        </Show>
-      </div>
-    ),
+    body: pluginBroker.capabilities().partialClose
+      ? () => (
+          <div class="trd-partial-close">
+            <CheckField variant="settings" label={translate("Partial close")} checked={partial()} onChange={setPartial} />
+            <Show when={partial()}>
+              <NumberField value={qty()} width={160} num={{ min: 0, max: p.qty, step: 1 }} onChange={setQty} />
+            </Show>
+          </div>
+        )
+      : undefined,
     onConfirm: () => pluginBroker.closePositionById(p.id, partial() ? part() : null),
   });
 }
@@ -101,11 +104,15 @@ function reversePosition(p: BrokerPosition) {
   if (at) pluginBroker.reverse(at.paneId);
 }
 
-/** Right click on a position, as the reference app's: protect, close, reverse, a new order, the settings. */
+/** Right click on a position, as the reference app's: protect (a broker with position brackets), close, reverse, a
+ *  new order, the settings. */
 function positionMenu(p: BrokerPosition): RowMenuItem[] {
   const at = pluginBroker.positionPane(p);
+  const protect: RowMenuItem[] = pluginBroker.capabilities().positionBrackets
+    ? [{ title: translate("Protect position…"), disabled: !at, onClick: () => at && tradingUi.editPosition(at.position, at.paneId) }]
+    : [];
   return [
-    { title: translate("Protect position…"), disabled: !at, onClick: () => at && tradingUi.editPosition(at.position, at.paneId) },
+    ...protect,
     { title: translate("Close position"), onClick: () => closePosition(p) },
     { title: translate("Reverse position"), disabled: !at, onClick: () => reversePosition(p) },
     "divider",
@@ -114,14 +121,14 @@ function positionMenu(p: BrokerPosition): RowMenuItem[] {
   ];
 }
 
-/** Right click on a working order: modify, cancel. */
+/** Right click on a working order: modify (a broker that modifies orders), cancel. */
 function orderMenu(o: BrokerOrder): RowMenuItem[] {
   if (!isActiveOrder(o)) return [];
   const edit = pluginBroker.editable(o);
-  return [
-    { title: translate("Modify order…"), disabled: !edit, onClick: () => edit && tradingUi.editOrder(edit.order, edit.paneId) },
-    { title: translate("Cancel order"), onClick: () => cancelOrder(o) },
-  ];
+  const modify: RowMenuItem[] = pluginBroker.capabilities().modifyOrders
+    ? [{ title: translate("Modify order…"), disabled: !edit, onClick: () => edit && tradingUi.editOrder(edit.order, edit.paneId) }]
+    : [];
+  return [...modify, { title: translate("Cancel order"), onClick: () => cancelOrder(o) }];
 }
 
 const DownloadIcon = () => (
@@ -503,7 +510,7 @@ function PositionsTable(props: { onRow: (ticker: string) => void }) {
       menu={positionMenu}
       actions={(p) => (
         <>
-          <Show when={pluginBroker.positionPane(p)}>
+          <Show when={pluginBroker.capabilities().positionBrackets && pluginBroker.positionPane(p)}>
             {(at) => (
               <Tooltip text="Protect position…" side="top">
                 <button type="button" class="trd-row-btn" aria-label={translate("Protect position…")} onClick={() => tradingUi.editPosition(at().position, at().paneId)}>
@@ -536,7 +543,7 @@ function OrdersTable(props: { filter: Filter; onRow: (ticker: string) => void })
       menu={orderMenu}
       actions={(o) => (
         <Show when={isActiveOrder(o)}>
-          <Show when={pluginBroker.editable(o)}>
+          <Show when={pluginBroker.capabilities().modifyOrders && pluginBroker.editable(o)}>
             {(edit) => (
               <Tooltip text="Modify order…" side="top">
                 <button type="button" class="trd-row-btn" aria-label={translate("Modify order")} onClick={() => tradingUi.editOrder(edit().order, edit().paneId)}>

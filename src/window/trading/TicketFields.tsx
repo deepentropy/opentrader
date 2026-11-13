@@ -3,6 +3,7 @@ import { translate, translateWith } from "../../i18n/translator";
  * The order ticket's fields: an order price, the quantity, a take profit / stop loss. Each is typed in the type of
  * its label menu, shows its equivalent on the right (a drop-down picks its type) and ⇄ swaps the two.
  */
+import { Show } from "solid-js";
 import { broker } from "../../data/trading/broker";
 import type { TicketDraft } from "../../data/trading/trading-ui";
 import { Switch } from "../../components/form";
@@ -118,7 +119,7 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
 }
 
 export function QtyInput(props: { m: TicketModel }) {
-  const { d, ccy, types, setQtyType, qtyValueText, patch, stepKey, submit, boxes } = props.m;
+  const { d, ccy, types, qtyTypes, setQtyType, qtyValueText, patch, stepKey, submit, boxes } = props.m;
   const stock = () => broker.isStock(d().symbol);
   const type = () => types().qtyType;
   const eq = () => types().qtyEquiv;
@@ -127,7 +128,7 @@ export function QtyInput(props: { m: TicketModel }) {
     <div class="trd-tk-field">
       <LabelMenu
         label={qtyTitle(type(), ccy(), stock())}
-        rows={QTY_TYPES.map((t) => ({ title: qtyTitle(t, ccy(), stock()), info: qtyInfo(t), selected: t === type(), onSelect: () => setQtyType(t) }))}
+        rows={qtyTypes().map((t) => ({ title: qtyTitle(t, ccy(), stock()), info: qtyInfo(t), selected: t === type(), onSelect: () => setQtyType(t) }))}
       />
       <span class="trd-tk-box" ref={(el) => (boxes.qty = el)}>
         <input
@@ -145,7 +146,9 @@ export function QtyInput(props: { m: TicketModel }) {
             if (e.key === "Enter") submit();
           }}
         />
-        <SwapButton onClick={() => setQtyType(eq(), type())} />
+        <Show when={qtyTypes().includes(eq())}>
+          <SwapButton onClick={() => setQtyType(eq(), type())} />
+        </Show>
         <EquivButton
           value={localNumber(qtyValueText(eq()))}
           unit={qtyUnit(eq(), ccy(), stock())}

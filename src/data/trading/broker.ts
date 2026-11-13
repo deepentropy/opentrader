@@ -29,6 +29,8 @@ export const broker = {
   version: () => replayBroker.version() + pluginBroker.version(),
   activePane: () => brokerOf().activePane(),
   tradability: () => brokerOf().tradability(),
+  /** What the broker of a chart (none given: of the focused one) supports. */
+  capabilities: (paneId?: number | null) => brokerOf(paneId).capabilities(),
   symbol: () => brokerOf().symbol(),
   description: (symbol: string) => brokerOf().description(symbol),
   iconUrl: (symbol: string) => brokerOf().iconUrl(symbol),

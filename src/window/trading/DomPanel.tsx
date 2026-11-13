@@ -13,6 +13,7 @@
  * click centres; the wheel scrolls a row per 100 px. Off-centre, the ladder
  * re-centres on the market after 2 s (the pie on the switch); dynamic mode
  * keeps it centred. Hovering a size cell draws the price on the chart.
+ * Order types, moves and modifications are the broker's (#320).
  */
 import { Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
@@ -24,6 +25,7 @@ import { ChartContextMenu } from "../chart/ChartContextMenu";
 import { confirmCancelOrder, confirmClosePosition } from "./confirm";
 import { fmtPrice, fmtQty, tickDecimals, tickerOf } from "./format";
 import { moveOrder } from "./order-actions";
+import { canMove } from "../../data/trading/capabilities";
 import {
   DOM_CENTER_DELAY,
   DOM_ROW_H,
@@ -182,7 +184,7 @@ export function DomPanel() {
    *  dialog, filled in (reference app). */
   const place = (side: Side, type: OrderType, price: number | null, limit: number | null = null) => {
     const sym = broker.symbol();
-    if (!sym || !broker.tradability().ok) return;
+    if (!sym || !broker.tradability().ok || !takes(type)) return;
     if (!tradingPrefs.prefs().oneClick) {
       const f = (v: number | null) => (v == null ? "" : v.toFixed(dec()));
       tradingUi.openOrderDialog({
@@ -209,6 +211,8 @@ export function DomPanel() {
     });
   };
   const oneClick = () => tradingPrefs.prefs().oneClick;
+  /** The broker takes this order type (#320). */
+  const takes = (type: OrderType) => broker.capabilities().orderTypes.includes(type);
   const cancel = (o: TradingOrder) => {
     const id = pane();
     if (id === null) return;
@@ -260,6 +264,8 @@ export function DomPanel() {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    // A broker that cannot modify it: no drag, and no order dialog on a click.
+    if (!canMove(broker.capabilities(), mk.order)) return;
     const from = ix(mk.order[mk.field]);
     const y0 = e.clientY;
     let moved = false;
@@ -567,13 +573,13 @@ export function DomPanel() {
         </div>
         <div class="trd-dom-btns is-market">
           <Tooltip text="Buy market" side="top">
-            <button type="button" class="trd-dom-btn is-primary is-buy" onClick={() => place("buy", "market", null)}>
+            <button type="button" class="trd-dom-btn is-primary is-buy" aria-disabled={!takes("market")} onClick={() => place("buy", "market", null)}>
               Buy Mkt
             </button>
           </Tooltip>
           <DomQty />
           <Tooltip text="Sell market" side="top">
-            <button type="button" class="trd-dom-btn is-primary is-sell" onClick={() => place("sell", "market", null)}>
+            <button type="button" class="trd-dom-btn is-primary is-sell" aria-disabled={!takes("market")} onClick={() => place("sell", "market", null)}>
               Sell Mkt
             </button>
           </Tooltip>
@@ -586,12 +592,14 @@ export function DomPanel() {
             x={m().x}
             y={m().y}
             onClose={() => setMenu(null)}
-            nodes={contextItems(m().side, m().price, fmtQty(ticketQty()), ticker(), tick(), (p) => fmtPrice(p, tick())).map((it, n) => ({
-              kind: "item" as const,
-              id: `dom-${n}`,
-              label: it.label,
-              onSelect: () => place(m().side, it.type, it.price, it.limit),
-            }))}
+            nodes={contextItems(m().side, m().price, fmtQty(ticketQty()), ticker(), tick(), (p) => fmtPrice(p, tick()))
+              .filter((it) => takes(it.type))
+              .map((it, n) => ({
+                kind: "item" as const,
+                id: `dom-${n}`,
+                label: it.label,
+                onSelect: () => place(m().side, it.type, it.price, it.limit),
+              }))}
           />
         )}
       </Show>

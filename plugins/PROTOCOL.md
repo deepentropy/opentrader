@@ -223,6 +223,7 @@ The whole account. Send it once after `hello`, then whenever any part changes: a
 | Field | Meaning |
 |---|---|
 | `connected` | The plugin is logged in to its broker. While it is `false`, the app shows the broker as not connected. |
+| `capabilities` | What the broker supports. The order ticket, the chart and the DOM offer only that: `orderTypes` are the ticket's order types; without `brackets` a new order has no take profit / stop loss; without `positionBrackets` there is no Protect position; without `partialClose` a position closes whole; without `modifyOrders` orders are not dragged or modified. A field left out is supported. |
 | `positionMode` | `netting` gives one position per symbol. `hedging` allows several, each closed on its own. A chart shows a hedging account's positions of a symbol as one net position. |
 | `orders[].status` | `placing`, `working`, `inactive`, `filled`, `cancelled` or `rejected`. Keep recent filled, cancelled and rejected orders for the account manager's filters. |
 | `orders[].takeProfit`, `stopLoss` | The brackets an order opens its position with. |

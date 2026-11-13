@@ -17,6 +17,7 @@ import { EmojiImage, LeadingEmojiText } from "../../components/emoji-images";
 import { Tooltip } from "../../components/Tooltip";
 import { broker } from "../../data/trading/broker";
 import { MAX_PRESETS, ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
+import { takesOrder } from "../../data/trading/capabilities";
 import type { Side } from "../../data/trading/types";
 import { InfoIcon, Popup } from "./TicketMenus";
 import { buildTicket, presetFields, presetPriceText, resolveDraft } from "./ticket";
@@ -323,7 +324,8 @@ export function BuySellPresetsButton() {
 
 /** One-click Buy / Sell with an active preset: the preset's order at once
  *  (the next orders' quantity); a preset that gives no valid order asks to
- *  reset it. */
+ *  reset it. An order the broker does not take as it is (its type, its
+ *  exits) opens in the ticket, which offers what the broker supports. */
 export function placePresetOrder(p: OrderPreset, side: Side, symbol: string) {
   const q = broker.quote();
   const tick = q?.minTick ?? 0.01;
@@ -333,7 +335,8 @@ export function placePresetOrder(p: OrderPreset, side: Side, symbol: string) {
   const balance = broker.balance();
   const t = buildTicket(resolveDraft(d, q, { tick, decimals: dec, balance, pointValue: 1 }), q);
   if (typeof t !== "string") {
-    broker.place(t);
+    if (takesOrder(broker.capabilities(), t)) broker.place(t);
+    else tradingUi.openOrderTicket({ side, presetId: p.id });
     return;
   }
   showConfirm({
