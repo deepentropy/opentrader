@@ -583,7 +583,9 @@ impl Ibkr {
                             self.apply_order(&conn, &d.contract, &d.order, d.order_id, &d.order_state.status, msg);
                         }
                         OrderUpdate::OrderStatus(s) => self.apply_status(&s),
-                        OrderUpdate::ExecutionData(d) => self.store.update(|t| apply_execution(t, &d.contract, &d.execution, true)),
+                        // A new fill comes with request id -1; the answers to the executions request (at connection) come here
+                        // too, with that request's id, and are history.
+                        OrderUpdate::ExecutionData(d) => self.store.update(|t| apply_execution(t, &d.contract, &d.execution, d.request_id < 0)),
                         OrderUpdate::CommissionReport(c) => {
                             self.store.update(|t| apply_commission(t, &c.execution_id, c.commission, c.realized_pnl))
                         }
@@ -1209,7 +1211,7 @@ fn apply_execution(t: &mut Tables, c: &Contract, e: &ibapi::orders::Execution, l
         commission: prev.and_then(|p| p.exec.commission),
         realized_pnl: prev.and_then(|p| p.exec.realized_pnl),
     };
-    // The answers to the executions request also come on the order stream: only a fill of the last minute is news.
+    // Only a fill of the last minute is news (a fill the broker sends again after a reconnection is not).
     if live && fresh && exec.time_ms > orders::now_ms() - 60_000.0 {
         t.event(BrokerEvent {
             kind: "executed".into(),
