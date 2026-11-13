@@ -23,14 +23,14 @@
  * the last replayed price, the spread between). One-click trading is
  * app-wide (trading-prefs.ts).
  */
-import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import type { Time } from "lightweight-charts";
 import { Icon } from "../../../components/Icon";
 import { Tooltip } from "../../../components/Tooltip";
-import { isPaneInReplay, replayActivePane, setReplayActivePane } from "../../../data/replay";
 import { tradingPrefs } from "../../../data/trading/trading-prefs";
 import { tradingAppearance, type TradingAppearance } from "../../header/chart-settings";
-import { replayBroker } from "../../../data/trading/replay-broker";
+import { broker, brokerOf, focusPane, tradesOn } from "../../../data/trading/broker";
+import { pluginBroker } from "../../../data/trading/plugin-broker";
 import { ticketQty, tradingUi } from "../../../data/trading/trading-ui";
 import type { TradingOrder, TradingPosition } from "../../../data/trading/types";
 import { cachedSymbolSessions } from "../../../data/session";
@@ -111,13 +111,16 @@ const ArrowIcon = (props: { down: boolean }) => (
 
 export function createTradingLines(cx: ChartCx): TradingLinesApi {
   const paneId = cx.paneId;
-  const on = () => isPaneInReplay(paneId);
+  /** Trading shows on this chart: in replay, or traded through the connected broker plugin. */
+  const on = () => tradesOn(paneId);
+  // The plugin broker maps this chart's symbol to its ticker.
+  onCleanup(pluginBroker.registerChart(paneId, () => cx.props.symbol));
   /** This chart's Trading settings. */
   const ta = (): TradingAppearance => cx.appearance().trading ?? DEFAULT_TRADING;
-  const tick = () => cachedSymbolSessions(cx.props.symbol ?? "")?.mintick ?? replayBroker.quote()?.minTick ?? 0.01;
-  const position = () => (on() && ta().positions ? replayBroker.position(paneId) : null);
-  const orders = () => (on() && ta().positions ? replayBroker.orders(paneId) : []);
-  const executions = () => (on() && ta().executions ? replayBroker.executions(paneId) : []);
+  const tick = () => cachedSymbolSessions(cx.props.symbol ?? "")?.mintick ?? broker.quote()?.minTick ?? 0.01;
+  const position = () => (on() && ta().positions ? broker.position(paneId) : null);
+  const orders = () => (on() && ta().positions ? broker.orders(paneId) : []);
+  const executions = () => (on() && ta().executions ? broker.executions(paneId) : []);
   /** One-click trading (app-wide). */
   const oneClick = () => tradingPrefs.prefs().oneClick;
   /** Cancel / close: asked first, unless one-click trading is on. */
@@ -129,7 +132,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   function TradingLinesLayer(props: { epoch: number }) {
     const geom = createMemo<Geom | null>(() => {
       void props.epoch;
-      replayBroker.version();
+      broker.version();
       cx.paneBoxes();
       cx.mainPaneEpoch();
       if (!on() || !cx.chart || !cx.series) return null;
@@ -290,7 +293,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       />
     );
     const Tail = () => <span class="ot-trd-seg is-tail" style={ta().align === "right" ? { width: `${RIGHT_OFFSET}px` } : { flex: "1 1 0" }} />;
-    const ccy = () => replayBroker.currency(paneId);
+    const ccy = () => broker.currency(paneId);
 
     const sideColor = (side: "buy" | "sell") => (side === "buy" ? BLUE : SELL_COLOR);
     const colorOf = (o: TradingOrder) => (o.kind === "tp" ? TP_COLOR : o.kind === "sl" ? SL_COLOR : sideColor(o.side));
@@ -357,7 +360,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         if (!x) return;
         const v = at ?? defaultOrderBracket(x, kind, tick());
         if (v === null) return;
-        replayBroker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
+        broker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
       };
       return (
         <Show when={o() && y() !== null}>
@@ -392,7 +395,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                     onMouseDown={stop}
                     onClick={() => {
                       const x = o();
-                      if (x) askCancel(x, () => replayBroker.cancel(x.id, paneId));
+                      if (x) askCancel(x, () => broker.cancel(x.id, paneId));
                     }}
                   >
                     <CloseIcon />
@@ -411,7 +414,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       const setBracket = (kind: "tp" | "sl", at: number | null) => {
         const pos = p.pos;
         const v = at ?? defaultBracket(pos, kind, tick());
-        replayBroker.setPositionBrackets(kind === "tp" ? v : pos.takeProfit, kind === "sl" ? v : pos.stopLoss, paneId);
+        broker.setPositionBrackets(kind === "tp" ? v : pos.takeProfit, kind === "sl" ? v : pos.stopLoss, paneId);
       };
       return (
         <Show when={y() !== null}>
@@ -419,7 +422,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             <Lead />
             <Show when={ta().reverseButton}>
               <Tooltip text="Reverse Position" side="top">
-                <button type="button" class="ot-trd-chip is-button" aria-label="Reverse position" onPointerDown={stop} onMouseDown={stop} onClick={() => replayBroker.reverse(paneId)}>
+                <button type="button" class="ot-trd-chip is-button" aria-label="Reverse position" onPointerDown={stop} onMouseDown={stop} onClick={() => broker.reverse(paneId)}>
                   <ReverseIcon />
                 </button>
               </Tooltip>
@@ -427,7 +430,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             </Show>
             <BracketChips tp={p.pos.takeProfit === null} sl={p.pos.stopLoss === null} set={setBracket} />
             <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop} onContextMenu={(e) => openMenu(e, null)}>
-              <Tooltip text={fmtPl(p.pos.pl, replayBroker.currency(paneId))} side="top">
+              <Tooltip text={fmtPl(p.pos.pl, broker.currency(paneId))} side="top">
                 <span class="ot-trd-chip__part is-qty is-filled">
                   <Icon name="replay-status" size={14} />
                   {positionQtyText(p.pos)}
@@ -445,7 +448,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                   type="button"
                   class="ot-trd-chip__part is-close"
                   aria-label="Close position"
-                  onClick={() => askClose(p.pos, () => replayBroker.closePosition(null, paneId))}
+                  onClick={() => askClose(p.pos, () => broker.closePosition(null, paneId))}
                 >
                   <CloseIcon />
                 </button>
@@ -507,14 +510,14 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     const project = createMemo(() => {
       const a = tradingUi.ticketActions();
       const d = tradingUi.draft();
-      if (!a || !d || d.editing || tradingUi.sent() || replayActivePane() !== paneId) return null;
+      if (!a || !d || d.editing || tradingUi.sent() || brokerOf(paneId).activePane() !== paneId) return null;
       const r = a.resolved();
       if (r.orderType === "market" && !(MARKET_PROJECT && ta().projectMarket)) return null;
       const num = (v: string) => {
         const n = Number(v);
         return v !== "" && Number.isFinite(n) && n > 0 ? n : null;
       };
-      const main = r.orderType === "limit" ? num(r.limitPrice) : r.orderType === "market" ? replayBroker.quote()?.last ?? null : num(r.stopPrice);
+      const main = r.orderType === "limit" ? num(r.limitPrice) : r.orderType === "market" ? broker.quote()?.last ?? null : num(r.stopPrice);
       return {
         actions: a,
         side: r.side,
@@ -675,7 +678,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
      *  background. */
     const domLine = createMemo(() => {
       const h = tradingUi.domHover();
-      if (!h || !on() || replayActivePane() !== paneId) return null;
+      if (!h || !on() || brokerOf(paneId).activePane() !== paneId) return null;
       const light = cx.props.theme === "light";
       const color = h.buy ? (light ? "#94b0ff" : "#1c3887") : light ? "#f89aa2" : "#80222a";
       return { price: h.price, color };
@@ -792,14 +795,14 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                           onClick={() => {
                             setMenu(null);
                             const pos = position();
-                            if (pos) askClose(pos, () => replayBroker.closePosition(null, paneId));
+                            if (pos) askClose(pos, () => broker.closePosition(null, paneId));
                           }}
                         />
                         <PopItem
                           title="Reverse position"
                           onClick={() => {
                             setMenu(null);
-                            replayBroker.reverse(paneId);
+                            broker.reverse(paneId);
                           }}
                         />
                       </>
@@ -824,7 +827,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                           onClick={() => {
                             const x = o();
                             setMenu(null);
-                            askCancel(x, () => replayBroker.cancel(x.id, paneId));
+                            askCancel(x, () => broker.cancel(x.id, paneId));
                           }}
                         />
                       </>
@@ -896,24 +899,24 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
    *  presets, a chevron picks the preset the buttons use (its title on them). */
   function TradingButtons() {
     const price = createMemo(() => {
-      replayBroker.version();
+      broker.version();
       const last = cx.latestBar();
       return last ? snapToTick(last.close, tick()) : null;
     });
     const preset = () => tradingUi.activePreset();
     const go = (side: "buy" | "sell") => {
-      setReplayActivePane(paneId);
+      focusPane(paneId);
       const p = preset();
       if (!oneClick()) {
         tradingUi.openOrderTicket({ side, presetId: p?.id });
         return;
       }
-      const symbol = replayBroker.symbol() ?? cx.props.symbol ?? "";
+      const symbol = broker.symbol() ?? cx.props.symbol ?? "";
       if (p) {
         placePresetOrder(p, side, symbol);
         return;
       }
-      replayBroker.place({ symbol, side, type: "market", qty: ticketQty(), limitPrice: null, stopPrice: null, takeProfit: null, stopLoss: null });
+      broker.place({ symbol, side, type: "market", qty: ticketQty(), limitPrice: null, stopPrice: null, takeProfit: null, stopLoss: null });
     };
     return (
       <Show when={on() && ta().buySellButtons && price() !== null}>

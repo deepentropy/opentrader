@@ -205,7 +205,7 @@ function Capabilities(props: { list: string[] }) {
 function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (what: string, p: Promise<Result<PluginsStatus>>) => Promise<boolean> }) {
   const p = () => props.plugin;
   const m = () => p().manifest;
-  const [open, setOpen] = createSignal<"settings" | "logs" | null>(null);
+  const [open, setOpen] = createSignal<"settings" | "logs" | "symbols" | null>(null);
   const [logs, setLogs] = createSignal<string[]>([]);
   const stateText = () => {
     if (!p().supported) return translate("Does not run on this computer");
@@ -265,6 +265,11 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
             Settings
           </button>
         </Show>
+        <Show when={m().provides.includes("broker")}>
+          <button type="button" class="app-settings-btn" data-name="plugin-symbols" onClick={() => setOpen(open() === "symbols" ? null : "symbols")}>
+            Symbols
+          </button>
+        </Show>
         <button type="button" class="app-settings-btn" onClick={showLogs}>
           Log
         </button>
@@ -280,6 +285,9 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
       </div>
       <Show when={open() === "settings"}>
         <PluginSettings plugin={p()} take={props.take} />
+      </Show>
+      <Show when={open() === "symbols"}>
+        <SymbolMap plugin={p()} take={props.take} />
       </Show>
       <Show when={open() === "logs"}>
         <pre class="app-settings-code app-settings-plugin-log" data-no-translate>{logs().join("\n") || "—"}</pre>
@@ -408,6 +416,49 @@ function PluginSettings(props: { plugin: PluginInfo; take: (what: string, p: Pro
       </For>
       <div class="app-settings-local-head">
         <button type="button" class="app-settings-btn" data-name="plugin-settings-apply" onClick={() => void props.take(`settings:${m().id}`, plugins.setSettings(m().id, values()))}>
+          {translate("Apply")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The mapping's example row (data, not interface text). */
+const EXAMPLE = ["NASDAQ:AAPL", "AAPL.US"] as const;
+
+/** A broker plugin's tickers for chart symbols the plugin does not find by itself ("NASDAQ:AAPL" → "AAPL.US"). */
+function SymbolMap(props: { plugin: PluginInfo; take: (what: string, p: Promise<Result<PluginsStatus>>) => Promise<boolean> }) {
+  const id = () => props.plugin.manifest.id;
+  const initial = () => Object.entries(props.plugin.symbolMap ?? {}).map(([symbol, ticker]) => ({ symbol, ticker: ticker ?? "" }));
+  const [rows, setRows] = createSignal<{ symbol: string; ticker: string }[]>(initial());
+  const set = (i: number, k: "symbol" | "ticker", v: string) => setRows((r) => r.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const apply = () => {
+    const map: Record<string, string> = {};
+    for (const r of rows()) if (r.symbol.trim() && r.ticker.trim()) map[r.symbol.trim().toUpperCase()] = r.ticker.trim();
+    void props.take(`symbols:${id()}`, plugins.setSymbolMap(id(), map));
+  };
+  return (
+    <div class="app-settings-plugin-settings" data-name="plugin-symbol-map">
+      <div class="app-settings-local-status">
+        The broker's ticker of a chart symbol, when the plugin does not find it: EXCHANGE:SYMBOL on the left, the broker's name on the right.
+      </div>
+      <For each={rows()}>
+        {(r, i) => (
+          <div class="app-settings-plugin-map-row">
+            <input class="app-settings-input" placeholder={EXAMPLE[0]} value={r.symbol} onInput={(e) => set(i(), "symbol", e.currentTarget.value)} data-no-translate />
+            <span aria-hidden="true">→</span>
+            <input class="app-settings-input" placeholder={EXAMPLE[1]} value={r.ticker} onInput={(e) => set(i(), "ticker", e.currentTarget.value)} data-no-translate />
+            <button type="button" class="app-settings-btn" onClick={() => setRows((x) => x.filter((_, j) => j !== i()))}>
+              Remove
+            </button>
+          </div>
+        )}
+      </For>
+      <div class="app-settings-local-head">
+        <button type="button" class="app-settings-btn" onClick={() => setRows((x) => [...x, { symbol: "", ticker: "" }])}>
+          Add symbol
+        </button>
+        <button type="button" class="app-settings-btn" data-name="plugin-symbols-apply" onClick={apply}>
           {translate("Apply")}
         </button>
       </div>

@@ -23,6 +23,7 @@ import { CHART_TYPE_ICON, type ChartTypeId } from "../chart/chart-types";
 import { iconNameForLayout, paneCount, type LayoutId } from "../chart/layouts";
 import { ReplayHeaderButton } from "../replay/ReplayHeaderButton";
 import { TradeHeaderButton } from "../trading/TradeHeaderButton";
+import { pluginBroker } from "../../data/trading/plugin-broker";
 import { replayEnabled } from "../../data/replay";
 import { favoriteIntervals, longIntervalLabel, shortIntervalLabel } from "../chart/interval-favorites";
 import { chartTypeButtons, chartTypeLabel, favoriteChartTypes } from "../chart/chart-type-favorites";
@@ -466,8 +467,8 @@ export function HeaderToolbar(props: Props) {
             </>
           )}
         </For>
-        {/* "Trade" at the right end while Bar Replay is on (paper trading). */}
-        <Show when={replayEnabled()}>
+        {/* "Trade" at the right end while Bar Replay is on (paper trading) or a broker plugin is enabled. */}
+        <Show when={replayEnabled() || (pluginBroker.status()?.brokers.length ?? 0) > 0}>
           <TradeHeaderButton />
         </Show>
       </ScrollStrip>

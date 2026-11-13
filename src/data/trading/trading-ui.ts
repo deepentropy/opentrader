@@ -7,7 +7,7 @@
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "../kv";
 import { oneOf, persisted } from "../persisted";
-import { replayBroker } from "./replay-broker";
+import { broker } from "./broker";
 import type { OrderType, Side, TradingOrder, TradingPosition } from "./types";
 
 /** What the order ticket edits. Prices are strings while typed. */
@@ -170,6 +170,10 @@ export const tradingUi = createRoot(() => {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   /** Bumped to bring the Replay Trading tab forward (open, selected). */
   const [reportRequest, setReportRequest] = createSignal(0);
+  /** Bumped to bring the broker's account manager tab forward (Trade menu). */
+  const [accountRequest, setAccountRequest] = createSignal(0);
+  /** The broker picker ("Connect broker…"). */
+  const [brokerPicker, setBrokerPicker] = createSignal(false);
   const [reportView, setReportView] = persisted<ReplayReportView>(K.reportView, { parse: oneOf("report", "trades"), format: String, default: "report" });
 
   // Order presets and the ticket's ⋯ menu setting.
@@ -206,7 +210,7 @@ export const tradingUi = createRoot(() => {
       orderType = better ? "limit" : "stop";
     }
     // No chart price: limit and stop prices start at the market price.
-    const q = replayBroker.quote();
+    const q = broker.quote();
     const mkt = q?.last != null ? q.last.toFixed(Math.max(2, decimalsOf(q.minTick))) : "";
     const base = px || mkt;
     return {
@@ -253,7 +257,7 @@ export const tradingUi = createRoot(() => {
     newDraft,
     /** Open the ticket for a new order (`presetId`: applied once open). */
     openOrderTicket(opts: { symbol?: string; side?: Side; price?: number; last?: number | null; presetId?: string } = {}) {
-      const symbol = opts.symbol || replayBroker.symbol() || activeSymbol();
+      const symbol = opts.symbol || broker.symbol() || activeSymbol();
       setDraft({ ...newDraft(symbol, opts.side ?? "buy", opts.price, opts.last), ...(opts.presetId ? { applyPreset: opts.presetId } : {}) });
       setSent(false);
       // An order to make (a side or a price given): the Order tab.
@@ -350,13 +354,13 @@ export const tradingUi = createRoot(() => {
     setTicketMode(m: "panel" | "popup") {
       saveTicketMode(m);
       setOrderDialog(false);
-      if (m === "popup" && !draft()) setDraft(newDraft(replayBroker.symbol() || activeSymbol(), "buy"));
+      if (m === "popup" && !draft()) setDraft(newDraft(broker.symbol() || activeSymbol(), "buy"));
     },
     orderDialog,
     /** An order from the DOM tab in the floating dialog: `patch` on a new
      *  draft (side, type, prices), or a working order to modify. */
     openOrderDialog(p: { side: Side; patch?: Partial<TicketDraft>; order?: TradingOrder; paneId?: number | null }) {
-      const symbol = replayBroker.symbol() || activeSymbol();
+      const symbol = broker.symbol() || activeSymbol();
       if (p.order) this.editOrder(p.order, p.paneId ?? null, true);
       else {
         setDraft({ ...newDraft(symbol, p.side), ...p.patch });
@@ -391,5 +395,9 @@ export const tradingUi = createRoot(() => {
     },
     reportView,
     setReportView,
+    accountRequest,
+    showAccountManager: () => setAccountRequest((n) => n + 1),
+    brokerPicker,
+    setBrokerPicker,
   };
 });

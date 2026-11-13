@@ -7,6 +7,7 @@
  * API listens on 127.0.0.1. An enabled `process` plugin is started here and started again when it stops; an `external`
  * one runs inside another application and finds the address and its token in the connection file written for it.
  */
+pub mod broker;
 pub mod data;
 mod package;
 
@@ -36,11 +37,15 @@ const LOG_LINES: usize = 300;
 struct Config {
     port: u16,
     plugins: BTreeMap<String, PluginConfig>,
+    /// The broker plugin the window trades with (Trade > Connect broker).
+    active_broker: Option<String>,
+    /// Orders may be placed and changed (off by default; plugins/broker.rs).
+    trading_enabled: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { port: DEFAULT_PORT, plugins: BTreeMap::new() }
+        Self { port: DEFAULT_PORT, plugins: BTreeMap::new(), active_broker: None, trading_enabled: false }
     }
 }
 
@@ -53,6 +58,8 @@ struct PluginConfig {
     /// The files the installation steps copied outside the plugin's folder (removed with the plugin).
     copied: Vec<String>,
     verified: bool,
+    /// A broker plugin's tickers for chart symbols, set by the user ("NASDAQ:AAPL" → "AAPL.US").
+    symbol_map: BTreeMap<String, String>,
 }
 
 /// One installed plugin, as Settings shows it.
@@ -70,6 +77,7 @@ pub struct PluginInfo {
     pub connected_version: Option<String>,
     pub settings: BTreeMap<String, String>,
     pub copied: Vec<String>,
+    pub symbol_map: BTreeMap<String, String>,
     /// Runs on this computer.
     pub supported: bool,
 }
@@ -102,6 +110,7 @@ pub struct PluginsChanged;
 pub struct Plugins {
     pub hub: Hub,
     pub data: data::PluginData,
+    pub broker: broker::PluginBroker,
     config: Mutex<Config>,
     error: Mutex<Option<String>>,
     /// The port the API listens on now.
@@ -160,6 +169,7 @@ fn log(app: &AppHandle, id: &str, line: impl Into<String>) {
 
 fn changed(app: &AppHandle) {
     let _ = PluginsChanged.emit(app);
+    broker::changed(app);
 }
 
 fn status(app: &AppHandle) -> PluginsStatus {
@@ -179,6 +189,7 @@ fn status(app: &AppHandle) -> PluginsStatus {
                 connected_version: hello.map(|h| h.version).filter(|v| !v.is_empty()),
                 settings: c.settings,
                 copied: c.copied,
+                symbol_map: c.symbol_map,
                 supported: m.supported_here(),
                 manifest: m,
             }
@@ -192,6 +203,7 @@ pub fn init(app: &AppHandle) {
     app.manage(Plugins {
         hub: Hub::new(),
         data: Default::default(),
+        broker: Default::default(),
         config: Mutex::new(read_config(app)),
         error: Mutex::new(None),
         listening_on: Mutex::new(None),
@@ -225,6 +237,7 @@ pub fn init(app: &AppHandle) {
         }
     });
     data::init(app);
+    broker::init(app);
     apply(app);
 }
 

@@ -1116,3 +1116,420 @@ html.theme-light {
 .trd-preset-favorite.is-on {
   display: inline-flex;
 }
+
+/* ─── "Trade with your broker" ─── */
+.trd-select-dialog {
+  position: relative;
+  width: min(1168px, calc(100vw - 48px));
+  max-height: min(780px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  padding: 36px 0 24px;
+  background: #1f1f1f;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-family: var(--trd-font);
+  color: var(--color-text-primary);
+}
+.trd-select-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 0 72px;
+  margin-bottom: 12px;
+}
+.trd-select-title {
+  margin: 0;
+  font: 600 20px/24px var(--trd-font);
+}
+.trd-select-search {
+  display: flex;
+  align-items: center;
+  width: 216px;
+  height: 34px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+}
+.trd-select-search-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  transform: scale(0.65);
+}
+.trd-select-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-select-search-clear {
+  display: inline-flex;
+  margin-right: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.trd-select-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 68px;
+  margin-top: 20px;
+  overflow-y: auto;
+  min-height: 160px;
+}
+.trd-select-empty {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  padding: 24px 4px;
+}
+.trd-broker-card {
+  width: 164px;
+  height: 152px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 8px 16px;
+  border: 1px solid var(--trd-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--trd-font);
+}
+.trd-broker-card:hover {
+  background: #2e2e2e;
+  border-color: #2e2e2e;
+}
+.trd-broker-card .trd-broker-mark {
+  margin-bottom: 16px;
+}
+.trd-broker-card-name {
+  font: 400 14px/18px var(--trd-font);
+  margin-bottom: 4px;
+}
+.trd-broker-card-note {
+  font: 400 11px/14px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+
+/* DEMO / LIVE of the connected broker account (Trade button, account manager). */
+.trd-account-kind {
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(41, 98, 255, 0.18);
+  color: #5b9cf6;
+  font: 600 10px/16px var(--trd-font);
+  letter-spacing: 0.4px;
+}
+.trd-account-kind.is-live {
+  background: rgba(242, 54, 69, 0.18);
+  color: var(--trd-neg);
+}
+.trd-account-kind.is-off {
+  opacity: 0.55;
+}
+.trd-broker-card-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-bottom: 16px;
+  font-size: 18px;
+  background: #2962ff;
+}
+.trd-broker-card.is-active {
+  border-color: #2962ff;
+}
+.trd-select-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 72px 0;
+  color: var(--color-text-secondary);
+  font: 400 13px/18px var(--trd-font);
+}
+.trd-select-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--trd-link);
+  font: inherit;
+  cursor: pointer;
+}
+.trd-select-link:hover {
+  text-decoration: underline;
+}
+
+/* Account manager of a broker plugin (#315) */
+.trd-am {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trd-am-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  min-height: 48px;
+  padding: 8px 16px 0;
+}
+.trd-account-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding-inline: 8px 4px;
+  border: 1px solid #3d3d3d;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-account-btn.is-static {
+  padding-inline: 8px;
+  cursor: default;
+}
+.trd-account-btn:not(.is-static):hover,
+.trd-account-btn.is-open {
+  background: var(--color-bg-primary-hover);
+}
+.trd-account-ccy {
+  font: 500 10px/14px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+.trd-am-summary {
+  display: grid;
+  grid-auto-flow: column;
+  column-gap: 32px;
+  row-gap: 12px;
+}
+.trd-am-field-title {
+  font: 400 13px/18px var(--trd-font);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.trd-am-field-value {
+  font: 600 13px/18px var(--trd-font);
+  white-space: nowrap;
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-am .is-pos {
+  color: var(--trd-pos);
+}
+.trd-am .is-neg {
+  color: var(--trd-neg);
+}
+.trd-am-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 12px 0 16px;
+  padding-inline: 13px 16px;
+}
+.trd-pill {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 14px;
+  background: #2e2e2e;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  white-space: nowrap;
+}
+.trd-pill:hover {
+  background: #3d3d3d;
+}
+.trd-pill.is-selected {
+  background: #f2f2f2;
+  color: #0f0f0f;
+}
+.trd-pill-count {
+  color: var(--color-text-secondary);
+}
+.trd-am-filters {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0 16px;
+}
+.trd-filter {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 13px/18px var(--trd-font);
+}
+.trd-filter:hover {
+  background: #2e2e2e;
+}
+.trd-filter.is-selected {
+  background: #2e2e2e;
+  font-weight: 600;
+}
+.trd-am-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.trd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 14px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 36px;
+  padding: 0 16px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.trd-table td {
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid #2e2e2e;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+.trd-table .is-num {
+  text-align: right;
+}
+.trd-table tbody tr:hover td {
+  background: #2e2e2e;
+}
+.trd-table tbody tr.is-muted td {
+  color: var(--color-text-secondary);
+}
+.trd-actions-col {
+  width: 1%;
+}
+.trd-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 0 4px;
+}
+.trd-row-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.trd-row-btn:hover {
+  background: #3d3d3d;
+}
+.trd-symbol-pill {
+  display: inline-block;
+  min-width: 56px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #2e2e2e;
+  font: 600 12px/16px var(--trd-font);
+  text-transform: uppercase;
+  text-align: center;
+}
+.trd-table tbody tr:hover .trd-symbol-pill,
+.trd-symbol-pill.is-chart {
+  background: var(--trd-buy);
+  color: #fff;
+}
+.trd-buy {
+  color: var(--trd-buy);
+}
+.trd-sell {
+  color: var(--trd-sell);
+}
+.trd-status-working,
+.trd-status-placing {
+  color: var(--trd-buy);
+}
+.trd-status-filled {
+  color: var(--trd-pos);
+}
+.trd-status-cancelled {
+  color: #ff9800;
+}
+.trd-status-rejected {
+  color: var(--trd-sell);
+}
+.trd-status-inactive {
+  color: var(--color-text-secondary);
+}
+.trd-notice-error {
+  color: var(--trd-sell);
+}
+.trd-notice-warning {
+  color: #ff9800;
+}
+.trd-notice-info {
+  color: var(--trd-pos);
+}
+.trd-notice-text {
+  white-space: normal;
+}
+.trd-summary-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+.trd-summary-table th:first-child {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+.trd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 320px;
+  margin: 0 auto;
+  padding: 40px 0;
+  text-align: center;
+}
+.trd-empty-title {
+  font: 600 16px/24px var(--trd-font);
+}
+.trd-empty-text {
+  font: 400 14px/18px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+.trd-empty-btn {
+  margin-top: 8px;
+  height: 34px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+.trd-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #3d3d3d;
+  border-top-color: var(--color-text-primary);
+  border-radius: 50%;
+  animation: trd-spin 0.8s linear infinite;
+}
+@keyframes trd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

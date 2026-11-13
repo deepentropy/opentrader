@@ -5,18 +5,20 @@
  */
 import { Show, createSignal } from "solid-js";
 import { showConfirm } from "../../components/Dialogs";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
+import { pluginBroker } from "../../data/trading/plugin-broker";
+import { translate } from "../../i18n/translator";
 import type { TradingOrder, TradingPosition } from "../../data/trading/types";
 import { cancelTitle, orderSummary, positionSummary } from "../chart/trading-lines-model";
 
 function tickOf(): number {
-  return replayBroker.quote()?.minTick ?? 0.01;
+  return broker.quote()?.minTick ?? 0.01;
 }
 
 /** Symbol logo (round, 32 px); its first letter when there is none. */
 function SymbolLogo(props: { symbol: string }) {
   const [failed, setFailed] = createSignal(false);
-  const url = () => replayBroker.iconUrl(props.symbol);
+  const url = () => broker.iconUrl(props.symbol);
   const letter = () => (props.symbol.split(":").pop() ?? props.symbol).charAt(0).toUpperCase();
   return (
     <Show when={url() && !failed()} fallback={<span class="ot-trd-confirm__logo is-letter">{letter()}</span>}>
@@ -62,3 +64,15 @@ export function confirmClosePosition(pos: TradingPosition, onConfirm: () => void
     onConfirm,
   });
 }
+
+// An order to a live account is confirmed first (#315), whatever sent it: the ticket, the chart, the DOM.
+pluginBroker.setLiveConfirm((text, send) =>
+  showConfirm({
+    title: translate("Order on a live account"),
+    text,
+    mainText: translate("Send order"),
+    cancelText: translate("Cancel"),
+    intent: "danger",
+    onConfirm: send,
+  }),
+);

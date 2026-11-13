@@ -27,7 +27,8 @@ import { For, Show, createSignal, onCleanup, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker, brokerOf } from "../../data/trading/broker";
+import { pluginBroker } from "../../data/trading/plugin-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
 import type { OrderType } from "../../data/trading/types";
 import { fmtPrice, tickerOf } from "./format";
@@ -84,11 +85,26 @@ function TicketHead(p: { title: JSX.Element; extra?: JSX.Element; onClose: () =>
         if (p.onDrag && !(e.target as HTMLElement).closest("button")) p.onDrag(e);
       }}
     >
-      <Tooltip text="Replay Broker" side="bottom">
-        <span class="trd-tk-mark">
-          <Icon name="replay-status" size={18} />
-        </span>
-      </Tooltip>
+      <Show
+        when={brokerOf() === pluginBroker && pluginBroker.status()?.activeName}
+        fallback={
+          <Tooltip text="Replay Broker" side="bottom">
+            <span class="trd-tk-mark">
+              <Icon name="replay-status" size={18} />
+            </span>
+          </Tooltip>
+        }
+      >
+        {(name) => (
+          <span class="trd-tk-mark trd-broker-mark" title={name()} data-no-translate>
+            {name()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((w) => w[0]?.toUpperCase() ?? "")
+              .join("")}
+          </span>
+        )}
+      </Show>
       <span class="trd-tk-title">{p.title}</span>
       <span class="trd-tk-spacer" />
       <span class="trd-tk-head-btns">
@@ -150,13 +166,13 @@ function beginResize(e: MouseEvent) {
 
 /** The docked ticket on its DOM tab. */
 function DomShell() {
-  const state = replayBroker.tradability;
+  const state = broker.tradability;
   onCleanup(() => (document.body.style.cursor = ""));
   // The ladder's five columns need 314 px (reference app).
   return (
     <aside class="trd-ticket" style={{ width: `${Math.max(DOM_MIN_WIDTH, tradingUi.ticketWidth())}px` }} aria-label="Order panel" data-name="order-panel">
       <div class="trd-ticket-resize" onMouseDown={beginResize} />
-      <TicketHead title={tickerOf(replayBroker.symbol() || tradingUi.activeSymbol())} onClose={() => tradingUi.closeTicket()} />
+      <TicketHead title={tickerOf(broker.symbol() || tradingUi.activeSymbol())} onClose={() => tradingUi.closeTicket()} />
       <TicketTabs />
       <Show
         when={state().ok || state().reason === "loading"}

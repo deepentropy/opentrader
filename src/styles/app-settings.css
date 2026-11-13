@@ -652,3 +652,5 @@
 .app-settings-plugin .app-settings-btn,
 .app-settings-plugin-preview .app-settings-btn,
 .app-settings-plugin-entry .app-settings-btn { flex: none; white-space: nowrap; }
+.app-settings-plugin-map-row { display: flex; align-items: center; gap: 8px; }
+.app-settings-plugin-map-row .app-settings-input { flex: 1; min-width: 0; }

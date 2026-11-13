@@ -6,6 +6,7 @@
  * Here: the manifest a package carries and the server the plugins connect to. Installing, starting and the settings
  * screen belong to the desktop app (src-tauri/src/plugins).
  */
+pub mod broker;
 pub mod hub;
 pub mod manifest;
 

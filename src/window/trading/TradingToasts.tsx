@@ -8,11 +8,12 @@ import { translate, translateWith } from "../../i18n/translator";
  */
 import { For, Show, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
 import { tradingPrefs } from "../../data/trading/trading-prefs";
 import { playAlertSound } from "../../data/alert-sounds";
 import type { TradingEvent } from "../../data/trading/types";
 import { fmtPrice, fmtQty } from "./format";
+import { cachedSymbolSessions } from "../../data/session";
 import { AlertIcon, CheckIcon, CloseIcon } from "./icons";
 
 /** placed / modified orders show a side arrow (buy up, sell down). */
@@ -36,7 +37,7 @@ export function toastOf(e: TradingEvent): Omit<Toast, "id"> {
     title: translateWith(TOAST_TITLE[e.kind], translate(e.label)),
     symbol: e.symbol,
     side: e.side,
-    pill: `${e.side === "buy" ? "Buy" : "Sell"} ${fmtQty(e.qty)}${e.price != null ? ` at ${fmtPrice(e.price)}` : ""}`,
+    pill: `${e.side === "buy" ? "Buy" : "Sell"} ${fmtQty(e.qty)}${e.price != null ? ` at ${fmtPrice(e.price, cachedSymbolSessions(e.symbol)?.mintick)}` : ""}`,
     text: e.message,
   };
 }
@@ -70,7 +71,7 @@ export function TradingToasts() {
     timers.add(h);
   };
   onCleanup(
-    replayBroker.onEvent((e) => {
+    broker.onEvent((e) => {
       const prefs = tradingPrefs.prefs();
       // Chart settings → Trading: Execution sound, Show only rejection notifications.
       if (e.kind === "executed" && prefs.sound) playAlertSound(prefs.sound.key, { volume: prefs.sound.volume });
@@ -118,7 +119,7 @@ export function TradingToasts() {
                 <div class="trd-toast-title">
                   {t.title}{" "}
                   <span class="trd-toast-symbol">
-                    <Show when={replayBroker.iconUrl(t.symbol)} fallback={<span class="trd-toast-logo is-letter">{t.symbol.split(":").pop()?.[0] ?? ""}</span>}>
+                    <Show when={broker.iconUrl(t.symbol)} fallback={<span class="trd-toast-logo is-letter">{t.symbol.split(":").pop()?.[0] ?? ""}</span>}>
                       {(src) => <img class="trd-toast-logo" src={src()} alt="" />}
                     </Show>
                     {t.symbol}

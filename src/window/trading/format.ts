@@ -38,11 +38,23 @@ export function fmtPct(v: number | null | undefined): string {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** "2026-10-20 14:31:05" (local time). */
+/** "20/10/2026 14:31:05" (local time). */
 export function fmtTime(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms) || ms <= 0) return "—";
   const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/** An amount of the account's currency: "1 234,50". */
+export function fmtMoney(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return money().format(v);
+}
+
+/** The colour class of a profit or loss. */
+export function pnlClass(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v) || v === 0) return "";
+  return v > 0 ? "is-pos" : "is-neg";
 }
 
 /** Parse a typed price / quantity; null when not a positive number. Typed in the interface language's marks too

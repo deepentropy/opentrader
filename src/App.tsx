@@ -83,6 +83,7 @@ import { OrderTicket } from "./window/trading/OrderTicket";
 import { TradingToasts } from "./window/trading/TradingToasts";
 import { tradingUi } from "./data/trading/trading-ui";
 import { replayBroker } from "./data/trading/replay-broker";
+import { pluginBroker } from "./data/trading/plugin-broker";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
@@ -502,7 +503,8 @@ function App() {
   // A tab switch only hides it: the tab left keeps its replay.
   createEffect(
     on([activeTabId, replayEnabled], ([tab, on], prev) => {
-      if (!on && (!prev || prev[0] === tab)) tradingUi.closeTicket();
+      // A connected broker plugin keeps it.
+      if (!on && (!prev || prev[0] === tab) && !pluginBroker.status()?.active) tradingUi.closeTicket();
     }),
   );
 
@@ -957,6 +959,7 @@ function App() {
             onSettings={(id, tab) => emitAppEvent("chart-open-study-settings", { id, tab })}
             onAddStrategy={() => emitAppEvent("chart-open-indicators")}
             onShowOnChart={(time) => emitAppEvent("chart-link-time", { time })}
+            onSymbol={setSymbol}
             timeZone={{ label: timezone().label, iana: displayTimeZone(timezone().label, timezone().iana, activeFullSymbol() ?? symbol()) }}
           />
         </div>
@@ -964,8 +967,8 @@ function App() {
             aren't in the static SYMBOLS set, so activeFullSymbol() is undefined
             for them — without this the WatchlistDetail panel gets no symbol and
             stays blank. WatchlistDetail/Watchlist both accept the bare form. */}
-        {/* Order ticket (paper trading in Bar Replay), docked left of the right rail. */}
-        <Show when={replayEnabled()}>
+        {/* Order ticket (paper trading in Bar Replay, or a connected broker plugin), docked left of the right rail. */}
+        <Show when={replayEnabled() || !!pluginBroker.status()?.active}>
           <OrderTicket />
         </Show>
         <RightRail

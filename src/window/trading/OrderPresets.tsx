@@ -15,7 +15,7 @@ import { createDialogKeys } from "../../components/Dialog";
 import { EmojiSelect, separateEmoji } from "../../components/EmojiSelect";
 import { EmojiImage, LeadingEmojiText } from "../../components/emoji-images";
 import { Tooltip } from "../../components/Tooltip";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
 import { MAX_PRESETS, ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
 import type { Side } from "../../data/trading/types";
 import { InfoIcon, Popup } from "./TicketMenus";
@@ -325,15 +325,15 @@ export function BuySellPresetsButton() {
  *  (the next orders' quantity); a preset that gives no valid order asks to
  *  reset it. */
 export function placePresetOrder(p: OrderPreset, side: Side, symbol: string) {
-  const q = replayBroker.quote();
+  const q = broker.quote();
   const tick = q?.minTick ?? 0.01;
   const dec = Math.max(2, tickDecimals(tick) ?? 2);
   const base: TicketDraft = { ...tradingUi.newDraft(symbol, side), qty: String(ticketQty()) };
   const d: TicketDraft = { ...base, ...presetFields(p, base, q, tick, dec) };
-  const balance = replayBroker.settings().initialCapital + (replayBroker.report()?.performance.all.netProfit ?? 0);
+  const balance = broker.balance();
   const t = buildTicket(resolveDraft(d, q, { tick, decimals: dec, balance, pointValue: 1 }), q);
   if (typeof t !== "string") {
-    replayBroker.place(t);
+    broker.place(t);
     return;
   }
   showConfirm({

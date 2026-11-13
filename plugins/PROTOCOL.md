@@ -170,4 +170,87 @@ Send this for every subscribed ticker on each price change. Several per second a
 | `day` | The forming daily bar. It updates daily, weekly and monthly charts. |
 | `prevClose` | The previous session's close. It gives the change shown in watchlists. |
 
+## Broker plugins (`broker`)
+
+The user connects the app to one broker plugin at a time from **Trade > Connect broker…**. Requests are only sent to the connected plugin, and only its notifications are heard.
+
+**Trading switch.** The app refuses `broker.place`, `broker.modify` and `broker.setPositionBrackets` until the user turns trading on in the Trade menu. Trading is off by default. Cancelling an order and closing a position always work.
+
+**Live accounts.** The app asks the user to confirm every order sent to a live account (`isDemo: false`).
+
+**Symbols.** Positions, orders and requests use the broker's own tickers. The app finds the ticker of a chart symbol in this order:
+
+1. the user's mapping (Settings > Plugins);
+2. the plugin's own symbols, when it is also a data plugin;
+3. `broker.resolveSymbol`.
+
+**Quantities** are in units: shares, currency units, contracts. A broker that counts lots converts. With a contract size of 100,000, 0.01 lot is 1,000 units.
+
+### `broker.state` (plugin → app, notification)
+
+The whole account. Send it once after `hello`, then whenever any part changes: an order, a fill, a position, the balance or the P&L. A few per second are fine.
+
+```json
+{
+  "connected": true,
+  "accounts": [{ "id": "51234567", "name": "Demo 51234567" }],
+  "account": { "id": "51234567", "name": "Demo 51234567", "currency": "USD", "isDemo": true,
+               "balance": 10000, "equity": 10012.5, "unrealizedPnl": 12.5, "realizedPnl": 0,
+               "marginUsed": 36.1, "marginFree": 9976.4,
+               "values": [{ "label": "Leverage", "value": "1:30" }] },
+  "positionMode": "hedging",
+  "capabilities": { "orderTypes": ["market", "limit", "stop", "stopLimit"], "brackets": true,
+                    "positionBrackets": true, "partialClose": true, "modifyOrders": true },
+  "positions": [{ "id": "8812", "ticker": "EURUSD", "side": "buy", "qty": 1000, "avgPrice": 1.0811,
+                  "last": 1.0823, "unrealizedPnl": 1.2, "takeProfit": 1.09, "stopLoss": null }],
+  "orders": [{ "id": "8813", "ticker": "EURUSD", "side": "sell", "type": "limit", "qty": 1000,
+               "filledQty": 0, "limitPrice": 1.095, "stopPrice": null, "takeProfit": null, "stopLoss": null,
+               "status": "working", "duration": "gtc", "updatedMs": 1730600123000 }],
+  "executions": [{ "id": "d771", "orderId": "8812", "ticker": "EURUSD", "side": "buy", "qty": 1000,
+                   "price": 1.0811, "timeMs": 1730600000000, "commission": 0, "realizedPnl": 0 }]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `connected` | The plugin is logged in to its broker. While it is `false`, the app shows the broker as not connected. |
+| `positionMode` | `netting` gives one position per symbol. `hedging` allows several, each closed on its own. A chart shows a hedging account's positions of a symbol as one net position. |
+| `orders[].status` | `placing`, `working`, `inactive`, `filled`, `cancelled` or `rejected`. Keep recent filled, cancelled and rejected orders for the account manager's filters. |
+| `orders[].takeProfit`, `stopLoss` | The brackets an order opens its position with. |
+| `positions[].takeProfit`, `stopLoss` | A position's brackets. |
+
+### `broker.event` (plugin → app, notification)
+
+An order notification, shown as a toast:
+
+```json
+{"kind":"executed","ticker":"EURUSD","side":"buy","type":"market","qty":1000,"price":1.0811}
+```
+
+`kind` is `placed`, `executed`, `modified`, `cancelled` or `rejected`. For `rejected`, add a `message` to show the user.
+
+### `broker.notice` (plugin → app, notification)
+
+`{"level":"info"|"warn"|"error","message":"…"}` adds a line to the account manager's notifications log.
+
+### `broker.quote` (plugin → app, notification)
+
+`{"ticker":"EURUSD","bid":1.08110,"ask":1.08118,"last":null}`: the order ticket's bid and ask, for the tickers of `broker.watchQuote`.
+
+### Requests (app → plugin)
+
+| Method | Params | Result |
+|---|---|---|
+| `broker.resolveSymbol` | `{"symbol":"NASDAQ:AAPL","ticker":"AAPL"}` | `{"ticker":"AAPL.US"}`, or `{"ticker":null}` when the broker doesn't trade it. |
+| `broker.selectAccount` | `{"account":"51234567"}` | `{}`. Then send the new account's `broker.state`. |
+| `broker.place` | `{"ticker","side","type","qty","limitPrice","stopPrice","takeProfit","stopLoss"}` | `{"orderId":"8813"}`. An error answer is shown as a rejected order with its message. |
+| `broker.modify` | the same as `broker.place`, plus `"orderId"` | `{}` |
+| `broker.cancel` | `{"orderId":"8813"}` | `{}` |
+| `broker.closePosition` | `{"positionId":"8812","qty":null}` | `{}`. `qty` null closes the whole position. |
+| `broker.setPositionBrackets` | `{"positionId":"8812","takeProfit":1.09,"stopLoss":null}` | `{}`. A null removes that bracket. |
+
+There is also one notification, `broker.watchQuote` (app → plugin): `{"tickers":["EURUSD"]}`, the whole set of tickers whose `broker.quote` the app wants. An empty list stops them.
+
+Answer a request once the broker has accepted or refused it. Report what happens afterwards (fills, cancellations) through `broker.state` and `broker.event`.
+
 Errors use the JSON-RPC codes: `-32700` parse error, `-32601` unknown method, `-32602` bad parameters. Use `-32000` for anything else. The `message` is shown to the user.

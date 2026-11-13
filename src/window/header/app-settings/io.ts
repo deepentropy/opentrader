@@ -93,4 +93,6 @@ export const plugins = {
   pickFolder: (title: string): Promise<Result<string | null>> => commands.pluginPickFolder(title),
   copyFiles: (id: string, step: number, folders: string[]): Promise<Result<PluginsStatus>> => commands.pluginCopyFiles(id, step, folders),
   logs: (id: string): Promise<string[]> => commands.pluginLogs(id),
+  /** A broker plugin's chart symbol → ticker mapping. */
+  setSymbolMap: (id: string, map: Record<string, string>): Promise<Result<PluginsStatus>> => commands.brokerSetSymbolMap(id, map),
 };

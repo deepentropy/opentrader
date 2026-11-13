@@ -3,10 +3,10 @@
  * prices, presets and the place / confirm action. Set up once per ticket; its fields and layout read it.
  */
 import { createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
 import { POSITION_EDIT, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
 import type { OrderType } from "../../data/trading/types";
-import { replayActivePane, replayStartSeq } from "../../data/replay";
+import { replayStartSeq } from "../../data/replay";
 import { parsePositive, tickDecimals } from "./format";
 import {
   buildTicket,
@@ -34,14 +34,14 @@ export type TicketModel = ReturnType<typeof createTicketModel>;
 
 export function createTicketModel() {
   const d = () => tradingUi.draft()!;
-  const q = replayBroker.quote;
+  const q = broker.quote;
   const tick = () => q()?.minTick ?? 0.01;
   const dec = () => Math.max(2, tickDecimals(tick()) ?? 2);
-  const ccy = () => replayBroker.currency();
-  const state = replayBroker.tradability;
+  const ccy = () => broker.currency();
+  const state = broker.tradability;
   /** Balance the "% balance" types are measured on: the initial capital
    *  plus the closed trades. */
-  const balance = createMemo(() => replayBroker.settings().initialCapital + (replayBroker.report()?.performance.all.netProfit ?? 0));
+  const balance = createMemo(() => broker.balance());
   const ctx = () => ({ tick: tick(), decimals: dec(), balance: balance(), pointValue: 1 });
   const types = () => fieldTypes(d());
   /** The draft as the order uses it (offsets, risk and exit types resolved). */
@@ -51,11 +51,11 @@ export function createTicketModel() {
   const editing = createMemo(() => {
     const x = tradingUi.draft();
     if (!x?.editing || x.paneId === null || isPos()) return null;
-    return replayBroker.orders(x.paneId).find((o) => o.id === x.editing) ?? null;
+    return broker.orders(x.paneId).find((o) => o.id === x.editing) ?? null;
   });
   const editingPos = createMemo(() => {
     const x = tradingUi.draft();
-    return x && isPos() && x.paneId !== null ? replayBroker.position(x.paneId) : null;
+    return x && isPos() && x.paneId !== null ? broker.position(x.paneId) : null;
   });
   const [errorText, setErrorText] = createSignal<string | null>(null);
   /** One-time tips under the quantity / stop loss fields. */
@@ -67,9 +67,9 @@ export function createTicketModel() {
   // The ticket follows the focused chart; a new chart or start point starts
   // a new order (the button waits for the user: "Start creating order").
   createEffect(
-    on([replayActivePane, replayStartSeq, () => replayBroker.symbol()], () => {
+    on([broker.activePane, replayStartSeq, () => broker.symbol()], () => {
       const x = tradingUi.draft();
-      const sym = replayBroker.symbol();
+      const sym = broker.symbol();
       if (!x || x.editing || !sym || sym === x.symbol) return;
       const units = x.qtyType && x.qtyType !== "units" ? { qtyType: "units" as const, qtyEquiv: x.qtyType } : {};
       tradingUi.setDraft({ ...x, ...units, symbol: sym, limitPrice: "", stopPrice: "", takeProfit: "", stopLoss: "", tpOn: false, slOn: false });
@@ -265,19 +265,19 @@ export function createTicketModel() {
     }
     const x = d();
     if (isPos()) {
-      replayBroker.setPositionBrackets(t.takeProfit, t.stopLoss, x.paneId ?? undefined);
+      broker.setPositionBrackets(t.takeProfit, t.stopLoss, x.paneId ?? undefined);
       tradingUi.setDraft({ ...x, editing: null, paneId: null });
       tradingUi.setSent(true);
       return;
     }
     if (x.editing) {
-      replayBroker.modify(x.editing, t, x.paneId ?? undefined);
+      broker.modify(x.editing, t, x.paneId ?? undefined);
       if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
       tradingUi.setDraft({ ...x, editing: null, paneId: null });
       tradingUi.setSent(true);
       return;
     }
-    if (replayBroker.place(t) === null && !state().ok) return;
+    if (broker.place(t) === null && !state().ok) return;
     tradingUi.savePrefs(r());
     // The order dialog of the DOM closes once the order is sent.
     if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();

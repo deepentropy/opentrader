@@ -123,6 +123,18 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::plugin_pick_folder,
             plugins::plugin_copy_files,
             plugins::plugin_logs,
+            plugins::broker::broker_status,
+            plugins::broker::broker_set_active,
+            plugins::broker::broker_set_trading_enabled,
+            plugins::broker::broker_select_account,
+            plugins::broker::broker_resolve_symbol,
+            plugins::broker::broker_place,
+            plugins::broker::broker_modify,
+            plugins::broker::broker_cancel,
+            plugins::broker::broker_close_position,
+            plugins::broker::broker_set_position_brackets,
+            plugins::broker::broker_watch_quotes,
+            plugins::broker::broker_set_symbol_map,
         ])
         .events(collect_events![
             data::types::ChartAggregate,
@@ -138,6 +150,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_update::AppUpdateBeforeInstall,
             agent::AgentRequest,
             plugins::PluginsChanged,
+            plugins::broker::BrokerStatus,
+            plugins::broker::BrokerOrderEvent,
+            plugins::broker::BrokerQuote,
         ])
 }
 

@@ -309,6 +309,14 @@ export const replayBroker = createRoot(() => {
       version();
       return accountOf(paneId, false)?.executions() ?? [];
     },
+    /** The focused chart's account cash: its initial capital and net profit. */
+    balance(): number {
+      version();
+      const id = activeId();
+      const acc = id !== null ? accountOf(id, false) : null;
+      const capital = (id === null ? readDefaults() : settingsOf(id)).initialCapital;
+      return capital + (acc && acc.hasExecutions ? acc.report().performance.all.netProfit : 0);
+    },
     /** Report of the focused chart's account (Replay Trading panel). */
     report(): BacktestReport | null {
       version();

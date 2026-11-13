@@ -3,7 +3,7 @@ import { translate, translateWith } from "../../i18n/translator";
  * The order ticket's fields: an order price, the quantity, a take profit / stop loss. Each is typed in the type of
  * its label menu, shows its equivalent on the right (a drop-down picks its type) and ⇄ swaps the two.
  */
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
 import type { TicketDraft } from "../../data/trading/trading-ui";
 import { Switch } from "../../components/form";
 import { parsePositive } from "./format";
@@ -119,7 +119,7 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
 
 export function QtyInput(props: { m: TicketModel }) {
   const { d, ccy, types, setQtyType, qtyValueText, patch, stepKey, submit, boxes } = props.m;
-  const stock = () => replayBroker.isStock(d().symbol);
+  const stock = () => broker.isStock(d().symbol);
   const type = () => types().qtyType;
   const eq = () => types().qtyEquiv;
   const risk = () => type() !== "units";

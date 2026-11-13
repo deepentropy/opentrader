@@ -16,7 +16,7 @@
  */
 import { Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
-import { replayBroker } from "../../data/trading/replay-broker";
+import { broker } from "../../data/trading/broker";
 import { tradingPrefs } from "../../data/trading/trading-prefs";
 import { setTicketQty, ticketQty, tradingUi } from "../../data/trading/trading-ui";
 import type { OrderType, Side, TradingOrder } from "../../data/trading/types";
@@ -76,8 +76,8 @@ function piePath(t: number): string {
 }
 
 export function DomPanel() {
-  const pane = () => replayBroker.activePane();
-  const q = replayBroker.quote;
+  const pane = () => broker.activePane();
+  const q = broker.quote;
   const tick = () => q()?.minTick ?? 0.01;
   const dec = () => Math.max(2, tickDecimals(tick()) ?? 2);
   const ix = (p: number | null | undefined) => (p == null || !Number.isFinite(p) ? NaN : priceIndex(p, tick()));
@@ -86,18 +86,18 @@ export function DomPanel() {
   });
   const orders = (): TradingOrder[] => {
     const id = pane();
-    return id === null ? [] : replayBroker.orders(id);
+    return id === null ? [] : broker.orders(id);
   };
   const position = () => {
     const id = pane();
-    return id === null ? null : replayBroker.position(id);
+    return id === null ? null : broker.position(id);
   };
   const marks = createMemo(() => orderMarks(orders(), tick()));
   const posIndex = () => {
     const p = position();
     return p ? ix(p.avgPrice) : NaN;
   };
-  const ticker = () => tickerOf(replayBroker.symbol() ?? "");
+  const ticker = () => tickerOf(broker.symbol() ?? "");
 
   // ── Geometry: rows that fit, the top row's index ─────────────────────
   const [height, setHeight] = createSignal(0);
@@ -181,8 +181,8 @@ export function DomPanel() {
   /** Place an order: at once with one-click trading, else in the order
    *  dialog, filled in (reference app). */
   const place = (side: Side, type: OrderType, price: number | null, limit: number | null = null) => {
-    const sym = replayBroker.symbol();
-    if (!sym || !replayBroker.tradability().ok) return;
+    const sym = broker.symbol();
+    if (!sym || !broker.tradability().ok) return;
     if (!tradingPrefs.prefs().oneClick) {
       const f = (v: number | null) => (v == null ? "" : v.toFixed(dec()));
       tradingUi.openOrderDialog({
@@ -197,7 +197,7 @@ export function DomPanel() {
       });
       return;
     }
-    replayBroker.place({
+    broker.place({
       symbol: sym,
       side,
       type,
@@ -212,7 +212,7 @@ export function DomPanel() {
   const cancel = (o: TradingOrder) => {
     const id = pane();
     if (id === null) return;
-    const run = () => replayBroker.cancel(o.id, id);
+    const run = () => broker.cancel(o.id, id);
     if (oneClick()) run();
     else confirmCancelOrder(o, run);
   };
@@ -222,14 +222,14 @@ export function DomPanel() {
     // Cancelling an order takes its brackets along: skip the ones gone.
     for (const o of orders()) {
       if (side && o.side !== side) continue;
-      if (replayBroker.orders(id).some((x) => x.id === o.id)) replayBroker.cancel(o.id, id);
+      if (broker.orders(id).some((x) => x.id === o.id)) broker.cancel(o.id, id);
     }
   };
   const flatten = () => {
     const p = position();
     const id = pane();
     if (!p || id === null) return;
-    const run = () => replayBroker.closePosition(null, id);
+    const run = () => broker.closePosition(null, id);
     if (oneClick()) run();
     else confirmClosePosition(p, run);
   };
@@ -331,10 +331,10 @@ export function DomPanel() {
       const n = Math.round(diff / tick());
       return translatePlural(Math.abs(n), { one: "{0} tick", other: "{0} ticks" }, n);
     }
-    return `${p.pl.toFixed(2)} ${replayBroker.currency()}`;
+    return `${p.pl.toFixed(2)} ${broker.currency()}`;
   };
   const plTip = () =>
-    !position() ? "Profit/Loss" : plMode() === "money" ? "Show PL in ticks" : plMode() === "ticks" ? "Show PL in percent" : translateWith("Show PL in {0}", replayBroker.currency());
+    !position() ? "Profit/Loss" : plMode() === "money" ? "Show PL in ticks" : plMode() === "ticks" ? "Show PL in percent" : translateWith("Show PL in {0}", broker.currency());
   const plUp = () => (position()?.pl ?? 0) > 0;
   const nextPl = () => setPlMode(plMode() === "money" ? "ticks" : plMode() === "ticks" ? "percent" : "money");
 
@@ -558,7 +558,7 @@ export function DomPanel() {
               aria-disabled={!position()}
               onClick={() => {
                 const id = pane();
-                if (position() && id !== null) replayBroker.reverse(id);
+                if (position() && id !== null) broker.reverse(id);
               }}
             >
               Reverse

@@ -26,3 +26,9 @@ export const AlertIcon = () => (
     <circle cx="13" cy="18.5" r="1.3" fill="currentColor" />
   </svg>
 );
+
+export const PencilIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="none" stroke="currentColor" d="M3.5 14.5 4 11l8-8 3 3-8 8-3.5.5ZM10.5 4.5l3 3" />
+  </svg>
+);
