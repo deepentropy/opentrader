@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intervalMs, intervalSeconds, isDailyInterval, parseInterval } from "../interval";
+import { builtFromServed, finestServed, intervalMs, intervalSeconds, isDailyInterval, parseInterval, servedMinuteSizes } from "../interval";
 
 describe("parseInterval", () => {
   it("reads a bare number as minutes", () => {
@@ -67,5 +67,34 @@ describe("intervalSeconds / intervalMs", () => {
   it("is null when the id is not an interval", () => {
     expect(intervalSeconds("x")).toBeNull();
     expect(intervalMs("")).toBeNull();
+  });
+});
+
+describe("intervals of a data source that serves some (#318)", () => {
+  const served = ["5", "15", "10S", "1D"];
+
+  it("has the served sizes and the second and minute sizes a served one of the same unit divides", () => {
+    expect(["5", "15", "10", "30", "60", "1H", "4H", "10S", "20S", "30S"].filter((id) => !builtFromServed(served, id))).toEqual([]);
+    expect(["1", "3", "7", "1S", "5S", "15S"].filter((id) => builtFromServed(served, id))).toEqual([]);
+  });
+
+  it("builds days, weeks and months from served days only", () => {
+    expect(["1D", "D", "3D", "1W", "2W", "1M", "12M"].every((id) => builtFromServed(served, id))).toBe(true);
+    expect(builtFromServed(["1", "1W", "1M"], "1W")).toBe(false);
+    expect(builtFromServed(["1"], "1D")).toBe(false);
+  });
+
+  it("reads the served ids as the backend does: seconds in either case, no other spelling of days", () => {
+    expect(builtFromServed(["1s"], "5S")).toBe(true);
+    expect(builtFromServed(["D"], "1D")).toBe(false);
+    expect(builtFromServed(served, "")).toBe(false);
+  });
+
+  it("gives the minute sizes and the finest served interval", () => {
+    expect(servedMinuteSizes(served)).toEqual([5, 15]);
+    expect(finestServed(served)).toBe("10S");
+    expect(finestServed(["1D", "60", " 15 "])).toBe("15");
+    expect(finestServed(["1W"])).toBeNull();
+    expect(finestServed([])).toBeNull();
   });
 });

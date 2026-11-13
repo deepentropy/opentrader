@@ -44,6 +44,10 @@ pub struct SymbolSession {
     /// stocks under 1 trade in 0.0001). Empty = the `minmov / pricescale`
     /// tick at every price.
     pub variable_tick_size: String,
+    /// Interval ids the symbol's source serves when it is not the provider (a data plugin's `intervals`: "1", "5",
+    /// "1S", "1D"); the app builds the others it can from them. Empty: the provider's capabilities.
+    #[serde(default)]
+    pub intervals: Vec<String>,
 }
 
 /// One named part of the trading day.

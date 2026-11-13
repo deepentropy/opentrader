@@ -1,4 +1,3 @@
-import { translateWith } from "../i18n/translator";
 /*
  * Imported bar series (#266): "LOCAL:<NAME>" symbols whose bars come from a
  * CSV file the user imported, not from the market-data server. The desktop app
@@ -101,12 +100,6 @@ export function localServesResolution(symbol: string, resolution: string): boole
   if (!meta) return true;
   const base = barSeconds(meta.base);
   return base !== "daily" && base !== null && res % base === 0;
-}
-
-/** Text of an interval a local symbol has no bars on. */
-export function localIntervalMessage(symbol: string): string {
-  const base = localSeriesMeta(symbol)?.base ?? "1D";
-  return translateWith("Intervals less than {0} are not supported for this symbol. Please change the interval to any available one.", base);
 }
 
 function toCandles(rows: ArrayLike<number | null>): Candle[] {
@@ -253,6 +246,7 @@ export async function localSession(symbol: string): Promise<SymbolSession> {
     pricescale: meta.pricescale,
     minmov: 1,
     variableTickSize: "",
+    intervals: [],
   };
 }
 

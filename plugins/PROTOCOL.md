@@ -150,7 +150,7 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `extended` | The whole traded day, when it is wider than `session`. |
 | `holidays` | Full-close days, `YYYYMMDD,YYYYMMDD`. |
 | `pricescale`, `minmov` | One tick is `minmov / pricescale`. For example, 100000 and 1 give 0.00001. |
-| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Other minute or second sizes are built by the app from the largest served size that divides them, on the clock grid. Weeks and months are built from days. |
+| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Other minute or second sizes are built by the app from the largest served size that divides them, on the clock grid. Weeks and months are built from days. The interval picker offers only these; another interval shows that it is not supported. |
 
 ### `data.bars` (app → plugin, request)
 

@@ -22,6 +22,7 @@ function usStock(holidays = ""): SymbolSessions {
     pricescale: 100,
     minmov: 1,
     variableTickSize: "",
+    intervals: [],
   };
   return new SymbolSessions(info);
 }

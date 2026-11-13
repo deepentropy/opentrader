@@ -66,3 +66,47 @@ export function intervalMs(id: string | Interval): number | null {
   const sec = intervalSeconds(id);
   return sec === null ? null : sec * 1000;
 }
+
+/** Sizes of `unit` among the interval ids a data source serves, as the backend
+ *  reads them (src-tauri/src/plugins/data.rs `pick`): minutes "5", seconds
+ *  "5S", days only "1D". */
+function servedSizes(served: readonly string[], unit: "second" | "minute" | "day"): number[] {
+  const re = unit === "second" ? /^(\d+)S$/i : unit === "minute" ? /^(\d+)$/ : /^(1)D$/i;
+  return served.flatMap((s) => {
+    const m = re.exec(s.trim());
+    return m && Number(m[1]) > 0 ? [Number(m[1])] : [];
+  });
+}
+
+/** Whether a source that serves the interval ids `served` (a data plugin's
+ *  `intervals`) has bars on `id`: a served size, a second or minute size built
+ *  from a served one of the same unit that divides it, or days, weeks and
+ *  months built from served days. */
+export function builtFromServed(served: readonly string[], id: string): boolean {
+  const iv = parseInterval(id);
+  if (!iv) return false;
+  if (isDailyInterval(iv)) return servedSizes(served, "day").length > 0;
+  const unit = iv.unit === "second" ? "second" : "minute";
+  const count = iv.unit === "hour" ? iv.count * 60 : iv.count;
+  return servedSizes(served, unit).some((d) => count % d === 0);
+}
+
+/** Minute bar sizes among the interval ids a source serves. */
+export function servedMinuteSizes(served: readonly string[]): number[] {
+  return servedSizes(served, "minute");
+}
+
+/** The shortest of the interval ids a source serves (as written), or null when
+ *  none is an interval it can serve. */
+export function finestServed(served: readonly string[]): string | null {
+  let best: string | null = null;
+  let bestSec = Infinity;
+  for (const s of served) {
+    const sec = intervalSeconds(s);
+    if (sec !== null && sec < bestSec && builtFromServed(served, s)) {
+      best = s.trim();
+      bestSec = sec;
+    }
+  }
+  return best;
+}

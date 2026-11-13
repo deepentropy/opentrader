@@ -37,16 +37,14 @@ import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import {
   getBars,
-  DAILY_ONLY_MESSAGE,
   intervalLabel,
-  isLocalSymbol,
   isSupportedResolution,
   symbolServesResolution,
   splitSymbol,
+  unsupportedIntervalMessage,
   type BarsResult,
   type SessionId,
 } from "../../data/datafeed";
-import { localIntervalMessage } from "../../data/local-series";
 import { isTransformType, transformBarsOf } from "./chart-types";
 import { type LegendValues } from "./ChartLegend";
 import { type DialogTab } from "./IndicatorSettingsDialog";
@@ -823,7 +821,8 @@ export function ChartView(props: ChartViewProps) {
           title, newest headline card. */}
       <NewsCard />
       <EventCard />
-      {/* An interval the symbol has no bars on (an economic series below D). */}
+      {/* An interval the symbol has no bars on (an economic series below D, an imported series or a data plugin's
+          symbol below its finest bars or not built from them). */}
       <Show when={isSupportedResolution(props.interval ?? "1D") && !symbolServesResolution(props.symbol, props.interval ?? "1D")}>
         <div class="ot-interval-unsupported">
           <div class="ot-interval-unsupported__card">
@@ -831,10 +830,13 @@ export function ChartView(props: ChartViewProps) {
               <path fill="currentColor" fill-rule="evenodd" d={INTERVAL_UNSUPPORTED_ICON} />
             </svg>
             <strong class="ot-interval-unsupported__title">Interval is not supported</strong>
-            <div class="ot-interval-unsupported__text">{isLocalSymbol(props.symbol) ? localIntervalMessage(props.symbol!) : DAILY_ONLY_MESSAGE}</div>
-            <button type="button" class="ot-interval-unsupported__button" onClick={() => props.onSetInterval?.("1D")}>
-              Switch to a D
-            </button>
+            <div class="ot-interval-unsupported__text">{unsupportedIntervalMessage(props.symbol)}</div>
+            {/* A data plugin may serve no days. */}
+            <Show when={symbolServesResolution(props.symbol, "1D")}>
+              <button type="button" class="ot-interval-unsupported__button" onClick={() => props.onSetInterval?.("1D")}>
+                Switch to a D
+              </button>
+            </Show>
           </div>
         </div>
       </Show>

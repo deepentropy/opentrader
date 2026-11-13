@@ -19,6 +19,7 @@ const session: SymbolSession = {
   pricescale: 100,
   minmov: 1,
   variableTickSize: "",
+  intervals: [],
 };
 
 const t0 = Date.UTC(2026, 10, 2, 15, 0) / 1000;

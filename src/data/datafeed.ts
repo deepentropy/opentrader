@@ -37,9 +37,11 @@ import { exchangeCode, exchangeName } from "./providers";
 import { isFullSymbol, splitSymbol } from "./symbol-name";
 import { providerCapabilities, providerServes } from "./providers/capabilities";
 import { getFundamentals, hasFundamentals, isoDaySec } from "./fundamentals";
-import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
+import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec, type SymbolSessions } from "./session";
 import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
-import { isLocalSymbol, localBarsBefore, localDailyBars, localIntradayBars, localServesResolution } from "./local-series";
+import { isLocalSymbol, localBarsBefore, localDailyBars, localIntradayBars, localSeriesMeta, localServesResolution } from "./local-series";
+import { builtFromServed, finestServed, servedMinuteSizes } from "./interval";
+import { translateWith } from "../i18n/translator";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 // Re-export so consumers have one import surface for the daily-aggregation
@@ -201,22 +203,48 @@ function servedMinutes(): number[] {
   return providerCapabilities()?.resolutions.minutes ?? Object.values(INTRADAY_INTERVALS).map((i) => i.mins);
 }
 
+/** Minute bar sizes served for a symbol: its data plugin's, else the provider's. */
+function symbolMinutes(sessions: SymbolSessions): number[] {
+  return sessions.intervals.length ? servedMinuteSizes(sessions.intervals) : servedMinutes();
+}
+
+/** Whether a symbol whose sessions are `sessions` has bars on `resolution`
+ *  as far as its data plugin goes (always for the provider's symbols). */
+function pluginBuilds(sessions: SymbolSessions, resolution: string): boolean {
+  return !sessions.intervals.length || builtFromServed(sessions.intervals, resolution);
+}
+
+/** Interval ids a symbol's data plugin serves, once its session is known
+ *  (reactive); null for the provider's symbols. */
+function pluginIntervals(symbol: string | null | undefined): readonly string[] | null {
+  const served = symbol ? cachedSymbolSessions(symbol)?.intervals : undefined;
+  return served?.length ? served : null;
+}
+
 /** True for an economic series symbol ("ECONOMICS:UNRATE"): one value per
  *  observation date, daily or coarser intervals only, no live data. */
 export function isEconomicSymbol(symbol: string | null | undefined): boolean {
   return !!symbol && /^ECONOMICS:/i.test(symbol.trim());
 }
 
-/** Text of an interval a symbol has no bars on (an economic series below D). */
-export const DAILY_ONLY_MESSAGE = "Intervals less than D are not supported for this symbol. Please change the interval to any available one.";
+/** Text of an interval `symbol` has no bars on: the ones under its finest bars
+ *  (an imported series' file, a data plugin's finest served interval), under D
+ *  for an economic series. */
+export function unsupportedIntervalMessage(symbol: string | null | undefined): string {
+  const finest = isLocalSymbol(symbol) ? (localSeriesMeta(symbol)?.base ?? "1D") : (finestServed(pluginIntervals(symbol) ?? []) ?? "D");
+  return translateWith("Intervals less than {0} are not supported for this symbol. Please change the interval to any available one.", finest);
+}
 
 /** Whether `symbol` has bars on `resolution`: a served interval, daily or
- *  coarser for an economic series. */
+ *  coarser for an economic series, what a data plugin serves or builds from it. */
 export function symbolServesResolution(symbol: string | null | undefined, resolution: string): boolean {
   // An imported series: the intervals its file's bars build (../local-series).
   if (isLocalSymbol(symbol)) return localServesResolution(symbol!, resolution);
   if (!isSupportedResolution(resolution)) return false;
-  return !isEconomicSymbol(symbol) || dailyFamily(resolution) !== null;
+  if (isEconomicSymbol(symbol)) return dailyFamily(resolution) !== null;
+  // A data plugin's symbol (served until its session is known, so a restored chart keeps its interval).
+  const served = pluginIntervals(symbol);
+  return !served || builtFromServed(served, resolution);
 }
 
 /** All served interval ids (second → intraday → daily order). */
@@ -450,11 +478,10 @@ function sessionOpenMinutes(spec: SessionSpec, sec: number): number[] {
 }
 
 /** Base bar size (minutes) to rebuild `mins` bars anchored at the session
- *  open, or null when the provider serves `mins` and its own buckets already
- *  break at every open. The base is the largest served size that divides
- *  `mins` and every open. */
-function sessionBaseMinutes(spec: SessionSpec, mins: number): number | null {
-  const served = servedMinutes();
+ *  open, or null when `served` (the symbol's served sizes) has `mins` and its
+ *  buckets already break at every open. The base is the largest served size
+ *  that divides `mins` and every open. */
+function sessionBaseMinutes(spec: SessionSpec, mins: number, served: number[]): number | null {
   const opens = spec.always ? [0] : sessionOpenMinutes(spec, Date.now() / 1000);
   if (served.includes(mins) && (spec.always || opens.every((m) => m % mins === 0))) return null;
   const fits = served.filter((m) => m < mins && mins % m === 0 && opens.every((o) => o % m === 0));
@@ -575,8 +602,11 @@ async function getBarsOnce(symbol: string, resolution: string, session: SessionI
   }
   const intra = minuteConfig(resolution);
   if (intra) {
-    const spec = (await symbolSessions(symbol)).spec(session);
-    const base = sessionBaseMinutes(spec, intra.mins);
+    const sessions = await symbolSessions(symbol);
+    // A size its data plugin can't build: no bars (the chart shows the interval is not supported).
+    if (!pluginBuilds(sessions, resolution)) return { bars: [], daily: null, aggregate: null };
+    const spec = sessions.spec(session);
+    const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions));
     const res = await commands.getMinuteHistory(symbol, intra.days, base ?? intra.mins, adjusted);
     if (res.status === "error") throw new Error(res.error);
     const rows = inSession(res.data.bars, spec);
@@ -634,8 +664,10 @@ export async function getBarsBefore(
   if (intra) {
     const days = spanDays ?? intra.days;
     // Mirror getBars' session handling so older pages stay session-consistent.
-    const spec = (await symbolSessions(symbol)).spec(session);
-    const base = sessionBaseMinutes(spec, intra.mins);
+    const sessions = await symbolSessions(symbol);
+    if (!pluginBuilds(sessions, resolution)) return [];
+    const spec = sessions.spec(session);
+    const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions));
     const rows = inSession(await getAggregatesBefore(symbol, "minute", base ?? intra.mins, beforeSec, days, adjusted), spec);
     return base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows;
   }
@@ -713,6 +745,8 @@ export function bucketLiveTick(
   // loaded series to update.
   const sessions = cachedSymbolSessions(tick.symbol);
   if (!sessions) return null;
+  // An interval its data plugin can't build has no bars to update.
+  if (!pluginBuilds(sessions, resolution)) return null;
   const dailyCfg = dailyFamily(resolution);
   if (dailyCfg) {
     // Day-bar only: pre-market snapshots carry no day bar yet (today's daily
@@ -747,7 +781,7 @@ export function bucketLiveTick(
   // start like the history; the others keep the provider's clock grid, which
   // already breaks at the open.
   const bucketTime =
-    sessionBaseMinutes(spec, intra.mins) !== null
+    sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions)) !== null
       ? iv.start + Math.floor((tick.time - iv.start) / bucketSecs) * bucketSecs
       : Math.floor(tick.time / bucketSecs) * bucketSecs;
   return {

@@ -26,6 +26,7 @@ function usStock(over: Partial<SymbolSession> = {}): SymbolSession {
     pricescale: 100,
     minmov: 1,
     variableTickSize: "0.0001 1 0.01",
+    intervals: [],
     ...over,
   };
 }

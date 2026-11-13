@@ -190,6 +190,7 @@ pub async fn session(app: &AppHandle, r: &Route) -> Result<SymbolSession, String
         pricescale: i.pricescale,
         minmov: i.minmov.max(1),
         variable_tick_size: String::new(),
+        intervals: i.intervals.clone(),
     })
 }
 
