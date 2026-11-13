@@ -2,13 +2,15 @@
  * Header "Trade" button. In Bar Replay it trades through the replay broker: the pill shows / hides the order ticket,
  * the "Trading options" chevron offers "Replay settings…" and "Exit replay mode". Otherwise it trades through the
  * broker plugin the user connected (#315): the pill opens the broker picker until one is connected, then the order
- * ticket; the chevron connects another broker, turns trading on or off, shows the account manager and disconnects.
+ * ticket; the chevron opens the trading settings, connects another broker, turns trading on or off, shows the account
+ * manager and disconnects.
  * DEMO / LIVE next to the title tells which account the orders go to.
  */
 import { Show, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { Popover, PopDivider, PopItem } from "../screener/Popover";
+import { emitAppEvent } from "../../data/app-events";
 import { replayEnabled } from "../../data/replay";
 import { pluginBroker } from "../../data/trading/plugin-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
@@ -74,7 +76,12 @@ export function TradeHeaderButton() {
               </>
             }
           >
-            <PopItem iconSpace title={translate("Connect broker…")} onClick={run(() => tradingUi.setBrokerPicker(true))} />
+            <PopItem iconSpace title={translate("Trading settings…")} onClick={run(() => emitAppEvent("chart-open-settings", { tab: "trading" }))} />
+            <PopItem
+              iconSpace
+              title={pluginBroker.status()?.active ? translate("Connect another broker…") : translate("Connect broker…")}
+              onClick={run(() => tradingUi.setBrokerPicker(true))}
+            />
             <Show when={pluginBroker.status()?.active}>
               <PopItem
                 iconSpace

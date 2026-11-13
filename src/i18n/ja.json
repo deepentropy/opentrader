@@ -834,6 +834,7 @@
 "Congrats, trader!": "おめでとうございます！",
 "Connect a broker": "ブローカーに接続",
 "Connect a broker plugin from the Trade menu to trade.": "取引するには、トレードメニューからブローカープラグインに接続してください。",
+"Connect another broker…": "別のブローカーに接続…",
 "Connect broker…": "ブローカーに接続…",
 "Connected": "接続済み",
 "Connected (version {0})": "接続済み（バージョン {0}）",
