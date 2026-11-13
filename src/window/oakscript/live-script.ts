@@ -9,14 +9,16 @@ import { scriptBars, withChartTimes } from "../../backtester/oakscript";
 import type { Bar } from "../../backtester/types";
 import { seedSymbol } from "../../data/symbol-name";
 import type { OakBar, OakSourceData, OakSymbolData } from "./engine-types";
+import type { ProfileCollector } from "./profiler/collect";
 
 export type UserModule = Record<string, unknown> & {
   calculate?: (bars: unknown[], inputs?: Record<string, unknown>, chart?: unknown) => unknown;
   __run?: () => void;
 };
 
-/** A compiled script: the script API (its body) or a module exporting calculate(). */
-export type Compiled = { kind: "convention"; mod: UserModule } | { kind: "script"; run: () => void };
+/** A compiled script: the script API (its body) or a module exporting calculate(); `profile`: compiled in profiler
+ *  mode, the times of its runs. */
+export type Compiled = ({ kind: "convention"; mod: UserModule } | { kind: "script"; run: () => void }) & { profile?: ProfileCollector };
 
 /** The run of a study instance: for one compiled script and one set of inputs. */
 export type LiveScript = {

@@ -23,3 +23,7 @@ export function isOpenedInEditor(studyId: string): boolean {
   const open = openedScript();
   return open !== null && editorScriptOfStudy(studyId) === open;
 }
+
+/** A line to show in the editor once script `scriptId` is open in it (a log message's "Source code"). */
+const [revealRequest, setRevealRequest] = createSignal<{ scriptId: string; line: number } | null>(null);
+export { revealRequest, setRevealRequest };

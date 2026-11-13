@@ -13,6 +13,10 @@
  * link gives a new "Untitled script" with the source), "Make a copy…" in the
  * menu asks for the copy's name ("<name> copy"), "Add to chart" adds the
  * built-in study itself.
+ *
+ * The ⋯ button at the right of the header opens the More menu (#324): Editor settings…, Profiler mode (#312: the
+ * shown script runs with a timer on each statement; the editor shows the times by line), Logs (#323: the right-side
+ * panel of its log.*() messages) and Command palette.
  */
 import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
@@ -42,10 +46,14 @@ import {
 } from "../chart/indicators/strategy-entries";
 import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
-import { showRename } from "../../components/Dialogs";
+import { showConfirm, showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
 import { setOpenedScript } from "./editor-state";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
+import { OakScriptMoreMenu } from "./OakScriptMoreMenu";
+import { EditorSettingsDialog } from "./EditorSettingsDialog";
+import { openScriptLogs } from "./logs/script-logs";
+import type { OakProfile } from "./engine-types";
 import { translate, translateAs, translateWith } from "../../i18n/translator";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
@@ -98,6 +106,10 @@ export function OakScriptPanel(props: Props) {
   let nameBtn!: HTMLButtonElement;
   const [renaming, setRenaming] = createSignal(false);
   const [builtinDialog, setBuiltinDialog] = createSignal(false);
+  const [moreOpen, setMoreOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  let moreBtn!: HTMLButtonElement;
+  let editorApi: { commandPalette: () => void } | undefined;
   let importInputRef: HTMLInputElement | undefined;
 
   /** A stored script to hold while a built-in is current (the current id stays the built-in's); none stored: an
@@ -142,6 +154,9 @@ export function OakScriptPanel(props: Props) {
     const was = builtin();
     setBuiltin({ typeId, name, source });
     setIsStrategy(false);
+    // A built-in is not profiled: the stored script held behind it runs without the timers again.
+    applyProfiler(null);
+    setProfile(null);
     if (was?.typeId !== typeId) log("info", translateWith("\"{0}\" opened", name));
   }
   if (startBuiltin) onMount(() => void openBuiltin(startBuiltin));
@@ -197,8 +212,64 @@ export function OakScriptPanel(props: Props) {
     setLogs((l) => [...l.slice(-(MAX_LOG_ENTRIES - 1)), { time, kind, text, loc }]);
   }
 
+  // ── Profiler mode (#312) ─────────────────────────────────────────────────
+  // On for the editor; the shown stored script is the one compiled with the timers, its runs' profile is shown.
+  const [profiler, setProfiler] = createSignal(false);
+  const [profile, setProfile] = createSignal<OakProfile | null>(null);
+  const [revealSlowest, setRevealSlowest] = createSignal(0);
+  let profiledId: string | null = null;
+  onCleanup(
+    engine.onProfile((scriptId, p) => {
+      if (profiler() && !builtin() && scriptId === currentScript().id) setProfile(p);
+    }),
+  );
+  /** Script `id` (null: none) is the one compiled with the timers; the one before is compiled without them again. */
+  function applyProfiler(id: string | null): void {
+    if (profiledId === id) return;
+    const before = profiledId;
+    profiledId = id;
+    if (id) engine.setProfiled(id, true);
+    if (before) {
+      engine.setProfiled(before, false);
+      const s = scripts.loadScript(before);
+      if (s) {
+        void engine.compile(before, s.source).then(
+          (meta) => {
+            notifyScriptCompiled(before, meta);
+            notifyUserStrategyCompiled(before, meta);
+          },
+          () => {},
+        );
+      }
+    }
+  }
+  function toggleProfiler(): void {
+    if (builtin()) {
+      showConfirm({
+        title: "Read-only script",
+        text: "A read-only script cannot be profiled. Make a copy of it to profile it.",
+        mainText: "Make a copy",
+        cancelText: null,
+        onConfirm: copyBuiltinQuick,
+      });
+      return;
+    }
+    const on = !profiler();
+    setProfiler(on);
+    setProfile(null);
+    if (on) setRevealSlowest((n) => n + 1);
+    const s = currentScript();
+    if (!on) applyProfiler(null);
+    else void compileScript(s.id, scripts.loadScript(s.id)?.source ?? s.source);
+    if (on && !onChart()) log("info", "Profiler mode: add the script to a chart to see the times of its lines.");
+  }
+  // Another script shown: its own profile comes with its runs.
+  createEffect(on(() => currentScript().id, () => setProfile(null), { defer: true }));
+
   async function compileScript(scriptId: string, source: string): Promise<void> {
     const name = scripts.loadScript(scriptId)?.name ?? "script";
+    // The shown script compiles with the timers in profiler mode (a script switch moves them).
+    if (scriptId === currentScript().id && !builtin()) applyProfiler(profiler() ? scriptId : null);
     log("info", "Compiling...");
     try {
       const meta = await engine.compile(scriptId, source);
@@ -477,6 +548,36 @@ export function OakScriptPanel(props: Props) {
           >
             {!builtin() && onChart() ? "Remove from chart" : "Add to chart"}
           </button>
+          <Tooltip text="More" side="top">
+            <button
+              ref={moreBtn}
+              type="button"
+              class="oak-panel__chrome-btn oak-panel__more-btn"
+              aria-label="More"
+              aria-haspopup="menu"
+              aria-expanded={moreOpen()}
+              onClick={() => setMoreOpen((o) => !o)}
+            >
+              <Icon name="dt-more" size={22} />
+            </button>
+          </Tooltip>
+          <Show when={moreOpen()}>
+            <OakScriptMoreMenu
+              anchor={moreBtn}
+              profiler={profiler()}
+              onEditorSettings={() => setSettingsOpen(true)}
+              onProfiler={toggleProfiler}
+              onLogs={() => openScriptLogs({ scriptId: currentScript().id })}
+              onCommandPalette={() => {
+                setMinimized(false);
+                editorApi?.commandPalette();
+              }}
+              onClose={() => setMoreOpen(false)}
+            />
+          </Show>
+          <Show when={settingsOpen()}>
+            <EditorSettingsDialog onClose={() => setSettingsOpen(false)} />
+          </Show>
           <Tooltip text={minimized() ? "Restore" : "Minimize"} side="top">
             <button
               type="button"
@@ -554,6 +655,9 @@ export function OakScriptPanel(props: Props) {
               readOnly={builtin() ? { id: builtinScriptId(builtin()!.typeId), source: builtin()!.source } : null}
               onCursor={(line, col) => setCursor({ line, col })}
               onSaved={(scriptId, source) => void compileScript(scriptId, source)}
+              profile={profiler() && !builtin() ? profile() : null}
+              revealSlowest={revealSlowest()}
+              onReady={(api) => (editorApi = api)}
             />
           </Suspense>
         </div>

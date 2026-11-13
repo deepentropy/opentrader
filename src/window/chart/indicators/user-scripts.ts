@@ -25,7 +25,7 @@
  * the study instead.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
-import type { ChartContext } from "oakscriptjs/script";
+import type { ChartContext, LogEntry } from "oakscriptjs/script";
 import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta, OakSourceData, OakSymbolData } from "../../oakscript/engine-types";
@@ -344,4 +344,16 @@ export function notifyScriptCompiled(scriptId: string, meta: OakCompiledMeta): v
     run.result = null; // old plots may not match the new plotConfig
   }
   dispatchUpdated(scriptId, structural);
+}
+
+/** The log.*() messages of the last result of a script's study (#323): of study `studyId` (any chart) when given, else
+ *  of the first study of the script with a result. Null: no study of the script has a result. */
+export function userScriptLogs(scriptId: string, studyId?: string): LogEntry[] | null {
+  const rt = runtimes.get(scriptId);
+  if (!rt) return null;
+  for (const [key, run] of rt.runs) {
+    if (studyId !== undefined && key.slice(key.indexOf("|") + 1) !== studyId) continue;
+    if (run.result) return (run.result as { logs?: LogEntry[] }).logs ?? [];
+  }
+  return null;
 }

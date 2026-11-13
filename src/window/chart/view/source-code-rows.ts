@@ -14,12 +14,15 @@ import { emitAppEvent } from "../../../data/app-events";
 import { OAKSCRIPT_OPEN_EVENT } from "../indicators/user-scripts";
 import { editorScriptOfStudy } from "../../oakscript/editor-state";
 import { sourceUnavailable } from "../../oakscript/builtin-sources";
+import { openScriptLogs, readScriptLogs } from "../../oakscript/logs/script-logs";
+import { scriptIdOfStudy } from "../indicators/user-scripts";
 
-/** The study menu's source rows for study `id` (empty when it is not a script). */
+/** The study menu's source rows for study `id` (empty when it is not a script). "OakScript logs…" (#323) follows
+ *  "Source code…" for a user's script whose last run made log messages, as the reference's study menu does. */
 export function sourceCodeMenuRows(id: string): CtxNode[] {
   const scriptId = editorScriptOfStudy(id);
   if (!scriptId && !sourceUnavailable(id)) return [];
-  return [
+  const rows: CtxNode[] = [
     {
       kind: "item",
       id: "source-code",
@@ -28,4 +31,9 @@ export function sourceCodeMenuRows(id: string): CtxNode[] {
       onSelect: () => { if (scriptId) emitAppEvent(OAKSCRIPT_OPEN_EVENT, { scriptId }); },
     },
   ];
+  const own = scriptIdOfStudy(id);
+  if (own && readScriptLogs({ scriptId: own, studyId: id })?.length) {
+    rows.push({ kind: "item", id: "script-logs", label: "OakScript logs…", onSelect: () => openScriptLogs({ scriptId: own, studyId: id }) });
+  }
+  return rows;
 }

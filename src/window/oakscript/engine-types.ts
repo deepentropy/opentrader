@@ -81,8 +81,17 @@ export type OakCompiledMeta = {
  *  code such as RE10141, with the bar it stopped on). */
 export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
+/** Profiler mode (#312): the time of each statement of a script over its runs, in µs. `lines`: the first line of a
+ *  statement, and its last one when it is a code block (a loop, an if, a statement with a callback); `invocations`: how
+ *  many times it ran. `total`: the time of the runs. */
+export type OakProfile = {
+  total: number;
+  lines: { lines: [number] | [number, number]; invocations: number; time: number }[];
+};
+
 export type OakRequest =
-  | { id: number; type: "compile"; scriptId: string; source: string }
+  /** `profile`: compile it with the timers of profiler mode; its runs reply with their profile. */
+  | { id: number; type: "compile"; scriptId: string; source: string; profile?: boolean }
   | {
       id: number;
       type: "run";
@@ -121,9 +130,9 @@ export type OakRequest =
 export type OakResponse =
   | { id: number; type: "compile"; ok: true; meta: OakCompiledMeta }
   | { id: number; type: "compile"; ok: false; error: OakScriptError }
-  | { id: number; type: "run"; ok: true; result: unknown; live?: LiveReply }
+  | { id: number; type: "run"; ok: true; result: unknown; live?: LiveReply; profile?: OakProfile }
   | { id: number; type: "run"; ok: false; error: OakScriptError }
-  | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown; live?: LiveReply }
+  | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown; live?: LiveReply; profile?: OakProfile }
   | { id: number; type: "backtest"; ok: false; error: OakBacktestError }
   /** A live request counts on bars the worker no longer has (a new worker, a run dropped): send them all again. */
   | { id: number; type: "run" | "backtest"; ok: false; resend: true; error: OakScriptError };

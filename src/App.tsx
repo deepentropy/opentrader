@@ -979,6 +979,7 @@ function App() {
           onSymbolSelect={onSymbolPicked}
           onAddCompare={addCompareFromList}
           interval={interval()}
+          timeZone={displayTimeZone(timezone().label, timezone().iana, activeFullSymbol() ?? symbol())}
           onIntervalSelect={setInterval}
           drawings={drawings()}
           selectedDrawingId={selectedDrawingId()}

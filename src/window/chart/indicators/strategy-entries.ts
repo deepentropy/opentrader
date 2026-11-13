@@ -23,7 +23,7 @@
  * and STRATEGY_UPDATED_EVENT makes that chart re-render.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
-import type { ChartContext, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
+import type { ChartContext, LogEntry, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
 import type { StudyCalcContext } from "./indicator-layer";
 import { brokerProperties, DECLARATION_CHART, runOakScriptStrategy, type OtherSymbolData, type ScriptStrategy } from "../../../backtester/oakscript";
@@ -488,4 +488,16 @@ export function strategyRows(): { id: string; name: string; author: string }[] {
  *  them). */
 export function builtinStrategyRows(): { id: string; name: string }[] {
   return BUILTIN_STRATEGIES.map((s) => ({ id: strategyId(s.key), name: s.source.name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The log.*() messages of the last run of a user strategy (#323): of study `studyId` when given, else of its first
+ *  study with a result. Null: none has a result. */
+export function userStrategyLogs(scriptId: string, studyId?: string): LogEntry[] | null {
+  const key = USER_KEY_PREFIX + scriptId;
+  for (const [rtKey, rt] of runtimes) {
+    const runKey = rtKey.slice(rtKey.indexOf("|") + 1);
+    if (typeIdOf(runKey) !== key || (studyId !== undefined && runKey !== strategyKeyOf(studyId))) continue;
+    if (rt.visuals) return (rt.visuals as { logs?: LogEntry[] }).logs ?? [];
+  }
+  return null;
 }

@@ -1,0 +1,292 @@
+/*
+ * OakScript editor tools: the More menu and Editor settings (#324), profiler mode's column (#312) and the Logs panel
+ * (#323). Measured on the reference app: profiler bar #593A1B on the editor background, 12 px share text, red
+ * flame #CC2F3C; log text Menlo 13 px, warning #FF9800, error #F23645.
+ */
+
+/* ── More menu ─────────────────────────────────────────────────────────── */
+.oak-more-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 240px;
+  width: max-content;
+  max-width: calc(100vw - 16px);
+}
+
+/* The switch sits at the row's end (the header-menu switch look). */
+.oak-more-menu__switch-row {
+  grid-template-columns: 28px 1fr auto;
+}
+.oak-more-menu__switch-row .header-menu-switch {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--color-container-fill-primary-neutral-normal);
+  position: relative;
+  transition: background 0.12s ease;
+}
+.oak-more-menu__switch-row .header-menu-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d4dc;
+  transition: transform 0.12s ease;
+}
+.oak-more-menu__switch-row .header-menu-switch.is-on {
+  background: var(--color-brand);
+}
+.oak-more-menu__switch-row .header-menu-switch.is-on::after {
+  transform: translateX(14px);
+  background: var(--color-white);
+}
+[dir="rtl"] .oak-more-menu__switch-row .header-menu-switch.is-on::after {
+  transform: translateX(-14px);
+}
+
+/* ── Editor settings ───────────────────────────────────────────────────── */
+.oak-editor-settings {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+}
+.oak-editor-settings__body {
+  padding: 8px 20px 16px;
+}
+.oak-editor-settings__section {
+  padding: 12px 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+.oak-editor-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+.oak-editor-settings + .cp3-footer,
+.oak-editor-settings .cp3-footer {
+  justify-content: space-between;
+}
+
+/* ── Profiler column ───────────────────────────────────────────────────── */
+/* The editor and the profiler column over its line number gutter. */
+.oak-editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+/* Code reads left to right in every language: the column stays on the left of the line numbers. */
+.oak-profiler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+  direction: ltr;
+}
+.oak-profiler__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+.oak-profiler__hot {
+  flex: 0 0 18px;
+  display: inline-flex;
+  justify-content: center;
+  color: #cc2f3c;
+}
+.oak-profiler__bar {
+  pointer-events: auto;
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: #593a1b;
+  border-radius: 0 3px 3px 0;
+  cursor: default;
+}
+.oak-profiler__rest {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ot-chart-bg);
+}
+.oak-profiler__bar.is-faint .oak-profiler__rest {
+  /* under 1 %: no visible bar */
+  right: 0;
+}
+.oak-profiler__text {
+  position: relative;
+  padding-inline-end: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.oak-profiler__bar.is-faint .oak-profiler__text {
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+.oak-profiler__nav {
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #cc2f3c;
+  background: var(--ot-chart-bg);
+}
+.oak-profiler__nav:hover {
+  background: var(--color-toolbar-button-background-hover);
+}
+
+.oak-profiler-tip {
+  position: fixed;
+  z-index: 200;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--color-tooltip-bg, #1e1e1e);
+  color: var(--color-tooltip-text, #b8b8b8);
+  font-size: 13px;
+  line-height: 24px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.oak-profiler-tip__divider {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--color-popup-menu-separator);
+}
+
+/* ── Logs panel ────────────────────────────────────────────────────────── */
+.oak-logs-panel {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+}
+.oak-logs-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oak-logs-panel__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px 4px;
+}
+.oak-logs-panel__spacer {
+  flex: 1;
+}
+.oak-logs-panel__search {
+  padding: 0 12px 6px;
+}
+.oak-logs-panel__search-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-popup-menu-separator);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+.oak-logs-panel__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+}
+.oak-log {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: 6px 12px;
+  /* Long lists: the rows off screen are not laid out. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
+.oak-log:hover {
+  background: var(--color-toolbar-button-background-hover);
+}
+.oak-log__msg {
+  flex: 1;
+  min-width: 0;
+  font-family: Menlo, "Ubuntu Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+}
+.oak-log--warning .oak-log__msg {
+  color: #ff9800;
+}
+.oak-log--error .oak-log__msg {
+  color: #f23645;
+}
+.oak-log__actions {
+  display: none;
+  gap: 2px;
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 8px;
+  padding-inline-start: 4px;
+  background: var(--color-toolbar-button-background-hover);
+}
+.oak-log:hover .oak-log__actions {
+  display: inline-flex;
+}
+.oak-log__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--color-text-primary);
+}
+.oak-log__action:hover {
+  background: var(--color-popup-menu-separator);
+}
+.oak-logs-panel__down {
+  position: absolute;
+  bottom: 12px;
+  inset-inline-end: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-popup-background, #1e1e1e);
+  border: 1px solid var(--color-popup-menu-separator);
+  color: var(--color-text-primary);
+}
+.oak-logs-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+}

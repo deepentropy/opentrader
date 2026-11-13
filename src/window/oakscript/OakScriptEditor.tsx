@@ -13,12 +13,18 @@
  * A built-in study's source shows read-only (`readOnly` prop): its own model,
  * never saved; typing in it shows the read-only message.
  *
- * Editor metrics: Menlo/Consolas 13px/18px, no minimap (DESIGN.md).
+ * Editor metrics: Menlo/Consolas 13px/18px; the Editor settings (#324) set suggestions, minimap, line guide and
+ * word wrap. Profiler mode (#312): the profile of the script's runs in a column left of the line numbers.
  */
-import { createEffect, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
 import { monaco, setupMonaco, applyOakTheme } from "./monaco-setup";
 import * as scripts from "../../data/oakscript-store";
 import { onAppEvent } from "../../data/app-events";
+import { editorOptions, editorSettings } from "./editor-settings";
+import { revealRequest, setRevealRequest } from "./editor-state";
+import type { OakProfile } from "./engine-types";
+import { PROFILER_GUTTER_CHARS, ProfilerGutter } from "./profiler/ProfilerGutter";
+import { hotLines, profileRows } from "./profiler/rows";
 
 const AUTOSAVE_MS = 400;
 /** Shown when typing into a read-only source (the reference app's wording). */
@@ -35,11 +41,18 @@ type Props = {
   /** Fires after a REAL change is persisted (not on no-op flushes) — the
    *  panel recompiles that script on this. */
   onSaved?: (scriptId: string, source: string) => void;
+  /** Profiler mode: the profile shown (null: none yet). */
+  profile?: OakProfile | null;
+  /** Bumped to show the slowest line of the next profile (profiler mode turned on). */
+  revealSlowest?: number;
+  /** The editor's commands the panel calls (its More menu). */
+  onReady?: (api: { commandPalette: () => void }) => void;
 };
 
 export default function OakScriptEditor(props: Props) {
   let host!: HTMLDivElement;
   let editor: monaco.editor.IStandaloneCodeEditor | undefined;
+  const [shownEditor, setShownEditor] = createSignal<monaco.editor.IStandaloneCodeEditor>();
   let saveTimer: number | undefined;
   /** The script the CURRENT model belongs to (saves are keyed to this, not to
    *  props.scriptId, which may already point at the next script mid-switch). */
@@ -76,6 +89,14 @@ export default function OakScriptEditor(props: Props) {
       tabSize: 2,
       // Drawer clips overflow; keep completion widgets visible near its edges.
       fixedOverflowWidgets: true,
+      ...editorOptions(editorSettings()),
+    });
+    setShownEditor(editor);
+    props.onReady?.({
+      commandPalette: () => {
+        editor?.focus();
+        editor?.trigger("menu", "editor.action.quickCommand", null);
+      },
     });
 
     editor.onDidChangeModelContent(() => {
@@ -127,6 +148,41 @@ export default function OakScriptEditor(props: Props) {
     editor.setModel(model);
     const pos = editor.getPosition();
     if (pos) props.onCursor?.(pos.lineNumber, pos.column);
+    revealAsked();
+  });
+
+  /** A line asked to be shown (a log message's "Source code"), once its script is the one shown. */
+  function revealAsked(): void {
+    const req = revealRequest();
+    if (!editor || !req || req.scriptId !== activeId) return;
+    setRevealRequest(null);
+    const model = editor.getModel();
+    const line = Math.min(req.line, model?.getLineCount() ?? req.line);
+    editor.revealLineInCenter(line);
+    editor.setSelection({ startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: model?.getLineMaxColumn(line) ?? 1 });
+    editor.focus();
+  }
+  createEffect(on(revealRequest, revealAsked));
+
+  createEffect(() => {
+    const options = editorOptions(editorSettings());
+    editor?.updateOptions(options);
+  });
+
+  // Profiler mode: the line numbers' gutter widens for the bars.
+  createEffect(() => {
+    editor?.updateOptions({ lineNumbersMinChars: props.profile ? PROFILER_GUTTER_CHARS : 5 });
+  });
+  // The first profile after profiler mode is turned on shows its slowest line.
+  let revealed = props.revealSlowest ?? 0;
+  createEffect(() => {
+    const profile = props.profile;
+    const want = props.revealSlowest ?? 0;
+    if (!editor || !profile || want === revealed) return;
+    const slowest = hotLines(profileRows(profile))[0] ?? [...profileRows(profile)].sort((a, b) => b.time - a.time)[0]?.line;
+    if (slowest === undefined) return;
+    revealed = want;
+    editor.revealLineInCenter(slowest);
   });
 
   createEffect(() => {
@@ -139,5 +195,12 @@ export default function OakScriptEditor(props: Props) {
     editor?.dispose();
   });
 
-  return <div class="oak-editor-host" ref={host} />;
+  return (
+    <div class="oak-editor-wrap">
+      <div class="oak-editor-host" ref={host} />
+      <Show when={shownEditor() && props.profile}>
+        {(profile) => <ProfilerGutter editor={shownEditor()!} profile={profile()} />}
+      </Show>
+    </div>
+  );
 }

@@ -27,6 +27,8 @@ import { DEFAULT_SYMBOL } from "../../backtester/types";
 import { KeptRuns, type KeptStrategy } from "../../backtester/live-runs";
 import { runScriptRequest } from "../../backtester/script-request";
 import { updateLiveScript, type Compiled, type LiveScript, type UserModule } from "./live-script";
+import { instrumentSource } from "./profiler/instrument";
+import { ProfileCollector } from "./profiler/collect";
 
 const ctx = self as unknown as {
   postMessage(message: OakResponse): void;
@@ -77,18 +79,28 @@ function rewriteImports(source: string): string {
   );
 }
 
-/** Best-effort mapping of a thrown value to user-source coordinates: the
- *  first blob:...:line:col frame in the stack is the user module.
+/** The first blob:...:line:col frame of a stack: the user module. Lazy body + lookahead so the URL's own colons
+ *  (blob:http://host:port/) don't eat the trailing :line:col pair. */
+function blobFrame(stack: string): { line: number; col: number } | undefined {
+  const m = stack.match(/blob:[^\s)]+?:(\d+):(\d+)(?=[\s):]|$)/);
+  return m ? { line: Number(m[1]), col: Number(m[2]) } : undefined;
+}
+
+/** Best-effort mapping of a thrown value to user-source coordinates.
  *  `lineOffset` subtracts the wrap transform's shift for script-style code. */
 function toScriptError(err: unknown, lineOffset = 0): OakScriptError {
   const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? (err.stack ?? "") : "";
-  // Lazy body + lookahead so the URL's own colons (blob:http://host:port/)
-  // don't eat the trailing :line:col pair.
-  const m = stack.match(/blob:[^\s)]+?:(\d+):(\d+)(?=[\s):]|$)/);
-  if (m) return { message, line: Math.max(1, Number(m[1]) - lineOffset), col: Number(m[2]) };
+  const frame = blobFrame(err instanceof Error ? (err.stack ?? "") : "");
+  if (frame) return { message, line: Math.max(1, frame.line - lineOffset), col: frame.col };
   return { message };
 }
+
+/** The wrap transform's shift of the script being run: log.*() messages get the line in the script's own source. */
+let runLineOffset = 0;
+oakScript.setLogLineResolver((stack) => {
+  const frame = blobFrame(stack);
+  return frame ? Math.max(1, frame.line - runLineOffset) : undefined;
+});
 
 const compiled = new Map<string, Compiled>();
 /** The runs of the studies and strategies on the charts, by script and run key (see live-runs.ts). */
@@ -162,13 +174,27 @@ function scriptMetaOf(run: oakScript.ScriptRunResult, source: string): OakCompil
   };
 }
 
+/** The source with the timers of profiler mode, and their collector; a source that does not parse is compiled as it
+ *  is (for the engine's own error). */
+function profiled(source: string): { source: string; profile?: ProfileCollector } {
+  try {
+    const { code, spans } = instrumentSource(source);
+    return { source: code, profile: new ProfileCollector(spans) };
+  } catch {
+    return { source };
+  }
+}
+
 async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Promise<OakResponse> {
   const scriptStyle = !isConventionStyle(req.source);
-  const source = scriptStyle ? wrapScriptStyle(req.source, SCRIPT_GLOBALS) : req.source;
+  const { source: user, profile } = req.profile ? profiled(req.source) : { source: req.source };
+  const source = scriptStyle ? wrapScriptStyle(user, SCRIPT_GLOBALS) : user;
   const lineOffset = scriptStyle ? SCRIPT_LINE_OFFSET : 0;
   const url = URL.createObjectURL(new Blob([rewriteImports(source)], { type: "text/javascript" }));
   try {
-    const mod = (await import(/* @vite-ignore */ url)) as UserModule;
+    // The top level of a calculate() module runs on import: its timers need their collector.
+    const load = () => import(/* @vite-ignore */ url) as Promise<UserModule>;
+    const mod = await (profile ? profile.measure(load) : load());
     if (scriptStyle) {
       if (typeof mod.__run !== "function") {
         return { id: req.id, type: "compile", ok: false, error: { message: "Script transform failed." } };
@@ -176,10 +202,14 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
       // Dry run on zero bars registers the declarations (metadata, inputs,
       // plots) without computing anything — Pine's compile step.
       // A strategy gets an engine on the same zero bars, so strategy.eachBar() runs (no bar).
-      const dry = oakScript.executeScript(mod.__run, [], {}, DECLARATION_CHART, {
-        strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
-      });
-      compiled.set(req.scriptId, { kind: "script", run: mod.__run });
+      const run = mod.__run;
+      const declare = () =>
+        oakScript.executeScript(run, [], {}, DECLARATION_CHART, {
+          strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
+        });
+      const dry = profile ? profile.measure(declare) : declare();
+      profile?.reset();
+      compiled.set(req.scriptId, { kind: "script", run, profile });
       dropLiveRuns(req.scriptId);
       return { id: req.id, type: "compile", ok: true, meta: scriptMetaOf(dry, req.source) };
     }
@@ -194,7 +224,8 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
         },
       };
     }
-    compiled.set(req.scriptId, { kind: "convention", mod });
+    profile?.reset();
+    compiled.set(req.scriptId, { kind: "convention", mod, profile });
     dropLiveRuns(req.scriptId);
     return { id: req.id, type: "compile", ok: true, meta: metaOf(mod) };
   } catch (err) {
@@ -224,19 +255,22 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   // Source inputs naming another source of the chart (study on study) read the values the chart sent.
   const sources = req.sources;
   setSourceResolver(sources ? (name) => sources[name] ?? null : null);
+  runLineOffset = entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0;
   try {
-    if (req.live) {
-      const live = { ...req.live, key: liveKey(req.scriptId, req.live.key) };
-      const out = updateLiveScript(liveScripts, entry, { ...req, live });
-      return out ? { id: req.id, type: "run", ok: true, result: out.result, live: out.live } : resend(req.id, "run");
-    }
-    if (entry.kind === "script") {
-      const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
-      // The kinds of drawings this run created: the drawing rows of the Style settings.
-      return { id: req.id, type: "run", ok: true, result: run.drawingKinds.length ? { ...run.result, drawingKinds: run.drawingKinds } : run.result };
-    }
-    const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
-    return { id: req.id, type: "run", ok: true, result };
+    return withProfile(entry, !req.live || req.live.from === 0, (): OakResponse => {
+      if (req.live) {
+        const live = { ...req.live, key: liveKey(req.scriptId, req.live.key) };
+        const out = updateLiveScript(liveScripts, entry, { ...req, live });
+        return out ? { id: req.id, type: "run", ok: true, result: out.result, live: out.live } : resend(req.id, "run");
+      }
+      if (entry.kind === "script") {
+        const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
+        // The kinds of drawings this run created: the drawing rows of the Style settings.
+        return { id: req.id, type: "run", ok: true, result: run.drawingKinds.length ? { ...run.result, drawingKinds: run.drawingKinds } : run.result };
+      }
+      const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
+      return { id: req.id, type: "run", ok: true, result };
+    });
   } catch (err) {
     const error = toScriptError(err, entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0);
     if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe }));
@@ -244,6 +278,16 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   } finally {
     setSourceResolver(null);
   }
+}
+
+/** Runs a request of `entry`; in profiler mode, with its timers and the profile in the reply. `whole`: the run
+ *  calculates all the bars (the profile starts again). */
+function withProfile(entry: Compiled, whole: boolean, fn: () => OakResponse): OakResponse {
+  const profile = entry.profile;
+  if (!profile) return fn();
+  if (whole) profile.reset();
+  const res = profile.measure(fn);
+  return res.ok && (res.type === "run" || res.type === "backtest") ? { ...res, profile: profile.snapshot() } : res;
 }
 
 /** Backtest of a compiled strategy script on the OpenTrader broker. */
@@ -255,20 +299,23 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
       : "Script is not compiled — save it (or fix compile errors) first.";
     return { id: req.id, type: "backtest", ok: false, error: { message } };
   }
+  runLineOffset = SCRIPT_LINE_OFFSET;
   try {
-    const live = req.live && { ...req.live, key: liveKey(req.scriptId, req.live.key) };
-    const out = runScriptRequest(liveStrategies, entry.run, { ...req, live });
-    if (!out) return resend(req.id, "backtest");
-    const { report, visuals } = out;
-    if (!report) {
-      return {
-        id: req.id,
-        type: "backtest",
-        ok: false,
-        error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
-      };
-    }
-    return { id: req.id, type: "backtest", ok: true, report, visuals, ...(out.live ? { live: out.live } : {}) };
+    return withProfile(entry, !req.live || req.live.from === 0, (): OakResponse => {
+      const live = req.live && { ...req.live, key: liveKey(req.scriptId, req.live.key) };
+      const out = runScriptRequest(liveStrategies, entry.run, { ...req, live });
+      if (!out) return resend(req.id, "backtest");
+      const { report, visuals } = out;
+      if (!report) {
+        return {
+          id: req.id,
+          type: "backtest",
+          ok: false,
+          error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
+        };
+      }
+      return { id: req.id, type: "backtest", ok: true, report, visuals, ...(out.live ? { live: out.live } : {}) };
+    });
   } catch (err) {
     if (err instanceof StrategyRuntimeError) {
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };

@@ -11,7 +11,7 @@
  * fetched lazily on the first request.
  */
 import OakWorkerCtor from "./oakscript-worker?worker";
-import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError, OakSourceData, OakSymbolData } from "./engine-types";
+import type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakRequest, OakResponse, OakScriptError, OakSourceData, OakSymbolData } from "./engine-types";
 import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
 import type { BacktestOutput } from "../../backtester/worker-types";
@@ -19,7 +19,7 @@ import { intrabarsRef } from "../../backtester/intrabars";
 import { translateWith } from "../../i18n/translator";
 import { SentRuns } from "../../backtester/live-runs";
 
-export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
+export type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakScriptError };
 
 const COMPILE_TIMEOUT_MS = 10_000;
 const RUN_TIMEOUT_MS = 5_000;
@@ -38,6 +38,8 @@ export class OakEngineError extends Error {
 }
 
 type Pending = {
+  /** The script the request runs (the profile of its reply is that script's). */
+  scriptId?: string;
   resolve: (res: OakResponse) => void;
   reject: (err: OakEngineError) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -53,6 +55,9 @@ export class OakEngine {
   /** The bars and results of the studies (`run:<run key>`) and strategies (`backtest:<run key>`) on the charts:
    *  the worker keeps them apart. */
   private live = new SentRuns();
+  /** Scripts in profiler mode (#312): compiled with their timers. */
+  private profiled = new Set<string>();
+  private profileListeners = new Set<(scriptId: string, profile: OakProfile) => void>();
 
   /** Worker generation: bumped when the worker is killed, so callers know
    *  their compiled scripts are gone. */
@@ -66,6 +71,10 @@ export class OakEngine {
     worker.onmessage = (e: MessageEvent<OakResponse>) => {
       const p = this.pending.get(e.data.id);
       if (!p) return;
+      const res = e.data;
+      if (res.ok && "profile" in res && res.profile && "scriptId" in p) {
+        for (const fn of this.profileListeners) fn(p.scriptId as string, res.profile);
+      }
       this.pending.delete(e.data.id);
       clearTimeout(p.timer);
       p.resolve(e.data);
@@ -100,17 +109,35 @@ export class OakEngine {
         this.restart(`Script did not finish within ${Math.round(timeoutMs / 1000)}s and was stopped.`);
         reject(new OakEngineError({ message: translateWith("Timed out after {0}s.", Math.round(timeoutMs / 1000)) }, true));
       }, timeoutMs);
-      this.pending.set(msg.id, { resolve, reject, timer });
+      this.pending.set(msg.id, { scriptId: msg.scriptId, resolve, reject, timer });
       worker.postMessage(msg);
       onPosted?.();
     });
   }
 
+  /** Profiler mode of `scriptId` on or off: the next compile of it has the timers or not (the caller compiles it
+   *  again). */
+  setProfiled(scriptId: string, on: boolean): void {
+    if (on) this.profiled.add(scriptId);
+    else this.profiled.delete(scriptId);
+  }
+
+  isProfiled(scriptId: string): boolean {
+    return this.profiled.has(scriptId);
+  }
+
+  /** `fn` gets the profile of each run of a script in profiler mode; returns the unsubscribe. */
+  onProfile(fn: (scriptId: string, profile: OakProfile) => void): () => void {
+    this.profileListeners.add(fn);
+    return () => this.profileListeners.delete(fn);
+  }
+
   /** Compile `source` as scriptId; resolves with the script's declarative
    *  meta, rejects with OakEngineError carrying line/col when available. */
   async compile(scriptId: string, source: string): Promise<OakCompiledMeta> {
+    const profile = this.profiled.has(scriptId);
     const res = await this.request(
-      { id: ++this.seq, type: "compile", scriptId, source },
+      { id: ++this.seq, type: "compile", scriptId, source, ...(profile ? { profile } : {}) },
       COMPILE_TIMEOUT_MS,
     );
     if (res.type !== "compile") throw new OakEngineError({ message: "Protocol mismatch." }, true);
