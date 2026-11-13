@@ -7,7 +7,7 @@ import { newScreen, type Filter, type Screen } from "../screener-catalog";
 import { resetScreenerTelemetry, screenChanges, trackScreenChange } from "../screener-telemetry";
 
 const cond = (id: string, field: string, value: number): Filter => ({
-  id, type: "Condition", left: { id: field, params: {} }, operation: "greater", target: "", right: { value },
+  id, type: "Condition", left: { id: field, params: {} }, operation: "above", target: "", right: { value },
 } as Filter);
 
 const base = (): Screen => ({ ...newScreen("stock", "Mine"), filters: [cond("a", "Price", 5)], customColumns: null });
