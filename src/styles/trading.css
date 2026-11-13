@@ -32,6 +32,10 @@ html.theme-dark {
   --trd-trade-bg: #2e2e2e;
   --trd-trade-hover: #3d3d3d;
   --trd-values-bg: #1f1f1f;
+  --trd-dialog-backdrop: rgba(26, 26, 26, 0.4);
+  --trd-dialog-glass: color-mix(in srgb, var(--color-bg-primary) 85%, transparent);
+  --trd-dialog-border: rgba(140, 140, 140, 0.1);
+  --trd-dialog-shadow: 0 0 2px #000, 0 3px 9px #000;
 }
 html.theme-light {
   --trd-text-secondary: #707070;
@@ -61,6 +65,10 @@ html.theme-light {
   --trd-trade-bg: #fff;
   --trd-trade-hover: #f2f2f2;
   --trd-values-bg: #f2f2f2;
+  --trd-dialog-backdrop: rgba(209, 209, 209, 0.3);
+  --trd-dialog-glass: color-mix(in srgb, var(--color-bg-primary) 90%, transparent);
+  --trd-dialog-border: transparent;
+  --trd-dialog-shadow: 0 0 2px #dbdbdb, 0 3px 9px #ebebeb;
 }
 :root {
   --trd-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
@@ -1118,18 +1126,57 @@ html.theme-light {
 }
 
 /* ─── "Trade with your broker" ─── */
+/* The layer over the whole window: it centres the dialog, dims what is behind it, and a press on it closes. */
+.trd-dialog-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--trd-dialog-backdrop);
+}
+.trd-dialog-close {
+  position: absolute;
+  top: 9px;
+  inset-inline-end: 9px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.trd-dialog-close:hover {
+  background: var(--color-bg-primary-hover);
+}
+/* Frosted glass: the window shows blurred through it, unless the system asks for less transparency. */
 .trd-select-dialog {
   position: relative;
+  box-sizing: border-box;
   width: min(1168px, calc(100vw - 48px));
   max-height: min(780px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;
   padding: 36px 0 24px;
-  background: #1f1f1f;
+  background: var(--trd-dialog-glass);
+  backdrop-filter: blur(15px) saturate(75%);
+  border: 1px solid var(--trd-dialog-border);
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--trd-dialog-shadow);
   font-family: var(--trd-font);
   color: var(--color-text-primary);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .trd-select-dialog {
+    background: var(--color-bg-primary);
+    backdrop-filter: none;
+  }
 }
 .trd-select-head {
   display: flex;
@@ -1194,15 +1241,16 @@ html.theme-light {
   flex-direction: column;
   align-items: center;
   padding: 24px 8px 16px;
-  border: 1px solid var(--trd-border);
+  border: 1px solid var(--color-card-border);
   border-radius: 8px;
   background: transparent;
   color: var(--color-text-primary);
   font-family: var(--trd-font);
+  cursor: pointer;
 }
 .trd-broker-card:hover {
-  background: #2e2e2e;
-  border-color: #2e2e2e;
+  background: var(--color-container-fill-primary-neutral-extra-light);
+  border-color: var(--color-container-fill-primary-neutral-extra-light);
 }
 .trd-broker-card .trd-broker-mark {
   margin-bottom: 16px;
@@ -1234,6 +1282,13 @@ html.theme-light {
   opacity: 0.55;
 }
 .trd-broker-card-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--color-white);
+  font-weight: 700;
   width: 48px;
   height: 48px;
   border-radius: 50%;
