@@ -54,6 +54,8 @@ pub struct BrokerStatus {
     pub plugin_connected: bool,
     /// The exchange of the active plugin's own symbols when it is a data plugin too: its symbols trade as they are.
     pub data_exchange: Option<String>,
+    /// The exchanges of a data plugin that serves several (#331): its tickers are whole symbols (`NSE:RELIANCE`).
+    pub data_exchanges: Vec<String>,
     pub trading_enabled: bool,
     /// Its account, as the plugin last sent it.
     pub state: Option<BrokerState>,
@@ -136,7 +138,8 @@ pub fn status(app: &AppHandle) -> BrokerStatus {
         version: s.version.load(Ordering::Relaxed),
         plugin_connected: active.as_deref().is_some_and(|id| plugins.hub.connected(id).is_some()),
         active_name: manifest.as_ref().map(|m| m.name.clone()),
-        data_exchange: manifest.filter(|m| m.provides(Capability::Datafeed)).and_then(|m| m.exchange),
+        data_exchange: manifest.as_ref().filter(|m| m.provides(Capability::Datafeed) && !m.whole_symbols()).and_then(|m| m.exchange.clone()),
+        data_exchanges: manifest.filter(|m| m.provides(Capability::Datafeed) && m.whole_symbols()).map(|m| m.exchanges).unwrap_or_default(),
         trading_enabled,
         state: account,
         notices,

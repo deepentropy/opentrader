@@ -3,6 +3,9 @@
  * names, are served by the plugin instead of the app's own data. The history, symbol and search commands ask `route`
  * first, so the window's datafeed stays as it is: the same commands, the same bars, the same live events.
  *
+ * A plugin that serves several exchanges (`exchanges`, #331: one account's market segments) is asked with whole
+ * symbols (`NSE:RELIANCE`) instead of bare tickers: the same ticker may trade on several of them.
+ *
  * The plugin answers `data.symbolInfo` (description, sessions, tick size, the intervals it serves), `data.bars` and
  * `data.search`; it pushes `data.quote` for the symbols of `data.subscribe`, which become the `chart-aggregate` and
  * `trade-tick` events the gateway's live task sends. Bars are not kept on disk: the plugin's source owns its history.
@@ -15,7 +18,7 @@ use opentrader_core::plugins::hub::HubEvent;
 use opentrader_core::sync::LockExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -67,6 +70,8 @@ struct Subscriptions {
 pub struct PluginData {
     /// Exchange → the enabled data plugin that serves it.
     exchanges: Mutex<HashMap<String, String>>,
+    /// The plugins asked with whole symbols (they serve several exchanges).
+    whole: Mutex<HashSet<String>>,
     infos: Mutex<HashMap<String, Arc<Info>>>,
     subs: Mutex<Subscriptions>,
     /// The tickers each plugin was last asked to stream.
@@ -87,16 +92,35 @@ fn state(app: &AppHandle) -> &PluginData {
 
 /// The data plugin serving `symbol`, if any.
 pub fn route(app: &AppHandle, symbol: &str) -> Option<Route> {
-    let (exchange, ticker) = symbol.trim().split_once(':')?;
-    let exchange = exchange.to_ascii_uppercase();
-    let plugin = state(app).exchanges.locked().get(&exchange).cloned()?;
-    Some(Route { plugin, symbol: format!("{exchange}:{ticker}"), ticker: ticker.to_string() })
+    let s = state(app);
+    route_in(&s.exchanges.locked(), &s.whole.locked(), symbol)
 }
 
-/// The enabled data plugins' exchanges (from `plugins::apply`).
-pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>) {
+fn route_in(exchanges: &HashMap<String, String>, whole: &HashSet<String>, symbol: &str) -> Option<Route> {
+    let (exchange, ticker) = symbol.trim().split_once(':')?;
+    let exchange = exchange.to_ascii_uppercase();
+    let plugin = exchanges.get(&exchange).cloned()?;
+    let symbol = format!("{exchange}:{ticker}");
+    let ticker = if whole.contains(&plugin) { symbol.clone() } else { ticker.to_string() };
+    Some(Route { plugin, symbol, ticker })
+}
+
+/// The symbol of a ticker a plugin names (a quote, a search row): its exchange's for a one-exchange plugin, the
+/// whole symbol it gives for one of several exchanges (when that exchange is the plugin's).
+fn symbol_of(exchanges: &HashMap<String, String>, whole: &HashSet<String>, plugin: &str, ticker: &str) -> Option<String> {
+    if whole.contains(plugin) {
+        let (exchange, t) = ticker.split_once(':')?;
+        let exchange = exchange.to_ascii_uppercase();
+        return (exchanges.get(&exchange).map(String::as_str) == Some(plugin) && !t.is_empty()).then(|| format!("{exchange}:{t}"));
+    }
+    exchanges.iter().find(|(_, p)| *p == plugin).map(|(e, _)| format!("{e}:{ticker}"))
+}
+
+/// The enabled data plugins' exchanges (from `plugins::apply`), and those of them asked with whole symbols.
+pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashSet<String>) {
     let s = state(app);
     *s.exchanges.locked() = map;
+    *s.whole.locked() = whole;
     s.infos.locked().clear();
 }
 
@@ -334,38 +358,63 @@ struct FoundSymbol {
     kind: String,
 }
 
-/// The connected data plugins' symbols matching `query`, as search rows (`exchange` = the plugin's).
+/// The connected data plugins' symbols matching `query`, as search rows (`exchange` = the symbol's).
 pub async fn search(app: &AppHandle, query: &str) -> Vec<SymbolSearchResult> {
     // "MT5:EUR" asks the plugin of that exchange for "EUR" (and no other plugin).
     let (only, query) = match query.split_once(':') {
         Some((ex, rest)) => (Some(ex.trim().to_ascii_uppercase()), rest.trim()),
         None => (None, query),
     };
-    let exchanges: Vec<(String, String)> = state(app)
-        .exchanges
-        .locked()
-        .iter()
-        .filter(|(e, _)| only.as_ref().is_none_or(|o| o == *e))
-        .map(|(e, p)| (e.clone(), p.clone()))
-        .collect();
+    let (exchanges, whole) = {
+        let s = state(app);
+        let exchanges = s.exchanges.locked().clone();
+        let whole = s.whole.locked().clone();
+        (exchanges, whole)
+    };
+    // Each plugin once, even when it serves several exchanges.
+    let plugins: BTreeSet<String> =
+        exchanges.iter().filter(|(e, _)| only.as_ref().is_none_or(|o| o == *e)).map(|(_, p)| p.clone()).collect();
     let hub = app.state::<Plugins>().hub.clone();
-    let asks = exchanges.into_iter().filter(|(_, p)| hub.connected(p).is_some()).map(|(exchange, plugin)| {
+    let asks = plugins.into_iter().filter(|p| hub.connected(p).is_some()).map(|plugin| {
         let hub = hub.clone();
         let query = query.to_string();
+        let (exchanges, whole, only) = (exchanges.clone(), whole.clone(), only.clone());
         async move {
             let v = hub.request(&plugin, "data.search", json!({ "query": query }), INFO_TIMEOUT).await.ok()?;
             let found: Vec<FoundSymbol> = serde_json::from_value(v.get("symbols")?.clone()).ok()?;
-            Some(found.into_iter().take(50).map(move |f| SymbolSearchResult {
-                ticker: f.ticker,
-                name: Some(f.description).filter(|d| !d.is_empty()),
-                market: Some(market_of(&f.kind).to_string()),
-                locale: None,
-                exchange: Some(exchange.clone()),
-                r#type: None,
-            }))
+            Some(found_rows(&exchanges, &whole, &plugin, only.as_deref(), found))
         }
     });
     futures_util::future::join_all(asks).await.into_iter().flatten().flatten().collect()
+}
+
+/// A plugin's search answer as rows: the symbols of its exchanges (of `only`, when the query names one), 50 at most.
+fn found_rows(
+    exchanges: &HashMap<String, String>,
+    whole: &HashSet<String>,
+    plugin: &str,
+    only: Option<&str>,
+    found: Vec<FoundSymbol>,
+) -> Vec<SymbolSearchResult> {
+    found
+        .into_iter()
+        .filter_map(|f| {
+            let symbol = symbol_of(exchanges, whole, plugin, &f.ticker)?;
+            let (exchange, ticker) = symbol.split_once(':')?;
+            if only.is_some_and(|o| o != exchange) {
+                return None;
+            }
+            Some(SymbolSearchResult {
+                ticker: ticker.to_string(),
+                name: Some(f.description).filter(|d| !d.is_empty()),
+                market: Some(market_of(&f.kind).to_string()),
+                locale: None,
+                exchange: Some(exchange.to_string()),
+                r#type: None,
+            })
+        })
+        .take(50)
+        .collect()
 }
 
 /// The search tab of a symbol type.
@@ -468,9 +517,11 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     if !q.price.is_finite() {
         return;
     }
-    let exchange = state(app).exchanges.locked().iter().find(|(_, p)| *p == plugin).map(|(e, _)| e.clone());
-    let Some(exchange) = exchange else { return };
-    let symbol = format!("{exchange}:{}", q.ticker);
+    let symbol = {
+        let s = state(app);
+        symbol_of(&s.exchanges.locked(), &s.whole.locked(), plugin, &q.ticker)
+    };
+    let Some(symbol) = symbol else { return };
     let minute = q.minute.map(candle);
     let time = q.time.unwrap_or_else(now);
     if let Some(m) = &minute {
@@ -525,6 +576,37 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!((out[0].open, out[0].high, out[0].low, out[0].close, out[0].volume), (1.0, 3.0, 0.5, 2.0, 2.0));
         assert_eq!(out[1].time, 120.0);
+    }
+
+    fn maps() -> (HashMap<String, String>, HashSet<String>) {
+        let ex: HashMap<String, String> =
+            [("MT5", "mt5"), ("NSE", "algo"), ("BSE", "algo"), ("NFO", "algo")].iter().map(|(e, p)| (e.to_string(), p.to_string())).collect();
+        (ex, HashSet::from(["algo".to_string()]))
+    }
+
+    #[test]
+    fn routes_several_exchanges_with_whole_symbols() {
+        let (ex, whole) = maps();
+        let r = route_in(&ex, &whole, "nse:RELIANCE").unwrap();
+        assert_eq!((r.plugin.as_str(), r.symbol.as_str(), r.ticker.as_str()), ("algo", "NSE:RELIANCE", "NSE:RELIANCE"));
+        assert_eq!(route_in(&ex, &whole, "BSE:RELIANCE").unwrap().ticker, "BSE:RELIANCE");
+        // A one-exchange plugin keeps bare tickers; an exchange no plugin serves stays the app's.
+        assert_eq!(route_in(&ex, &whole, "MT5:EURUSD").unwrap().ticker, "EURUSD");
+        assert!(route_in(&ex, &whole, "NASDAQ:AAPL").is_none());
+    }
+
+    #[test]
+    fn names_quotes_and_search_rows_by_their_exchange() {
+        let (ex, whole) = maps();
+        assert_eq!(symbol_of(&ex, &whole, "algo", "BSE:RELIANCE").as_deref(), Some("BSE:RELIANCE"));
+        assert_eq!(symbol_of(&ex, &whole, "algo", "RELIANCE"), None);
+        assert_eq!(symbol_of(&ex, &whole, "algo", "MT5:EURUSD"), None);
+        assert_eq!(symbol_of(&ex, &whole, "mt5", "EURUSD").as_deref(), Some("MT5:EURUSD"));
+        let found = |t: &str| FoundSymbol { ticker: t.into(), description: String::new(), kind: "stock".into() };
+        let rows = found_rows(&ex, &whole, "algo", None, vec![found("NSE:RELIANCE"), found("BSE:RELIANCE"), found("X:Y")]);
+        assert_eq!(rows.iter().map(|r| format!("{}:{}", r.exchange.as_deref().unwrap(), r.ticker)).collect::<Vec<_>>(), vec!["NSE:RELIANCE", "BSE:RELIANCE"]);
+        let only = found_rows(&ex, &whole, "algo", Some("BSE"), vec![found("NSE:RELIANCE"), found("BSE:RELIANCE")]);
+        assert_eq!(only.len(), 1);
     }
 
     #[test]

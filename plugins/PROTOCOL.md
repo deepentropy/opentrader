@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **1**.
+Plugin API version **2**. Version 2 adds `exchanges` (a data plugin serving several exchanges); a version 1 plugin works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -43,7 +43,8 @@ A plugin package is a zip. It holds `opentrader-plugin.json` at its root, plus t
 | `id` | 2 to 40 lowercase letters, digits and `-`. |
 | `api` | The Plugin API version the plugin speaks. OpenTrader refuses a package that needs a newer one. |
 | `provides` | `datafeed`, `broker`, or both. A plugin is only asked, and only heard, on the methods of what it provides. |
-| `exchange` | Required for a data plugin. Its symbols are `<exchange>:<ticker>`, for example `EXAMPLE:EURUSD`. Use 2 to 16 uppercase letters, digits and `_`. `LOCAL` and `ECONOMICS` are reserved. |
+| `exchange` | Required for a data plugin, unless it gives `exchanges`. Its symbols are `<exchange>:<ticker>`, for example `EXAMPLE:EURUSD`. Use 2 to 16 uppercase letters, digits and `_`. `LOCAL` and `ECONOMICS` are reserved. |
+| `exchanges` | A data plugin that serves several exchanges from one source, for example the market segments of one broker account: `["NSE","BSE","NFO","MCX"]`. Same rules as `exchange`, no repeats. The app then names the plugin's symbols whole in every message (see below). Plugin API 2. |
 | `runtime` | How the plugin runs (see below). |
 | `install` | Files to copy into a folder the user picks (see below). |
 | `settings` | Fields the user fills in under Settings > Plugins. `type` is `text`, `number`, `bool` (`"true"` / `"false"`) or `select`. Values travel as text. |
@@ -57,7 +58,7 @@ There are two runtimes:
 - **`external`**: the plugin runs inside another application, such as a trading terminal, and connects by itself. With `"connectionFile": "<template>"`, OpenTrader writes this file while the plugin is enabled and deletes it when the plugin is disabled:
 
   ```json
-  { "plugin": "example", "host": "127.0.0.1", "port": 47822, "token": "…", "api": 1 }
+  { "plugin": "example", "host": "127.0.0.1", "port": 47822, "token": "…", "api": 2 }
   ```
 
 Path templates start with `{appData}` (the roaming application data folder), `{localAppData}`, `{documents}` or `{home}`, followed by plain folder names. A connection file is a `.json` file.
@@ -97,7 +98,7 @@ The first message the plugin sends must be `hello`, within 10 seconds of connect
 If the plugin is installed and enabled, the token matches and the API version is supported, the app answers:
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"app":"OpenTrader","api":1}}
+{"jsonrpc":"2.0","id":1,"result":{"app":"OpenTrader","api":2}}
 ```
 
 Otherwise the answer is an error (code `-32001`, with a message to show the user), and the app closes the connection.
@@ -116,11 +117,17 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 
 The plugin's symbols are `<exchange>:<ticker>`. Charts, scripts, watchlists and alerts use them like any other symbol. The app asks the plugin with the bare `ticker`.
 
+**Several exchanges.** A plugin with `exchanges` is asked with the whole symbol instead, since one ticker can trade on several of its exchanges: `"ticker":"NSE:RELIANCE"` in `data.symbolInfo`, `data.bars` and `data.subscribe`. It answers the same way: `data.quote` and the `data.search` rows carry whole symbols, and a row of an exchange it does not list is dropped. As a broker too, its positions, orders and executions use whole symbols, which open on the chart as they are.
+
+A manifest may carry both `exchange` and `exchanges` to install on both versions: version 1 apps route `exchange` with bare tickers, version 2 apps route `exchanges` with whole symbols. The `hello` answer's `api` tells the plugin which one it speaks to.
+
 Bars are `[time, open, high, low, close, volume]` arrays. `time` is the bar's start in UNIX seconds (UTC). A daily bar starts at its trading day's midnight in the symbol's time zone. `volume` may be omitted.
 
 ### `data.search` (app → plugin, request)
 
 `{"query":"eur"}` → `{"symbols":[{"ticker":"EURUSD","description":"Euro vs US Dollar","type":"forex"}]}`
+
+The query never holds the exchange: the app asks each plugin once and keeps the rows of the exchange the user typed (`NSE:REL`).
 
 Return at most 50 matches; an empty query may return the most used symbols. `type` is one of `stock`, `fund`, `index`, `forex`, `crypto`, `futures`, `cfd`, `bond`. It picks the search tab the row appears under.
 

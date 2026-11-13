@@ -264,13 +264,11 @@ fn apply(app: &AppHandle) {
         .filter(|m| m.supported_here() && config.plugins.get(&m.id).is_some_and(|c| c.enabled && !c.token.is_empty()))
         .collect();
     // The exchanges of the enabled data plugins: their symbols go to them (`data::route`).
+    let feeds: Vec<&&Manifest> = enabled.iter().filter(|m| m.provides(manifest::Capability::Datafeed)).collect();
     data::set_exchanges(
         app,
-        enabled
-            .iter()
-            .filter(|m| m.provides(manifest::Capability::Datafeed))
-            .filter_map(|m| m.exchange.clone().map(|e| (e, m.id.clone())))
-            .collect(),
+        feeds.iter().flat_map(|m| m.data_exchanges().into_iter().map(|e| (e, m.id.clone()))).collect(),
+        feeds.iter().filter(|m| m.whole_symbols()).map(|m| m.id.clone()).collect(),
     );
     state.hub.set_allowed(
         enabled

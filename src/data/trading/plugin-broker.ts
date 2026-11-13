@@ -409,8 +409,11 @@ export const pluginBroker = createRoot(() => {
     // ── Account manager ─────────────────────────────────────────────────
     /** The chart symbol of a broker ticker: the plugin's own symbol, or a chart's that trades it. */
     chartSymbolFor(ticker: string): string | null {
-      const ex = status()?.dataExchange;
-      if (ex) return `${ex}:${ticker}`;
+      const st = status();
+      if (st?.dataExchange) return `${st.dataExchange}:${ticker}`;
+      // A plugin serving several exchanges names its own symbols whole ("NSE:RELIANCE").
+      const ex = ticker.split(":")[0].toUpperCase();
+      if (ticker.includes(":") && st?.dataExchanges.includes(ex)) return ticker;
       const s = chartSymbolOf(ticker);
       return s.includes(":") ? s : null;
     },

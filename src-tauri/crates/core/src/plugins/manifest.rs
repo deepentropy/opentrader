@@ -113,6 +113,10 @@ pub struct Manifest {
     /// A data plugin's symbols are `<exchange>:<ticker>`: uppercase letters, digits and `_`.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// A data plugin serving several exchanges (one account's market segments), in place of `exchange`. The app then
+    /// speaks to it with whole symbols (`NSE:RELIANCE`), since a ticker may trade on several of them.
+    #[serde(default)]
+    pub exchanges: Vec<String>,
     pub runtime: Runtime,
     #[serde(default)]
     pub install: Vec<InstallStep>,
@@ -142,6 +146,16 @@ impl Manifest {
         self.provides.contains(&c)
     }
 
+    /// The exchanges whose symbols the plugin serves: `exchanges`, else `exchange`.
+    pub fn data_exchanges(&self) -> Vec<String> {
+        if self.exchanges.is_empty() { self.exchange.iter().cloned().collect() } else { self.exchanges.clone() }
+    }
+
+    /// The app names the plugin's symbols whole (`NSE:RELIANCE`), not by their bare ticker: it serves `exchanges`.
+    pub fn whole_symbols(&self) -> bool {
+        !self.exchanges.is_empty()
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         let id_ok = (2..=40).contains(&self.id.len())
             && self.id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
@@ -161,16 +175,18 @@ impl Manifest {
         if self.provides.is_empty() {
             return Err("The plugin provides neither data nor a broker".into());
         }
-        match (&self.exchange, self.provides(Capability::Datafeed)) {
-            (None, true) => return Err("A data plugin names its exchange (the prefix of its symbols)".into()),
-            (Some(ex), _) => {
-                let ok = (2..=16).contains(&ex.len())
-                    && ex.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_');
-                if !ok || RESERVED_EXCHANGES.contains(&ex.as_str()) {
-                    return Err(format!("Exchange {ex:?}: use 2 to 16 uppercase letters, digits and _ (not LOCAL or ECONOMICS)"));
-                }
+        if self.provides(Capability::Datafeed) && self.exchange.is_none() && self.exchanges.is_empty() {
+            return Err("A data plugin names its exchange (the prefix of its symbols)".into());
+        }
+        for ex in self.exchange.iter().chain(&self.exchanges) {
+            let ok = (2..=16).contains(&ex.len()) && ex.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_');
+            if !ok || RESERVED_EXCHANGES.contains(&ex.as_str()) {
+                return Err(format!("Exchange {ex:?}: use 2 to 16 uppercase letters, digits and _ (not LOCAL or ECONOMICS)"));
             }
-            (None, false) => {}
+        }
+        // `exchange` may also be in `exchanges` (a manifest for both API versions); `exchanges` itself has no repeat.
+        if let Some(ex) = self.exchanges.iter().enumerate().find_map(|(i, e)| self.exchanges[..i].contains(e).then_some(e)) {
+            return Err(format!("Exchange {ex:?} is listed twice"));
         }
         match &self.runtime {
             Runtime::Process { entry, .. } => relative(entry)?,
@@ -341,6 +357,26 @@ mod tests {
         assert!(with("runtime", serde_json::json!({ "type": "external", "connectionFile": "C:/Windows/x.json" })).is_err());
         assert!(with("runtime", serde_json::json!({ "type": "external", "connectionFile": "{appData}/../x.json" })).is_err());
         assert!(with("runtime", serde_json::json!({ "type": "process", "entry": "bin/ibkr.exe" })).is_ok());
+    }
+
+    #[test]
+    fn several_exchanges() {
+        let mut s = sample();
+        s["exchanges"] = serde_json::json!(["NSE", "BSE", "NFO"]);
+        let m = parse(s.clone()).unwrap();
+        assert_eq!(m.data_exchanges(), vec!["NSE", "BSE", "NFO"]);
+        assert!(m.whole_symbols());
+        // `exchanges` alone is enough; `exchange` alone keeps bare tickers.
+        s.as_object_mut().unwrap().remove("exchange");
+        assert!(parse(s.clone()).is_ok());
+        assert!(!parse(sample()).unwrap().whole_symbols());
+        assert_eq!(parse(sample()).unwrap().data_exchanges(), vec!["MT5"]);
+        s["exchanges"] = serde_json::json!(["NSE", "nse"]);
+        assert!(parse(s.clone()).is_err());
+        s["exchanges"] = serde_json::json!(["NSE", "LOCAL"]);
+        assert!(parse(s.clone()).is_err());
+        s["exchanges"] = serde_json::json!(["NSE", "NSE"]);
+        assert!(parse(s).unwrap_err().contains("twice"));
     }
 
     #[test]

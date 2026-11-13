@@ -461,7 +461,7 @@ mod tests {
         let (hub, port) = hub();
         let mut events = hub.subscribe();
         let (mut f, a) = Fake::hello(port, "feed", "t1").await;
-        assert_eq!(a["result"]["api"], 1);
+        assert_eq!(a["result"]["api"], API_VERSION);
         wait_connected(&hub, "feed").await;
         assert!(matches!(events.recv().await.unwrap(), HubEvent::Connected { plugin, .. } if plugin == "feed"));
 
