@@ -11,6 +11,9 @@ import { calendarTitle, calendarWeekdays, dateText } from "../../i18n/format";
  * The Custom-range tab picks a [from, to] date pair and submits it via
  * `onSubmitRange`; the bottom bar frames the chart on that span. Anchored as a
  * drop-up above the trigger, clamped into the viewport.
+ *
+ * Two other uses show the Date tab alone, centred in the window: Bar Replay's "Select date" and the Logs panel's
+ * "Start date" (#325: one wide "Set <date>" button instead of the footer, off while the date is after now).
  */
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -40,6 +43,9 @@ type Props = {
    *  one, null while unknown) blocked, and a "Select the first available
    *  day" button that moves the picker to it. */
   replay?: { minDate: Date | null };
+  /** The Logs panel's start date (the reference app set-start-date-dialog): the latest date and time it takes (now,
+   *  in the chart's time zone, as `initial`). */
+  startDate?: { latest: WallTime };
 };
 
 // ─── Calendar primitives (Monday-first week) ────────────────────────────────
@@ -72,6 +78,11 @@ export function monthLabel(year: number, month: number): string {
 }
 export function ariaDay(d: Date): string {
   return dateText(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+/** The start date dialog's button: "Set 13 Nov, 10:31", the picked date and time as written. */
+function setButtonText(w: WallTime): string {
+  const at = Date.UTC(w.y, w.m, w.d, Math.floor(w.minutes / 60), w.minutes % 60);
+  return translateWith("Set {0}", dateText(at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, "UTC"));
 }
 
 // ─── Date typing rules (the reference app DatePicker 368690) ───────────────────────────────
@@ -149,7 +160,9 @@ export function GoToDateDialog(props: Props) {
   // Date tab start: the last submitted date + time of the session, else today
   // 00:00; a DWM chart shows it at 00:00 (the reference app `resetToDayStart`).
   const initial = props.initial ? wallToDate(props.initial) : today;
-  const [tab, setTab] = createSignal<TabId>(!props.replay && kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
+  /** The Date tab alone, centred in the window (Bar Replay, Logs start date). */
+  const single = !!props.replay || !!props.startDate;
+  const [tab, setTab] = createSignal<TabId>(!single && kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
   let dateInput: HTMLInputElement | undefined;
   let fromInput: HTMLInputElement | undefined;
   const [selected, setSelected] = createSignal<Date>(new Date(initial));
@@ -209,7 +222,7 @@ export function GoToDateDialog(props: Props) {
     const H = popup.offsetHeight;
     const W = popup.offsetWidth;
     const M = 4;
-    if (props.replay) {
+    if (single) {
       // Centred in the window.
       setPos({ left: Math.round((window.innerWidth - W) / 2), top: Math.max(M, Math.round((window.innerHeight - H) / 2)) });
       return;
@@ -299,7 +312,7 @@ export function GoToDateDialog(props: Props) {
    *  today; on Custom range, while From is armed the last day is To, while To
    *  is armed the first day is From. */
   const limits = (): { min: Date | null; max: Date | null } => {
-    if (tab() === "date") return { min: props.replay?.minDate ?? null, max: today };
+    if (tab() === "date") return { min: props.replay?.minDate ?? null, max: props.startDate ? null : today };
     return armedField() === "from" ? { min: null, max: parseYmd(toText()) } : { min: parseYmd(fromText()), max: null };
   };
   const dayBlocked = (d: Date): boolean => {
@@ -319,8 +332,13 @@ export function GoToDateDialog(props: Props) {
       ? dayBlocked(new Date(viewYear(), viewMonth() + 1, 1))
       : dayBlocked(new Date(viewYear(), viewMonth(), 0));
   };
-  /** The reference app (GoToDateProvider): "Go to" is disabled for a date after today. */
+  /** The reference app (GoToDateProvider): "Go to" is disabled for a date after today; the start date's "Set" for a
+   *  date and time after the latest it takes. */
   const dateValid = createMemo(() => {
+    if (props.startDate) {
+      const w = rangeEnd(dateText(), timeText());
+      return !!w && wallKey(w) <= wallKey(props.startDate.latest);
+    }
     const d = parseYmd(dateText());
     return !d || d <= today;
   });
@@ -348,18 +366,18 @@ export function GoToDateDialog(props: Props) {
         ref={(el) => { popup = el; outside(el); }}
         class="ot-popover goto-dialog-wrapper"
         role="dialog"
-        data-name={props.replay ? "select-date-dialog" : "go-to-date-dialog"}
-        aria-label={props.replay ? "Select date" : "Go to"}
+        data-name={props.startDate ? "set-start-date-dialog" : props.replay ? "select-date-dialog" : "go-to-date-dialog"}
+        aria-label={props.startDate ? "Start date" : props.replay ? "Select date" : "Go to"}
         style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: "-9999px", top: "-9999px" }}
       >
         <div class="goto-dialog-titlebar" data-dragg-area="true" data-dialog-title>
-          <div class="goto-dialog-title">{props.replay ? "Select date" : "Go to"}</div>
+          <div class="goto-dialog-title">{props.startDate ? "Start date" : props.replay ? "Select date" : "Go to"}</div>
           <button type="button" class="goto-dialog-close" aria-label="Close menu" onClick={() => props.onClose()}>
             <span class="goto-dialog-close-icon" role="img" aria-hidden="true"><CloseIcon /></span>
           </button>
         </div>
 
-        <Show when={!props.replay}>
+        <Show when={!single}>
         <div class="goto-dialog-tabs">
           <div class="goto-dialog-tablist" role="tablist">
             <button type="button" role="tab" aria-selected={tab() === "date"}
@@ -525,6 +543,14 @@ export function GoToDateDialog(props: Props) {
             </div>
         </div>
 
+        <Show when={props.startDate}>
+          <div class="goto-dialog-footer is-wide">
+            <button type="button" class="goto-dialog-btn is-primary is-wide" data-name="submit-button" onClick={submit} disabled={!dateValid()}>
+              <span class="goto-dialog-btn-content">{setButtonText(rangeEnd(ymd(selected()), timeText())!)}</span>
+            </button>
+          </div>
+        </Show>
+        <Show when={!props.startDate}>
         <div class="goto-dialog-footer">
           <div class="goto-dialog-footer-buttons">
             <button type="button" class="goto-dialog-btn is-secondary" onClick={() => props.onClose()}>
@@ -538,6 +564,7 @@ export function GoToDateDialog(props: Props) {
             </span>
           </div>
         </div>
+        </Show>
       </div>
     </Portal>
   );

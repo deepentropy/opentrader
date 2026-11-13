@@ -4,6 +4,10 @@
  * menu (Filter levels: Info / Warning / Error, Download logs); one row per message "[bar time]: text", coloured by
  * level, with "Source code" (its line in the editor) and "Scroll to bar" (the chart goes to its bar) on hover; a
  * "Scroll down" button while the list is not at its end.
+ *
+ * The toolbar's clock (#325) asks for a start date (date, time and calendar, in the chart's time zone): the list
+ * then starts at that time, shown under the toolbar as a tag whose cross removes it. Download logs gives the
+ * messages the filters show.
  */
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -18,10 +22,12 @@ import { emitAppEvent, onAppEvent } from "../../../data/app-events";
 import * as scripts from "../../../data/oakscript-store";
 import { dateText } from "../../../i18n/format";
 import { formatted, translate } from "../../../i18n/translator";
+import { GoToDateDialog } from "../../bottom-bar/GoToDateDialog";
 import { OAKSCRIPT_OPEN_EVENT, OAKSCRIPT_UPDATED_EVENT } from "../../chart/indicators/user-scripts";
 import { STRATEGY_UPDATED_EVENT } from "../../chart/indicators/strategy-entries";
 import { setRevealRequest } from "../editor-state";
 import { logsTarget, readScriptLogs } from "./script-logs";
+import { filterLogs, startDateNow, startDateSeconds } from "./log-filter";
 
 const LEVELS: { level: LogLevel; label: string }[] = [
   { level: "info", label: "Info" },
@@ -44,6 +50,11 @@ function logTime(time: number, timeZone?: string): string {
   );
 }
 
+/** The start date's tag: "12 November 2026, 16:33" in the chart's time zone. */
+function startText(time: number, timeZone?: string): string {
+  return dateText(time * 1000, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, timeZone);
+}
+
 export function ScriptLogsPanel(props: Props) {
   const [logs, setLogs] = createSignal<LogEntry[] | null>(null);
   const [paused, setPaused] = createSignal(false);
@@ -52,8 +63,14 @@ export function ScriptLogsPanel(props: Props) {
   const [query, setQuery] = createSignal("");
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [atEnd, setAtEnd] = createSignal(true);
+  /** UNIX seconds of the first message time shown; null: no start date. */
+  const [from, setFrom] = createSignal<number | null>(null);
+  const [startAnchor, setStartAnchor] = createSignal<DOMRect | null>(null);
   let list!: HTMLDivElement;
   let moreBtn!: HTMLButtonElement;
+  let startBtn!: HTMLButtonElement;
+  /** The time zone the start date is picked in: the chart's, as the messages' times. */
+  const zone = () => props.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const title = () => {
     const t = logsTarget();
@@ -70,12 +87,7 @@ export function ScriptLogsPanel(props: Props) {
   onCleanup(onAppEvent(OAKSCRIPT_UPDATED_EVENT, (d) => { if (d.scriptId === logsTarget()?.scriptId) read(); }));
   onCleanup(onAppEvent(STRATEGY_UPDATED_EVENT, read));
 
-  const shown = createMemo(() => {
-    const all = logs() ?? [];
-    const lv = levels();
-    const q = query().trim().toLowerCase();
-    return all.filter((e) => lv[e.level] && (!q || e.message.toLowerCase().includes(q)));
-  });
+  const shown = createMemo(() => filterLogs(logs() ?? [], { levels: levels(), query: query(), from: from() }));
 
   // The list follows the newest messages while it is at its end. The rows off screen have an estimated height until
   // they are shown (content-visibility), so the end is reached over a few frames; those scrolls are not the user's.
@@ -104,7 +116,7 @@ export function ScriptLogsPanel(props: Props) {
   };
 
   const download = () => {
-    const text = (logs() ?? []).map((e) => `[${logTime(e.time, props.timeZone)}] ${e.level.toUpperCase()}: ${e.message}`).join("\n");
+    const text = shown().map((e) => `[${logTime(e.time, props.timeZone)}] ${e.level.toUpperCase()}: ${e.message}`).join("\n");
     const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
     const a = document.createElement("a");
     a.href = url;
@@ -138,6 +150,17 @@ export function ScriptLogsPanel(props: Props) {
             <Icon name="scr-search" size={24} />
           </IconButton>
         </Tooltip>
+        <Tooltip text="Start date" side="bottom">
+          <IconButton
+            ref={(el: HTMLButtonElement) => (startBtn = el)}
+            aria-label="Start date"
+            aria-haspopup="dialog"
+            aria-expanded={startAnchor() !== null}
+            onClick={() => setStartAnchor(startAnchor() ? null : startBtn.getBoundingClientRect())}
+          >
+            <Icon name="oak-logs-start-date" size={24} />
+          </IconButton>
+        </Tooltip>
         <Tooltip text="Settings" side="bottom">
           <IconButton ref={(el: HTMLButtonElement) => (moreBtn = el)} aria-label="Settings" aria-haspopup="menu" aria-expanded={menuOpen()} onClick={() => setMenuOpen((o) => !o)}>
             <Icon name="dt-more" size={24} />
@@ -156,6 +179,35 @@ export function ScriptLogsPanel(props: Props) {
             onKeyDown={(e) => { if (e.key === "Escape") { setSearching(false); setQuery(""); } }}
           />
         </div>
+      </Show>
+      <Show when={from()}>
+        {(f) => (
+          <div class="oak-logs-panel__start">
+            <span class="oak-logs-tag">
+              <Icon name="oak-logs-start-date" size={28} />
+              <span class="oak-logs-tag__text" data-no-translate>{formatted(startText(f(), props.timeZone))}</span>
+              <button type="button" class="oak-logs-tag__close" aria-label="Close" onClick={() => setFrom(null)}>
+                <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                  <path stroke="currentColor" d="M5 5l8 8M13 5l-8 8" />
+                </svg>
+              </button>
+            </span>
+          </div>
+        )}
+      </Show>
+      <Show when={startAnchor()}>
+        {(rect) => {
+          const now = startDateNow(Date.now(), zone());
+          return (
+            <GoToDateDialog
+              anchor={rect()}
+              initial={now}
+              startDate={{ latest: now }}
+              onSubmit={(date, minutes) => setFrom(startDateSeconds(date, minutes, zone()))}
+              onClose={() => setStartAnchor(null)}
+            />
+          );
+        }}
       </Show>
       <Show when={menuOpen()}>
         <LogsMenu anchor={moreBtn} levels={levels()} onLevel={(l) => setLevels((v) => ({ ...v, [l]: !v[l] }))} onDownload={download} onClose={() => setMenuOpen(false)} />

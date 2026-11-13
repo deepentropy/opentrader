@@ -17,6 +17,9 @@
  * The ⋯ button at the right of the header opens the More menu (#324): Editor settings…, Profiler mode (#312: the
  * shown script runs with a timer on each statement; the editor shows the times by line), Logs (#323: the right-side
  * panel of its log.*() messages) and Command palette.
+ *
+ * A study of the shown script that took close to the runtime limit to calculate shows the "Heavy script." warning
+ * under the header (#325, heavy-script.ts): its link turns Profiler mode on.
  */
 import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
@@ -54,6 +57,8 @@ import { OakScriptMoreMenu } from "./OakScriptMoreMenu";
 import { EditorSettingsDialog } from "./EditorSettingsDialog";
 import { openScriptLogs } from "./logs/script-logs";
 import type { OakProfile } from "./engine-types";
+import type { OakCalculation } from "./engine";
+import { closeWarning, isHeavy, limitSeconds, wasClosed } from "./heavy-script";
 import { translate, translateAs, translateWith } from "../../i18n/translator";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
@@ -265,6 +270,33 @@ export function OakScriptPanel(props: Props) {
   }
   // Another script shown: its own profile comes with its runs.
   createEffect(on(() => currentScript().id, () => setProfile(null), { defer: true }));
+
+  // ── Heavy script warning (#325) ──────────────────────────────────────────
+  // The last whole calculation of the shown script's study on a chart; the warning shows while it took close to the
+  // limit, unless closed for that script less than a day ago (`closedTick` re-reads that after a close).
+  const [calculation, setCalculation] = createSignal<OakCalculation | undefined>();
+  const [closedTick, setClosedTick] = createSignal(0);
+  createEffect(on(() => currentScript().id, (id) => setCalculation(engine.calculation(id))));
+  onCleanup(
+    engine.onCalculation((scriptId, c) => {
+      if (scriptId === currentScript().id) setCalculation(c);
+    }),
+  );
+  const heavy = () => {
+    closedTick();
+    const c = calculation();
+    return !builtin() && isHeavy(c) && !wasClosed(currentScript().id) ? c : undefined;
+  };
+  function closeHeavyWarning(): void {
+    closeWarning(currentScript().id);
+    setClosedTick((n) => n + 1);
+  }
+  /** The warning's "the profiler." link: Profiler mode on, the warning closed (nothing while the mode is on). */
+  function profileHeavyScript(): void {
+    if (profiler()) return;
+    toggleProfiler();
+    closeHeavyWarning();
+  }
 
   async function compileScript(scriptId: string, source: string): Promise<void> {
     const name = scripts.loadScript(scriptId)?.name ?? "script";
@@ -642,6 +674,25 @@ export function OakScriptPanel(props: Props) {
             <a class="oak-panel__readonly-link" role="button" onClick={copyBuiltinQuick}>make a copy.</a>
           </span>
         </div>
+      </Show>
+      <Show when={!minimized() && heavy()}>
+        {(c) => (
+          <div class="oak-panel__readonly is-error" role="note" data-qa-id="oakscript-heavy">
+            <span class="oak-panel__readonly-icon" aria-hidden="true">
+              <Icon name="oak-profiler-hot" size={22} />
+            </span>
+            <span>
+              <span class="oak-panel__readonly-header">Heavy script.</span>
+              <span>{translateWith("This script is close to its runtime limit ({0}s). Optimize it with", limitSeconds(c()))}</span>
+              <a class="oak-panel__readonly-link" role="button" onClick={profileHeavyScript}>the profiler.</a>
+            </span>
+            <button type="button" class="oak-panel__readonly-close" aria-label="Close" onClick={closeHeavyWarning}>
+              <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true">
+                <path stroke="currentColor" stroke-width="1.2" d="M2 2l10 10M12 2 2 12" vector-effect="non-scaling-stroke" />
+              </svg>
+            </button>
+          </div>
+        )}
       </Show>
       <Show when={builtinDialog()}>
         <BuiltinScriptDialog onPick={(t) => void newFromBuiltin(t)} onClose={() => setBuiltinDialog(false)} />

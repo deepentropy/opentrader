@@ -22,9 +22,13 @@ import { SentRuns } from "../../backtester/live-runs";
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakScriptError };
 
 const COMPILE_TIMEOUT_MS = 10_000;
-const RUN_TIMEOUT_MS = 5_000;
+export const RUN_TIMEOUT_MS = 5_000;
 /** Same budget as the backtest worker of the strategy ports. */
-const BACKTEST_TIMEOUT_MS = 20_000;
+export const BACKTEST_TIMEOUT_MS = 20_000;
+
+/** The last calculation of a script's study over all its bars (#325): how long it took, from the request to the
+ *  reply as the watchdog counts, and the watchdog's limit for it. */
+export type OakCalculation = { ms: number; limitMs: number };
 
 export class OakEngineError extends Error {
   constructor(
@@ -58,6 +62,8 @@ export class OakEngine {
   /** Scripts in profiler mode (#312): compiled with their timers. */
   private profiled = new Set<string>();
   private profileListeners = new Set<(scriptId: string, profile: OakProfile) => void>();
+  private calculations = new Map<string, OakCalculation>();
+  private calculationListeners = new Set<(scriptId: string, calculation: OakCalculation) => void>();
 
   /** Worker generation: bumped when the worker is killed, so callers know
    *  their compiled scripts are gone. */
@@ -132,6 +138,24 @@ export class OakEngine {
     return () => this.profileListeners.delete(fn);
   }
 
+  /** The last calculation over all the bars of a study of `scriptId` on a chart (any instance). */
+  calculation(scriptId: string): OakCalculation | undefined {
+    return this.calculations.get(scriptId);
+  }
+
+  /** `fn` gets each calculation over all the bars of a script's study on a chart; returns the unsubscribe. A live
+   *  update that calculates the newest bars only is not one: the heavy script warning is about the whole run. */
+  onCalculation(fn: (scriptId: string, calculation: OakCalculation) => void): () => void {
+    this.calculationListeners.add(fn);
+    return () => this.calculationListeners.delete(fn);
+  }
+
+  private noteCalculation(scriptId: string, startedAt: number, limitMs: number): void {
+    const calculation = { ms: performance.now() - startedAt, limitMs };
+    this.calculations.set(scriptId, calculation);
+    for (const fn of this.calculationListeners) fn(scriptId, calculation);
+  }
+
   /** Compile `source` as scriptId; resolves with the script's declarative
    *  meta, rejects with OakEngineError carrying line/col when available. */
   async compile(scriptId: string, source: string): Promise<OakCompiledMeta> {
@@ -179,6 +203,7 @@ export class OakEngine {
     const key = `run:${runKey}`;
     for (let whole = false; ; whole = true) {
       const sent = this.live.request(key, bars, whole);
+      const startedAt = performance.now();
       const res = await this.request(
         { id: ++this.seq, type: "run", scriptId, bars: sent.bars, inputs, chart, symbols, live: sent.live, restamp, ...(sources ? { sources } : {}) },
         RUN_TIMEOUT_MS,
@@ -189,6 +214,7 @@ export class OakEngine {
         this.live.forget(key);
         throw new OakEngineError(res.error);
       }
+      if (sent.live.from === 0 || res.live?.fullRunReason) this.noteCalculation(scriptId, startedAt, RUN_TIMEOUT_MS);
       if (!res.live) return { result: res.result, fullRunReason: null };
       return { result: this.live.received(key, res.result, res.live), fullRunReason: res.live.fullRunReason };
     }
@@ -214,6 +240,7 @@ export class OakEngine {
     const key = live === undefined ? null : `backtest:${live}`;
     for (let whole = false; ; whole = true) {
       const sent = key === null ? null : this.live.request(key, bars, whole);
+      const startedAt = performance.now();
       const res = await this.request(
         { id: ++this.seq, type: "backtest", scriptId, bars: sent?.bars ?? bars, inputs, properties, chart, heikinAshi, intrabars, symbols, ...(sent ? { live: sent.live } : {}) },
         BACKTEST_TIMEOUT_MS,
@@ -227,6 +254,7 @@ export class OakEngine {
         if (key !== null) this.live.forget(key);
         throw new OakEngineError(res.error);
       }
+      if (!sent || sent.live.from === 0 || res.live?.fullRunReason) this.noteCalculation(scriptId, startedAt, BACKTEST_TIMEOUT_MS);
       if (key === null || !res.live) return { report: res.report, visuals: res.visuals };
       return { report: res.report, visuals: this.live.received(key, res.visuals, res.live), fullRunReason: res.live.fullRunReason };
     }

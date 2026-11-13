@@ -276,6 +276,33 @@
 .oak-panel__readonly-link:hover { text-decoration: underline; }
 /* Light theme (reference warning container): tan-orange-50 box, tan-orange-700 icon + header. */
 html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange-50); }
+/* Heavy script warning (#325), the reference's error container: ripe-red-a900 box (ripe-red-50 light), flame and
+   header ripe-red-500; an extra-small close button at the end (12 px cross, 20 px hover square of radius 6). */
+.oak-panel__readonly.is-error { background-color: var(--color-ripe-red-a900); }
+html.theme-light .oak-panel__readonly.is-error { background-color: var(--color-ripe-red-50); }
+.oak-panel__readonly.is-error .oak-panel__readonly-icon,
+.oak-panel__readonly.is-error .oak-panel__readonly-header { color: var(--color-ripe-red-500); }
+.oak-panel__readonly-close {
+  all: unset;
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-inline-start: auto;
+  color: var(--color-button-content-quiet-primary-neutral-default);
+}
+.oak-panel__readonly-close::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 6px;
+}
+.oak-panel__readonly-close:hover::before { background: var(--color-cold-gray-800); }
+.oak-panel__readonly-close:active::before { background: var(--color-cold-gray-850); }
+html.theme-light .oak-panel__readonly-close:hover::before { background: var(--color-cold-gray-100); }
+html.theme-light .oak-panel__readonly-close:active::before { background: var(--color-cold-gray-150); }
+.oak-panel__readonly-close svg { position: relative; }
 
 /* "Open built-in script" dialog: 420 x 610, title 20/28 600 at 20 px, search
    row 40 px (padding 8 16 8 47, magnifier), header 11/16 uppercase #8C8C8C

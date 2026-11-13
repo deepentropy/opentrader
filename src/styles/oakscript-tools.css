@@ -213,6 +213,46 @@
   color: var(--color-text-primary);
   font-size: 13px;
 }
+/* Start date tag (#325, the reference's extra-small square tag, measured 13/11/2026): 6px 16px around it, 28 px high,
+   radius 8, clock 28 px, text 12/16 6 px after it, a 20 px cross button 6 px around. */
+.oak-logs-panel__start {
+  padding: 6px 16px;
+}
+.oak-logs-tag {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  max-width: 100%;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--color-container-fill-primary-neutral-extra-light);
+  color: var(--color-content-primary-neutral-bold);
+}
+.oak-logs-tag > :first-child {
+  margin-inline-start: 4px;
+}
+.oak-logs-tag__text {
+  margin-inline-start: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oak-logs-tag__close {
+  all: unset;
+  display: inline-flex;
+  flex: none;
+  margin-inline: 6px 5px;
+  padding: 1px;
+  border-radius: 4px;
+  color: var(--color-content-primary-neutral);
+}
+.oak-logs-tag__close:hover {
+  background: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-content-primary-neutral-bold);
+}
 .oak-logs-panel__list {
   flex: 1;
   min-height: 0;

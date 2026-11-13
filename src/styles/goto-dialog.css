@@ -551,6 +551,17 @@
   color: var(--color-text-disabled);
 }
 
+/* Logs start date (#325, the reference app 3.5.0 set-start-date-dialog, measured 13/11/2026): no footer line, one
+ * button across the dialog 12 px from its edges, 40 px high (302 x 502 in all). */
+.goto-dialog-footer.is-wide {
+  border-top: 0;
+  padding: 16px 12px 12px;
+}
+.goto-dialog-btn.is-wide {
+  width: 100%;
+  height: 40px;
+}
+
 .goto-dialog-btn-content {
   display: inline-flex;
   align-items: center;
