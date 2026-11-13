@@ -117,6 +117,8 @@ pub struct Plugins {
     listening_on: Mutex<Option<u16>>,
     processes: Mutex<HashMap<String, oneshot::Sender<()>>>,
     running: Mutex<std::collections::HashSet<String>>,
+    /// The process id of each running plugin program, to stop it with the processes it started.
+    pids: Mutex<HashMap<String, u32>>,
     logs: Mutex<HashMap<String, VecDeque<String>>>,
 }
 
@@ -208,6 +210,7 @@ pub fn init(app: &AppHandle) {
         error: Mutex::new(None),
         listening_on: Mutex::new(None),
         processes: Mutex::new(HashMap::new()),
+        pids: Mutex::new(HashMap::new()),
         running: Mutex::new(Default::default()),
         logs: Mutex::new(HashMap::new()),
     });
@@ -367,11 +370,17 @@ fn start_process(app: &AppHandle, m: &Manifest, entry: &str, args: &[String], po
                 // No console window.
                 cmd.creation_flags(0x0800_0000);
             }
+            // Its own process group, so that stopping it stops what it started too.
+            #[cfg(unix)]
+            cmd.process_group(0);
             let started = std::time::Instant::now();
             match cmd.spawn() {
                 Ok(mut child) => {
                     log(&app, &id, format!("Started {}", exe.display()));
                     app.state::<Plugins>().running.locked().insert(id.clone());
+                    if let Some(pid) = child.id() {
+                        app.state::<Plugins>().pids.locked().insert(id.clone(), pid);
+                    }
                     changed(&app);
                     for out in [child.stdout.take().map(|o| Box::new(o) as Box<dyn tokio::io::AsyncRead + Send + Unpin>), child.stderr.take().map(|e| Box::new(e) as _)]
                         .into_iter()
@@ -391,12 +400,16 @@ fn start_process(app: &AppHandle, m: &Manifest, entry: &str, args: &[String], po
                             false
                         }
                         _ = &mut stop => {
+                            if let Some(pid) = child.id() {
+                                kill_tree(pid);
+                            }
                             let _ = child.kill().await;
                             log(&app, &id, "Stopped");
                             true
                         }
                     };
                     app.state::<Plugins>().running.locked().remove(&id);
+                    app.state::<Plugins>().pids.locked().remove(&id);
                     changed(&app);
                     if stopped {
                         return;
@@ -417,13 +430,39 @@ fn start_process(app: &AppHandle, m: &Manifest, entry: &str, args: &[String], po
     });
 }
 
-/// Stop the plugin programs (the app is quitting).
+/// Stop the plugin programs (the app is quitting): now, since the tasks that would stop them end with the app.
 pub fn shutdown(app: &AppHandle) {
     if let Some(state) = app.try_state::<Plugins>() {
         let ids: Vec<String> = state.processes.locked().keys().cloned().collect();
+        for pid in state.pids.locked().drain().map(|(_, pid)| pid) {
+            kill_tree(pid);
+        }
         for id in ids {
             stop_process(app, &id);
         }
+    }
+}
+
+/// End a plugin program and the processes it started: a launcher (a one-file Python build runs as two processes)
+/// would otherwise leave its child running, holding the plugin's files.
+fn kill_tree(pid: u32) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(0x0800_0000)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
 }
 

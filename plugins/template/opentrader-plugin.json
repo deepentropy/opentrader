@@ -1,0 +1,16 @@
+{
+  "id": "template",
+  "name": "Template",
+  "version": "0.1.0",
+  "publisher": "Your name",
+  "description": "A data feed and a broker on a simulated market: the starting point of a plugin.",
+  "api": 2,
+  "provides": ["datafeed", "broker"],
+  "exchange": "TEMPLATE",
+  "runtime": { "type": "process", "entry": "bin/template-plugin.exe", "args": [] },
+  "settings": [
+    { "key": "apiKey", "label": "API key", "type": "text", "default": "" }
+  ],
+  "homepage": "https://github.com/you/your-plugin",
+  "platforms": ["windows"]
+}

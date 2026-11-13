@@ -11,6 +11,8 @@ A plugin can provide either capability or both. It connects to the app over a lo
 
 Users install plugins from **Settings > Plugins**, either from the catalog or from a file. OpenTrader ships no plugin code of its own.
 
+To write one, start from [`template/`](template/README.md): a working data and broker plugin in one Python file, with the steps to develop, package and publish it.
+
 ## Package
 
 A plugin package is a zip. It holds `opentrader-plugin.json` at its root, plus the plugin's files:

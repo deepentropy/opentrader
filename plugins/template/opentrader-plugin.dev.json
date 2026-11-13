@@ -1,0 +1,14 @@
+{
+  "id": "template",
+  "name": "Template (development)",
+  "version": "0.0.0-dev",
+  "publisher": "Your name",
+  "description": "The template while you develop it: you run plugin.py yourself, the app writes where to connect.",
+  "api": 2,
+  "provides": ["datafeed", "broker"],
+  "exchange": "TEMPLATE",
+  "runtime": { "type": "external", "connectionFile": "{localAppData}/OpenTraderPlugins/template-dev.json" },
+  "settings": [
+    { "key": "apiKey", "label": "API key", "type": "text", "default": "" }
+  ]
+}
