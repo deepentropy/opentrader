@@ -9,6 +9,7 @@ import { showConfirm } from "../../components/Dialogs";
 import { Tooltip } from "../../components/Tooltip";
 import { pluginBroker, type BrokerFill, type BrokerOrder, type BrokerPosition } from "../../data/trading/plugin-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
+import * as kv from "../../data/kv";
 import { translate } from "../../i18n/translator";
 import { Popover, PopItem, PopSectionTitle } from "../screener/Popover";
 import { cachedSymbolSessions } from "../../data/session";
@@ -170,21 +171,58 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
   );
 }
 
+/** "Hide values" of the account bar, kept across sessions. */
+const HIDE_KEY = "ot:trading:hide-account-values";
+const [valuesHidden, setValuesHidden] = createSignal(kv.getItem(HIDE_KEY) === "true");
+const toggleValues = () => {
+  const next = !valuesHidden();
+  setValuesHidden(next);
+  kv.setItem(HIDE_KEY, String(next));
+};
+
+const EyeIcon = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="currentColor" fill-rule="evenodd" d="M12 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-1 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" />
+    <path fill="currentColor" d="M16.91 8.8C15.31 4.99 12.18 3 9 3 5.82 3 2.7 4.98 1.08 8.8L1 9l.08.2C2.7 13.02 5.82 15 9 15c3.18 0 6.3-1.97 7.91-5.8L17 9l-.09-.2ZM9 14c-2.69 0-5.42-1.63-6.91-5 1.49-3.37 4.22-5 6.9-5 2.7 0 5.43 1.63 6.92 5-1.5 3.37-4.23 5-6.91 5Z" />
+  </svg>
+);
+const EyeOffIcon = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="currentColor" d="M3.7 15 15 3.7l-.7-.7L3 14.3l.7.7ZM9 3c1.09 0 2.17.23 3.19.7l-.77.76C10.63 4.16 9.82 4 9 4 6.31 4 3.58 5.63 2.08 9a9.35 9.35 0 0 0 1.93 2.87l-.7.7A10.44 10.44 0 0 1 1.08 9.2L1 9l.08-.2C2.69 4.99 5.82 3 9 3Z" />
+    <path fill="currentColor" d="M9 6a3 3 0 0 1 .78.1l-.9.9A2 2 0 0 0 7 8.88l-.9.9A3 3 0 0 1 9 6ZM11.9 8.22l-.9.9A2 2 0 0 1 9.13 11l-.9.9a3 3 0 0 0 3.67-3.68Z" />
+    <path fill="currentColor" d="M9 14c-.82 0-1.64-.15-2.43-.45l-.76.76c1.02.46 2.1.7 3.19.7 3.18 0 6.31-1.98 7.92-5.81L17 9l-.08-.2a10.44 10.44 0 0 0-2.23-3.37l-.7.7c.75.76 1.41 1.71 1.93 2.87-1.5 3.37-4.23 5-6.92 5Z" />
+  </svg>
+);
+const CaretIcon = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="currentColor" d="m4.67 7.38.66-.76L9 9.84l3.67-3.22.66.76L9 11.16 4.67 7.38Z" />
+  </svg>
+);
+
+/** The account bar: a rounded strip with the account (name, balance, DEMO / LIVE; a menu when the broker has several
+ *  accounts), the account's values, and the eye that hides them (the balance then shows as dots). */
 function AccountHeader() {
   let anchor: HTMLButtonElement | undefined;
   const [open, setOpen] = createSignal(false);
   const s = () => pluginBroker.account();
   const acc = () => s()?.account ?? null;
   const many = () => (s()?.accounts?.length ?? 0) > 1;
-  const fields = (): { title: string; value: string; cls?: string }[] => [
-    { title: translate("Balance"), value: fmtMoney(acc()?.balance) },
-    { title: translate("Equity"), value: fmtMoney(acc()?.equity) },
-    { title: translate("Unrealized PnL"), value: fmtPnl(acc()?.unrealizedPnl), cls: pnlClass(acc()?.unrealizedPnl) },
-    { title: translate("Margin"), value: fmtMoney(acc()?.marginUsed) },
-    { title: translate("Free margin"), value: fmtMoney(acc()?.marginFree) },
-  ];
+  /** The values the broker reports (one that it leaves out is not shown). */
+  const fields = (): { title: string; value: string; cls?: string }[] => {
+    const a = acc();
+    const rows: [string, number | null | undefined, boolean][] = [
+      [translate("Unrealized PnL"), a?.unrealizedPnl, true],
+      [translate("Realized PnL"), a?.realizedPnl, true],
+      [translate("Equity"), a?.equity, false],
+      [translate("Account margin"), a?.marginUsed, false],
+      [translate("Available funds"), a?.marginFree, false],
+    ];
+    return rows
+      .filter(([, v]) => v != null)
+      .map(([title, v, pnl]) => (pnl ? { title, value: fmtPnl(v), cls: pnlClass(v) } : { title, value: fmtMoney(v) }));
+  };
   return (
-    <div class="trd-am-header">
+    <div class="trd-am-header" classList={{ "is-expanded": !valuesHidden() }} data-name="account-bar">
       <button
         ref={anchor}
         type="button"
@@ -196,12 +234,16 @@ function AccountHeader() {
         <span class="trd-account-name" data-no-translate>
           {acc()?.name || acc()?.id || "—"}
         </span>
+        <span class="trd-account-balance ot-value">{valuesHidden() ? "••••" : fmtMoney(acc()?.balance)}</span>
         <span class="trd-account-ccy" data-no-translate>
           {acc()?.currency ?? ""}
         </span>
         <span class="trd-account-kind" classList={{ "is-live": acc()?.isDemo === false }}>
           {acc()?.isDemo === false ? translate("LIVE") : translate("DEMO")}
         </span>
+        <Show when={many()}>
+          <span class="trd-account-caret"><CaretIcon /></span>
+        </Show>
       </button>
       <Show when={open()}>
         <Popover anchor={anchor} onClose={() => setOpen(false)} offset={{ x: 0, y: 4 }}>
@@ -221,14 +263,29 @@ function AccountHeader() {
         </Popover>
       </Show>
       <div class="trd-am-summary">
-        <For each={fields()}>
-          {(f) => (
-            <div class="trd-am-field">
-              <div class="trd-am-field-title">{f.title}</div>
-              <div class={`trd-am-field-value ot-value ${f.cls ?? ""}`}>{f.value}</div>
-            </div>
-          )}
-        </For>
+        <Show when={!valuesHidden()}>
+          <div class="trd-am-fields">
+            <For each={fields()}>
+              {(f) => (
+                <div class="trd-am-field">
+                  <span class="trd-am-field-title">{f.title}</span>
+                  <span class={`trd-am-field-value ot-value ${f.cls ?? ""}`}>{f.value}</span>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+        <Tooltip text={valuesHidden() ? "Show values" : "Hide values"} side="bottom">
+          <button
+            type="button"
+            class="trd-am-eye"
+            aria-label={valuesHidden() ? translate("Show values") : translate("Hide values")}
+            aria-pressed={valuesHidden()}
+            onClick={toggleValues}
+          >
+            {valuesHidden() ? <EyeIcon /> : <EyeOffIcon />}
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

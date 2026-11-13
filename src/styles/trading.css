@@ -1326,53 +1326,120 @@ html.theme-light {
   display: flex;
   flex-direction: column;
 }
+/* The account bar: a rounded strip as wide as the panel, or around the account alone while the values are hidden. */
 .trd-am-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 16px 32px;
-  min-height: 48px;
-  padding: 8px 16px 0;
+  align-self: flex-start;
+  gap: 16px;
+  box-sizing: border-box;
+  max-width: calc(100% - 30px);
+  min-height: 42px;
+  margin: 16px 0 0;
+  margin-inline: 16px 14px;
+  padding: 4px;
+  border-radius: 88px;
+  background: var(--color-container-fill-primary-neutral-thin);
+}
+.trd-am-header.is-expanded {
+  align-self: stretch;
+  max-width: none;
 }
 .trd-account-btn {
   display: inline-flex;
+  flex-shrink: 1;
   align-items: center;
   gap: 4px;
-  height: 28px;
-  padding-inline: 8px 4px;
-  border: 1px solid var(--color-container-fill-primary-neutral-light);
-  border-radius: 6px;
-  background: transparent;
+  min-width: 0;
+  height: 34px;
+  padding-inline: 15px 11px;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  background: var(--color-background-secondary-inverse);
+  box-shadow: 0 0 6px var(--color-container-fill-tertiary-neutral-light);
   color: var(--color-text-primary);
   font: 400 14px/18px var(--trd-font);
+  white-space: nowrap;
 }
 .trd-account-btn.is-static {
-  padding-inline: 8px;
+  padding-inline: 15px;
   cursor: default;
 }
-.trd-account-btn:not(.is-static):hover,
+.trd-account-btn:not(.is-static):hover {
+  background: var(--color-container-fill-primary-neutral-extra-light);
+}
 .trd-account-btn.is-open {
-  background: var(--color-bg-primary-hover);
+  background: var(--color-container-fill-primary-neutral-light);
+}
+.trd-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trd-account-balance {
+  flex: 0 0 auto;
+  padding-inline-start: 4px;
+  font-weight: 500;
+  font-feature-settings: "tnum", "lnum";
 }
 .trd-account-ccy {
   font: 500 10px/14px var(--trd-font);
-  color: var(--color-text-secondary);
+}
+.trd-account-caret {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-inline-start: 4px;
 }
 .trd-am-summary {
-  display: grid;
-  grid-auto-flow: column;
-  column-gap: 32px;
-  row-gap: 12px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-inline-end: 6px;
+}
+.trd-am-header.is-expanded .trd-am-summary {
+  flex: 1 1 0;
+}
+/* The values scroll sideways when the panel is narrow. */
+.trd-am-fields {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 24px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.trd-am-field {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
 }
 .trd-am-field-title {
   font: 400 13px/18px var(--trd-font);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 .trd-am-field-value {
   font: 600 13px/18px var(--trd-font);
   white-space: nowrap;
   font-feature-settings: "tnum", "lnum";
+}
+.trd-am-eye {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.trd-am-eye:hover {
+  background: var(--color-container-fill-primary-neutral-light);
 }
 .trd-am .is-pos {
   color: var(--trd-pos);
@@ -1384,7 +1451,7 @@ html.theme-light {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 12px 0 16px;
+  margin: 16px 0;
   padding-inline: 13px 16px;
 }
 .trd-pill {
