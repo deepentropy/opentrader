@@ -626,3 +626,29 @@
 .app-settings-local-add .app-settings-btn { flex: none; white-space: nowrap; }
 .app-settings-local-row .app-settings-field-label,
 .app-settings-local-add .app-settings-field-label { white-space: nowrap; }
+/* Plugins tab (#313) */
+.app-settings-plugin-badges { display: inline-flex; gap: 4px; flex: none; }
+.app-settings-plugin-badge {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-divider);
+  color: var(--color-content-secondary-neutral);
+  font-size: 11px;
+  line-height: 18px;
+}
+.app-settings-plugin-badge.is-warning { background: none; border: 1px solid var(--color-ripe-red-400); color: var(--color-ripe-red-400); }
+.app-settings-plugin-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--color-content-secondary-neutral); opacity: 0.5; }
+.app-settings-plugin-dot.is-waiting { background: var(--color-ripe-red-400); opacity: 0.6; }
+.app-settings-plugin-dot.is-on { background: var(--color-minty-green-400); opacity: 1; }
+.app-settings-plugin-setup { white-space: pre-wrap; font-size: 12px; line-height: 16px; color: var(--color-content-secondary-neutral); }
+.app-settings-plugin-step { display: flex; flex-direction: column; gap: 6px; }
+.app-settings-plugin-folder { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.app-settings-plugin-folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.app-settings-plugin-settings { display: flex; flex-direction: column; gap: 8px; }
+.app-settings-plugin-log { max-height: 200px; overflow: auto; }
+.app-settings-plugin-entry { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.app-settings-plugin-entry-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.app-settings-plugin-name { font-weight: 600; color: var(--ot-strong); }
+.app-settings-plugin .app-settings-btn,
+.app-settings-plugin-preview .app-settings-btn,
+.app-settings-plugin-entry .app-settings-btn { flex: none; white-space: nowrap; }

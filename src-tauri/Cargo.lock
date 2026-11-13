@@ -2950,6 +2950,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "flate2",
+ "futures-util",
  "getrandom 0.3.4",
  "keyring",
  "minisign-verify",

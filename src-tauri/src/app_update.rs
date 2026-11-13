@@ -323,7 +323,8 @@ fn load_saved(app: &AppHandle, update: &Update) -> Option<Vec<u8>> {
 
 /// Check `bytes` against `signature` (base64 minisign signature, as in the
 /// release's latest.json) with the updater public key of tauri.conf.json.
-fn verify(app: &AppHandle, bytes: &[u8], signature: &str) -> Result<(), String> {
+/// Plugin packages are signed with the same key (plugins).
+pub(crate) fn verify(app: &AppHandle, bytes: &[u8], signature: &str) -> Result<(), String> {
     let b64 = |s: &str| {
         base64::engine::general_purpose::STANDARD
             .decode(s.trim())

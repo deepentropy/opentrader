@@ -8,6 +8,7 @@ mod community;
 mod deep_link;
 mod host;
 mod network;
+mod plugins;
 mod window_session;
 
 // The data side lives in the core crate, shared with the web server.
@@ -108,6 +109,20 @@ fn specta_builder() -> Builder<tauri::Wry> {
             local_model::local_model_cancel,
             local_model::local_model_remove,
             deep_link::deep_link_take,
+            plugins::plugins_status,
+            plugins::plugins_set_port,
+            plugins::plugin_catalog,
+            plugins::plugin_install_catalog,
+            plugins::plugin_pick_file,
+            plugins::plugin_install_file,
+            plugins::plugin_set_enabled,
+            plugins::plugin_set_settings,
+            plugins::plugin_new_token,
+            plugins::plugin_remove,
+            plugins::plugin_folder_candidates,
+            plugins::plugin_pick_folder,
+            plugins::plugin_copy_files,
+            plugins::plugin_logs,
         ])
         .events(collect_events![
             data::types::ChartAggregate,
@@ -122,6 +137,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_update::AppUpdateStatus,
             app_update::AppUpdateBeforeInstall,
             agent::AgentRequest,
+            plugins::PluginsChanged,
         ])
 }
 
@@ -174,6 +190,10 @@ pub fn run() {
                 if let Some(s) = window.app_handle().try_state::<screener::Screener>() {
                     s.close(&format!("{owner}:screener"));
                 }
+                // And the data plugins' streams it asked for.
+                if window.app_handle().try_state::<plugins::Plugins>().is_some() {
+                    plugins::data::drop_owner(window.app_handle(), &owner);
+                }
                 if let Some(handle) = window.app_handle().try_state::<data::types::WsHandle>() {
                     let tx = handle.tx.clone();
                     tauri::async_runtime::spawn(async move {
@@ -221,6 +241,8 @@ pub fn run() {
             app_update::init(app.handle());
             // Settings > Coding agents (listens only when turned on).
             agent::init(app.handle());
+            // Settings > Plugins (the Plugin API listens while a plugin is enabled).
+            plugins::init(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -231,6 +253,8 @@ pub fn run() {
                 app_update::on_exit(app);
                 // The AI assistant's model server would outlive the app.
                 local_model::shutdown();
+                // The plugin programs the app started.
+                plugins::shutdown(app);
             }
         });
 }

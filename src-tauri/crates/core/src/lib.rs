@@ -16,6 +16,7 @@ pub mod images;
 pub mod local_series;
 pub mod memo;
 pub mod net;
+pub mod plugins;
 pub mod rt;
 pub mod screener;
 pub mod sync;

@@ -19,12 +19,15 @@ use tauri::State;
 #[tauri::command]
 #[specta::specta]
 pub async fn set_chart_subscription(
+    app: tauri::AppHandle,
     live: State<'_, WsHandle>,
     window: tauri::Window,
     pane: String,
     symbol: Option<String>,
 ) -> Result<(), String> {
     let owner = core::chart_owner(window.label(), &pane);
+    // A data plugin's symbol streams from its plugin; the app's own live task drops the slot.
+    let symbol = if crate::plugins::data::set_chart(&app, &owner, symbol.as_deref()) { None } else { symbol };
     Ok(core::subscribe(&live, SubscribeMsg::SetChart { owner, symbol: core::live_symbol(symbol) }).await?)
 }
 
@@ -34,11 +37,13 @@ pub async fn set_chart_subscription(
 #[tauri::command]
 #[specta::specta]
 pub async fn set_watchlist_subscription(
+    app: tauri::AppHandle,
     live: State<'_, WsHandle>,
     window: tauri::Window,
     symbols: Vec<String>,
 ) -> Result<(), String> {
     let owner = window.label().to_string();
+    let symbols = crate::plugins::data::set_watchlist(&app, &owner, symbols);
     Ok(core::subscribe(&live, SubscribeMsg::SetWatchlist { owner, symbols: core::live_symbols(symbols) }).await?)
 }
 

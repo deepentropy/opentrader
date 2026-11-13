@@ -3,7 +3,7 @@
  * logs what it does not.
  */
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { commands, type AgentServerStatus, type ProxySettings } from "../../../bindings";
+import { commands, events, type AgentServerStatus, type CatalogEntry, type PackagePreview, type PluginsStatus, type ProxySettings } from "../../../bindings";
 
 /** Opens a link in the system browser. */
 export function openLink(url: string, what: string): void {
@@ -72,3 +72,25 @@ export async function pickFolder(): Promise<{ path: string | null } | { error: s
   const r = await commands.localFolderPick();
   return r.status === "error" ? { error: r.error } : { path: r.data };
 }
+
+export type Result<T> = { status: "ok"; data: T } | { status: "error"; error: string };
+
+/** Settings > Plugins (src-tauri/src/plugins). */
+export const plugins = {
+  status: (): Promise<PluginsStatus> => commands.pluginsStatus(),
+  /** Calls `fn` whenever a plugin is installed, enabled, connects…; returns the unsubscribe. */
+  onChange: (fn: () => void): Promise<() => void> => events.pluginsChanged.listen(() => fn()),
+  setPort: (port: number): Promise<Result<PluginsStatus>> => commands.pluginsSetPort(port),
+  catalog: (): Promise<Result<CatalogEntry[]>> => commands.pluginCatalog(),
+  installCatalog: (id: string): Promise<Result<PluginsStatus>> => commands.pluginInstallCatalog(id),
+  pickFile: (): Promise<Result<PackagePreview | null>> => commands.pluginPickFile(),
+  installFile: (path: string): Promise<Result<PluginsStatus>> => commands.pluginInstallFile(path),
+  setEnabled: (id: string, on: boolean): Promise<Result<PluginsStatus>> => commands.pluginSetEnabled(id, on),
+  setSettings: (id: string, settings: Record<string, string>): Promise<Result<PluginsStatus>> => commands.pluginSetSettings(id, settings),
+  newToken: (id: string): Promise<Result<PluginsStatus>> => commands.pluginNewToken(id),
+  remove: (id: string): Promise<Result<PluginsStatus>> => commands.pluginRemove(id),
+  folderCandidates: (id: string, step: number): Promise<Result<string[]>> => commands.pluginFolderCandidates(id, step),
+  pickFolder: (title: string): Promise<Result<string | null>> => commands.pluginPickFolder(title),
+  copyFiles: (id: string, step: number, folders: string[]): Promise<Result<PluginsStatus>> => commands.pluginCopyFiles(id, step, folders),
+  logs: (id: string): Promise<string[]> => commands.pluginLogs(id),
+};

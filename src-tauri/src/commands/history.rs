@@ -5,8 +5,9 @@
  */
 use crate::data::provider::Provider;
 use crate::data::types::Candle;
+use crate::plugins::data as plugin;
 use opentrader_core::history::{self, History};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 /// Settings > Service > "Clear cache": the market-data disk cache and the
 /// in-memory series and memos.
@@ -22,11 +23,16 @@ pub async fn clear_cache() -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn get_daily_history(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     days: u32,
     adjusted: bool,
 ) -> Result<History, String> {
+    // A data plugin's symbol (plugins/data.rs), here and in the commands below.
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return Ok(History { bars: plugin::recent(&app, &r, "day", 1, days).await?, partial: false });
+    }
     Ok(history::get_daily_history(&provider, symbol, days, adjusted).await?)
 }
 
@@ -38,12 +44,16 @@ pub async fn get_daily_history(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_minute_history(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     days: u32,
     interval_min: u32,
     adjusted: bool,
 ) -> Result<History, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return Ok(History { bars: plugin::recent(&app, &r, "minute", interval_min.max(1), days).await?, partial: false });
+    }
     Ok(history::get_minute_history(&provider, symbol, days, interval_min, adjusted).await?)
 }
 
@@ -54,12 +64,16 @@ pub async fn get_minute_history(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_second_history(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     mult: u32,
     days: u32,
     adjusted: bool,
 ) -> Result<History, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return Ok(History { bars: plugin::recent(&app, &r, "second", mult, days).await?, partial: false });
+    }
     Ok(history::get_second_history(&provider, symbol, mult, days, adjusted).await?)
 }
 
@@ -71,12 +85,17 @@ pub async fn get_second_history(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_second_history_tail(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     mult: u32,
     since_sec: f64,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        let to = chrono::Utc::now().timestamp() as f64;
+        return plugin::bars(&app, &r, "second", mult, since_sec + 1.0, to, 5_000).await;
+    }
     Ok(history::get_second_history_tail(&provider, symbol, mult, since_sec, adjusted).await?)
 }
 
@@ -90,6 +109,7 @@ pub async fn get_second_history_tail(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_aggregates_before(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     timespan: String,
@@ -100,6 +120,9 @@ pub async fn get_aggregates_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::before(&app, &r, &timespan, mult, before_sec, span_days).await;
+    }
     Ok(history::get_aggregates_before(&provider, symbol, timespan, mult, before_sec, span_days, adjusted).await?)
 }
 
@@ -111,6 +134,7 @@ pub async fn get_aggregates_before(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_daily_history_before(
+    app: AppHandle,
     provider: State<'_, Provider>,
     symbol: String,
     // Seconds since epoch as `f64` — see `get_aggregates_before`.
@@ -118,5 +142,8 @@ pub async fn get_daily_history_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::before(&app, &r, "day", 1, before_sec, span_days).await;
+    }
     Ok(history::get_daily_history_before(&provider, symbol, before_sec, span_days, adjusted).await?)
 }

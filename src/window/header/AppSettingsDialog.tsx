@@ -1,7 +1,7 @@
 /*
  * AppSettingsDialog — the desktop "App settings" modal. Solid port of the
  * reference mock's dialog: a left tab rail (General · Tabs · Video & Audio ·
- * Alerts · Service · Network · Coding agents · Local data · About) + a page section; settings apply live
+ * Alerts · Service · Network · Coding agents · Plugins · Local data · About) + a page section; settings apply live
  * (no footer).
  *
  * Every control persists: alerts via alert-settings.ts, tab-title parts via
@@ -24,6 +24,7 @@ import { AlertsTab } from "./app-settings/AlertsTab";
 import { GeneralTab } from "./app-settings/GeneralTab";
 import { LocalDataTab } from "./app-settings/LocalDataTab";
 import { NetworkTab } from "./app-settings/NetworkTab";
+import { PluginsTab } from "./app-settings/PluginsTab";
 import { ServiceTab } from "./app-settings/ServiceTab";
 import { TabsTab } from "./app-settings/TabsTab";
 
@@ -32,7 +33,7 @@ export { crosshairSyncSetting } from "./app-settings/store";
 export { ThemePicker } from "./app-settings/GeneralTab";
 
 export type AppSettingsTabId =
-  | "general" | "tabs" | "alerts" | "service" | "network" | "agents" | "local-data" | "about";
+  | "general" | "tabs" | "alerts" | "service" | "network" | "agents" | "plugins" | "local-data" | "about";
 
 type Props = {
   onClose: () => void;
@@ -55,6 +56,8 @@ const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   ...(isTauri() ? [{ id: "network" as const, label: "Network", icon: "settings-network" }] : []),
   // The local endpoint coding agents connect to (desktop app only).
   ...(isTauri() ? [{ id: "agents" as const, label: "Coding agents", icon: "settings-agents" }] : []),
+  // Data and broker plugins on this computer (desktop app only: they connect to a local endpoint).
+  ...(isTauri() ? [{ id: "plugins" as const, label: "Plugins", icon: "settings-plugins" }] : []),
   // Folders of CSV files kept in sync with the imported series (desktop app only: they need the disk).
   ...(isTauri() ? [{ id: "local-data" as const, label: "Local data", icon: "settings-local-data" }] : []),
   { id: "about", label: "About", icon: "settings-about" },
@@ -70,6 +73,7 @@ export function AppSettingsDialog(props: Props) {
       case "service": return <ServiceTab />;
       case "network": return <NetworkTab />;
       case "agents": return <AgentsTab />;
+      case "plugins": return <PluginsTab />;
       case "local-data": return <LocalDataTab />;
       case "about": return <AboutTab />;
       default: return <GeneralTab themeSetting={props.themeSetting} onThemeChange={props.onThemeChange} />;

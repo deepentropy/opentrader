@@ -58,6 +58,8 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # Settings > Coding agents: the local MCP endpoint (agent.rs) and its token.
 axum = "0.8"
 getrandom = "0.3"
+# Settings > Plugins: asking the data plugins at once (plugins/data.rs).
+futures-util = "0.3"
 
 # The proxy password, in the system's encrypted credential store (Settings > Network).
 [target.'cfg(windows)'.dependencies]

@@ -6,12 +6,17 @@
 use crate::data::provider::Provider;
 use crate::data::session::SymbolSession;
 use crate::data::types::{Snapshot, SymbolSearchResult, TickerInfo};
+use crate::plugins::data as plugin;
 use opentrader_core::commands as core;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_ticker_info(provider: State<'_, Provider>, symbol: String) -> Result<TickerInfo, String> {
+pub async fn get_ticker_info(app: AppHandle, provider: State<'_, Provider>, symbol: String) -> Result<TickerInfo, String> {
+    // A data plugin's symbol (plugins/data.rs), here and in the commands below.
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::ticker_info(&app, &r).await;
+    }
     Ok(core::ticker_info(&provider, &symbol).await?)
 }
 
@@ -20,13 +25,19 @@ pub async fn get_ticker_info(provider: State<'_, Provider>, symbol: String) -> R
 /// follows the symbol's own market.
 #[tauri::command]
 #[specta::specta]
-pub async fn get_symbol_session(provider: State<'_, Provider>, symbol: String) -> Result<SymbolSession, String> {
+pub async fn get_symbol_session(app: AppHandle, provider: State<'_, Provider>, symbol: String) -> Result<SymbolSession, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::session(&app, &r).await;
+    }
     Ok(core::symbol_session(&provider, &symbol).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_ticker_snapshot(provider: State<'_, Provider>, symbol: String) -> Result<Snapshot, String> {
+pub async fn get_ticker_snapshot(app: AppHandle, provider: State<'_, Provider>, symbol: String) -> Result<Snapshot, String> {
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::snapshot(&app, &r).await;
+    }
     Ok(core::ticker_snapshot(&provider, &symbol).await?)
 }
 
@@ -35,11 +46,24 @@ pub async fn get_ticker_snapshot(provider: State<'_, Provider>, symbol: String) 
 #[tauri::command]
 #[specta::specta]
 pub async fn search_tickers(
+    app: AppHandle,
     provider: State<'_, Provider>,
     query: String,
     type_filter: Option<String>,
 ) -> Result<Vec<SymbolSearchResult>, String> {
-    Ok(core::search_tickers(&provider, &query, type_filter.as_deref()).await?)
+    // The data plugins' symbols too, unless a security type is chosen (theirs have none).
+    if type_filter.is_some() {
+        return Ok(core::search_tickers(&provider, &query, type_filter.as_deref()).await?);
+    }
+    let (own, plugins) = tokio::join!(core::search_tickers(&provider, &query, None), plugin::search(&app, &query));
+    match own {
+        Ok(mut rows) => {
+            rows.extend(plugins);
+            Ok(rows)
+        }
+        Err(_) if !plugins.is_empty() => Ok(plugins),
+        Err(e) => Err(e.into()),
+    }
 }
 
 /// Economy tab of the symbol search: the series matching `query` (the most
