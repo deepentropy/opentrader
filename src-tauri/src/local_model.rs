@@ -5,6 +5,10 @@
  * fine-tune of it (a LoRA, the small file that changes with each version). Each is checked against its sha256; a
  * download stopped midway goes on from where it was.
  *
+ * Fine-tunes are versioned (ADAPTERS): the newest one on disk runs, and the window sends it the prompt it was trained
+ * with (src/data/assistant/prompts.ts). A computer with an older one is offered the newest (Update in the assistant
+ * panel): only that file is downloaded, then the older one is deleted and the server restarts on the new one.
+ *
  * The server runs on 127.0.0.1 only, started with the first chat and stopped with the app.
  */
 use opentrader_core::net::SharedClient;
@@ -65,15 +69,35 @@ const BASE: Asset = Asset {
     size: 2_497_280_448,
 };
 
-/// OpenTrader's fine-tune (prompt-distillation v2, trained with the short tool list src/data/assistant/compact-v1.txt).
-const ADAPTER: Asset = Asset {
-    file: "opentrader-assistant-v2-lora-f16.gguf",
-    url: "https://github.com/deepentropy/opentrader/releases/download/assistant-model-v2/opentrader-assistant-v2-lora-f16.gguf",
-    sha256: "22bb391e1c8cde89ad43a37887865eba1e9cd68f81da025beacd225cf53a6277",
-    size: 66_095_232,
-};
-/// The fine-tune is on the release page: the download is offered.
-const PUBLISHED: bool = true;
+/// A version of OpenTrader's fine-tune and the prompt it was trained with (src/data/assistant/prompts.ts).
+#[derive(Clone, Copy)]
+struct Adapter {
+    version: u32,
+    asset: Asset,
+}
+
+/// The fine-tunes, oldest first: the last one is offered (each on the app's release `assistant-model-v<version>`).
+const ADAPTERS: &[Adapter] = &[
+    // Prompt-distillation v2, trained with the short tool list src/data/assistant/compact-v1.txt.
+    Adapter {
+        version: 2,
+        asset: Asset {
+            file: "opentrader-assistant-v2-lora-f16.gguf",
+            url: "https://github.com/deepentropy/opentrader/releases/download/assistant-model-v2/opentrader-assistant-v2-lora-f16.gguf",
+            sha256: "22bb391e1c8cde89ad43a37887865eba1e9cd68f81da025beacd225cf53a6277",
+            size: 66_095_232,
+        },
+    },
+];
+
+fn latest() -> &'static Adapter {
+    ADAPTERS.last().expect("an adapter")
+}
+
+/// The newest fine-tune on disk.
+fn installed_adapter(base: &Path) -> Option<&'static Adapter> {
+    ADAPTERS.iter().rev().find(|a| present(base, &a.asset))
+}
 
 /// RAM the server needs with an 8k context (measured: about 4.3 GB private at 16k), with a margin.
 const RAM_NEEDED: u64 = 6 * 1024 * 1024 * 1024;
@@ -85,6 +109,8 @@ struct Server {
     ready: bool,
     /// The prompt work was saved to disk this session.
     saved: bool,
+    /// The fine-tune it runs (its saved prompt work is that version's).
+    version: u32,
 }
 
 /// The server, kept from its start on (so a quit stops it even while it loads). Held only for quick reads: never
@@ -153,6 +179,12 @@ pub struct LocalModelInfo {
     pub ram_needed_bytes: f64,
     pub free_disk_bytes: f64,
     pub installing: bool,
+    /// The fine-tune on disk (null when none): the window sends it the prompt it was trained with.
+    pub version: Option<u32>,
+    /// The fine-tune this build offers.
+    pub latest_version: u32,
+    /// Bytes of the newer fine-tune when an older one is on disk (0 when up to date or not installed).
+    pub update_bytes: f64,
 }
 
 fn present(base: &Path, a: &Asset) -> bool {
@@ -161,7 +193,7 @@ fn present(base: &Path, a: &Asset) -> bool {
 
 fn installed(base: &Path) -> bool {
     let rts = runtimes();
-    !rts.is_empty() && rts.iter().any(|r| server_exe(&runtime_dir(base, r)).is_some()) && present(base, &BASE) && present(base, &ADAPTER)
+    !rts.is_empty() && rts.iter().any(|r| server_exe(&runtime_dir(base, r)).is_some()) && present(base, &BASE) && installed_adapter(base).is_some()
 }
 
 fn free_disk(path: &Path) -> u64 {
@@ -185,7 +217,7 @@ pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> 
     // Walks the model's folder (thousands of files) and asks the system for its disks: on a blocking thread.
     tauri::async_runtime::spawn_blocking(move || {
         let rts = runtimes();
-        let parts: Vec<Asset> = [BASE, ADAPTER].into_iter().chain(rts.first().copied()).collect();
+        let parts: Vec<Asset> = [BASE, latest().asset].into_iter().chain(rts.first().copied()).collect();
         let missing: u64 = parts
             .iter()
             .map(|a| if present(&base, a) || (a.file.contains("llama-") && server_exe(&runtime_dir(&base, a)).is_some()) { 0 } else { a.size })
@@ -194,9 +226,11 @@ pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> 
         let mut sys = sysinfo::System::new();
         sys.refresh_memory();
         let probe = if base.exists() { base.clone() } else { data_dir };
+        let is_installed = installed(&base);
+        let version = installed_adapter(&base).map(|a| a.version);
         LocalModelInfo {
-            available: !rts.is_empty() && PUBLISHED,
-            installed: installed(&base),
+            available: !rts.is_empty(),
+            installed: is_installed,
             running,
             download_bytes: missing as f64,
             disk_bytes: disk as f64,
@@ -204,6 +238,9 @@ pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> 
             ram_needed_bytes: RAM_NEEDED as f64,
             free_disk_bytes: free_disk(&probe) as f64,
             installing,
+            version,
+            latest_version: latest().version,
+            update_bytes: if is_installed && version != Some(latest().version) { latest().asset.size as f64 } else { 0.0 },
         }
     })
     .await
@@ -304,7 +341,8 @@ fn unpack(archive: &Path, to: &Path) -> Result<(), String> {
     }
 }
 
-/// Downloads what is missing.
+/// Downloads what is missing: everything on a first install, the newest fine-tune on an update (then the older ones
+/// are deleted and a server running one is stopped: the next chat starts it on the new one).
 #[tauri::command]
 #[specta::specta]
 pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgress>) -> Result<(), String> {
@@ -323,7 +361,8 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
     let b = base.clone();
     let runtimes: Vec<Asset> =
         blocking(move || runtimes().into_iter().filter(|r| server_exe(&runtime_dir(&b, r)).is_none()).collect()).await?;
-    let total = runtimes.iter().chain([&ADAPTER, &BASE]).filter(|a| !present(&base, a)).map(|a| a.size).sum();
+    let adapter = latest().asset;
+    let total = runtimes.iter().chain([&adapter, &BASE]).filter(|a| !present(&base, a)).map(|a| a.size).sum();
     let mut t = Tally { before: 0, total };
     for r in &runtimes {
         fetch(&base, r, &on_progress, &mut t, &mut rx).await?;
@@ -335,8 +374,21 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
         })
         .await??;
     }
-    fetch(&base, &ADAPTER, &on_progress, &mut t, &mut rx).await?;
-    fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await
+    let updated = ADAPTERS.iter().any(|a| a.version != latest().version && present(&base, &a.asset));
+    fetch(&base, &adapter, &on_progress, &mut t, &mut rx).await?;
+    fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await?;
+    if updated {
+        stop_server().await;
+        let b = base.clone();
+        blocking(move || {
+            for a in ADAPTERS.iter().filter(|a| a.version != latest().version) {
+                let _ = std::fs::remove_file(b.join(a.asset.file));
+                let _ = std::fs::remove_file(b.join(prefix_file(a.version)));
+            }
+        })
+        .await?;
+    }
+    Ok(())
 }
 
 /// `f` on a blocking thread (file walks, archives, deletions of gigabytes).
@@ -393,12 +445,13 @@ async fn healthy(port: u16) -> bool {
 
 /// Starts the server and keeps it in `SERVER` at once (a quit stops it from then on), then waits for it to answer.
 async fn start(base: &Path, exe: &Path, gpu: bool) -> Result<u16, String> {
+    let adapter = installed_adapter(base).ok_or("The assistant's model is not downloaded yet.")?;
     let port = free_port()?;
     let mut cmd = tokio::process::Command::new(exe);
     cmd.arg("-m")
         .arg(base.join(BASE.file))
         .arg("--lora")
-        .arg(base.join(ADAPTER.file))
+        .arg(base.join(adapter.asset.file))
         .args(["--host", "127.0.0.1", "--port", &port.to_string(), "-c", "8192", "--parallel", "1", "--jinja"])
         .arg("--slot-save-path")
         .arg(base)
@@ -414,7 +467,7 @@ async fn start(base: &Path, exe: &Path, gpu: bool) -> Result<u16, String> {
     }
     let child = cmd.spawn().map_err(|e| format!("The model server did not start: {e}"))?;
     // A server left from before (stopped, or not answering) is replaced; dropping it kills it.
-    *SERVER.lock().await = Some(Server { child, port, ready: false, saved: false });
+    *SERVER.lock().await = Some(Server { child, port, ready: false, saved: false, version: adapter.version });
     wait_ready(port).await?;
     Ok(port)
 }
@@ -486,7 +539,9 @@ pub async fn ensure_server(app: &AppHandle) -> Result<String, String> {
     for (gpu, exe) in exes {
         match start(&base, &exe, gpu).await {
             Ok(port) => {
-                restore_prefix(&base, port).await;
+                if let Some(a) = installed_adapter(&base) {
+                    restore_prefix(&base, port, a.version).await;
+                }
                 return Ok(api_root(port));
             }
             Err(e) => last = e,
@@ -495,16 +550,20 @@ pub async fn ensure_server(app: &AppHandle) -> Result<String, String> {
     Err(last)
 }
 
-const PREFIX_FILE: &str = "prefix-v2.bin";
+/// The saved prompt work of a fine-tune version (its prompt read once): "prefix-v2.bin" for v2.
+fn prefix_file(version: u32) -> String {
+    format!("prefix-v{version}.bin")
+}
 
 /// Puts back the prompt work saved by an earlier session (the short tool list read once), so the first answer
 /// skips it.
-async fn restore_prefix(base: &Path, port: u16) {
-    if base.join(PREFIX_FILE).exists() {
+async fn restore_prefix(base: &Path, port: u16, version: u32) {
+    let file = prefix_file(version);
+    if base.join(&file).exists() {
         let _ = CLIENT
             .get()
             .post(format!("http://127.0.0.1:{port}/slots/0?action=restore"))
-            .json(&serde_json::json!({ "filename": PREFIX_FILE }))
+            .json(&serde_json::json!({ "filename": file }))
             .timeout(Duration::from_secs(30))
             .send()
             .await;
@@ -519,17 +578,49 @@ pub async fn save_prefix(app: &AppHandle) {
         return;
     }
     s.saved = true;
-    let port = s.port;
+    let (port, file) = (s.port, prefix_file(s.version));
     drop(guard);
     if let Ok(base) = dir(app) {
-        if !base.join(PREFIX_FILE).exists() {
+        if !base.join(&file).exists() {
             let _ = CLIENT
                 .get()
                 .post(format!("http://127.0.0.1:{port}/slots/0?action=save"))
-                .json(&serde_json::json!({ "filename": PREFIX_FILE }))
+                .json(&serde_json::json!({ "filename": file }))
                 .timeout(Duration::from_secs(30))
                 .send()
                 .await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fine-tune "on disk": a sparse file of its size (presence is checked by size).
+    fn put(base: &Path, a: &Adapter) {
+        std::fs::File::create(base.join(a.asset.file)).and_then(|f| f.set_len(a.asset.size)).unwrap();
+    }
+
+    #[test]
+    fn the_newest_fine_tune_on_disk_runs() {
+        let base = std::env::temp_dir().join(format!("ot-local-model-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        assert!(installed_adapter(&base).is_none());
+        // A partial download is not a fine-tune.
+        std::fs::File::create(base.join(ADAPTERS[0].asset.file)).and_then(|f| f.set_len(10)).unwrap();
+        assert!(installed_adapter(&base).is_none());
+        for a in ADAPTERS {
+            put(&base, a);
+            assert_eq!(installed_adapter(&base).map(|x| x.version), Some(a.version));
+        }
+        assert_eq!(latest().version, ADAPTERS.iter().map(|a| a.version).max().unwrap());
+        assert_eq!(prefix_file(2), "prefix-v2.bin");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn versions_rise_and_files_differ() {
+        assert!(ADAPTERS.windows(2).all(|w| w[0].version < w[1].version && w[0].asset.file != w[1].asset.file));
     }
 }

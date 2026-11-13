@@ -48,3 +48,13 @@ export async function removeLocal(): Promise<void> {
   if (r.status === "error") setError(r.error);
   await refreshLocal();
 }
+
+/** Bytes of a newer fine-tune to download when an older one is installed (0: up to date, or not installed). */
+export const updateBytes = (i: LocalModelInfo | null): number => (i?.installed ? (i.updateBytes ?? 0) : 0);
+
+// "Later" on the update banner: hidden until the app starts again.
+const [updateLater, setUpdateLater] = createSignal(false);
+export { updateLater, setUpdateLater };
+
+/** Downloads the newer fine-tune (the install downloads only what is missing), then the next chat runs it. */
+export const updateLocal = installLocal;

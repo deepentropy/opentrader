@@ -8,10 +8,10 @@
  * Kept small: the system prompt goes as its name (it is fixed), tool results are cut, pictures never leave.
  */
 import { track } from "../analytics";
+import { modelVersion, promptFor } from "./prompts";
 
-/** The model and the prompt it was trained with (src-tauri/src/local_model.rs, ./compact-v1.txt). */
-export const MODEL = "opentrader-assistant-v2";
-const PROMPT = "compact-v1";
+/** The installed model, by its fine-tune version (src-tauri/src/local_model.rs), and the prompt it was trained with. */
+export const model = () => `opentrader-assistant-v${modelVersion()}`;
 /** A tool result or argument longer than this is cut in the statistics. */
 const MAX_TEXT = 4000;
 
@@ -25,7 +25,7 @@ type Wire = { role: string; content?: string | null; tool_calls?: { id: string; 
 export function lightMessages(messages: unknown[]): unknown[] {
   return (messages as Wire[]).map((m) =>
     m.role === "system"
-      ? { role: "system", content: `[${PROMPT}]` }
+      ? { role: "system", content: `[${promptFor(modelVersion()).name}]` }
       : {
           ...m,
           ...(typeof m.content === "string" ? { content: cut(m.content) } : {}),
@@ -34,7 +34,7 @@ export function lightMessages(messages: unknown[]): unknown[] {
   );
 }
 
-const base = (trace: string, chat: string) => ({ $ai_trace_id: trace, $ai_session_id: chat, $ai_model: MODEL, $ai_provider: "local" });
+const base = (trace: string, chat: string) => ({ $ai_trace_id: trace, $ai_session_id: chat, $ai_model: model(), $ai_provider: "local" });
 
 /** One model request. */
 export function trackGeneration(o: {

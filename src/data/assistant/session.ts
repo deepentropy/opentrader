@@ -14,10 +14,9 @@ import type { AgentServerDef, AgentTool, ToolResult } from "../../agent/mcp";
 import { AgentError } from "../../agent/mcp";
 import * as kv from "../kv";
 import { attachmentLine } from "./attachments";
+import { modelVersion, promptFor } from "./prompts";
 import { newTraceId, trackFeedback, trackGeneration, trackToolSpan, trackTrace } from "./telemetry";
 import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls, type ToolCall, type Turn } from "./stream";
-// The short tool list the model was trained with, byte for byte (its sha256 is checked by a test).
-import COMPACT_V1_RAW from "./compact-v1.txt?raw";
 
 export type ToolStep = {
   id: string;
@@ -88,9 +87,6 @@ export function setAssistantHost(s: AgentServerDef): void {
   server = s;
   hostReady();
 }
-
-/** The short tool list as the model saw it in training (line ends as written there). */
-export const COMPACT_V1 = COMPACT_V1_RAW.replace(/\r\n/g, "\n");
 
 /** The model reads a tool's schema when it needs it. */
 export function describeTool(tools: AgentTool[]): AgentTool {
@@ -211,7 +207,8 @@ export function stop(): void {
 
 /** The chat as the model reads it. */
 function wireMessages(c: Chat) {
-  const out: unknown[] = [{ role: "system", content: COMPACT_V1 }];
+  // The short tool list the installed fine-tune was trained with (./prompts.ts).
+  const out: unknown[] = [{ role: "system", content: promptFor(modelVersion()).text }];
   for (const m of c.messages) {
     if (m.role === "user") {
       // The model reads an attached file as a line with its name and id (the tools read it by id).

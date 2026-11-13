@@ -22,7 +22,11 @@ vi.mock("../../../bindings", () => ({
   },
 }));
 
-import { activeChat, answerConfirm, COMPACT_V1, describeTool, newChat, rateAnswer, send, setAssistantHost } from "../session";
+import { activeChat, answerConfirm, describeTool, newChat, rateAnswer, send, setAssistantHost } from "../session";
+import { PROMPTS } from "../prompts";
+
+// No model installed in the tests: the window sends the prompt of the version this build offers (v2 until v3 ships).
+const COMPACT_V1 = PROMPTS[2].text;
 import type { AgentTool } from "../../../agent/mcp";
 
 const say = (s: string) => JSON.stringify({ choices: [{ delta: { content: s }, finish_reason: null }] });

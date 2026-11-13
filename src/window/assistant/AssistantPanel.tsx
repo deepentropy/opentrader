@@ -17,7 +17,7 @@ import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAn
 import { attach, MAX_ATTACHMENT_BYTES } from "../../data/assistant/attachments";
 import { Popup } from "./Popup";
 import { AssistantSetup } from "./LocalModel";
-import { localInfo, refreshLocal, removeLocal } from "../../data/assistant/local";
+import { gb, localError, localInfo, localProgress, refreshLocal, removeLocal, setUpdateLater, updateBytes, updateLater, updateLocal } from "../../data/assistant/local";
 import { stepTitle } from "./steps";
 import "../../styles/screener.css";
 import "../../styles/community.css";
@@ -196,6 +196,7 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
           </Popup>
         </Show>
       </div>
+      <UpdateBanner />
       <div
         class="asst-messages"
         ref={list}
@@ -296,6 +297,41 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
     </div>
   );
 }
+
+/** A newer version of the model than the one on this computer: Update downloads it (its size), Later hides this until
+ *  the app starts again. The chat goes on with the installed one meanwhile. */
+function UpdateBanner() {
+  const bytes = () => updateBytes(localInfo());
+  const pct = () => {
+    const p = localProgress();
+    return p && p.total ? Math.round(((p.done ?? 0) / p.total) * 100) : 0;
+  };
+  return (
+    <Show when={bytes() > 0 && !updateLater()}>
+      <div class="asst-update" role="status">
+        <Show
+          when={localProgress()}
+          fallback={
+            <>
+              <span class="asst-update-text">A new version of the assistant is available.</span>
+              <button type="button" class="asst-btn is-primary" disabled={running()} onClick={() => void updateLocal()}>
+                {translateWith("Update ({0})", sizeText(bytes()))}
+              </button>
+              <button type="button" class="asst-btn" onClick={() => setUpdateLater(true)}>Later</button>
+            </>
+          }
+        >
+          <div class="asst-progress"><div style={{ width: `${pct()}%` }} /></div>
+          <span class="asst-muted">{translateWith("Updating… {0}%", pct())}</span>
+        </Show>
+        <Show when={localError()}>{(e) => <span class="asst-status is-error">{e()}</span>}</Show>
+      </div>
+    </Show>
+  );
+}
+
+/** A download's size: MB under 1 GB. */
+const sizeText = (bytes: number) => (bytes < 1024 ** 3 ? `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB` : gb(bytes));
 
 /** The user's message, and the names of the files attached to it. */
 function UserMessage(props: { message: Extract<ChatMessage, { role: "user" }> }) {
