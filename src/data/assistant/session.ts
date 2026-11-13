@@ -109,8 +109,9 @@ export function describeTool(tools: AgentTool[]): AgentTool {
 }
 
 /** Tools the local model is not given: writing scripts is left to the coding agents of Settings > Coding agents (a
- *  small model can't hold the OakScript guide), so it answers such requests in words. */
-const NOT_LOCAL = new Set(["write_script"]);
+ *  small model can't hold the OakScript guide), so it answers such requests in words; dev builds' tools are for
+ *  recording examples over MCP. */
+const NOT_LOCAL = new Set(["write_script", "dev_attach_file"]);
 
 async function toolList(): Promise<AgentTool[]> {
   // A message sent right after the window opened waits for the tools.

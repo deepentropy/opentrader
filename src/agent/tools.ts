@@ -44,6 +44,7 @@ import { createAlertTools } from "./alert-tools";
 import { createCommunityTools } from "./community-tools";
 import { createFilingsTools } from "./filings-tools";
 import { createNotesTools } from "./notes-tools";
+import { DEV_TOOLS, createDevTools } from "./dev-tools";
 import { createLayoutTools, type LayoutHost } from "./layout-tools";
 
 /** What App hands the tools. */
@@ -672,6 +673,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     ...createFilingsTools(() => pane().symbol),
     // ── Symbol notes ───────────────────────────────────────────────────
     ...createNotesTools(() => pane().symbol),
+    ...(DEV_TOOLS ? createDevTools() : []),
   ];
   return tools;
 }
