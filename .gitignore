@@ -60,3 +60,4 @@ BACKLOG.md
 
 # Stale internal notes (describe the pre-gateway data layer)
 docs/PERFORMANCE.md
+plugins/*/dist/

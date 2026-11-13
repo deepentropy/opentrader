@@ -1,0 +1,42 @@
+{
+  "id": "mt5",
+  "name": "MetaTrader 5",
+  "version": "0.1.0",
+  "publisher": "OpenTrader",
+  "description": "Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account and trading from the charts.",
+  "api": 1,
+  "provides": ["datafeed", "broker"],
+  "exchange": "MT5",
+  "runtime": {
+    "type": "external",
+    "connectionFile": "{appData}/MetaQuotes/Terminal/Common/Files/OpenTrader/mt5.json"
+  },
+  "install": [
+    {
+      "copy": "OpenTraderBridge.ex5",
+      "to": {
+        "title": "Experts folder of your MetaTrader 5 terminal",
+        "suggest": "{appData}/MetaQuotes/Terminal/*/MQL5/Experts",
+        "expect": "MQL5/Experts"
+      }
+    }
+  ],
+  "settings": [
+    {
+      "key": "serverTime",
+      "label": "Server clock",
+      "type": "select",
+      "default": "auto",
+      "options": [
+        { "value": "auto", "label": "Automatic" },
+        { "value": "nyclose", "label": "New York close (UTC+2 / UTC+3, US summer time)" },
+        { "value": "eet", "label": "Eastern European time (UTC+2 / UTC+3, EU summer time)" },
+        { "value": "utc", "label": "UTC" }
+      ],
+      "help": "The time zone of your broker's server, for the bar times. Automatic works for most brokers."
+    }
+  ],
+  "setup": "In MetaTrader 5:\n1. Tools > Options > Expert Advisors: tick \"Allow algorithmic trading\" and \"Allow WebRequest for listed URL\", and add http://127.0.0.1 to the list.\n2. Navigator > Expert Advisors: drag OpenTraderBridge onto any one chart and tick \"Allow Algo Trading\". Refresh the Navigator if it is not listed.\nThe plugin connects within a few seconds. Leave that chart open while you use OpenTrader.",
+  "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/mt5",
+  "platforms": ["windows"]
+}

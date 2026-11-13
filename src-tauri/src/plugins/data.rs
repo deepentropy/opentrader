@@ -336,7 +336,18 @@ struct FoundSymbol {
 
 /// The connected data plugins' symbols matching `query`, as search rows (`exchange` = the plugin's).
 pub async fn search(app: &AppHandle, query: &str) -> Vec<SymbolSearchResult> {
-    let exchanges: Vec<(String, String)> = state(app).exchanges.locked().iter().map(|(e, p)| (e.clone(), p.clone())).collect();
+    // "MT5:EUR" asks the plugin of that exchange for "EUR" (and no other plugin).
+    let (only, query) = match query.split_once(':') {
+        Some((ex, rest)) => (Some(ex.trim().to_ascii_uppercase()), rest.trim()),
+        None => (None, query),
+    };
+    let exchanges: Vec<(String, String)> = state(app)
+        .exchanges
+        .locked()
+        .iter()
+        .filter(|(e, _)| only.as_ref().is_none_or(|o| o == *e))
+        .map(|(e, p)| (e.clone(), p.clone()))
+        .collect();
     let hub = app.state::<Plugins>().hub.clone();
     let asks = exchanges.into_iter().filter(|(_, p)| hub.connected(p).is_some()).map(|(exchange, plugin)| {
         let hub = hub.clone();
