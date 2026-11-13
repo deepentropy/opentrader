@@ -570,6 +570,11 @@ mod tests {
         assert_eq!(pick(&served, "day", 1), Some(("1D".into(), 0)));
         assert_eq!(pick(&served, "second", 5), None);
         assert_eq!(pick(&iv(&["1S"]), "second", 10), Some(("1S".into(), 10)));
+        // Hours only (#332): the chart asks the served size itself and builds 2 and 4 hours from it; nothing under it.
+        let hours = iv(&["60", "1D"]);
+        assert_eq!(pick(&hours, "minute", 60), Some(("60".into(), 0)));
+        assert_eq!(pick(&hours, "minute", 240), Some(("60".into(), 14_400)));
+        assert_eq!(pick(&hours, "minute", 30), None);
     }
 
     #[test]

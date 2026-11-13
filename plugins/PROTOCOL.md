@@ -150,7 +150,7 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `extended` | The whole traded day, when it is wider than `session`. |
 | `holidays` | Full-close days, `YYYYMMDD,YYYYMMDD`. |
 | `pricescale`, `minmov` | One tick is `minmov / pricescale`. For example, 100000 and 1 give 0.00001. |
-| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Other minute or second sizes are built by the app from the largest served size that divides them, on the clock grid. Weeks and months are built from days. The interval picker offers only these; another interval shows that it is not supported. |
+| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Intraday bars start on the clock grid of their size in the symbol's time zone (a `"60"` bar starts on the hour). Other minute or second sizes are built by the app from a served size that divides them. Bars that start at the session open (09:30, 10:30…) are built from a served size that divides the time from midnight to the open; with none (only `"60"` for a 09:30 open), the bars keep the served grid (09:00, 10:00…) and the one the open falls in is stamped at the open. Weeks and months are built from days. The interval picker offers only these; another interval shows that it is not supported. |
 
 ### `data.bars` (app → plugin, request)
 

@@ -37,7 +37,7 @@ import { exchangeCode, exchangeName } from "./providers";
 import { isFullSymbol, splitSymbol } from "./symbol-name";
 import { providerCapabilities, providerServes } from "./providers/capabilities";
 import { getFundamentals, hasFundamentals, isoDaySec } from "./fundamentals";
-import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec, type SymbolSessions } from "./session";
+import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionInterval, type SessionSpec, type SymbolSessions } from "./session";
 import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
 import { isLocalSymbol, localBarsBefore, localDailyBars, localIntradayBars, localSeriesMeta, localServesResolution } from "./local-series";
 import { builtFromServed, finestServed, servedMinuteSizes } from "./interval";
@@ -459,34 +459,42 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
 //     the filter is exact;
 //   • otherwise (US 1H/2H/4H RTH: 09:30 open) the buckets straddle the open,
 //     so a finer base that divides it is fetched, filtered, and re-aggregated
-//     ANCHORED AT EACH SESSION INTERVAL's start (09:30, 10:30, …).
+//     ANCHORED AT EACH SESSION INTERVAL's start (09:30, 10:30, …);
+//   • a data plugin may serve no size that divides the open (hours only, 09:30
+//     open, #332): its bars keep their clock grid (09:00, 10:00, …), the one
+//     the open falls in kept and stamped at the open, and larger sizes are
+//     built on that grid.
 
 export type { SessionId } from "./session";
+
+/** Minutes after local midnight of the open of `iv`, a session interval of `spec`. */
+function openMinutes(spec: SessionSpec, iv: SessionInterval): number {
+  const m = Math.round((iv.start - localToUtc(spec.timeZone, iv.day, 0)) / 60);
+  return ((m % 1440) + 1440) % 1440;
+}
 
 /** Minutes after local midnight of every session open in `spec` over the
  *  week before `sec` (so day-of-week variants are seen). */
 function sessionOpenMinutes(spec: SessionSpec, sec: number): number[] {
   const out = new Set<number>();
   const d = localDay(spec.timeZone, sec);
-  for (let day = d - 7; day <= d; day++) {
-    for (const iv of spec.dayIntervals(day)) {
-      const m = Math.round((iv.start - localToUtc(spec.timeZone, day, 0)) / 60);
-      out.add(((m % 1440) + 1440) % 1440);
-    }
-  }
+  for (let day = d - 7; day <= d; day++) for (const iv of spec.dayIntervals(day)) out.add(openMinutes(spec, iv));
   return [...out];
 }
 
 /** Base bar size (minutes) to rebuild `mins` bars anchored at the session
  *  open, or null when `served` (the symbol's served sizes) has `mins` and its
  *  buckets already break at every open. The base is the largest served size
- *  that divides `mins` and every open. */
+ *  that divides `mins` and every open, else the largest served size that
+ *  divides `mins` (built on its own grid, see sessionBucketStart). Every
+ *  caller has checked that one divides it (isSupportedResolution, pluginBuilds). */
 function sessionBaseMinutes(spec: SessionSpec, mins: number, served: number[]): number | null {
   const opens = spec.always ? [0] : sessionOpenMinutes(spec, Date.now() / 1000);
   if (served.includes(mins) && (spec.always || opens.every((m) => m % mins === 0))) return null;
-  const fits = served.filter((m) => m < mins && mins % m === 0 && opens.every((o) => o % m === 0));
-  if (fits.length === 0) throw new Error(`no base bar size to build ${mins}-minute session bars`);
-  return Math.max(...fits);
+  const sizes = served.filter((m) => m <= mins && mins % m === 0);
+  if (sizes.length === 0) throw new Error(`no served bar size builds ${mins}-minute bars`);
+  const fits = sizes.filter((m) => opens.every((o) => o % m === 0));
+  return Math.max(...(fits.length ? fits : sizes));
 }
 
 /** Drop bars that start outside `spec`'s sessions. */
@@ -495,22 +503,38 @@ function inSession(rows: Candle[], spec: SessionSpec): Candle[] {
   return rows.filter((c) => c.time != null && spec.contains(c.time as number));
 }
 
-/** Aggregate in-session base bars (time-ascending, on a size that divides the
- *  session opens) into `targetMins` buckets ANCHORED AT THEIR SESSION
- *  INTERVAL's start. The last bucket of an interval may be short (15:30–16:00).
- *  Each bucket is stamped with its start, even when its first base bar is
- *  missing. */
-function aggregateSessionMinutes(rows: Candle[], spec: SessionSpec, targetMins: number): Candle[] {
+/** Start of the bucket of `stepSecs` holding time `t` of session interval `iv`
+ *  of `spec`, for bars built from `baseMins` bars. Buckets run from the start
+ *  of the base bar the open falls in, on the local clock: the open itself when
+ *  the base divides it (09:30, 10:30), else the base bar before it (served
+ *  hours, 09:30 open: 09:00, 10:00), whose bucket is stamped at the open. */
+function sessionBucketStart(spec: SessionSpec, iv: SessionInterval, t: number, stepSecs: number, baseMins: number): number {
+  const anchor = iv.start - (openMinutes(spec, iv) % baseMins) * 60;
+  return Math.max(iv.start, anchor + Math.floor((t - anchor) / stepSecs) * stepSecs);
+}
+
+/** Aggregate base bars of `baseMins` (time-ascending) into `targetMins`
+ *  buckets ANCHORED AT THEIR SESSION INTERVAL's start (see
+ *  sessionBucketStart), dropping those outside `spec`'s sessions; a base bar
+ *  that starts before an open it holds belongs to that session. The last
+ *  bucket of an interval may be short (15:30–16:00). Each bucket is stamped
+ *  with its start, even when its first base bar is missing. */
+function aggregateSessionMinutes(rows: Candle[], spec: SessionSpec, targetMins: number, baseMins: number): Candle[] {
   const out: Candle[] = [];
   const step = targetMins * 60;
+  const baseSecs = baseMins * 60;
   let curStart = NaN;
   let cur: Candle | null = null;
   for (const b of rows) {
     if (b.time == null || b.open == null || b.high == null || b.low == null || b.close == null) continue;
     const t = b.time as number;
-    const iv = spec.at(t);
-    if (!iv) continue;
-    const start = iv.start + Math.floor((t - iv.start) / step) * step;
+    let iv = spec.at(t);
+    if (!iv) {
+      const next = spec.currentOrNext(t, 1);
+      if (!next || next.start >= t + baseSecs) continue;
+      iv = next;
+    }
+    const start = sessionBucketStart(spec, iv, t, step, baseMins);
     if (start !== curStart) {
       if (cur) out.push(cur);
       cur = { ...b, time: start };
@@ -609,8 +633,8 @@ async function getBarsOnce(symbol: string, resolution: string, session: SessionI
     const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions));
     const res = await commands.getMinuteHistory(symbol, intra.days, base ?? intra.mins, adjusted);
     if (res.status === "error") throw new Error(res.error);
-    const rows = inSession(res.data.bars, spec);
-    return { bars: base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows, daily: null, aggregate: null, partial: res.data.partial };
+    const bars = base === null ? inSession(res.data.bars, spec) : aggregateSessionMinutes(res.data.bars, spec, intra.mins, base);
+    return { bars, daily: null, aggregate: null, partial: res.data.partial };
   }
   const cfg = dailyConfig(resolution);
   // The session is not needed to fetch daily bars, but resolving it with them
@@ -668,8 +692,8 @@ export async function getBarsBefore(
     if (!pluginBuilds(sessions, resolution)) return [];
     const spec = sessions.spec(session);
     const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions));
-    const rows = inSession(await getAggregatesBefore(symbol, "minute", base ?? intra.mins, beforeSec, days, adjusted), spec);
-    return base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows;
+    const rows = await getAggregatesBefore(symbol, "minute", base ?? intra.mins, beforeSec, days, adjusted);
+    return base === null ? inSession(rows, spec) : aggregateSessionMinutes(rows, spec, intra.mins, base);
   }
   return getDailyHistoryBefore(symbol, beforeSec, spanDays ?? dailyConfig(resolution).days, adjusted);
 }
@@ -777,13 +801,11 @@ export function bucketLiveTick(
   const iv = spec.at(tick.time);
   if (!iv) return null;
   const bucketSecs = intra.mins * 60;
-  // Re-aggregated sizes (US 1H/2H/4H RTH) anchor at the session interval's
-  // start like the history; the others keep the provider's clock grid, which
+  // Re-aggregated sizes (US 1H/2H/4H RTH) take the history's buckets
+  // (sessionBucketStart); the others keep the provider's clock grid, which
   // already breaks at the open.
-  const bucketTime =
-    sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions)) !== null
-      ? iv.start + Math.floor((tick.time - iv.start) / bucketSecs) * bucketSecs
-      : Math.floor(tick.time / bucketSecs) * bucketSecs;
+  const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions));
+  const bucketTime = base !== null ? sessionBucketStart(spec, iv, tick.time, bucketSecs, base) : Math.floor(tick.time / bucketSecs) * bucketSecs;
   return {
     time: bucketTime,
     open: tick.open,
