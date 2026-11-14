@@ -88,6 +88,17 @@ const ADAPTERS: &[Adapter] = &[
             size: 66_095_232,
         },
     },
+    // v3: notes, journal summary and trade-file import, indicator help texts, fundamentals, series; trained with
+    // src/data/assistant/compact-v2.txt.
+    Adapter {
+        version: 3,
+        asset: Asset {
+            file: "opentrader-assistant-v3-lora-f16.gguf",
+            url: "https://github.com/deepentropy/opentrader/releases/download/assistant-model-v3/opentrader-assistant-v3-lora-f16.gguf",
+            sha256: "c3a52e482f91b9af261124afc9459c60d638ab63fc545eb166abcca0ec13668e",
+            size: 66_095_200,
+        },
+    },
 ];
 
 fn latest() -> &'static Adapter {
