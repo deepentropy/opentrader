@@ -1,18 +1,18 @@
 /*
- * ProfileMenu — the account/main menu dropdown opened by the circular avatar
- * button at the far left of the header toolbar. Solid port of the reference
- * mock's ProfileMenu (260px, grouped rows starting at Home).
+ * ProfileMenu — the account menu opened by the circular avatar button at the
+ * far left of the header toolbar (260px, grouped rows). The window's own rows
+ * (new tab, new window, reopen, theme, update) are in the title bar's main
+ * menu (`window/shell/MainMenu.tsx`), as in the reference app.
  *
- * Rows are presentational (close on click) except "Settings" (fires the
- * `app-settings` action), "App onboarding..." (desktop app: opens the
- * onboarding dialog, as the reference app's support menu does) and the
- * "Drawings panel" toggle, which shows/hides the left drawing toolbar via the
- * shared `drawing-panel` signal (persisted).
+ * Rows close on click except the "Drawings panel" toggle, which shows/hides
+ * the left drawing toolbar via the shared `drawing-panel` signal (persisted),
+ * and Language, which opens the language list. "App settings…" fires the
+ * `app-settings` action; "App onboarding..." (desktop app) opens the
+ * onboarding dialog, as the reference app's support menu does.
  */
 import { createSignal, For, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
-import { installUpdate, updateReady } from "../../data/app-update";
 import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { currentLanguage, currentLanguageLabel, menuLanguages, setLanguage } from "../../i18n/language";
@@ -33,18 +33,16 @@ type Row =
       action?: string;
     };
 
-const SETTINGS_ROW: Row = { type: "item", label: "Settings", icon: "profile-app-settings", hotkey: "Ctrl + ,", action: "app-settings" };
+const SETTINGS_ROW: Row = { type: "item", label: "App settings…", icon: "profile-app-settings", action: "app-settings" };
 const ONBOARDING_ROW: Row = { type: "item", label: "App onboarding...", icon: "main-menu-onboarding", action: "app-onboarding" };
 /** The language list's width (`.profile-menu-languages`). */
 const LANGUAGES_WIDTH = 148;
 const DRAWINGS_ROW: Row ={ type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
 
-/** Settings, App onboarding... (desktop app), the reopen row (Ctrl + Shift + T)
- *  when there is something to reopen, Drawings panel, Language. */
-function rows(reopen: string | null | undefined): Row[] {
+/** App settings…, App onboarding... (desktop app), Drawings panel, Language. */
+function rows(): Row[] {
   const out: Row[] = [SETTINGS_ROW];
   if (isTauri()) out.push(ONBOARDING_ROW);
-  if (reopen) out.push({ type: "item", label: reopen, icon: "main-menu-reopen", hotkey: "Ctrl + Shift + T", action: "reopen-closed" });
   out.push(DRAWINGS_ROW);
   out.push({ type: "item", label: "Language", icon: "profile-language", value: currentLanguageLabel(), submenu: true, action: "language" });
   return out;
@@ -58,9 +56,6 @@ type Props = {
   onClose: () => void;
   /** Fired with a row's `action` id (e.g. 'app-settings') before close. */
   onAction?: (action: string) => void;
-  /** Desktop main menu only: label of the undo row ("Reopen closed tab" /
-   *  "Reopen closed window", after New window). Absent or null: no row. */
-  reopenLabel?: string | null;
 };
 
 /** No-photo avatar colour: hsl(<hash-of-name>, 25%, 50%). */
@@ -80,7 +75,7 @@ export function ProfileMenu(props: Props) {
   const popover = createPopover(undefined, {
     onClose: () => props.onClose(),
     placement: false,
-    insideSelector: ".header-toolbar-profile, .main-menu-button",
+    insideSelector: ".header-toolbar-profile",
     escape: "pass",
     on: { target: "window", capture: false },
   });
@@ -88,34 +83,19 @@ export function ProfileMenu(props: Props) {
   // Under the button, start edges aligned (right edges right to left), 8 px inside the window.
   const menuLeft = () => startAlignedClamped(props.anchor, 260, window.innerWidth, 8);
   // The language list beside the menu on the end side, on the other side when the menu is at the window's edge
-  // (the desktop main menu, at the top right).
+  // (a menu at the window's end edge).
   const languagesLeft = () =>
     besideLeft(root.getBoundingClientRect(), LANGUAGES_WIDTH, document.documentElement.clientWidth, 8);
 
   return (
     <div
       ref={(el) => { root = el; popover(el); }}
-      class="ot-popover profile-menu"
+      class="ot-popover profile-menu account-menu"
       role="menu"
-      aria-label="Main menu"
+      aria-label="Account menu"
       style={{ position: "fixed", left: `${Math.round(menuLeft())}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
     >
-      {/* Update downloaded: the reference app's "Relaunch to update" row, above Settings. */}
-      <Show when={updateReady()}>
-        <button
-          type="button"
-          role="menuitem"
-          class="update-app-menu-item available"
-          onClick={() => {
-            installUpdate();
-            props.onClose();
-          }}
-        >
-          <Icon name="update-app-check" size={28} />
-          <span>Relaunch to update</span>
-        </button>
-      </Show>
-      <For each={rows(props.reopenLabel)}>
+      <For each={rows()}>
         {(r) => (
           <Show when={r.type === "item" ? (r as Extract<Row, { type: "item" }>) : null} fallback={<div class="profile-menu-sep" />}>
             {(item) => (

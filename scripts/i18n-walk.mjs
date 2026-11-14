@@ -538,13 +538,14 @@ state("header › chart settings", {
     await dismiss('[data-qa-id="series-properties-dialog"]');
   },
 });
-popover("header › profile menu", '[data-qa-id="main-menu-button"]', ".profile-menu");
+popover("header › account menu", '[data-qa-id="account-menu-button"]', ".account-menu");
+popover("title bar › main menu", '[data-qa-id="main-menu-button"]', ".main-menu");
 state("header › app settings", {
   open: async () => {
     await key(",", { ctrl: true });
     if (!(await exists(".app-settings-dialog"))) {
-      await click('[data-qa-id="main-menu-button"]');
-      await click(".profile-menu .profile-menu-row", 0);
+      await click('[data-qa-id="account-menu-button"]');
+      await click(".account-menu .profile-menu-row", 0);
     }
     await waitFor(".app-settings-dialog");
     return [".app-settings-dialog"];
@@ -553,7 +554,7 @@ state("header › app settings", {
   close: async () => {
     if (await exists(".app-settings-close")) await click(".app-settings-close");
     await dismiss(".app-settings-dialog");
-    await dismiss(".profile-menu");
+    await dismiss(".account-menu");
   },
 });
 

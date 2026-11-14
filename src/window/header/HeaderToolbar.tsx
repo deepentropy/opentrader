@@ -323,13 +323,13 @@ export function HeaderToolbar(props: Props) {
   return (
     <div class={"header-toolbar" + (compact() ? " is-compact" : "")} role="toolbar" aria-label="Chart header">
       <ScrollStrip axis="x" arrowsOnHover class="header-toolbar-scroll" contentClass="header-toolbar-row" onResize={fitRow}>
-        {/* Account/main menu — circular avatar at the far left, before the
+        {/* Account menu — circular avatar at the far left, before the
             symbol field. No tooltip: there is no account to show. */}
           <button
             type="button"
             class={"header-toolbar-profile" + (profileAnchor() ? " is-open" : "")}
-            data-qa-id="main-menu-button"
-            aria-label="Main menu"
+            data-qa-id="account-menu-button"
+            aria-label="Account menu"
             aria-haspopup="menu"
             aria-expanded={!!profileAnchor()}
             onClick={(e) =>

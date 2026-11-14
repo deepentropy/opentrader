@@ -733,8 +733,11 @@ function App() {
         />
         <TabPanelActions
           onOpenAppSettings={() => setAppSettingsTab("general")}
+          onNewTab={appTabs.newTab}
           reopenLabel={reopenLabel()}
           onReopen={() => void appTabs.reopenClosed()}
+          themeSetting={themeSetting()}
+          onThemeChange={setThemeSetting}
         />
         <WindowControls />
       </div>

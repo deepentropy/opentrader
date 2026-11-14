@@ -338,6 +338,10 @@
   margin: 4px 8px;
   background: var(--color-divider-hover);
 }
+/* Title bar main menu: the System / Dark / Light tiles under the rows. */
+.main-menu-theme {
+  padding: 4px 0 8px;
+}
 
 /* Update downloaded: the reference app's "Relaunch to update" row (update-app-menu-item). */
 .update-app-menu-item {

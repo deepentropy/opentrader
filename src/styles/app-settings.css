@@ -273,6 +273,17 @@
 .app-settings-theme.large .app-settings-theme-inner {
   border-radius: 9px;
 }
+/* Compact size (title bar main menu): 75x45 tiles, labels centred. */
+.app-settings-theme.compact {
+  justify-content: center;
+}
+.app-settings-theme.compact .app-settings-theme-option {
+  align-items: center;
+}
+.app-settings-theme.compact .app-settings-theme-icon {
+  width: 75px;
+  height: 45px;
+}
 .app-settings-theme.large .app-settings-theme-label {
   font-size: 16px;
   font-weight: 600;

@@ -2,12 +2,13 @@
  * TabPanelActions — the cluster between the tabs and the window controls in
  * the merged title bar (`tab-panel-actions`); we ship the
  * main-menu button (meatballs glyph for a signed-in user) which opens the
- * account / app main menu (reusing the header's ProfileMenu).
+ * window's main menu (MainMenu).
  */
 import { createSignal, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { ProfileMenu } from "../header/ProfileMenu";
+import { MainMenu } from "./MainMenu";
+import type { ThemeSetting } from "./app-theme";
 import { updateReady } from "../../data/app-update";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
@@ -19,17 +20,18 @@ const WEB_BUILD = import.meta.env.MODE === "web";
 const DESKTOP_DOWNLOAD_URL = "https://opentrader.markets/download.html";
 
 type Props = {
-  userName?: string;
-  /** Open App Settings (ProfileMenu's "app-settings" row). */
-  onOpenAppSettings?: () => void;
+  /** Open App Settings (the main menu's Settings row). */
+  onOpenAppSettings: () => void;
+  onNewTab: () => void;
   /** "Reopen closed tab" / "Reopen closed window" (null: nothing to reopen). */
   reopenLabel?: string | null;
-  onReopen?: () => void;
+  onReopen: () => void;
+  themeSetting: ThemeSetting;
+  onThemeChange: (s: ThemeSetting) => void;
 };
 
 export function TabPanelActions(props: Props) {
   const [anchor, setAnchor] = createSignal<DOMRect | null>(null);
-  const userName = () => props.userName ?? "Trader";
   const toggleMenu = (e: MouseEvent & { currentTarget: HTMLButtonElement }) =>
     setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()));
   const paid = PAID_ENABLED && isTauri();
@@ -125,14 +127,17 @@ export function TabPanelActions(props: Props) {
       </Show>
       <Show when={anchor()}>
         {(a) => (
-          <ProfileMenu
+          <MainMenu
             anchor={a()}
-            userName={userName()}
             onClose={() => setAnchor(null)}
             reopenLabel={props.reopenLabel}
+            themeSetting={props.themeSetting}
+            onThemeChange={props.onThemeChange}
             onAction={(action) => {
-              if (action === "app-settings") props.onOpenAppSettings?.();
-              if (action === "reopen-closed") props.onReopen?.();            }}
+              if (action === "app-settings") props.onOpenAppSettings();
+              else if (action === "new-tab") props.onNewTab();
+              else props.onReopen();
+            }}
           />
         )}
       </Show>
