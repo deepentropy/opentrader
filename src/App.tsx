@@ -22,6 +22,8 @@ import { drawingPanelVisible } from "./data/drawing-panel";
 import { FavoritesToolbar } from "./window/drawings/FavoritesToolbar";
 import { TabPanel } from "./window/shell/TabPanel";
 import { TabPanelActions } from "./window/shell/TabPanelActions";
+import { KeyboardShortcutsPanel } from "./window/shell/KeyboardShortcutsPanel";
+import { ZoomToast } from "./window/shell/ZoomToast";
 import { WindowControls } from "./window/shell/WindowControls";
 import { DEFAULT_PANELS, reconcilePanes } from "./window/shell/tabs";
 import { recordRecentSymbol } from "./data/recent-symbols";
@@ -126,6 +128,8 @@ import {
   onboardingOpen,
   openFirstStartOnboarding,
   setOnboardingOpen,
+  setShortcutsOpen,
+  shortcutsOpen,
   compareDialogOpen,
   compareTarget,
   indicatorsDialogOpen,
@@ -1112,6 +1116,10 @@ function App() {
           />
         )}
       </Show>
+      <Show when={shortcutsOpen()}>
+        <KeyboardShortcutsPanel onClose={() => setShortcutsOpen(false)} />
+      </Show>
+      <ZoomToast />
       <Show when={onboardingOpen()}>
         <AppOnboarding
           theme={theme()}

@@ -8,12 +8,13 @@
  * the left drawing toolbar via the shared `drawing-panel` signal (persisted),
  * and Language, which opens the language list. "App settings…" fires the
  * `app-settings` action; "App onboarding..." (desktop app) opens the
- * onboarding dialog, as the reference app's support menu does.
+ * onboarding dialog, as the reference app's support menu does; "Keyboard
+ * shortcuts" opens their panel (KeyboardShortcutsPanel).
  */
 import { createSignal, For, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
-import { setOnboardingOpen } from "../shell/app-dialogs";
+import { setOnboardingOpen, setShortcutsOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { currentLanguage, currentLanguageLabel, menuLanguages, setLanguage } from "../../i18n/language";
 import { createPopover } from "../../components/popover";
@@ -38,13 +39,15 @@ const ONBOARDING_ROW: Row = { type: "item", label: "App onboarding...", icon: "m
 /** The language list's width (`.profile-menu-languages`). */
 const LANGUAGES_WIDTH = 148;
 const DRAWINGS_ROW: Row ={ type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
+const SHORTCUTS_ROW: Row = { type: "item", label: "Keyboard shortcuts", icon: "profile-keyboard", hotkey: "Ctrl + /", action: "keyboard-shortcuts" };
 
-/** App settings…, App onboarding... (desktop app), Drawings panel, Language. */
+/** App settings…, App onboarding... (desktop app), Drawings panel, Language, Keyboard shortcuts. */
 function rows(): Row[] {
   const out: Row[] = [SETTINGS_ROW];
   if (isTauri()) out.push(ONBOARDING_ROW);
   out.push(DRAWINGS_ROW);
   out.push({ type: "item", label: "Language", icon: "profile-language", value: currentLanguageLabel(), submenu: true, action: "language" });
+  out.push(SHORTCUTS_ROW);
   return out;
 }
 
@@ -116,6 +119,7 @@ export function ProfileMenu(props: Props) {
                     return;
                   }
                   if (item().action === "app-onboarding") setOnboardingOpen(true);
+                  else if (item().action === "keyboard-shortcuts") setShortcutsOpen(true);
                   else if (item().action) props.onAction?.(item().action!);
                   props.onClose();
                 }}

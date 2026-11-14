@@ -4,12 +4,13 @@
  * main-menu button (meatballs glyph for a signed-in user) which opens the
  * window's main menu (MainMenu).
  */
-import { createSignal, onMount, Show } from "solid-js";
+import { createEffect, createSignal, on, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { MainMenu } from "./MainMenu";
 import type { ThemeSetting } from "./app-theme";
 import { updateReady } from "../../data/app-update";
+import { zoom } from "../../data/app-zoom";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
 import { PAID_ENABLED, initPaid, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
@@ -34,6 +35,11 @@ export function TabPanelActions(props: Props) {
   const [anchor, setAnchor] = createSignal<DOMRect | null>(null);
   const toggleMenu = (e: MouseEvent & { currentTarget: HTMLButtonElement }) =>
     setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()));
+  // The Zoom row keeps the menu open: place it again under its button at the new zoom.
+  createEffect(on(zoom, () => {
+    const btn = document.querySelector<HTMLElement>(".tab-panel-actions .main-menu-button");
+    if (anchor() && btn) setAnchor(btn.getBoundingClientRect());
+  }, { defer: true }));
   const paid = PAID_ENABLED && isTauri();
   onMount(initPaid);
   const badgeTip = () =>

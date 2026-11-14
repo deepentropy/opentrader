@@ -21,6 +21,9 @@ void hydrateKv().finally(async () => {
   // Update state for the title bar, main menu and Settings > About.
   const { initAppUpdate } = await import("./data/app-update");
   initAppUpdate();
+  // The run's app zoom (a window opened after a change takes it).
+  const { initAppZoom } = await import("./data/app-zoom");
+  initAppZoom();
   // The interface language, before anything is drawn.
   const { startTranslation } = await import("./i18n/language");
   await startTranslation().finally(() => document.getElementById("splash")?.classList.add("is-translated"));

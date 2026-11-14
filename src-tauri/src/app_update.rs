@@ -65,11 +65,13 @@ pub struct AppUpdateStatus {
     pub update_required: bool,
 }
 
-/// Sent to every window right before the install: write pending settings now,
-/// then call `app_update_flushed`.
+/// Sent to every window right before the app exits (an update installs, or
+/// Exit in the main menu): write pending settings now, then call
+/// `app_settings_flushed`.
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type, Event)]
-pub struct AppUpdateBeforeInstall {
-    pub version: String,
+pub struct BeforeExit {
+    /// The version about to install; None when the app just quits.
+    pub update: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, specta::Type)]
@@ -406,10 +408,10 @@ pub fn app_set_alerts_active(active: bool, state: State<'_, AppUpdate>) {
     state.alerts_active.store(active, Ordering::Relaxed);
 }
 
-/// A window has written its pending settings (answer to AppUpdateBeforeInstall).
+/// A window has written its pending settings (answer to BeforeExit).
 #[tauri::command]
 #[specta::specta]
-pub fn app_update_flushed(window: tauri::WebviewWindow, state: State<'_, AppUpdate>) {
+pub fn app_settings_flushed(window: tauri::WebviewWindow, state: State<'_, AppUpdate>) {
     state.flushed.locked().insert(window.label().to_string());
     state.flushed_notify.notify_waiters();
 }
@@ -420,6 +422,33 @@ pub fn app_update_flushed(window: tauri::WebviewWindow, state: State<'_, AppUpda
 #[specta::specta]
 pub async fn app_update_install(app: AppHandle) -> Result<(), String> {
     install_now(&app).await
+}
+
+/// Before the app exits: every window writes its pending settings (up to
+/// FLUSH_TIMEOUT), then the settings store and the window session go to disk.
+pub async fn save_before_exit(app: &AppHandle, update: Option<String>) {
+    let state = app.state::<AppUpdate>();
+    let windows: HashSet<String> = app.webview_windows().into_keys().collect();
+    state.flushed.locked().clear();
+    let _ = BeforeExit { update }.emit(app);
+    let all_flushed = async {
+        loop {
+            let notified = state.flushed_notify.notified();
+            if windows.is_subset(&state.flushed.locked()) {
+                return;
+            }
+            notified.await;
+        }
+    };
+    if tokio::time::timeout(FLUSH_TIMEOUT, all_flushed).await.is_err() {
+        eprintln!("[app] not every window confirmed its settings write; exiting anyway");
+    }
+    if let Some(store) = app.get_store(STORE_FILE) {
+        if let Err(e) = store.save() {
+            eprintln!("[app] store save failed: {e}");
+        }
+    }
+    crate::window_session::save(app);
 }
 
 /// Save everything, install the ready update, start the new version.
@@ -441,30 +470,8 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
     let required = state.required.load(Ordering::Relaxed);
     let _ = AppUpdateStatus { state: UpdateState::Installing, version: Some(version.clone()), update_required: required }.emit(&app);
 
-    // 1. Every window writes its pending settings.
-    let windows: HashSet<String> = app.webview_windows().into_keys().collect();
-    state.flushed.locked().clear();
-    let _ = AppUpdateBeforeInstall { version: version.clone() }.emit(&app);
-    let all_flushed = async {
-        loop {
-            let notified = state.flushed_notify.notified();
-            if windows.is_subset(&state.flushed.locked()) {
-                return;
-            }
-            notified.await;
-        }
-    };
-    if tokio::time::timeout(FLUSH_TIMEOUT, all_flushed).await.is_err() {
-        eprintln!("[app-update] not every window confirmed its settings write; installing anyway");
-    }
-
-    // 2. Settings store and window session to disk.
-    if let Some(store) = app.get_store(STORE_FILE) {
-        if let Err(e) = store.save() {
-            eprintln!("[app-update] store save failed: {e}");
-        }
-    }
-    crate::window_session::save(&app);
+    // 1-2. Every window's pending settings, the settings store and the window session to disk.
+    save_before_exit(&app, Some(version.clone())).await;
 
     // 3. Install. Windows: runs the installer and exits. macOS: replaces the app bundle.
     if let Err(e) = update.install(&bytes) {

@@ -342,6 +342,46 @@
 .main-menu-theme {
   padding: 4px 0 8px;
 }
+/* "Open link from clipboard" with no link the app opens on the clipboard. */
+.profile-menu-row:disabled,
+.profile-menu-row:disabled:hover {
+  background: transparent;
+  color: var(--color-popup-element-secondary-text);
+  opacity: 0.5;
+}
+/* Zoom row: icon, title, then − 100% + (square buttons). */
+.main-menu-zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.main-menu-zoom-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--color-popup-element-background-hover);
+  color: inherit;
+  cursor: pointer;
+}
+.main-menu-zoom-step:hover {
+  background: var(--color-cold-gray-700);
+}
+html.theme-light .main-menu-zoom-step:hover {
+  background: var(--color-cold-gray-200);
+}
+.main-menu-zoom-value {
+  min-width: 42px;
+  text-align: center;
+  margin-inline: -8px;
+}
 
 /* Update downloaded: the reference app's "Relaunch to update" row (update-app-menu-item). */
 .update-app-menu-item {

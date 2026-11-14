@@ -1,5 +1,6 @@
 mod agent;
 mod alerts;
+mod app_menu;
 mod assistant;
 mod local_model;
 mod app_update;
@@ -88,9 +89,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             window_session::take_closed_window_bounds,
             window_session::open_window,
             window_session::open_devtools,
+            app_menu::app_zoom_set,
+            app_menu::app_zoom_get,
+            app_menu::app_quit,
+            app_menu::app_clipboard_text,
             app_update::app_update_status,
             app_update::app_update_check,
-            app_update::app_update_flushed,
+            app_update::app_settings_flushed,
             app_update::app_user_active,
             app_update::app_set_alerts_active,
             app_update::app_update_install,
@@ -146,7 +151,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             alerts::AlertLeader,
             deep_link::DeepLinkOpened,
             app_update::AppUpdateStatus,
-            app_update::AppUpdateBeforeInstall,
+            app_update::BeforeExit,
+            app_menu::AppZoomChanged,
             agent::AgentRequest,
             plugins::PluginsChanged,
             plugins::broker::BrokerStatus,
@@ -251,6 +257,7 @@ pub fn run() {
             app.manage(opentrader_core::start(&host, &provider, token_file));
             app.manage(provider);
             app.manage(screener::Screener::default());
+            app.manage(app_menu::Zoom::default());
             // Update check at startup, then hourly (app_update).
             app_update::init(app.handle());
             // Settings > Coding agents (listens only when turned on).

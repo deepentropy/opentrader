@@ -98,6 +98,10 @@ const ONBOARDING_KEY = "ot:app-onboarding";
 const [onboardingOpen, setOnboardingOpen] = createSignal(false);
 export { onboardingOpen, setOnboardingOpen };
 
+/** The Keyboard shortcuts panel (account menu, Ctrl + /). */
+const [shortcutsOpen, setShortcutsOpen] = createSignal(false);
+export { shortcutsOpen, setShortcutsOpen };
+
 /** First start: open the onboarding and remember it was shown. */
 export function openFirstStartOnboarding(): void {
   if (kv.getItem(ONBOARDING_KEY)) return;

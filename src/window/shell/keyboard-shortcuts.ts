@@ -15,6 +15,10 @@
  * Chart pan/zoom/scale/snapshot are sent as app events; the focused
  * ChartView pane handles them (see ChartView's chart-* listeners). The shell
  * hotkeys (tab cycling, Ctrl+T / F4 / U / W / R, F5) act on the tabs.
+ * App hotkeys, whatever holds focus: Ctrl+/ → Keyboard shortcuts panel (not in
+ * a text field or the script editor, which comments lines with it); desktop
+ * app: Ctrl+= / Ctrl+- / Ctrl+0 (numpad too) → app zoom, Ctrl+Shift+Q → Exit.
+ * The panel's list (shortcut-list.ts) follows this file: keep them in step.
  */
 import { emitAppEvent } from "../../data/app-events";
 import { replayEnabled } from "../../data/replay";
@@ -25,7 +29,9 @@ import { requestOpenList, watchlistStore } from "../../data/watchlist-store";
 import { activeChartProbe } from "../chart/active-chart";
 import { adjacentChart } from "../chart/layouts";
 import { selectedDrawingId } from "../drawings/drawing-selection";
-import { openNewWindow, toggleFullscreen } from "./window-bridge";
+import { commands } from "../../bindings";
+import { resetZoom, stepZoom } from "../../data/app-zoom";
+import { isTauri, openNewWindow, toggleFullscreen } from "./window-bridge";
 import type { AppTabs } from "./app-tabs";
 import {
   openMenuAt,
@@ -35,6 +41,7 @@ import {
   setAppSettingsTab,
   setIndicatorsDialogOpen,
   setIntervalDialog,
+  setShortcutsOpen,
 } from "./app-dialogs";
 
 /** What the shortcuts act on (App's state and operations). */
@@ -96,6 +103,21 @@ export function installKeyboardShortcuts(a: ShortcutActions): () => void {
         e.preventDefault();
         setAppSettingsTab("general");
         return;
+      }
+      // Ctrl+/ → Keyboard shortcuts (open / close).
+      if (!e.shiftKey && (e.code === "Slash" || e.key === "/")) {
+        const el = e.target as HTMLElement | null;
+        if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable || el.closest?.(".monaco-editor"))) return;
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+      // App zoom and Exit (desktop app; a browser keeps its own).
+      if (isTauri()) {
+        if (!e.shiftKey && (e.code === "Equal" || e.code === "NumpadAdd")) { e.preventDefault(); void stepZoom(1); return; }
+        if (!e.shiftKey && (e.code === "Minus" || e.code === "NumpadSubtract")) { e.preventDefault(); void stepZoom(-1); return; }
+        if (!e.shiftKey && (e.code === "Digit0" || e.code === "Numpad0")) { e.preventDefault(); void resetZoom(); return; }
+        if (e.shiftKey && e.code === "KeyQ") { e.preventDefault(); void commands.appQuit(); return; }
       }
     }
     // F5 → reload the active tab, not the webview.

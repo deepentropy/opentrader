@@ -1,0 +1,260 @@
+/* Keyboard shortcuts panel (KeyboardShortcutsPanel.tsx). Metrics of the
+ * reference panel: content 904 px at most, padded 66/80/66/100; title 24/28
+ * semibold; sections 72 px, 18/28 titles, the open one filled, radius 6; rows
+ * 34 px apart by 24, labels 16/24; key caps 34 px high, outlined, radius 6. */
+.kbs-panel {
+  --kbs-text: var(--color-cold-gray-300);
+  --kbs-muted: var(--color-cold-gray-450);
+  --kbs-field-border: #303030;
+  --kbs-key-border: #464646;
+  --kbs-open-fill: #131313;
+  position: fixed;
+  bottom: 0;
+  inset-inline-end: 0;
+  z-index: 900;
+  display: flex;
+  min-width: min(100%, 350px);
+  max-width: 100%;
+  background-color: var(--color-body-bg);
+  color: var(--kbs-text);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.4), 0 0 2px 0 rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+}
+html.theme-light .kbs-panel {
+  --kbs-text: var(--color-cold-gray-800);
+  --kbs-muted: var(--color-cold-gray-550);
+  --kbs-field-border: var(--color-cold-gray-200);
+  --kbs-key-border: var(--color-cold-gray-250);
+  --kbs-open-fill: var(--color-cold-gray-50);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12), 0 0 2px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* Resize grip on the start edge: a 4 x 76 bar. */
+.kbs-grip {
+  flex: 0 0 16px;
+  display: flex;
+  align-items: center;
+  cursor: col-resize;
+  touch-action: none;
+}
+.kbs-grip-bar {
+  width: 4px;
+  height: 76px;
+  margin-inline-start: 12px;
+  border-radius: 3px;
+  background-color: var(--color-cold-gray-750);
+}
+.kbs-grip:hover .kbs-grip-bar {
+  background-color: var(--color-cold-gray-600);
+}
+html.theme-light .kbs-grip-bar {
+  background-color: var(--color-cold-gray-200);
+}
+html.theme-light .kbs-grip:hover .kbs-grip-bar {
+  background-color: var(--color-cold-gray-300);
+}
+
+.kbs-close {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--kbs-text);
+  cursor: pointer;
+}
+.kbs-close:hover {
+  color: var(--color-content-primary-neutral-bold, var(--kbs-text));
+}
+
+.kbs-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.kbs-content {
+  box-sizing: border-box;
+  max-width: 904px;
+  margin: 0 auto;
+  padding: 66px 80px 66px 100px;
+  padding-inline: 100px 80px;
+}
+
+.kbs-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.kbs-intro {
+  margin: 16px 0 0;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.kbs-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  margin: 24px 0 32px;
+  padding-inline: 6px 0;
+  box-sizing: border-box;
+  border: 1px solid var(--kbs-field-border);
+  border-radius: 8px;
+  color: var(--kbs-text);
+}
+.kbs-search:focus-within {
+  border-color: var(--color-ot-blue-500);
+}
+.kbs-search input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 5px 0 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+.kbs-search input::placeholder {
+  color: var(--kbs-muted);
+}
+
+.kbs-empty {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--kbs-muted);
+}
+
+/* Sections: 72 px heads, a line between closed ones, the open one filled. */
+.kbs-section {
+  margin-inline: -16px;
+}
+.kbs-section + .kbs-section {
+  border-top: 1px solid var(--kbs-field-border);
+}
+.kbs-section.is-open + .kbs-section,
+.kbs-section.is-open {
+  border-top-color: transparent;
+}
+.kbs-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 72px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.kbs-section-head:disabled {
+  cursor: default;
+}
+.kbs-section.is-open .kbs-section-head {
+  background-color: var(--kbs-open-fill);
+}
+.kbs-section-icon {
+  display: flex;
+}
+.kbs-section-title {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 400;
+}
+.kbs-chevron {
+  display: flex;
+  transition: transform 0.15s;
+}
+.kbs-section.is-open .kbs-chevron {
+  transform: rotate(180deg);
+}
+
+.kbs-rows {
+  margin: 0;
+  padding: 16px 16px 24px;
+  list-style: none;
+}
+.kbs-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 34px;
+  padding-inline-start: 42px;
+}
+.kbs-row + .kbs-row {
+  margin-top: 24px;
+}
+.kbs-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+  line-height: 24px;
+}
+.kbs-note {
+  display: inline-flex;
+  color: var(--kbs-muted);
+  cursor: default;
+}
+.kbs-keys {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 10px;
+}
+.kbs-key {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--kbs-key-border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--kbs-text);
+}
+.kbs-text {
+  font-size: 14px;
+  line-height: 17px;
+  color: var(--kbs-muted);
+}
+
+/* Main menu zoom toast (ZoomToast.tsx): "Zoom 110%", 2 s, at the window's top. */
+.zoom-toast {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  padding: 11px 8px;
+  border-radius: 8px;
+  background-color: var(--color-cold-gray-750);
+  color: var(--color-white);
+  font-size: 14px;
+  line-height: 18px;
+  pointer-events: none;
+}

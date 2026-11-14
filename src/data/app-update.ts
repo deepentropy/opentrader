@@ -37,9 +37,9 @@ export function initAppUpdate(): void {
   started = true;
   void events.appUpdateStatus.listen((e) => setStatus(e.payload));
   void commands.appUpdateStatus().then(setStatus);
-  // Before the installer runs: write this window's pending settings, then confirm.
-  void events.appUpdateBeforeInstall.listen(() => {
-    void flushKv().finally(() => void commands.appUpdateFlushed());
+  // Before the app exits (an update installs, or Exit): write this window's pending settings, then confirm.
+  void events.beforeExit.listen(() => {
+    void flushKv().finally(() => void commands.appSettingsFlushed());
   });
   // The user is using the app: no update installs by itself meanwhile.
   let reported = 0;

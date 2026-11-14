@@ -7,11 +7,25 @@
  */
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { commands, events } from "../../bindings";
+import { COMMUNITY_ENABLED, COMMUNITY_URL } from "./api";
 import { requestOpenPost } from "./notifications";
 
 /** The post of a link: `opentrader://post/<id>`; null for anything else. */
 export function linkedPost(url: string): string | null {
   const m = /^opentrader:\/\/(?:post|p)\/([a-z0-9]{4,20})\/?(?:[?#].*)?$/i.exec(url.trim());
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** The post of a link the app opens: `opentrader://post/<id>` or the post's
+ *  page on the Community website (`<site>/p/<id>`); null for anything else or
+ *  when the Community is off. "Open link from clipboard" in the main menu. */
+export function postOfLink(url: string, site = COMMUNITY_URL): string | null {
+  if (!COMMUNITY_ENABLED) return null;
+  const text = url.trim();
+  const deep = linkedPost(text);
+  if (deep) return deep;
+  if (!text.toLowerCase().startsWith(`${site.toLowerCase()}/p/`)) return null;
+  const m = /^([a-z0-9]{4,20})\/?(?:[?#].*)?$/i.exec(text.slice(site.length + 3));
   return m ? m[1].toLowerCase() : null;
 }
 
