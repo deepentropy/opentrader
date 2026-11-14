@@ -96,7 +96,7 @@ describe("get_fundamentals", () => {
 
   it("says when a company has no statements of the period asked", async () => {
     answers.fundamentals = { status: "ok", data: { ...FUNDAMENTALS, ticker: "TSM", quarterly: {}, annual: {} } };
-    await expect(run("get_fundamentals", { symbol: "TSM" })).rejects.toThrow(/No financial statements for TSM: foreign companies filing 20-F/);
+    await expect(run("get_fundamentals", { symbol: "TSM" })).rejects.toThrow(/^No financial statements for TSM in its filings\.$/);
     answers.fundamentals = { status: "ok", data: { ...FUNDAMENTALS, quarterly: {} } };
     await expect(run("get_fundamentals")).rejects.toThrow(/No quarterly figures for AAPL: ask period: annual/);
   });

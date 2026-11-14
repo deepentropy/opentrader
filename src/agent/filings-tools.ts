@@ -47,7 +47,7 @@ function failure(symbol: string, error: string, what: string): AgentError {
   if (/NOT_FOUND|404/.test(error)) {
     if (/no such filing/.test(error)) return new AgentError(`Not a filing of ${symbol}: take ids from list_filings of the same symbol.`);
     const why = /no section/.test(error) ? error.replace(/^[^:]*:\s*/, "").replace(/\s*\([^)]*\)\s*$/, "") : null;
-    return new AgentError(why ? `${why}.` : `No ${what} for ${symbol}: funds, ETFs, indices and foreign companies filing 20-F / 40-F reports have none.`);
+    return new AgentError(why ? `${why}.` : `No ${what} for ${symbol}: funds, ETFs and indices have none.`);
   }
   if (/RATE_LIMITED|429/.test(error)) return new AgentError(`Too many new filings read in a minute: try again in a minute.`);
   return new AgentError(`Could not read the ${what} of ${symbol}: ${error}`);
@@ -92,7 +92,7 @@ export function selectFundamentals(f: Fundamentals, opts: { statement: Statement
     throw new AgentError(
       (other === "annual" ? f.annual : f.quarterly)?.end?.length
         ? `No ${opts.period} figures for ${f.ticker}: ask period: ${other}.`
-        : `No financial statements for ${f.ticker}: foreign companies filing 20-F / 40-F reports have none.`,
+        : `No financial statements for ${f.ticker} in its filings.`,
     );
   }
   const known = new Set([...Object.keys(p.items ?? {}), "freeCashFlow", "sharesOutstanding"]);
@@ -235,7 +235,7 @@ export function createFilingsTools(focusedSymbol: () => string): AgentTool[] {
       description:
         "A company's financial statements per fiscal quarter or year (reported figures, in its currency), its latest earnings release (date, bmo / amc, EPS, revenue) and the projected next one (estimated: true, not an announced date). " +
         "statement: summary (default), income, balance or cash_flow, about ten items each; or items: item keys (revenue, netIncome, totalAssets, freeCashFlow…). " +
-        "period: quarterly (default) or annual; limit: periods, newest first (default 4, at most 12). coverage is the first period served. Funds, ETFs and foreign 20-F filers have none.",
+        "period: quarterly (default) or annual; limit: periods, newest first (default 4, at most 12). coverage is the first period served. Funds and ETFs have none; most foreign filers (20-F) report years only, in their own currency.",
       inputSchema: {
         type: "object",
         properties: {
