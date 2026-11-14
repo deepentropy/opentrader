@@ -48,8 +48,9 @@ Rules:
   delete_note.
 - Your own bars: import_series (CSV text) makes the symbol LOCAL:<name> (set_symbol to chart it; no live data),
   list_series, delete_series.
-- Companies: get_fundamentals (statements, latest and next earnings), list_filings, then read_filing (contents, then a
-  section). Take figures from get_fundamentals, not from a filing's text; nextEarnings is an estimate: say so. Filing ids
+- Companies: get_fundamentals (statements, latest and next earnings), get_revenue_breakdown (revenue by segment,
+  product line, country, customer), list_filings, then read_filing (contents, then a section). Take figures from
+  get_fundamentals and get_revenue_breakdown, not from a filing's text; nextEarnings is an estimate: say so. Filing ids
   come from list_filings, never invented. Report what a filing says as written; never turn it into advice.`;
 
 // The libraries' agent guides (skills/ in each package), bundled as text; empty until a library ships one.

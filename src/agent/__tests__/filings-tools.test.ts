@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const calls = vi.hoisted(() => ({ list: [] as unknown[][], read: [] as unknown[][], fundamentals: [] as string[] }));
-const answers = vi.hoisted(() => ({ fundamentals: null as unknown, list: null as unknown, read: null as unknown }));
+const calls = vi.hoisted(() => ({ list: [] as unknown[][], read: [] as unknown[][], fundamentals: [] as string[], breakdown: [] as string[] }));
+const answers = vi.hoisted(() => ({ fundamentals: null as unknown, list: null as unknown, read: null as unknown, breakdown: null as unknown }));
 vi.mock("../../bindings", () => ({
   commands: {
     getFundamentals: (s: string) => (calls.fundamentals.push(s), Promise.resolve(answers.fundamentals)),
     getFilings: (...a: unknown[]) => (calls.list.push(a), Promise.resolve(answers.list)),
     readFiling: (...a: unknown[]) => (calls.read.push(a), Promise.resolve(answers.read)),
+    getRevenueBreakdown: (s: string) => (calls.breakdown.push(s), Promise.resolve(answers.breakdown)),
   },
 }));
 vi.mock("../../data/fundamentals", () => ({ hasFundamentals: (s: string) => !/^(ECONOMICS|LOCAL):/i.test(s) }));
 
-import { createFilingsTools, selectFundamentals, STATEMENT_ITEMS } from "../filings-tools";
+import { createFilingsTools, selectFundamentals, selectRevenueBreakdown, STATEMENT_ITEMS } from "../filings-tools";
 import { AgentError } from "../mcp";
 
 const tools = createFilingsTools(() => "NASDAQ:AAPL");
@@ -46,7 +47,7 @@ const FUNDAMENTALS = {
 };
 
 beforeEach(() => {
-  calls.list.length = calls.read.length = calls.fundamentals.length = 0;
+  calls.list.length = calls.read.length = calls.fundamentals.length = calls.breakdown.length = 0;
   answers.fundamentals = { status: "ok", data: FUNDAMENTALS };
 });
 
@@ -164,5 +165,66 @@ describe("read_filing", () => {
     await expect(run("read_filing", { id, section: "9" })).rejects.toThrow(/^no section 9; sections: 1, 1A, 7\.$/);
     answers.read = { status: "error", error: "filing: no such filing for this ticker (NOT_FOUND)" };
     await expect(run("read_filing", { id, symbol: "MSFT" })).rejects.toThrow(/^Not a filing of MSFT: take ids from list_filings/);
+  });
+});
+
+// Two annual reports (the later one amended) and a quarter, as the gateway answers them.
+const role = (total: number | null, coverage = 1) => ({ concept: "us-gaap:Revenues", total, coverage });
+const report = (o: Record<string, unknown>) => ({
+  accession: "0001045810-26-000021", form: "10-K", accepted: "2026-02-25T21:30:00Z", fy: 2026, fp: "FY", periodEnd: "2026-01-31", months: 12,
+  derived: false, currency: "USD", totalRevenue: 200, segments: null, products: null, geography: null, customers: null, ...o,
+});
+const BREAKDOWN = {
+  ticker: "NVDA",
+  reports: [
+    report({ accepted: "2025-02-26T21:30:00Z", fy: 2025, periodEnd: "2025-01-31", totalRevenue: 100, geography: { revenue: role(100), members: [{ id: "US", label: "UNITED STATES", revenue: 60 }] } }),
+    report({
+      products: { revenue: role(200), members: [{ id: "DC", label: "Data Center", revenue: 180 }, { id: "G", label: "Gaming", revenue: 20 }] },
+      geography: { revenue: role(200, 1.5), members: [{ id: "US", label: "UNITED STATES", revenue: 150 }, { id: "Am", label: "Americas", revenue: 150 }] },
+      customers: { revenue: null, revenueShare: { concept: "us-gaap:ConcentrationRiskPercentage1", total: null, coverage: 0.13 }, members: [{ id: "C1", label: "Customer One", revenueShare: 0.13 }] },
+    }),
+    report({ form: "10-Q", fp: "Q3", periodEnd: "2025-10-31", months: 3, accepted: "2025-11-20T21:30:00Z", totalRevenue: 57, segments: { revenue: role(57), profit: null, members: [{ id: "CN", label: "Compute", revenue: 50, profit: 30 }] } }),
+    report({ form: "10-K/A", accepted: "2026-03-01T21:30:00Z", totalRevenue: 201, customers: { revenue: null, revenueShare: null, members: [{ id: "C1", label: "Customer One", revenueShare: 0.14 }] } }),
+  ],
+};
+
+describe("get_revenue_breakdown", () => {
+  beforeEach(() => {
+    answers.breakdown = { status: "ok", data: BREAKDOWN };
+  });
+
+  it("answers the newest annual report, its amendment superseding it, every breakdown with shares", async () => {
+    const r = (await run("get_revenue_breakdown")) as ReturnType<typeof selectRevenueBreakdown>;
+    expect(calls.breakdown).toEqual(["NASDAQ:AAPL"]);
+    expect(r.reports).toHaveLength(1);
+    expect(r.reports[0]).toEqual({
+      end: "2026-01-31", fy: 2026, fp: "FY", form: "10-K/A", id: "0001045810-26-000021", filed: "2026-03-01", currency: "USD", totalRevenue: 201,
+      customers: { members: [{ name: "Customer One", share: 0.14 }] },
+    });
+    const older = selectRevenueBreakdown(BREAKDOWN as never, { period: "annual", by: ["products", "geography", "customers"], limit: 4, top: 1 });
+    expect(older.reports.map((x) => x.end)).toEqual(["2026-01-31", "2025-01-31"]);
+    expect(older.reports[1]).toMatchObject({ geography: { members: [{ name: "UNITED STATES", revenue: 60, share: 0.6 }] } });
+  });
+
+  it("marks overlapping members and the ones left out", () => {
+    const only = { ticker: "NVDA", reports: [BREAKDOWN.reports[1]] };
+    const r = selectRevenueBreakdown(only as never, { period: "annual", by: ["products", "geography", "customers"], limit: 1, top: 1 });
+    expect(r.reports[0]).toMatchObject({
+      products: { members: [{ name: "Data Center", revenue: 180, share: 0.9 }], more: 1 },
+      geography: { members: [{ name: "UNITED STATES", revenue: 150, share: 0.75 }], more: 1, overlapping: true },
+      customers: { members: [{ name: "Customer One", share: 0.13 }] },
+    });
+  });
+
+  it("takes quarters, a selection of breakdowns, and says when a period length has none", async () => {
+    const q = (await run("get_revenue_breakdown", { period: "quarterly", by: ["segments"] })) as ReturnType<typeof selectRevenueBreakdown>;
+    expect(q.reports[0]).toMatchObject({ fp: "Q3", segments: { members: [{ name: "Compute", revenue: 50, profit: 30, share: 0.877 }] } });
+    expect(q.reports[0]).not.toHaveProperty("geography");
+    await expect(run("get_revenue_breakdown", { by: ["segments"] })).rejects.toThrow(/ask period: quarterly/);
+    await expect(run("get_revenue_breakdown", { by: ["regions"] })).rejects.toThrow(/"by"/);
+    await expect(run("get_revenue_breakdown", { limit: 9 })).rejects.toThrow(/"limit"/);
+    answers.breakdown = { status: "error", error: "revenue breakdown: no segment figures for this ticker (NOT_FOUND)" };
+    await expect(run("get_revenue_breakdown", { symbol: "SPY" })).rejects.toThrow(/^No revenue breakdown for SPY/);
+    await expect(run("get_revenue_breakdown", { symbol: "ECONOMICS:USGDP" })).rejects.toThrow(/not a company/);
   });
 });

@@ -17,7 +17,7 @@ use super::capabilities::{
 use super::entitlements;
 use super::{DataProvider, HistoryProvider, RealtimeProvider, ReferenceProvider, SymbolChange};
 use crate::data::types::{
-    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, RevenueBreakdown, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use crate::data::session::{Subsession, SymbolSession};
@@ -163,6 +163,12 @@ impl ReferenceProvider for GatewayProvider {
             anyhow::bail!("an economic series has no filings");
         }
         Ok(market_rest::fetch_filing_text(&ticker_case::to_source(&sym.ticker), accn, section, offset).await?)
+    }
+    async fn revenue_breakdown(&self, sym: &SymbolRef) -> Result<RevenueBreakdown> {
+        if economics::is_economic(&sym.exchange) {
+            anyhow::bail!("an economic series has no revenue breakdown");
+        }
+        Ok(market_rest::fetch_revenue_breakdown(&ticker_case::to_source(&sym.ticker)).await?)
     }
 }
 

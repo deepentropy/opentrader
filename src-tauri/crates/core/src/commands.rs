@@ -13,7 +13,7 @@ use crate::data::provider::{entitlements, Provider};
 use crate::data::session::SymbolSession;
 use crate::data::symbol::SymbolRef;
 use crate::data::types::{
-    DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent, SubscribeMsg,
+    DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, RevenueBreakdown, Snapshot, SplitEvent, SubscribeMsg,
     SymbolSearchResult, TickerInfo, WsHandle,
 };
 use crate::error::{Error, Result};
@@ -45,6 +45,7 @@ pub const SERVED: &[&str] = &[
     "get_fundamentals",
     "get_filings",
     "read_filing",
+    "get_revenue_breakdown",
     "get_data_provider",
     "get_provider_capabilities",
     "screener_open",
@@ -281,6 +282,10 @@ pub async fn filings(provider: &Provider, symbol: &str, query: &FilingQuery) -> 
 
 pub async fn read_filing(provider: &Provider, symbol: &str, accn: &str, section: Option<&str>, offset: Option<u32>) -> Result<FilingText> {
     Ok(provider.filing_text(&SymbolRef::parse(symbol), accn, section, offset.unwrap_or(0)).await?)
+}
+
+pub async fn revenue_breakdown(provider: &Provider, symbol: &str) -> Result<RevenueBreakdown> {
+    Ok(provider.revenue_breakdown(&SymbolRef::parse(symbol)).await?)
 }
 
 // ── Provider ──

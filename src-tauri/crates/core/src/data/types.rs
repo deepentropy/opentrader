@@ -8,7 +8,7 @@
  * import sites stay transport-agnostic.
  */
 pub use crate::data::market_rest::{
-    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent,
+    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, RevenueBreakdown, Snapshot, SplitEvent,
     SymbolSearchResult, TickerInfo,
 };
 pub use crate::data::market_stream::{

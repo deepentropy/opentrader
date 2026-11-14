@@ -24,7 +24,7 @@ use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
 use crate::data::session::SymbolSession;
 use crate::data::symbol::SymbolRef;
 use crate::data::types::{
-    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, RevenueBreakdown, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use anyhow::Result;
@@ -150,6 +150,10 @@ pub trait ReferenceProvider: Send + Sync {
     /// The contents of filing `accn` (no `section`), or a page of one section's text.
     async fn filing_text(&self, _sym: &SymbolRef, _accn: &str, _section: Option<&str>, _offset: u32) -> Result<FilingText> {
         anyhow::bail!("filings are not available from this data source")
+    }
+    /// Revenue by segment, product line, country or region and customer, per filing.
+    async fn revenue_breakdown(&self, _sym: &SymbolRef) -> Result<RevenueBreakdown> {
+        anyhow::bail!("revenue breakdowns are not available from this data source")
     }
 }
 

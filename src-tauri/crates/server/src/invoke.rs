@@ -168,6 +168,7 @@ routes!(
     get_fundamentals,
     get_filings,
     read_filing,
+    get_revenue_breakdown,
     get_data_provider,
     get_provider_capabilities,
     screener_open,
@@ -316,6 +317,11 @@ async fn get_filings(state: &Shared, _: &HeaderMap, body: &Bytes) -> Answer {
 async fn read_filing(state: &Shared, _: &HeaderMap, body: &Bytes) -> Answer {
     let a: args::ReadFiling = args(body)?;
     ok(core::read_filing(&state.provider, &a.symbol, &a.accn, a.section.as_deref(), a.offset).await?)
+}
+
+async fn get_revenue_breakdown(state: &Shared, _: &HeaderMap, body: &Bytes) -> Answer {
+    let a: args::Symbol = args(body)?;
+    ok(core::revenue_breakdown(&state.provider, &a.symbol).await?)
 }
 
 // ── Provider ──

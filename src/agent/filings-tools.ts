@@ -1,10 +1,13 @@
 /*
  * Company tools of Settings > Coding agents and the in-app assistant: a company's financial statements and earnings
- * (get_fundamentals), its filings (list_filings) and a filing's text by section (read_filing). The assistant's model
+ * (get_fundamentals), its revenue by segment, product line, country and customer (get_revenue_breakdown), its filings
+ * (list_filings) and a filing's text by section (read_filing). The assistant's model
  * runs with an 8192-token context, so each answer is a selection: about ten items of one statement over a few
  * periods, ten filings, one page of one section.
  */
-import { commands, type FilingList, type FilingQuery, type FilingText, type Fundamentals, type FundamentalPeriods } from "../bindings";
+import {
+  commands, type BreakdownGroup, type BreakdownReport, type FilingList, type FilingQuery, type FilingText, type Fundamentals, type FundamentalPeriods, type RevenueBreakdown,
+} from "../bindings";
 import { hasFundamentals } from "../data/fundamentals";
 import { AgentError, type AgentTool } from "./mcp";
 
@@ -149,6 +152,73 @@ function filingRow(r: FilingList["filings"][number]) {
   };
 }
 
+export const BREAKDOWNS = ["segments", "products", "geography", "customers"] as const;
+type Breakdown = (typeof BREAKDOWNS)[number];
+const share = (v: number | null | undefined, total: number | null | undefined) =>
+  v == null || !total ? undefined : Math.round((v / total) * 1000) / 1000;
+
+/** One breakdown as answered: the largest `top` members, their share of the consolidated figure. */
+function breakdownAnswer(name: Breakdown, g: BreakdownGroup, totalRevenue: number | null | undefined, top: number) {
+  const total = g.revenue?.total ?? totalRevenue;
+  const members = g.members.slice(0, top).map((m) => {
+    const s = name === "customers" ? (m.revenueShare ?? share(m.revenue, total)) : share(m.revenue, total);
+    return { name: m.label, ...(m.revenue != null ? { revenue: m.revenue } : {}), ...(m.profit != null ? { profit: m.profit } : {}), ...(s !== undefined ? { share: s } : {}) };
+  });
+  // Above 1 the members overlap: a region and its countries, subtotals, intersegment sales, or customer groups.
+  const coverage = (g.revenue ?? g.revenueShare ?? g.profit)?.coverage;
+  return {
+    members,
+    ...(g.members.length > top ? { more: g.members.length - top } : {}),
+    ...(coverage != null && coverage > 1.02 ? { overlapping: true } : {}),
+  };
+}
+
+/** The answer of get_revenue_breakdown: the newest reports of one period length (pure: the tests call it). */
+export function selectRevenueBreakdown(b: RevenueBreakdown, opts: { period: "annual" | "quarterly"; by: Breakdown[]; limit: number; top: number }) {
+  const months = opts.period === "annual" ? 12 : 3;
+  // An amendment supersedes the report of the same period: the last one public wins.
+  const byPeriod = new Map<string, BreakdownReport>();
+  for (const r of b.reports) {
+    if (r.months !== months || !opts.by.some((k) => r[k]?.members.length)) continue;
+    const key = `${r.periodEnd}/${r.fp ?? ""}`;
+    const prev = byPeriod.get(key);
+    if (!prev || r.accepted >= prev.accepted) byPeriod.set(key, r);
+  }
+  const reports = [...byPeriod.values()].sort((x, y) => (x.periodEnd < y.periodEnd ? 1 : x.periodEnd > y.periodEnd ? -1 : 0)).slice(0, opts.limit);
+  if (!reports.length) {
+    const other = opts.period === "annual" ? "quarterly" : "annual";
+    const has = b.reports.some((r) => r.months !== months && opts.by.some((k) => r[k]?.members.length));
+    throw new AgentError(
+      has ? `No ${opts.period} ${opts.by.join(" / ")} figures for ${b.ticker}: ask period: ${other}.` : `No ${opts.by.join(" / ")} figures in the filings of ${b.ticker}.`,
+    );
+  }
+  return {
+    symbol: b.ticker,
+    period: opts.period,
+    reports: reports.map((r) => {
+      const groups: Record<string, unknown> = {};
+      for (const k of opts.by) {
+        const g = r[k];
+        if (g?.members.length) groups[k] = breakdownAnswer(k, g, r.totalRevenue, opts.top);
+      }
+      return {
+        end: r.periodEnd,
+        ...(r.fy != null ? { fy: r.fy } : {}),
+        ...(r.fp ? { fp: r.fp } : {}),
+        form: r.form,
+        id: r.accession,
+        // The UTC day the filing became public.
+        filed: r.accepted.slice(0, 10),
+        // Q4 is the year less the first nine months.
+        ...(r.derived ? { derived: true } : {}),
+        currency: r.currency,
+        totalRevenue: r.totalRevenue ?? null,
+        ...groups,
+      };
+    }),
+  };
+}
+
 function textAnswer(t: FilingText) {
   if (t.sections) {
     return { id: t.accn, symbol: t.ticker, form: t.form ?? null, date: t.date ?? null, ...(t.time ? { time: t.time } : {}), sections: t.sections.map((s) => ({ id: s.id, title: s.title ?? null, chars: s.chars })) };
@@ -189,6 +259,42 @@ export function createFilingsTools(focusedSymbol: () => string): AgentTool[] {
         const r = await commands.getFundamentals(symbol);
         if (r.status === "error") throw failure(symbol, r.error, "fundamentals");
         return selectFundamentals(r.data, { statement, period, items, limit });
+      },
+    },
+    {
+      name: "get_revenue_breakdown",
+      title: "Get revenue breakdown",
+      description:
+        "Where a company's revenue comes from, as filed in its periodic reports: revenue and profit per business segment, revenue per product line, per country or region, and major customers (often unnamed, \"Customer A\") with their share of revenue. " +
+        "by: segments, products, geography, customers (default all); period: annual (default) or quarterly; limit: reports, newest first (default 1, at most 4); top: members per breakdown, largest first (default 8). " +
+        "share is the member's part of the consolidated figure; overlapping: true when members overlap (a region and its countries, subtotals, intersegment sales), so they do not add up. " +
+        "Values in the report's currency. For what the company does, read item 1 of its latest annual report (list_filings, read_filing).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "Default: the focused chart's symbol" },
+          by: { type: "array", items: { type: "string", enum: [...BREAKDOWNS] } },
+          period: { type: "string", enum: ["annual", "quarterly"] },
+          limit: { type: "integer", minimum: 1, maximum: 4 },
+          top: { type: "integer", minimum: 1, maximum: 20 },
+        },
+      },
+      annotations: readOnly,
+      run: async (a) => {
+        const symbol = companySymbol(a.symbol, focusedSymbol);
+        const by = (strings(a.by, "by")?.map((x) => x.toLowerCase()) ?? [...BREAKDOWNS]) as Breakdown[];
+        const unknown = by.find((x) => !BREAKDOWNS.includes(x));
+        if (unknown) throw new AgentError(`"by": ${BREAKDOWNS.join(", ")} (not ${unknown}).`);
+        const period = a.period ?? "annual";
+        if (period !== "quarterly" && period !== "annual") throw new AgentError('"period": annual or quarterly.');
+        const limit = int(a.limit, "limit", 1, 4, 1);
+        const top = int(a.top, "top", 1, 20, 8);
+        const r = await commands.getRevenueBreakdown(symbol);
+        if (r.status === "error") {
+          if (/NOT_FOUND|404/.test(r.error)) throw new AgentError(`No revenue breakdown for ${symbol}: funds, ETFs, indices and companies whose filings give none have none.`);
+          throw failure(symbol, r.error, "revenue breakdown");
+        }
+        return selectRevenueBreakdown(r.data, { period, by: BREAKDOWNS.filter((x) => by.includes(x)), limit, top });
       },
     },
     {

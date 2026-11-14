@@ -4,7 +4,7 @@
  * (`opentrader_core::commands`).
  */
 use crate::data::provider::Provider;
-use crate::data::types::{DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, SplitEvent};
+use crate::data::types::{DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, RevenueBreakdown, SplitEvent};
 use opentrader_core::commands as core;
 use tauri::State;
 
@@ -55,4 +55,12 @@ pub async fn read_filing(
     offset: Option<u32>,
 ) -> Result<FilingText, String> {
     Ok(core::read_filing(&provider, &symbol, &accn, section.as_deref(), offset).await?)
+}
+
+/// Revenue by segment, product line, country or region and major customer of
+/// the company behind `symbol`, per filing (`get_revenue_breakdown`).
+#[tauri::command]
+#[specta::specta]
+pub async fn get_revenue_breakdown(provider: State<'_, Provider>, symbol: String) -> Result<RevenueBreakdown, String> {
+    Ok(core::revenue_breakdown(&provider, &symbol).await?)
 }
