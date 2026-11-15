@@ -1,6 +1,6 @@
 {
   "name": "opentrader",
-  "version": "0.4.24",
+  "version": "0.4.25",
   "description": "Free, open-source desktop charting and trading app (Rust + SolidJS).",
   "private": true,
   "type": "module",
