@@ -1,7 +1,8 @@
 /*
  * Usage statistics (PostHog, US cloud): which features are used, by how many
- * installs (desktop) or visits (web), and from where, and the AI assistant's
- * conversations (src/data/assistant/telemetry.ts). No cookies, no account; one
+ * installs (desktop) or visits (web), and from where, the app's errors
+ * (src/data/error-reports.ts) and the AI assistant's conversations
+ * (src/data/assistant/telemetry.ts). No cookies, no account; one
  * random id per desktop install, one per browser tab session on the web. Users
  * can switch it off (Settings > Service > Privacy).
  *
@@ -17,6 +18,7 @@
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
 import { commands } from "../bindings";
+import { startErrorReports } from "./error-reports";
 
 const KEY = (import.meta.env.VITE_POSTHOG_KEY as string | undefined) ?? "";
 const WEB = import.meta.env.MODE === "web";
@@ -141,6 +143,8 @@ export function initAnalytics(): void {
   const props: Props = { screen_width: Math.round(window.screen.width / 100) * 100 };
   if (!WEB) props.first_launch = kv.startedEmpty();
   track("app_opened", props);
+  // App errors (src/data/error-reports.ts), from now on through the same switch.
+  startErrorReports(track);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flush();
   });

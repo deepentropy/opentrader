@@ -18,6 +18,7 @@ import type { BacktestOutput } from "../../backtester/worker-types";
 import { intrabarsRef } from "../../backtester/intrabars";
 import { translateWith } from "../../i18n/translator";
 import { SentRuns } from "../../backtester/live-runs";
+import { reportWorkerError } from "../../data/error-reports";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakScriptError };
 
@@ -85,7 +86,10 @@ export class OakEngine {
       clearTimeout(p.timer);
       p.resolve(e.data);
     };
-    worker.onerror = () => this.restart("The script worker crashed.");
+    worker.onerror = (e) => {
+      reportWorkerError("script", e);
+      this.restart("The script worker crashed.");
+    };
     this.worker = worker;
     return worker;
   }

@@ -3,6 +3,10 @@ import "./styles.css";
 import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";
 import { installBrowserMenuBlock } from "./components/browser-menu";
+import { installErrorReports } from "./data/error-reports";
+
+// App errors from the start, startup included; sent once the statistics start.
+installErrorReports();
 
 // A tooltip on menu labels only when they are cut.
 installOverflowTooltip();

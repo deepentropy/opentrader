@@ -5,6 +5,7 @@
  */
 import StudyWorkerCtor from "../../../backtester/worker?worker";
 import type { StudyJob, StudyReply } from "./study-worker-types";
+import { reportWorkerError } from "../../../data/error-reports";
 
 const JOB_TIMEOUT_MS = 120_000;
 
@@ -39,7 +40,10 @@ function open(index: number): Slot {
     clearTimeout(p.timer);
     p.resolve(e.data);
   };
-  worker.onerror = () => close(index, "The calculation stopped.");
+  worker.onerror = (e) => {
+    reportWorkerError("study", e);
+    close(index, "The calculation stopped.");
+  };
   slots[index] = slot;
   return slot;
 }

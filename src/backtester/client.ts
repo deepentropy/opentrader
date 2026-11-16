@@ -17,6 +17,7 @@ import { translateWith } from '../i18n/translator';
 import { SentRuns } from './live-runs';
 import BacktestWorkerCtor from './worker?worker';
 import type { BacktestError, BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
+import { reportWorkerError } from '../data/error-reports';
 
 export type { BacktestError };
 
@@ -68,7 +69,10 @@ export class BacktestClient {
         p.reject(new BacktestFailed(res.error));
       }
     };
-    worker.onerror = () => this.restart('The backtest worker crashed.');
+    worker.onerror = (e) => {
+      reportWorkerError('backtest', e);
+      this.restart('The backtest worker crashed.');
+    };
     this.worker = worker;
     return worker;
   }
