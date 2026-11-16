@@ -1,6 +1,6 @@
-// #344: a mouse press on a drawing's fill goes to the chart (pan), as in the reference app: a fill takes no
-// hover, selection, drag, middle click or menu from a mouse; the outline and handles still do. A touch on a
-// fill still selects the drawing.
+// #344: a mouse press on a drawing's fill goes to the chart (pan), as in the reference app: an unselected fill
+// takes no hover, selection, drag, middle click or menu from a mouse; the outline and handles do. A selected
+// rectangle, circle or ellipse is grabbed by its fill. A touch on a fill still selects the drawing.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoot, createSignal } from "solid-js";
 import type { Coords } from "lightweight-charts-drawing/core/coords";
@@ -130,15 +130,21 @@ describe("mouse press on a fill (#344)", () => {
     expect(props.setSelectedId).toHaveBeenCalledWith(null);
   });
 
-  it("does not drag a selected rectangle; its border does", () => {
+  it("a selected rectangle is grabbed by its fill: it stays selected and drags", () => {
     const { api, props, cx } = setup(["rect"]);
-    api.onSelectionPointerDown(down(INSIDE));
-    expect(cx.drag()).toBeNull();
-    const e = down(BORDER);
+    const e = down(INSIDE);
     api.onSelectionPointerDown(e);
     expect(e.stopPropagation).toHaveBeenCalled();
     expect((cx.drag() as { id: string } | null)?.id).toBe("rect");
-    expect(props.setSelectedId).not.toHaveBeenCalledWith("rect");
+    expect(props.setSelectedId).not.toHaveBeenCalled();
+  });
+
+  it("a selected triangle keeps a pass-through fill", () => {
+    const tri = { id: "tri", kind: "triangle", points: [{ time: 100, price: H - 400 }, { time: 300, price: H - 100 }, { time: 500, price: H - 400 }], style: { ...defaultStyleFor("triangle") } } as unknown as Drawing;
+    const { api, props } = setup(["tri"]);
+    props.drawings = [tri];
+    expect(api.hitTopmost({ x: 300, y: 300 })).toBeNull();
+    expect(api.hitTopmost({ x: 300, y: 300 }, true)?.mode).toEqual({ hit: "body", background: true });
   });
 
   it("middle click and right click on a fill leave the drawing alone", () => {
@@ -183,6 +189,12 @@ describe("pass-through on hover (#344)", () => {
     expect(api.fillPassThrough()).toBe(true);
     move(chart, BORDER, {}, "touch");
     expect(api.fillPassThrough()).toBe(true);
+  });
+
+  it("over a selected rectangle's fill the drawings keep the pointer", () => {
+    const { api, painted, move } = setup(["rect"]);
+    move(painted, INSIDE);
+    expect(api.fillPassThrough()).toBe(false);
   });
 
   it("moves elsewhere on the page are not hit-tested", () => {

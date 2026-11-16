@@ -73,8 +73,9 @@ export function createSelection(cx: OverlayCx): SelectionApi {
   }
 
   // Mouse over a fill only (TV: a fill takes no hover, selection, drag or
-  // menu from a mouse): the drawings stop taking the pointer, so a press there
-  // reaches the chart and pans it. Decided on hover, before the press; a held
+  // menu from a mouse, except the fill of a selected rectangle, circle or
+  // ellipse, which hit tests return as its body): the drawings stop taking the
+  // pointer, so a press there reaches the chart and pans it. Decided on hover, before the press; a held
   // button keeps the state of the gesture in progress.
   const [fillPassThrough, setFillPassThrough] = createSignal(false);
   const onWindowMove = (e: PointerEvent) => {
