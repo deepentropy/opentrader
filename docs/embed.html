@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free stock chart and ticker widgets for your website · OpenTrader</title>
+  <meta name="description" content="Put a free stock chart, ticker tape, mini chart or quote on your website with two lines of HTML. Pick the settings, see it live, copy the code. No account, no key.">
+  <link rel="canonical" href="https://opentrader.markets/embed.html">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta property="og:site_name" content="OpenTrader">
+  <meta property="og:title" content="Free stock chart and ticker widgets for your website · OpenTrader">
+  <meta property="og:description" content="Put a free stock chart, ticker tape, mini chart or quote on your website with two lines of HTML. Pick the settings, see it live, copy the code. No account, no key.">
+  <meta property="og:url" content="https://opentrader.markets/embed.html">
+  <meta property="og:image" content="https://opentrader.markets/assets/screenshot.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/site/icon-64.png">
+  <link rel="apple-touch-icon" href="assets/site/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/Outfit-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "OpenTrader", "item": "https://opentrader.markets/"}, {"@type": "ListItem", "position": 2, "name": "Embed on your site", "item": "https://opentrader.markets/embed.html"}]}</script>
+</head>
+<body>
+
+<div class="strip" role="note" aria-label="Highlights">
+  <ul class="wrap">
+    <li>16 charts per tab</li>
+    <li>No paywall, no login</li>
+    <li>Unlimited indicators per chart</li>
+    <li>1,000+ indicators</li>
+    <li>No ads</li>
+  </ul>
+</div>
+
+<header class="wrap top">
+  <a class="top-logo" href="./"><img src="assets/site/logo.png" alt="OpenTrader" width="190" height="53"></a>
+  <nav aria-label="Main">
+    <details class="menu">
+      <summary aria-current="true">Features</summary>
+      <div class="menu-list">
+        <a href="stock-screener.html">Stock screener</a>
+        <a href="backtesting.html">Backtesting</a>
+        <a href="bar-replay.html">Bar replay</a>
+        <a href="technical-indicators.html">Indicators</a>
+        <a href="drawing-tools.html">Drawing tools</a>
+        <a href="scripting.html">Scripting</a>
+        <a href="embed.html" aria-current="page">Embed on your site</a>
+        <a href="./#features">All features</a>
+      </div>
+    </details>
+    <a href="./#libraries">Libraries</a>
+    <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+    <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    <a class="btn btn-main" href="download.html">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="./">OpenTrader</a> / <span aria-current="page">Embed on your site</span></nav>
+    <h1>Stock charts and tickers for your website.</h1>
+    <p class="hero-lede">The OpenTrader chart, a ticker tape, a mini chart or a quote on your page, with two lines of HTML. Pick the settings below, see the result live and copy the code. Free, with no account and no key.</p>
+  </div>
+</section>
+
+<section class="section" id="builder">
+  <div class="wrap">
+    <div class="level is-last"><span>Build your widget</span></div>
+    <div class="eb-kinds" role="tablist" aria-label="Widget">
+      <button type="button" role="tab" data-kind="chart" aria-selected="true">Chart</button>
+      <button type="button" role="tab" data-kind="ticker-tape" aria-selected="false">Ticker tape</button>
+      <button type="button" role="tab" data-kind="mini-chart" aria-selected="false">Mini chart</button>
+      <button type="button" role="tab" data-kind="quote" aria-selected="false">Quote</button>
+    </div>
+    <div class="eb-preview" id="eb-preview" aria-label="Preview"></div>
+    <div class="eb-panels">
+      <form class="eb-settings" id="eb-settings" autocomplete="off">
+        <h3>Settings</h3>
+        <label data-for="chart mini-chart quote">Symbol <input name="symbol" value="NASDAQ:AAPL" placeholder="EXCHANGE:TICKER" spellcheck="false"></label>
+        <label data-for="ticker-tape">Symbols <input name="symbols" value="AMEX:SPY, NASDAQ:QQQ, NASDAQ:AAPL, NASDAQ:MSFT, NASDAQ:NVDA, NASDAQ:AMZN, NASDAQ:TSLA" spellcheck="false"></label>
+        <label data-for="ticker-tape">Layout
+          <select name="direction"><option value="horizontal">Scrolling row</option><option value="vertical">Column</option></select>
+        </label>
+        <label data-for="chart">Interval
+          <select name="interval">
+            <option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option>
+            <option value="60">1 hour</option><option value="240">4 hours</option><option value="1D" selected>1 day</option>
+            <option value="1W">1 week</option><option value="1M">1 month</option>
+          </select>
+        </label>
+        <label data-for="chart mini-chart">Date range
+          <select name="range">
+            <option value="">Default</option><option value="1D">1 day</option><option value="5D">5 days</option><option value="1M">1 month</option>
+            <option value="3M">3 months</option><option value="6M">6 months</option><option value="YTD">Year to date</option>
+            <option value="1Y">1 year</option><option value="5Y">5 years</option><option value="All">All</option>
+          </select>
+        </label>
+        <label data-for="chart">Chart type
+          <select name="chartType">
+            <option value="candle">Candles</option><option value="hollowCandle">Hollow candles</option><option value="bar">Bars</option>
+            <option value="line">Line</option><option value="area">Area</option><option value="baseline">Baseline</option><option value="ha">Heikin Ashi</option>
+          </select>
+        </label>
+        <label>Theme
+          <select name="theme"><option value="">Visitor's system</option><option value="light">Light</option><option value="dark">Dark</option></select>
+        </label>
+        <label data-for="chart">Time zone
+          <select name="timezone">
+            <option value="">Exchange</option><option value="UTC">UTC</option><option value="America/New_York">New York</option>
+            <option value="America/Chicago">Chicago</option><option value="Europe/London">London</option><option value="Europe/Paris">Paris</option>
+            <option value="Asia/Tokyo">Tokyo</option><option value="Asia/Shanghai">Shanghai</option><option value="Australia/Sydney">Sydney</option>
+          </select>
+        </label>
+        <label data-for="chart">Language
+          <select name="locale">
+            <option value="">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option>
+            <option value="ja">日本語</option><option value="zh-Hans">简体中文</option><option value="zh-Hant">繁體中文</option>
+          </select>
+        </label>
+        <label data-for="chart">Indicators <input name="studies" placeholder="e.g. rsi, macd" spellcheck="false"></label>
+        <label data-for="chart">Compare with <input name="compare" placeholder="e.g. NASDAQ:MSFT" spellcheck="false"></label>
+        <label data-for="chart">Watchlist <input name="watchlist" placeholder="e.g. NASDAQ:AAPL, NYSE:IBM" spellcheck="false"></label>
+        <fieldset data-for="chart">
+          <legend>Chart parts</legend>
+          <label class="eb-check"><input type="checkbox" name="allowSymbolChange"> Visitors can change the symbol</label>
+          <label class="eb-check"><input type="checkbox" name="hideTopToolbar"> Hide the top toolbar</label>
+          <label class="eb-check"><input type="checkbox" name="drawingToolbar"> Drawing toolbar</label>
+          <label class="eb-check"><input type="checkbox" name="dateRanges"> Date range bar</label>
+          <label class="eb-check"><input type="checkbox" name="hideLegend"> Hide the legend</label>
+          <label class="eb-check"><input type="checkbox" name="hideVolume"> Hide the volume</label>
+          <label class="eb-check"><input type="checkbox" name="hideSnapshotButton"> Hide the snapshot button</label>
+          <label class="eb-check"><input type="checkbox" name="extendedHours"> Extended hours</label>
+          <label class="eb-check"><input type="checkbox" name="details"> Symbol details panel</label>
+          <label class="eb-check"><input type="checkbox" name="movers"> Market movers panel</label>
+          <label class="eb-check"><input type="checkbox" name="popupButton"> Button to open in a new window</label>
+        </fieldset>
+        <fieldset data-for="ticker-tape">
+          <legend>Tape</legend>
+          <label class="eb-check"><input type="checkbox" name="hideLogos"> Hide the logos</label>
+        </fieldset>
+        <fieldset>
+          <legend>Colours</legend>
+          <label class="eb-check"><input type="checkbox" name="useColors"> Use my colours</label>
+          <div class="eb-colors">
+            <label>Background <input type="color" name="color-background" value="#0b1f33"></label>
+            <label>Text <input type="color" name="color-text" value="#e6edf3"></label>
+            <label>Accent <input type="color" name="color-accent" value="#f5a623"></label>
+            <label>Up <input type="color" name="color-up" value="#2ecc71"></label>
+            <label>Down <input type="color" name="color-down" value="#ff6b6b"></label>
+          </div>
+        </fieldset>
+        <label>Height (px) <input type="number" name="height" min="40" max="2000" step="10" value="500"></label>
+      </form>
+      <div class="eb-code">
+        <h3>Embed code</h3>
+        <div class="eb-formats" role="radiogroup" aria-label="Code format">
+          <label><input type="radio" name="format" value="element" checked> HTML element</label>
+          <label><input type="radio" name="format" value="script"> Script tag</label>
+        </div>
+        <pre><code id="eb-code"></code></pre>
+        <button type="button" class="btn btn-main" id="eb-copy">Copy code</button>
+        <p class="eb-copied" id="eb-copied" role="status"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="level"><span>Details</span></div>
+    <h2>Good to know</h2>
+    <div class="notes">
+      <div>
+        <h3>Your colours</h3>
+        <p>Set <code>--opentrader-background</code>, <code>--opentrader-text</code>, <code>--opentrader-accent</code>, <code>--opentrader-up</code>, <code>--opentrader-down</code>, <code>--opentrader-border</code> or <code>--opentrader-font</code> on the element (or a parent) in your CSS: the widget takes them. A widget follows the visitor's light or dark system theme unless you set <code>theme</code>.</p>
+      </div>
+      <div>
+        <h3>Changes and events</h3>
+        <p>Change the chart's <code>symbol</code>, <code>interval</code>, <code>chart-type</code> or any widget's <code>theme</code> attribute and it updates in place. Listen to <code>ot-ready</code>, <code>ot-symbol-change</code> and <code>ot-interval-change</code> on the chart, and <code>ot-symbol-click</code> on a widget, to follow what visitors do.</p>
+      </div>
+      <div>
+        <h3>Size</h3>
+        <p>A widget fills the width of its place on your page. Give it a height in your CSS; without one, the chart takes 500 px and the widgets the height they need. A small credit line sits under each one.</p>
+      </div>
+      <div>
+        <h3>Data and use</h3>
+        <p>US stocks and funds, with prices delayed by 15 minutes. Free to use on any website. Visitors need no account, and nothing they do in the chart is stored. See the <a href="privacy.html">privacy policy</a> for the one statistic a widget sends.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <div>
+      <h2>Want more than a widget?</h2>
+      <p>The full app is free for Windows, macOS and Linux. Or open the demo in your browser.</p>
+    </div>
+    <div class="hero-actions">
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span></a>
+      <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>OpenTrader is an independent project, not affiliated with any trading platform or data provider. It is for charting and research only and is not financial advice. MIT license.</p>
+    <nav aria-label="Footer">
+      <a href="./">Home</a>
+      <a href="download.html">Download</a>
+      <a href="https://demo.opentrader.markets/">Online demo</a>
+      <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+      <a href="https://community.opentrader.markets/">Community</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="legal.html">Legal notice</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+<script src="embed-builder.js"></script>
+</body>
+</html>

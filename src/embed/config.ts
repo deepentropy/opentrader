@@ -1,8 +1,9 @@
 /*
- * Settings of a chart embedded in another website (#338).
+ * Settings of a chart or widget embedded in another website (#338, #339).
  *
  * The page loads public/embed.js, which opens the web version in an iframe at
- * `/?view=embed#<settings JSON>`. This module reads those settings, checks each
+ * `/?view=embed#<settings JSON>`; `widget` says which: the chart, a ticker
+ * tape, a mini chart or a quote. This module reads those settings, checks each
  * one and fills in the defaults; anything malformed falls back to its default
  * rather than failing the chart. Kept free of app imports: the boot reads it
  * before any store loads.
@@ -14,8 +15,21 @@ export type EmbedRange = (typeof EMBED_RANGES)[number];
 
 export type EmbedStudy = { id: string; inputs?: Record<string, unknown> };
 
+export const EMBED_WIDGETS = ["chart", "ticker-tape", "mini-chart", "quote"] as const;
+export type EmbedWidget = (typeof EMBED_WIDGETS)[number];
+
+/** Colours and font of the page around the embed (its `--opentrader-*` CSS properties). */
+export type EmbedColors = Partial<Record<"background" | "text" | "accent" | "up" | "down" | "border" | "font", string>>;
+const COLOR_KEYS = ["background", "text", "accent", "up", "down", "border"] as const;
+
 export type EmbedConfig = {
+  widget: EmbedWidget;
   symbol: string;
+  /** Ticker tape: its symbols, in order. */
+  symbols: string[];
+  /** Ticker tape: a scrolling row, or a column. */
+  direction: "horizontal" | "vertical";
+  hideLogos: boolean;
   interval: string;
   range?: EmbedRange;
   chartType?: string;
@@ -35,13 +49,23 @@ export type EmbedConfig = {
   hideSnapshotButton: boolean;
   watchlist: string[];
   details: boolean;
+  /** Chart: market movers (most active, gainers, losers) in the right panel. */
+  movers: boolean;
   popupButton: boolean;
   popupWidth: number;
   popupHeight: number;
+  colors: EmbedColors;
 };
 
+/** A ticker tape's symbols when the page names none. */
+export const DEFAULT_TAPE = ["AMEX:SPY", "NASDAQ:QQQ", "NASDAQ:AAPL", "NASDAQ:MSFT", "NASDAQ:NVDA", "NASDAQ:AMZN", "NASDAQ:GOOGL", "NASDAQ:META", "NASDAQ:TSLA"];
+
 export const EMBED_DEFAULTS: EmbedConfig = {
+  widget: "chart",
   symbol: "NASDAQ:AAPL",
+  symbols: DEFAULT_TAPE,
+  direction: "horizontal",
+  hideLogos: false,
   interval: "1D",
   extendedHours: false,
   studies: [],
@@ -55,13 +79,15 @@ export const EMBED_DEFAULTS: EmbedConfig = {
   hideSnapshotButton: false,
   watchlist: [],
   details: false,
+  movers: false,
   popupButton: false,
   popupWidth: 1000,
   popupHeight: 650,
+  colors: {},
 };
 
-/** Settings applied in place on a running chart (the others reload it). */
-export const LIVE_KEYS = ["symbol", "interval", "chartType", "theme"] as const;
+/** At most this many symbols in a ticker tape. */
+export const MAX_TAPE = 30;
 
 const SYMBOL_RE = /^[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-^!/]+$/;
 const BOOL_KEYS = [
@@ -74,7 +100,9 @@ const BOOL_KEYS = [
   "hideLegend",
   "hideSnapshotButton",
   "details",
+  "movers",
   "popupButton",
+  "hideLogos",
 ] as const;
 
 const symbolOf = (v: unknown): string | undefined =>
@@ -110,11 +138,36 @@ const sizeOf = (v: unknown, fallback: number): number => {
 
 const boolOf = (v: unknown): boolean => v === true || v === "true" || v === "1" || v === "";
 
+// A CSS colour as a page writes it: hex, rgb(a), hsl(a), or a colour name.
+const COLOR_RE = /^(#[0-9a-f]{3,8}|(rgb|hsl)a?\([\d\s.,%/deg+-]+\)|[a-z]{3,20})$/i;
+// A font family list ("Inter, system-ui, sans-serif"): names, quotes, commas.
+const FONT_RE = /^[\w\s,'"-]{1,200}$/;
+
+const colorsOf = (v: unknown): EmbedColors => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const r = v as Record<string, unknown>;
+  const out: EmbedColors = {};
+  for (const k of COLOR_KEYS) {
+    const c = typeof r[k] === "string" ? (r[k] as string).trim() : "";
+    if (c && COLOR_RE.test(c)) out[k] = c;
+  }
+  const font = typeof r.font === "string" ? r.font.trim() : "";
+  if (font && FONT_RE.test(font)) out.font = font;
+  return out;
+};
+
 /** Checked settings from what the page gave (an object, any shape). */
 export function parseEmbedConfig(raw: unknown): EmbedConfig {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const c: EmbedConfig = { ...EMBED_DEFAULTS, studies: [], compare: [], watchlist: [] };
+  const c: EmbedConfig = { ...EMBED_DEFAULTS, studies: [], compare: [], watchlist: [], colors: {} };
+  const widget = EMBED_WIDGETS.find((w) => w === r.widget);
+  if (widget) c.widget = widget;
   c.symbol = symbolOf(r.symbol) ?? c.symbol;
+  if ("symbols" in r) {
+    const symbols = symbolsOf(r.symbols).slice(0, MAX_TAPE);
+    if (symbols.length) c.symbols = symbols;
+  }
+  if (r.direction === "vertical") c.direction = "vertical";
   if (typeof r.interval === "string" && /^\d*[SDWM]?$/i.test(r.interval.trim()) && r.interval.trim()) {
     const iv = r.interval.trim().toUpperCase();
     // "D" / "W" / "M" are the one-unit intervals.
@@ -132,6 +185,7 @@ export function parseEmbedConfig(raw: unknown): EmbedConfig {
   c.studies = studiesOf(r.studies);
   c.compare = symbolsOf(r.compare);
   c.watchlist = symbolsOf(r.watchlist);
+  c.colors = colorsOf(r.colors);
   c.popupWidth = sizeOf(r.popupWidth, c.popupWidth);
   c.popupHeight = sizeOf(r.popupHeight, c.popupHeight);
   return c;

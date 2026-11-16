@@ -6,6 +6,7 @@ import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";
 import { installBrowserMenuBlock } from "./components/browser-menu";
 import { installErrorReports } from "./data/error-reports";
+import { embedConfig } from "./embed/config";
 
 // App errors from the start, startup included; sent once the statistics start.
 installErrorReports();
@@ -39,6 +40,16 @@ void hydrateKv().finally(async () => {
     const { ScreenerWindow } = await import("./window/screener/ScreenerWindow");
     render(() => <ScreenerWindow />, document.getElementById("root") as HTMLElement);
     hideSplash();
+    return;
+  }
+  // An embedded widget (#339) holds that widget only, drawn at once (no splash).
+  const embed = embedConfig();
+  if (embed && embed.widget !== "chart") {
+    const { EmbedWidget } = await import("./embed/widgets/EmbedWidget");
+    render(() => <EmbedWidget config={embed} />, document.getElementById("root") as HTMLElement);
+    document.getElementById("splash")?.remove();
+    const { initAnalytics } = await import("./data/analytics");
+    initAnalytics();
     return;
   }
   const { default: App } = await import("./App");

@@ -1017,9 +1017,10 @@ function App() {
         <Show
           when={!embed}
           fallback={
-            <Show when={embed && (embed.watchlist.length > 0 || embed.details)}>
+            <Show when={embed && (embed.watchlist.length > 0 || embed.movers || embed.details)}>
               <EmbedSidePanel
                 watchlist={!!embed?.watchlist.length}
+                movers={!!embed?.movers}
                 details={!!embed?.details}
                 activeSymbol={activeFullSymbol() ?? symbol()}
                 interval={interval()}
