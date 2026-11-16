@@ -37,10 +37,20 @@ function slotsOf(interval: string): Slots | null {
 export type BarGrid = (sec: number, stepSecs: number) => number;
 
 /** Session intervals of a day as the bars of `step` seconds fill them: from the open, or from the grid bar that holds
- *  the open. */
+ *  the open. On the grid, a session that opens inside the last bar of the one before (DE40 at 4 hours: 00:02-02:15
+ *  then 02:16) starts at the next bar, so no bar is counted twice. */
 function barIntervals(spec: SessionSpec, step: number, grid: BarGrid | undefined): (day: number) => SessionInterval[] {
   if (!grid) return (day) => spec.dayIntervals(day);
-  return (day) => spec.dayIntervals(day).map((s) => ({ ...s, start: grid(s.start, step) }));
+  return (day) => {
+    const out: SessionInterval[] = [];
+    let next = -Infinity;
+    for (const s of spec.dayIntervals(day)) {
+      const start = Math.max(grid(s.start, step), next);
+      if (start < s.end) out.push({ ...s, start });
+      next = Math.max(next, grid(s.end - 1, step) + step);
+    }
+    return out;
+  };
 }
 
 /** Week number of a local day (weeks from Monday; day 0 = Thursday 01/01/1970). */

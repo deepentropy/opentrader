@@ -163,6 +163,22 @@ describe("future bars of a source whose bars ignore the session open (#340)", ()
     expect(sessionFutureTimes("5", gold, ny(2026, 11, 10, 16, 55), 1)).toEqual([ny(2026, 11, 10, 18, 1)]);
   });
 
+  it("two sessions that open inside one grid bar give that bar once", () => {
+    // DE40 at a broker: 00:02-02:15 and 02:16-22:59 Athens, bars on the server clock from midnight
+    const AT = "Europe/Athens";
+    const de40 = new SessionSpec(AT, "0002-0215,0216-2259:23456");
+    const day = dayOf(2026, 11, 17);
+    const at = (h: number) => localToUtc(AT, day, h * 60);
+    const midnight = (sec: number, step: number) => {
+      const anchor = localToUtc(AT, Math.floor((sec + 2 * 3600) / 86400), 0);
+      return anchor + Math.floor((sec - anchor) / step) * step;
+    };
+    const lastMonday = localToUtc(AT, day - 1, 20 * 60);
+    expect(sessionFutureTimes("240", de40, lastMonday, 6, midnight)).toEqual([at(0), at(4), at(8), at(12), at(16), at(20)]);
+    // Monday's 21:00 and 22:00, then Tuesday: the 02:00 bar holds both the 02:15 close and the 02:16 open
+    expect(sessionFutureTimes("60", de40, lastMonday, 6, midnight)).toEqual([at(-3), at(-2), at(0), at(1), at(2), at(3)]);
+  });
+
   it("a time is drawn on the grid bar that holds it", () => {
     const axis = sessionFutureAxis("5", gold, gold, grid)!;
     const last = ny(2026, 11, 10, 16, 55);

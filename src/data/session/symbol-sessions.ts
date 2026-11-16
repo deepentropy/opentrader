@@ -162,6 +162,8 @@ function tickDecimals(tick: number): number {
 }
 
 const resolved = new Map<string, SymbolSessions>();
+/** What each data plugin symbol's session was read from, to tell when its plugin answers otherwise. */
+const pluginInfos = new Map<string, string>();
 const pending = new Map<string, Promise<SymbolSessions>>();
 const [version, setVersion] = createSignal(0);
 
@@ -192,6 +194,7 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
       if (r.status === "error") throw new Error(r.error);
       const s = new SymbolSessions(r.data);
       resolved.set(key, s);
+      if (s.intervals.length) pluginInfos.set(key, JSON.stringify(r.data));
       setVersion((v) => v + 1);
       return s;
     });
@@ -204,6 +207,25 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
 /** Resolve `symbol`'s sessions again on next use (a re-imported series). */
 export function forgetSymbolSessions(symbol: string): void {
   resolved.delete(keyOf(symbol).key);
+  pluginInfos.delete(keyOf(symbol).key);
+}
+
+/** Ask the data plugins' symbols already resolved for their sessions again (a plugin connected, maybe as another
+ *  version: #340's bar grid came with an update) and keep the new answers. True when one changed: the charts must
+ *  load their bars again. A plugin that does not answer (disconnected) keeps what it said. */
+export async function refreshPluginSessions(): Promise<boolean> {
+  let changed = false;
+  await Promise.all(
+    [...pluginInfos].map(async ([key, before]) => {
+      const r = await commands.getSymbolSession(key).catch(() => null);
+      if (r?.status !== "ok" || JSON.stringify(r.data) === before) return;
+      resolved.set(key, new SymbolSessions(r.data));
+      pluginInfos.set(key, JSON.stringify(r.data));
+      changed = true;
+    }),
+  );
+  if (changed) setVersion((v) => v + 1);
+  return changed;
 }
 
 /** Sessions of `symbol` when already resolved, else null (and the resolve is

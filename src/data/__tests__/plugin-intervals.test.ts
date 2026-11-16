@@ -18,7 +18,8 @@ vi.mock("../kv", () => ({
 
 import { bucketLiveTick, getBars, getBarsBefore, symbolServesResolution, unsupportedIntervalMessage } from "../datafeed";
 import type { ChartAggregate } from "../datafeed-live";
-import { symbolSessions } from "../session";
+import { cachedSymbolSessions, symbolSessions } from "../session";
+import { refreshPluginSessions } from "../session/symbol-sessions";
 import { barBucket } from "../alert-bars";
 
 function session(intervals: string[], timezone = "Etc/UTC", hours = "24x7", barOrigin: number | null = null): SymbolSession {
@@ -187,5 +188,26 @@ describe("a data plugin whose bars ignore the session open (barOrigin, #340)", (
   it("an alert's once-per-bar throttle uses the same bars", () => {
     expect(ny(barBucket(GOLD, "5", "ETH", at(1) * 1000)! / 1000)).toBe("18:00");
     expect(ny(barBucket(GOLD, "60", "ETH", at(75) * 1000)! / 1000)).toBe("19:00");
+  });
+});
+
+describe("a data plugin that connects again with other symbol info (#340)", () => {
+  it("gives the new sessions to the charts once, the provider's symbols untouched", async () => {
+    const UPDATED = "TESTX:UPDATED";
+    let origin: number | null = null;
+    const before = mocks.getSymbolSession.getMockImplementation()!;
+    mocks.getSymbolSession.mockImplementation(async (symbol: string) =>
+      symbol === UPDATED ? { status: "ok", data: session(["1", "5"], "Europe/Athens", "0002-2259", origin) } : before(symbol),
+    );
+    await symbolSessions(UPDATED);
+    await symbolSessions(OWN);
+    expect(cachedSymbolSessions(UPDATED)?.barOrigin).toBeNull();
+    mocks.getSymbolSession.mockClear();
+    origin = 0;
+    expect(await refreshPluginSessions()).toBe(true);
+    expect(cachedSymbolSessions(UPDATED)?.barOrigin).toBe(0);
+    expect(mocks.getSymbolSession.mock.calls.map((c) => (c as unknown[])[0])).not.toContain(OWN);
+    expect(await refreshPluginSessions()).toBe(false);
+    mocks.getSymbolSession.mockImplementation(before);
   });
 });

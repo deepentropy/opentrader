@@ -90,6 +90,8 @@ import { TradingToasts } from "./window/trading/TradingToasts";
 import { tradingUi } from "./data/trading/trading-ui";
 import { replayBroker } from "./data/trading/replay-broker";
 import { pluginBroker } from "./data/trading/plugin-broker";
+import { events } from "./bindings";
+import { refreshPluginSessions } from "./data/session/symbol-sessions";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
@@ -425,6 +427,16 @@ function App() {
   // in the main window; then from the main menu.
   const AppOnboarding = lazy(() => import("./window/shell/AppOnboarding").then((m) => ({ default: m.AppOnboarding })));
   onMount(() => { if (isTauri() && windowLabel === "main") openFirstStartOnboarding(); });
+
+  // A data plugin that connects again may describe its symbols otherwise (an update: #340's bar grid): each window
+  // reads their sessions again and reloads its charts when one changed.
+  onMount(() => {
+    if (!isTauri()) return;
+    const stop = events.pluginsChanged.listen(() => {
+      void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
+    });
+    onCleanup(() => void stop.then((f) => f()));
+  });
 
   // Synced folders of CSV files (#267): the main window keeps them in sync.
   onMount(() => {
