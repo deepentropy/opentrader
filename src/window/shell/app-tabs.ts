@@ -43,9 +43,13 @@ import { isEconomicSymbol, isFullSymbol, toFullSymbol } from "../../data/datafee
 import { SINGLE_VALUE_TYPES, lastSingleValueType } from "../chart/chart-types";
 import { migrateDrawingKey } from "../drawings/persistence";
 import { setSelectedDrawingId } from "../drawings/drawing-selection";
+import { embedConfig } from "../../embed/config";
+import { embedSeedTab } from "../../embed/seed";
 
 export function createAppTabs(windowLabel: string) {
-  const initial = loadTabs(windowLabel, takeDetachPayload(windowLabel));
+  // An embedded chart (#338) opens on the chart its settings describe.
+  const embed = embedConfig();
+  const initial = loadTabs(windowLabel, embed ? embedSeedTab(embed) : takeDetachPayload(windowLabel));
   const [tabs, setTabs] = createSignal<TabChart[]>(initial.tabs);
   const [activeTabId, setActiveTabId] = createSignal<string>(initial.activeId);
   const activeTab = () => tabs().find((t) => t.id === activeTabId()) ?? tabs()[0];

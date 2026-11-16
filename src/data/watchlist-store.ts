@@ -263,7 +263,7 @@ const rowsOf = (l: WatchList) => [...l.extras, ...l.groups.flatMap((g) => g.rows
 /** Where a row appended to a list goes: its last section, or the rows with
  *  no section when it has no section. */
 const endOf = (l: WatchList): Row[] => (l.groups.length ? l.groups[l.groups.length - 1].rows : l.extras);
-const newRow = (ticker: string): Row => ({ ticker, short: tickerOf(ticker), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
+export const newRow = (ticker: string): Row => ({ ticker, short: tickerOf(ticker), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
 
 // Every colour list exists (empty ones are hidden by the dialog).
 {

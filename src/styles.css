@@ -68,6 +68,7 @@
 @import "./styles/replay-trading.css";
 @import "./styles/trading-lines.css";
 @import "./styles/community.css";
+@import "./styles/embed.css";
 @import "./styles/rtl.css";
 
 :root {

@@ -23,9 +23,9 @@ import type { TimezoneEntry } from "../../data/timezones";
 import { isAdjusted, isIntradayInterval, setAdjusted as storeAdjusted } from "../../data/datafeed";
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
 
-type DateRangeId = "1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
+export type DateRangeId = "1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
 
-const DATE_RANGES: {
+export const DATE_RANGES: {
   id: DateRangeId;
   label: string;
   tooltip: string;

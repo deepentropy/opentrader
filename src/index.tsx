@@ -1,4 +1,6 @@
 /* @refresh reload */
+// An embedded chart swaps the page storage before anything reads it (#338).
+import "./embed/boot";
 import "./styles.css";
 import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";

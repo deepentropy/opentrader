@@ -15,6 +15,7 @@ import { screenerPanel } from "../../data/screener-store";
 import { tradeJournal } from "../../data/trade-journal";
 import type { AppSettingsTabId } from "../header/AppSettingsDialog";
 import type { TabPanels } from "./tabs";
+import { embedConfig } from "../../embed/config";
 
 // ── Header dropdown ──────────────────────────────────────────────────────
 const [openMenu, setOpenMenu] = createSignal<string | null>(null);
@@ -44,8 +45,15 @@ const [symbolDialogOpen, setSymbolDialogOpen] = createSignal(false);
 const [symbolSearchSeed, setSymbolSearchSeed] = createSignal<string | null>(null);
 export { symbolDialogOpen, setSymbolDialogOpen, symbolSearchSeed, setSymbolSearchSeed };
 
-/** Open the symbol search, seeded with a typed character or not (`null`). */
+/** Open the symbol search, seeded with a typed character or not (`null`). An
+ *  embedded chart whose site keeps its symbol (#338) opens none: a typed key
+ *  goes to Change interval instead, which says when it is not an interval. A
+ *  compared symbol's search stays open to it. */
 export function openSymbolSearch(seed: string | null): void {
+  if (!compareTarget() && embedConfig()?.allowSymbolChange === false) {
+    if (seed) setIntervalDialog({ initVal: seed, selectOnInit: false });
+    return;
+  }
   setSymbolSearchSeed(seed);
   setSymbolDialogOpen(true);
 }

@@ -1,0 +1,6 @@
+/* A chart embedded in another website (#338, src/embed/). */
+
+/* "hideLegend": no legend on any pane. */
+.ot-embed-no-legend .ot-legend-stack {
+  display: none;
+}

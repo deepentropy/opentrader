@@ -96,7 +96,25 @@ type Props = {
   redoLabel?: string;
   /** User clicked "Compare symbols" — opens the symbol search in compare mode. */
   onCompare?: () => void;
+  /** A chart embedded in another website (#338): only its own buttons. */
+  embed?: EmbedToolbar;
 };
+
+/** The toolbar of an embedded chart: symbol search (when the site allows a
+ *  symbol change), compare, intervals, chart type, indicators, snapshot (unless
+ *  hidden) and the popup button (when on). */
+export type EmbedToolbar = { symbolSearch: boolean; snapshot: boolean; onPopup?: () => void };
+
+const EMBED_ITEMS = new Set(["symbol-search", "compare-symbols", "chart-interval", "candles", "open-indicators-dialog", "take-a-snapshot"]);
+
+/** The sections an embedded chart shows, each with its embed buttons only. */
+function embedSections(e: EmbedToolbar): Section[] {
+  const shown = (id: string) =>
+    EMBED_ITEMS.has(id) && (id !== "symbol-search" || e.symbolSearch) && (id !== "take-a-snapshot" || e.snapshot);
+  return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => shown(i.id) || SLUG_TO_INTERVAL[i.id]) })).filter(
+    (s) => s.items.length > 0,
+  );
+}
 
 /** Ids of buttons that have a dropdown menu. Used for the chevron
  *  affordance + the aria-haspopup attribute. */
@@ -325,6 +343,7 @@ export function HeaderToolbar(props: Props) {
       <ScrollStrip axis="x" arrowsOnHover class="header-toolbar-scroll" contentClass="header-toolbar-row" onResize={fitRow}>
         {/* Account menu — circular avatar at the far left, before the
             symbol field. No tooltip: there is no account to show. */}
+        <Show when={!props.embed}>
           <button
             type="button"
             class={"header-toolbar-profile" + (profileAnchor() ? " is-open" : "")}
@@ -340,6 +359,7 @@ export function HeaderToolbar(props: Props) {
               {userName().charAt(0).toUpperCase()}
             </span>
           </button>
+        </Show>
         <Show when={profileAnchor()}>
           {(anchor) => (
             <ProfileMenu
@@ -352,7 +372,7 @@ export function HeaderToolbar(props: Props) {
             />
           )}
         </Show>
-        <For each={SECTIONS}>
+        <For each={props.embed ? embedSections(props.embed) : SECTIONS}>
           {(section: Section, si) => (
             <>
               <Show when={si() > 0}>
@@ -364,7 +384,7 @@ export function HeaderToolbar(props: Props) {
                     round template favourites) — one click applies the template. */}
                 <Show when={section.sectionIndex === 3}>
                   <For each={section.items}>{(item) => renderItem(item)}</For>
-                  <For each={favoriteIndicatorTemplates()}>
+                  <For each={props.embed ? [] : favoriteIndicatorTemplates()}>
                     {(tpl) => (
                       <Tooltip text={tpl.name} side="bottom">
                         <button
@@ -393,7 +413,7 @@ export function HeaderToolbar(props: Props) {
                             {/* Favorite layouts sit right after Manage layouts,
                                 inside the save-load group, sorted by name. */}
                             <Show when={item.id === "save-load-menu"}>
-                              <For each={favoriteLayouts()}>
+                              <For each={props.embed ? [] : favoriteLayouts()}>
                                 {(l, i) => (
                                   <Tooltip text={l.name} side="bottom">
                                     <button
@@ -468,8 +488,24 @@ export function HeaderToolbar(props: Props) {
           )}
         </For>
         {/* "Trade" at the right end while Bar Replay is on (paper trading) or a broker plugin is enabled. */}
-        <Show when={replayEnabled() || (pluginBroker.status()?.brokers.length ?? 0) > 0}>
+        <Show when={!props.embed && (replayEnabled() || (pluginBroker.status()?.brokers.length ?? 0) > 0)}>
           <TradeHeaderButton />
+        </Show>
+        {/* Embedded chart: the chart in a larger window of its own. */}
+        <Show when={props.embed?.onPopup}>
+          {(open) => (
+            <Tooltip text="Open in a new window" side="bottom">
+              <button
+                type="button"
+                data-name="embed-popup"
+                aria-label="Open in a new window"
+                class="ot-toolbar-button header-toolbar-btn"
+                onClick={() => open()()}
+              >
+                <Icon name="st-snapshot-open-in-new-tab" size={28} />
+              </button>
+            </Tooltip>
+          )}
         </Show>
       </ScrollStrip>
     </div>

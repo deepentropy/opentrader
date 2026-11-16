@@ -78,6 +78,9 @@ import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
+import { embedConfig } from "./embed/config";
+import { installEmbedHost, openEmbedPopup, seedEmbedWatchlist } from "./embed/host";
+import { EmbedSidePanel } from "./embed/EmbedSidePanel";
 import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabSource } from "./data/replay";
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
 import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
@@ -162,6 +165,8 @@ import {
 } from "./window/shell/app-dialogs";
 
 function App() {
+  // A chart embedded in another website (#338): its settings, or null.
+  const embed = embedConfig();
   // App theme, set before the charts are created (see app-theme.ts).
   const { theme, themeSetting, setThemeSetting, observeTheme } = createAppTheme();
 
@@ -633,7 +638,16 @@ function App() {
         }),
       onSelect: (rowId) => layouts.onManageLayoutsSelect(rowId),
     },
-    "take-a-snapshot": { onSelect: (rowId) => snapshotRows[rowId]?.() },
+    "take-a-snapshot": {
+      // An embedded chart has no community to share to.
+      build: embed
+        ? () => {
+            const def = HEADER_MENUS["take-a-snapshot"];
+            return { ...def, sections: def.sections.map((s) => ({ ...s, items: s.items.filter((i) => !i.id.includes("community")) })).filter((s) => s.items.length) };
+          }
+        : undefined,
+      onSelect: (rowId) => snapshotRows[rowId]?.(),
+    },
     // A favourite row adds that study to the focused pane (one more instance when it is already on the chart).
     "show-favorite-indicators": { build: buildFavoriteIndicatorsMenu, onSelect: (rowId) => addIndicator(rowId) },
     "indicator-templates": {
@@ -698,10 +712,16 @@ function App() {
     // OS notification, webhook POST) and race the shared kv fire log. The
     // backend names the window that runs it (another one takes over when it
     // is closed). The other windows still read the store for their alert UI.
-    whenAlertLeader(windowLabel, () => {
-      startAlertEngine(windowLabel);
-      startScreenAlerts();
-    });
+    // An embedded chart keeps no alerts (#338).
+    if (!embed)
+      whenAlertLeader(windowLabel, () => {
+        startAlertEngine(windowLabel);
+        startScreenAlerts();
+      });
+    if (embed) {
+      seedEmbedWatchlist(embed);
+      onCleanup(installEmbedHost(embed, { symbol, interval, setSymbol, setInterval, setChartType, setTheme: setThemeSetting }));
+    }
     let toastSeq = 0;
     const offFire = onAlertFire((f) => {
       setAlertToasts((list) => [...list, { id: `${f.time}-${++toastSeq}`, alertId: f.alertId, symbol: f.symbol, message: f.message, time: f.time, sound: f.sound }]);
@@ -711,6 +731,7 @@ function App() {
 
   return (
     <div class="flex h-full w-full flex-col">
+      <Show when={!embed}>
       <div class="tab-bar" data-tauri-drag-region>
         <TabPanel
           tabs={tabs()}
@@ -745,6 +766,7 @@ function App() {
         />
         <WindowControls />
       </div>
+      </Show>
       {/* Main layout (header toolbar + chart area) | screener split view.
           The split view takes its width from the right; in its fullscreen
           mode the main layout is hidden (kept mounted). The panels keep their
@@ -759,7 +781,17 @@ function App() {
           display: screenerPanel.open() && screenerPanel.placement() === "right" && screenerPanel.fullscreen() ? "none" : undefined,
         }}
       >
+      <Show when={!embed?.hideTopToolbar}>
       <HeaderToolbar
+        embed={
+          embed
+            ? {
+                symbolSearch: embed.allowSymbolChange,
+                snapshot: !embed.hideSnapshotButton,
+                onPopup: embed.popupButton ? () => openEmbedPopup(embed, activeFullSymbol() ?? symbol(), interval()) : undefined,
+              }
+            : undefined
+        }
         symbol={tickerOf(symbol())}
         interval={interval()}
         chartType={chartType()}
@@ -795,6 +827,7 @@ function App() {
         redoLabel={undo.redoLabel()}
         onCompare={() => setCompareDialogOpen(true)}
       />
+      </Show>
       {/* chart-area — flex row: drawing toolbar | chart-pane | right rail.
           Mirrors the mock's `.chart-area` (App.tsx) so the right rail spans
           the full height and the bottom bar lives inside the chart-pane. */}
@@ -937,6 +970,7 @@ function App() {
           <Show when={replayToolbarShown()}>
             <ReplayToolbar />
           </Show>
+          <Show when={!embed || embed.dateRanges}>
           <BottomBar
             interval={interval()}
             setInterval={setInterval}
@@ -948,6 +982,7 @@ function App() {
             maximized={maximized()}
             onToggleMaximize={toggleMaximize}
           />
+          </Show>
           {/* Strategy Tester: the reference app's footer report, shown while the
               active chart holds a strategy. */}
           <StrategyTesterPanel
@@ -979,6 +1014,21 @@ function App() {
         <Show when={replayEnabled() || !!pluginBroker.status()?.active}>
           <OrderTicket />
         </Show>
+        <Show
+          when={!embed}
+          fallback={
+            <Show when={embed && (embed.watchlist.length > 0 || embed.details)}>
+              <EmbedSidePanel
+                watchlist={!!embed?.watchlist.length}
+                details={!!embed?.details}
+                activeSymbol={activeFullSymbol() ?? symbol()}
+                interval={interval()}
+                onSymbolSelect={onSymbolPicked}
+                onAddCompare={addCompareFromList}
+              />
+            </Show>
+          }
+        >
         <RightRail
           activeTab={activeRailTab()}
           setActiveTab={onRailTabSelect}
@@ -1004,6 +1054,7 @@ function App() {
           collapsedTab={(id) => (id === "screener-dialog-button" && screenerPanel.collapsed()) || (id === "assistant-button" && assistantPanel.collapsed())}
           onOpenAlertSettings={() => setAppSettingsTab("alerts")}
         />
+        </Show>
       </div>
       </div>
       <Show when={screenerPanel.open() && screenerPanel.placement() === "right"}>
