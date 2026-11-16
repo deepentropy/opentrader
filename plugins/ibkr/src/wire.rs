@@ -205,3 +205,16 @@ pub struct OrderTicket {
     #[serde(default)]
     pub stop_loss: Option<f64>,
 }
+
+/// How a ticker trades (`broker.instrument`): quantities in units, and the money one unit makes per price point.
+/// A field IB doesn't give is left out.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Instrument {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qty_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qty_step: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub point_value: Option<f64>,
+}

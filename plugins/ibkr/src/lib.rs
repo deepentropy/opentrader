@@ -138,6 +138,11 @@ struct ConfigureParams {
 }
 
 #[derive(Deserialize)]
+struct InstrumentParams {
+    ticker: String,
+}
+
+#[derive(Deserialize)]
 struct WatchParams {
     tickers: Vec<String>,
 }
@@ -148,6 +153,11 @@ async fn request(ib: &Arc<Ibkr>, method: &str, p: Value) -> Result<Value, RpcErr
             let r: ResolveParams = params(method, p)?;
             let ticker = r.ticker.unwrap_or_else(|| r.symbol.split_once(':').map_or(r.symbol.as_str(), |(_, t)| t).to_string());
             Ok(json!({ "ticker": ib.resolve_symbol(&r.symbol, &ticker).await? }))
+        }
+        "broker.getState" => Ok(ib.store.read(|t| serde_json::to_value(t.snapshot()).unwrap_or_default())),
+        "broker.instrument" => {
+            let r: InstrumentParams = params(method, p)?;
+            Ok(serde_json::to_value(ib.instrument(&r.ticker).await?).unwrap_or_default())
         }
         "broker.selectAccount" => {
             let r: AccountParams = params(method, p)?;

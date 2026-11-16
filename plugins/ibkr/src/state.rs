@@ -368,16 +368,28 @@ impl Tables {
         }
     }
 
-    /// The selected account from its values. The balance is the cash, the equity the net liquidation value, the
-    /// margin used the initial margin and the free margin the available funds.
-    fn account_of(&self, id: &str) -> Account {
-        // Values come per currency; the base currency is the one the net liquidation value comes in.
-        let base = self
-            .values
+    /// Values come per currency; the base currency is the one the net liquidation value comes in.
+    fn base_currency(&self) -> String {
+        self.values
             .keys()
             .find(|(k, c)| k == "NetLiquidation" && !c.is_empty() && c != "BASE")
             .map(|(_, c)| c.clone())
-            .unwrap_or_else(|| "USD".into());
+            .unwrap_or_else(|| "USD".into())
+    }
+
+    /// What one unit of `currency` is worth in the account's base currency (the account's `ExchangeRate` values);
+    /// None while the account has not reported it.
+    pub fn rate_to_base(&self, currency: &str) -> Option<f64> {
+        if currency.is_empty() || currency.eq_ignore_ascii_case(&self.base_currency()) {
+            return Some(1.0);
+        }
+        self.values.get(&("ExchangeRate".to_string(), currency.to_string())).and_then(|v| v.parse::<f64>().ok()).filter(|r| *r > 0.0)
+    }
+
+    /// The selected account from its values. The balance is the cash, the equity the net liquidation value, the
+    /// margin used the initial margin and the free margin the available funds.
+    fn account_of(&self, id: &str) -> Account {
+        let base = self.base_currency();
         let raw = |key: &str| {
             [base.as_str(), "BASE", ""].iter().find_map(|c| self.values.get(&(key.to_string(), c.to_string())))
         };
@@ -700,6 +712,16 @@ mod tests {
         t.upsert_order(OrdRow { key: "p55".into(), order_id: 0, perm_id: 55, ..row("p55", 0, 0, Side::Buy, OrderType::Limit, 1.0, OrderStatus::Cancelled) });
         assert_eq!(t.orders.len(), 1);
         assert_eq!(t.orders["17:1"].status, OrderStatus::Cancelled);
+    }
+
+    #[test]
+    fn rates_to_the_base_currency() {
+        let mut t = Tables::default();
+        t.values.insert(("NetLiquidation".into(), "EUR".into()), "1000".into());
+        t.values.insert(("ExchangeRate".into(), "USD".into()), "0.91".into());
+        assert_eq!(t.rate_to_base("EUR"), Some(1.0));
+        assert_eq!(t.rate_to_base("USD"), Some(0.91));
+        assert_eq!(t.rate_to_base("JPY"), None);
     }
 
     #[test]

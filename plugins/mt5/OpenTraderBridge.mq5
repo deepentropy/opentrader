@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.1"
+#define PLUGIN_VERSION "0.1.2"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -421,7 +421,7 @@ void OnMessage(const string line)
    string error = "";
    string result = Handle(method, params, error);
    if(error != "")
-      ReplyError(id, result == "unknown" ? -32601 : -32000, error);
+      ReplyError(id, result == "unknown" ? -32601 : result == "unknownSymbol" ? -32004 : -32000, error);
    else
       Reply(id, result);
    delete m;
@@ -476,6 +476,10 @@ string Handle(const string method, CJ *p, string &error)
       return DataBars(p, error);
    if(method == "broker.resolveSymbol")
       return BrokerResolve(p);
+   if(method == "broker.getState")
+      return BrokerState();
+   if(method == "broker.instrument")
+      return BrokerInstrument(p, error);
    if(method == "broker.selectAccount")
      {
       error = "MetaTrader 5 trades the account the terminal is logged in to: switch accounts in the terminal";
@@ -628,8 +632,9 @@ string DataSymbolInfo(CJ *p, string &error)
    string t = JStr(p, "ticker");
    if(!SymbolSelect(t, true))
      {
+      // The app stops asking for it (an expired contract in a watchlist).
       error = "Unknown symbol " + t;
-      return "";
+      return "unknownSymbol";
      }
    int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
    double point = SymbolInfoDouble(t, SYMBOL_POINT);
@@ -810,6 +815,44 @@ double Lots(const string t, const double units, string &error)
       return 0;
      }
    return NormalizeDouble(lots, 8);
+  }
+
+//--- How a symbol trades (broker.instrument): its volumes in units (lots × contract size), so the order ticket steps
+//--- and checks by the volume step, and the money one unit makes per price point (the ticket's risk and tick value).
+string BrokerInstrument(CJ *p, string &error)
+  {
+   string t = JStr(p, "ticker");
+   if(!SymbolSelect(t, true))
+     {
+      error = "Unknown symbol " + t;
+      return "unknownSymbol";
+     }
+   double size = ContractSize(t);
+   double step = SymbolInfoDouble(t, SYMBOL_VOLUME_STEP);
+   double min = SymbolInfoDouble(t, SYMBOL_VOLUME_MIN);
+   double max = SymbolInfoDouble(t, SYMBOL_VOLUME_MAX);
+   // The profit the terminal books for one lot over 100 ticks, in the account currency: the tick value property can
+   // be stale or in another unit for metals and indices.
+   double tickSize = SymbolInfoDouble(t, SYMBOL_TRADE_TICK_SIZE);
+   double price = SymbolInfoDouble(t, SYMBOL_ASK);
+   double pointValue = 0, profit = 0;
+   if(tickSize > 0 && price > 0 && OrderCalcProfit(ORDER_TYPE_BUY, t, 1.0, price, price + 100 * tickSize, profit) && profit > 0)
+      pointValue = profit / (100 * tickSize) / size;
+   else
+      if(tickSize > 0)
+         pointValue = SymbolInfoDouble(t, SYMBOL_TRADE_TICK_VALUE) / tickSize / size;
+   string out = "{";
+   if(step > 0)
+      out += "\"qtyStep\":" + JN(step * size, 8) + ",";
+   if(min > 0)
+      out += "\"qtyMin\":" + JN(min * size, 8) + ",";
+   if(max > 0)
+      out += "\"qtyMax\":" + JN(max * size, 8) + ",";
+   if(pointValue > 0)
+      out += "\"pointValue\":" + JN(pointValue, 10) + ",";
+   if(StringLen(out) > 1)
+      out = StringSubstr(out, 0, StringLen(out) - 1);
+   return out + "}";
   }
 
 string Side(const bool buy) { return buy ? "\"buy\"" : "\"sell\""; }

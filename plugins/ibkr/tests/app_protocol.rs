@@ -84,6 +84,14 @@ async fn hello_state_and_errors_without_ib() {
     assert_eq!(a["error"]["code"], -32000);
     assert!(a["error"]["message"].as_str().unwrap().contains("not configured"), "{a}");
 
+    // The state on request (#341), and a ticker's instrument needs the broker.
+    app.send(json!({ "jsonrpc": "2.0", "id": 9, "method": "broker.getState", "params": {} })).await;
+    let a = app.answer_of(9).await;
+    assert_eq!(a["result"]["connected"], false, "{a}");
+    app.send(json!({ "jsonrpc": "2.0", "id": 10, "method": "broker.instrument", "params": { "ticker": "ES" } })).await;
+    let a = app.answer_of(10).await;
+    assert!(a["error"]["message"].as_str().unwrap().contains("not configured"), "{a}");
+
     app.send(json!({ "jsonrpc": "2.0", "id": 6, "method": "broker.nope", "params": {} })).await;
     assert_eq!(app.answer_of(6).await["error"]["code"], -32601);
 

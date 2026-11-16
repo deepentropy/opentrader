@@ -122,6 +122,8 @@ pub struct Ibkr {
     by_id: Mutex<HashMap<i32, Contract>>,
     /// Contract id → price step.
     ticks: Mutex<HashMap<i32, f64>>,
+    /// Contract id → the smallest order and the size step IB gives (`broker.instrument`).
+    sizes: Mutex<HashMap<i32, (Option<f64>, Option<f64>)>>,
     /// The tickers whose quotes the app wants.
     watched: Mutex<Vec<String>>,
 }
@@ -136,6 +138,7 @@ impl Ibkr {
             contracts: Mutex::new(HashMap::new()),
             by_id: Mutex::new(HashMap::new()),
             ticks: Mutex::new(HashMap::new()),
+            sizes: Mutex::new(HashMap::new()),
             watched: Mutex::new(Vec::new()),
         })
     }
@@ -655,7 +658,11 @@ impl Ibkr {
         }
         self.store.update(|t| {
             if let Some(k) = &key {
-                if matches!(category, NoticeCategory::OrderRejection) {
+                // An error on an order IB never acknowledged refuses it too: the API's own checks (10243, a
+                // fractional size) answer with error codes outside the rejection range.
+                let unsent = t.orders.get(k).is_some_and(|o| o.status == OrderStatus::Placing)
+                    && matches!(category, NoticeCategory::Error | NoticeCategory::RequestError);
+                if matches!(category, NoticeCategory::OrderRejection) || unsent {
                     t.reject(k, &n.message);
                 } else {
                     t.update_status(k, 0, |o| o.message = Some(n.message.clone()));
@@ -678,6 +685,8 @@ impl Ibkr {
         if d.min_tick > 0.0 {
             lock(&self.ticks).insert(c.contract_id, d.min_tick);
         }
+        let positive = |v: Option<f64>| v.filter(|v| v.is_finite() && *v > 0.0);
+        lock(&self.sizes).insert(c.contract_id, (positive(d.min_size), positive(d.size_increment)));
         self.remember(&d.contract);
         lock(&self.contracts).insert(symbols::ticker_of(&c), c.clone());
         c
@@ -744,6 +753,21 @@ impl Ibkr {
 
     fn tick_of(&self, cid: i32) -> Option<f64> {
         lock(&self.ticks).get(&cid).copied()
+    }
+
+    /// `broker.instrument`: the smallest order and the size step IB gives for the contract, and its point value, the
+    /// contract multiplier (ES: 50) in the account's currency. The order ticket sizes risk and shows the tick value
+    /// with it.
+    pub async fn instrument(&self, ticker: &str) -> Result<Instrument, String> {
+        let conn = self.current()?;
+        let contract = self.contract_for(&conn, ticker).await?;
+        let (min, step) = lock(&self.sizes).get(&contract.contract_id).copied().unwrap_or((None, None));
+        // IB lists fractional shares, but the API refuses a fractional size (10243): whole units only.
+        let qty_step = Some(step.map_or(1.0, |s| s.ceil().max(1.0)));
+        let qty_min = Some(min.map_or(1.0, |m| m.ceil().max(1.0)));
+        let multiplier = contract.multiplier.parse::<f64>().ok().filter(|m| *m > 0.0).unwrap_or(1.0);
+        let rate = self.store.read(|t| t.rate_to_base(&contract.currency.0));
+        Ok(Instrument { qty_min, qty_step, point_value: rate.map(|r| multiplier * r) })
     }
 
     // ── Trading ────────────────────────────────────────────────────────────
