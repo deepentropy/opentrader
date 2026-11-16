@@ -15,6 +15,9 @@ describe("symbol info", () => {
     expect(fund[0].map((f) => f.title)).toEqual(["Symbol", "Name", "FIGI", "Home page"]);
     expect(fund[0][3]).toMatchObject({ value: "ssga.com", link: "https://www.ssga.com/x" });
     expect(fund[1].map((f) => [f.title, f.value])).toEqual([["Type", "Fund ETF"], ["Point value", "1"], ["Listed exchange", "AMEX"], ["Currency", "USD"], ["Tick size", "0.01"]]);
+    // A plugin's future counted in contracts (#345): its multiplier, as the reference shows NSE NIFTY futures.
+    const future = symbolInfoGroups({ symbol: "NSE:NIFTY25NOVFUT", securityType: "futures", listedExchange: "NSE", currency: "INR", tickSize: "0.1", pointValue: 65 });
+    expect(future[1].map((f) => [f.title, f.value])).toEqual([["Type", "Futures"], ["Point value", "65"], ["Listed exchange", "NSE"], ["Currency", "INR"], ["Tick size", "0.1"]]);
     const stock = symbolInfoGroups({ symbol: "NASDAQ:AAPL", homepageUrl: "https://apple.com", securityType: "stock", industry: "Electronic Computers" });
     expect(stock[0].map((f) => f.title)).toEqual(["Symbol", "Industry", "Website"]);
     expect(symbolInfoGroups({ symbol: "X:Y", homepageUrl: "https://a.b", securityType: "adr" })[0].map((f) => f.title)).toEqual(["Symbol"]);

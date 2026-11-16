@@ -47,6 +47,8 @@ export const pluginBroker = createRoot(() => {
   const metas = new Map<string, { description: string; iconUrl: string | null; stock: boolean } | "loading">();
   /** Broker ticker → how it trades (`broker_instrument`); "pending" while asked. */
   const instruments = new Map<string, Instrument | "pending">();
+  /** The tickers whose instrument gave no point value: the symbol's own is used (#345). */
+  const noPointValue = new Set<string>();
 
   const take = (s: BrokerStatus) => {
     const prev = status();
@@ -57,6 +59,7 @@ export const pluginBroker = createRoot(() => {
       tickers.clear();
       bidAsk.clear();
       instruments.clear();
+      noPointValue.clear();
     }
     setStatus(s);
     bump();
@@ -264,16 +267,32 @@ export const pluginBroker = createRoot(() => {
     if (!known && HAS_TAURI) {
       instruments.set(ticker, "pending");
       void commands.brokerInstrument(ticker).then((r) => {
-        if (r.status === "ok") instruments.set(ticker, instrumentOf(r.data, null));
-        else instruments.delete(ticker);
+        if (r.status === "ok") {
+          instruments.set(ticker, instrumentOf(r.data, null));
+          if (!(r.data.pointValue != null && r.data.pointValue > 0)) noPointValue.add(ticker);
+        } else instruments.delete(ticker);
         bump();
       });
     }
     return { ...ANY_INSTRUMENT, fields: instrumentOf(null, fields).fields };
   };
+  /** The symbol is one of the broker plugin's own data symbols: its point value counts the same quantities. */
+  const ownSymbol = (symbol: string): boolean => {
+    const st = status();
+    const ex = symbol.split(":")[0].toUpperCase();
+    return !!st && (st.dataExchange?.toUpperCase() === ex || st.dataExchanges.some((e) => e.toUpperCase() === ex));
+  };
   const instrumentOfPane = (paneId: number | null): Instrument => {
-    const t = tickerOf(symbolOf(paneId));
-    return t ? instrumentOfTicker(t) : ANY_INSTRUMENT;
+    const symbol = symbolOf(paneId);
+    const t = tickerOf(symbol);
+    if (!t || !symbol) return ANY_INSTRUMENT;
+    const i = instrumentOfTicker(t);
+    // No point value from the broker: the plugin's symbol gives it (a future counted in contracts, #345).
+    if ((noPointValue.has(t) || instruments.get(t) === "pending") && ownSymbol(symbol)) {
+      const pv = cachedSymbolSessions(symbol)?.pointValue;
+      if (pv && pv !== i.pointValue) return { ...i, pointValue: pv };
+    }
+    return i;
   };
 
   /** The order's ticket fields: each field's value picked, else the last one picked, else its default. */

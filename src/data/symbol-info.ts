@@ -31,6 +31,8 @@ export function securityTypeLabel(kind: string | null | undefined): string | nul
       return "Right";
     case "unit":
       return "Unit";
+    case "futures":
+      return "Futures";
     default:
       return null;
   }
@@ -55,6 +57,8 @@ export type InfoInput = {
   flag?: string | null;
   currency?: string | null;
   tickSize?: string | null;
+  /** Money a unit makes per price point; 1 when the source gives none. */
+  pointValue?: number | null;
 };
 
 /** Host name of a URL without "www." (the reference shows the site that way). */
@@ -80,7 +84,7 @@ export function symbolInfoGroups(i: InfoInput): InfoField[][] {
   const second: InfoField[] = [];
   const type = securityTypeLabel(i.securityType);
   if (type) second.push({ title: "Type", value: type });
-  second.push({ title: "Point value", value: "1" });
+  second.push({ title: "Point value", value: String(i.pointValue ?? 1) });
   if (i.listedExchange) second.push({ title: "Listed exchange", value: i.listedExchange, ...(i.flag ? { flag: i.flag } : {}) });
   if (i.currency) second.push({ title: "Currency", value: i.currency });
   if (i.tickSize) second.push({ title: "Tick size", value: i.tickSize });

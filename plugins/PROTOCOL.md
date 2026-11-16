@@ -151,6 +151,7 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `holidays` | Full-close days, `YYYYMMDD,YYYYMMDD`. |
 | `barOrigin` | Optional, `"HHMM"` in `timezone`. Send it when your intraday bars start on a clock grid that ignores the session opens, as a broker terminal's do: 5-minute bars at 01:00, 01:05… when trading opens at 01:01, 4-hour bars at 00:00, 04:00… of the server's day. Give the time of day the grid starts from (the server's midnight: `"1700"` in New York for a New York close server). The app then shows your bars as they are, builds the other sizes on that grid, and puts live minutes, alerts, the countdown and scripts' `time(tf)` on it too. Without it, bars start at the session opens (see `intervals`). |
 | `pricescale`, `minmov` | One tick is `minmov / pricescale`. For example, 100000 and 1 give 0.00001. |
+| `pointValue` | Optional, 1 when left out. The money one unit of quantity makes when the price moves by 1, in `currency`. A future counted in contracts gives its multiplier: 65 for an NSE NIFTY future, 50 for an E-mini S&P. Symbol info shows it, and scripts (`syminfo.pointvalue`), the strategy tester and Bar Replay trading compute profits with it. |
 | `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Intraday bars start on the clock grid of their size in the symbol's time zone (a `"60"` bar starts on the hour). Other minute or second sizes are built by the app from a served size that divides them. Bars that start at the session open (09:30, 10:30…) are built from a served size that divides the time from midnight to the open; with none (only `"60"` for a 09:30 open), the bars keep the served grid (09:00, 10:00…) and the one the open falls in is stamped at the open. Weeks and months are built from days. The interval picker offers only these; another interval shows that it is not supported. |
 
 **Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment.
@@ -196,7 +197,14 @@ The user connects the app to one broker plugin at a time from **Trade > Connect 
 2. the plugin's own symbols, when it is also a data plugin;
 3. `broker.resolveSymbol`.
 
-**Quantities** are in units: shares, currency units, contracts. A broker that counts lots converts. With a contract size of 100,000, 0.01 lot is 1,000 units. A broker that only takes whole lots says so in `broker.instrument`: the order ticket then steps and checks the quantity by the lot.
+**Quantities** are in units: shares, currency units or contracts. A broker that counts lots converts. With a contract size of 100,000, 0.01 lot is 1,000 units. A broker that only takes whole lots says so in `broker.instrument`: the order ticket then steps and checks the quantity by the lot.
+
+The unit and the point value go together. A future can be counted either way, as long as orders, positions and point value agree:
+
+- in contracts, as charting platforms usually count futures: a NIFTY lot of 65 is 1, `pointValue` 65 (in `data.symbolInfo` or `broker.instrument`), `qtyStep` 1. The plugin multiplies by 65 when it sends an order to a broker that counts underlying units, and divides the positions, orders and fills it reports;
+- in underlying units: one lot is 65, `pointValue` 1, `qtyStep` 65.
+
+When `broker.instrument` gives no point value, the order ticket uses the symbol's (`data.symbolInfo`) for the plugin's own symbols.
 
 **Ticket fields.** A broker that needs a choice with each order that the app doesn't have (a product type: intraday, delivery, carry forward…) declares it in `capabilities.ticketFields`, or per ticker in `broker.instrument`. The order ticket shows each field as a selector and sends the values picked in `fields`; the chart's one-click orders send the last values picked. A modified order keeps the fields it was placed with, from `orders[].fields`.
 

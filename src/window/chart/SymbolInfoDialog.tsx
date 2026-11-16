@@ -46,6 +46,7 @@ export function SymbolInfoDialog(props: Props) {
       flag: flagUrl(countryOfExchange(exchange)) ?? null,
       currency: i?.currency,
       tickSize: tick != null ? String(Number(tick.toPrecision(6))) : null,
+      pointValue: s?.pointValue,
     });
   });
   const timeline = createMemo(() => {

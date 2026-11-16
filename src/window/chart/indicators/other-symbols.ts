@@ -279,7 +279,7 @@ export class OtherSymbolBars {
       mintick: s.mintick,
       minmove: s.minmove,
       pricescale: s.pricescale,
-      pointvalue: DEFAULT_SYMBOL.pointValue,
+      pointvalue: s.pointValue,
       mincontract: DEFAULT_SYMBOL.qtyStep,
     };
   }

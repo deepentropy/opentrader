@@ -491,6 +491,7 @@ export function symbolOf(chart: ChartContext | undefined): Partial<SymbolInfo> {
   const out: Partial<SymbolInfo> = {};
   if (chart?.timezone) out.timezone = chart.timezone;
   if (chart?.mintick) out.mintick = chart.mintick;
+  if (chart?.pointvalue) out.pointValue = chart.pointvalue;
   return out;
 }
 

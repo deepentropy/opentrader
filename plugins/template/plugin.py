@@ -97,6 +97,8 @@ class Source:
             "session": "24x7",
             "pricescale": scale,
             "minmov": 1,
+            # The money one unit makes per price point; a future counted in contracts gives its multiplier (NSE NIFTY: 65).
+            "pointValue": 1,
             "intervals": list(self.RESOLUTIONS),
         }
 

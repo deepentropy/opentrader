@@ -47,6 +47,12 @@ describe("SymbolSessions", () => {
     expect(tradingDayTime(sunday, k) / 1000).toBe(utc(2026, 11, 8));
   });
 
+  it("gives the point value of the source, 1 without one (#345)", () => {
+    expect(s.pointValue).toBe(1);
+    expect(new SymbolSessions(usStock({ pointValue: 65 })).pointValue).toBe(65);
+    expect(new SymbolSessions(usStock({ pointValue: 0 })).pointValue).toBe(1);
+  });
+
   it("reads the regular, extended, pre and post schedules", () => {
     expect(s.timeZone).toBe("America/New_York");
     expect(s.regularScript).toEqual({ session: "0930-1600", corrections: "", holidays: "20261126", barOrigin: null });

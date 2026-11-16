@@ -176,7 +176,7 @@ export function StrategyTesterPanel(props: Props) {
         interval: props.interval,
         timeZone: sessions?.timeZone ?? DEFAULT_SYMBOL.timezone,
         mintick: sessions?.mintick ?? DEFAULT_SYMBOL.mintick,
-        pointValue: DEFAULT_SYMBOL.pointValue,
+        pointValue: sessions?.pointValue ?? DEFAULT_SYMBOL.pointValue,
         priceCurrency: report.currency,
       },
       tabs,

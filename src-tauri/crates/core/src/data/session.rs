@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 /// Sessions and price grid of a symbol. `session` is the regular session;
 /// `subsessions` names the parts of the trading day the provider serves.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolSession {
     /// IANA time zone of the exchange ("America/New_York").
@@ -52,6 +52,10 @@ pub struct SymbolSession {
     /// plugin's `barOrigin`: a broker terminal's bars ignore the session opens). None: bars start at the opens.
     #[serde(default)]
     pub bar_origin: Option<u32>,
+    /// Money one unit of quantity makes when the price moves by 1, in the symbol's currency: a future counted in
+    /// contracts gives its multiplier (65 for an NSE NIFTY future). None: 1.
+    #[serde(default)]
+    pub point_value: Option<f64>,
 }
 
 /// One named part of the trading day.

@@ -60,6 +60,9 @@ pub struct Info {
     /// opens (a broker terminal: 5-minute bars at 01:00 when trading opens at 01:01).
     #[serde(default)]
     pub bar_origin: Option<String>,
+    /// Money one unit makes per price point: a future counted in contracts gives its multiplier.
+    #[serde(default)]
+    pub point_value: Option<f64>,
 }
 
 fn one() -> u32 {
@@ -224,6 +227,7 @@ pub async fn session(app: &AppHandle, r: &Route) -> Result<SymbolSession, String
         variable_tick_size: String::new(),
         intervals: i.intervals.clone(),
         bar_origin: i.bar_origin.as_deref().and_then(origin_minutes),
+        point_value: i.point_value.filter(|v| v.is_finite() && *v > 0.0),
     })
 }
 

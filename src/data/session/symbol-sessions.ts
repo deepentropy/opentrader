@@ -55,6 +55,9 @@ export class SymbolSessions {
   /** Tick at the current price (minmov / pricescale): script
    *  `syminfo.mintick`, backtest fill rounding. */
   readonly mintick: number;
+  /** Money one unit of quantity makes per price point (script `syminfo.pointvalue`, backtest and replay P&L, Symbol
+   *  info): a future counted in contracts gives its multiplier; 1 when the source gives none. */
+  readonly pointValue: number;
   /** The two terms of the tick (script `syminfo.minmove` / `syminfo.pricescale`). */
   readonly minmove: number;
   readonly pricescale: number;
@@ -91,6 +94,7 @@ export class SymbolSessions {
     this.postmarket = post ? spec(post.session, post.corrections) : null;
     this.hasExtendedHours = ext !== undefined && ext.session !== info.session;
     this.mintick = info.minmov / info.pricescale;
+    this.pointValue = info.pointValue != null && Number.isFinite(info.pointValue) && info.pointValue > 0 ? info.pointValue : 1;
     this.minmove = info.minmov;
     this.pricescale = info.pricescale;
     const v = info.variableTickSize.trim().split(/\s+/).filter(Boolean).map(Number);

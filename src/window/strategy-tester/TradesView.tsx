@@ -166,7 +166,7 @@ export function TradesView(props: Props) {
                   priceCurrency: r.currency,
                   initialCapital: r.properties.initialCapital,
                   mintick: sessions?.mintick ?? DEFAULT_SYMBOL.mintick,
-                  pointValue: DEFAULT_SYMBOL.pointValue,
+                  pointValue: sessions?.pointValue ?? DEFAULT_SYMBOL.pointValue,
                   timeZone: zone,
                   interval: props.interval,
                 });

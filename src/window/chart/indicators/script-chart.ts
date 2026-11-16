@@ -88,8 +88,8 @@ export function scriptChartContext(
     timeframe: interval ?? "1D",
     tickerid: symbol || undefined,
     sessionType: extended ? "extended" : "regular",
-    // Whole shares, one currency unit per point: every symbol the data serves is a US-listed security (the
-    // reference app gives point value 1 to its stocks, funds, receipts and warrants).
+    // Whole shares, one currency unit per point until the symbol's sessions say otherwise (the reference app gives
+    // point value 1 to its stocks, funds, receipts and warrants; a plugin's future gives its multiplier).
     pointvalue: DEFAULT_SYMBOL.pointValue,
     mincontract: DEFAULT_SYMBOL.qtyStep,
   };
@@ -97,6 +97,7 @@ export function scriptChartContext(
   const sessions = symbol ? cachedSymbolSessions(symbol) : null;
   if (sessions) {
     ctx.timezone = sessions.timeZone;
+    ctx.pointvalue = sessions.pointValue;
     ctx.session = extended ? sessions.extendedScript : sessions.regularScript;
     ctx.regularSession = sessions.regularScript;
     ctx.mintick = sessions.mintick;

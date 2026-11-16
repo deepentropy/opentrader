@@ -93,6 +93,8 @@ describe("symbolOf / chartWithSymbols", () => {
     expect(symbolOf(undefined)).toEqual({});
     expect(symbolOf({ timezone: "Europe/Paris", mintick: 0.5 })).toEqual({ timezone: "Europe/Paris", mintick: 0.5 });
     expect(symbolOf({ timeframe: "1D" })).toEqual({});
+    // A future's multiplier sizes the strategy's profits (#345).
+    expect(symbolOf({ mintick: 0.05, pointvalue: 65 })).toEqual({ mintick: 0.05, pointValue: 65 });
   });
 
   it("adds accessors of the other symbols' bars keyed symbol|timeframe", () => {
