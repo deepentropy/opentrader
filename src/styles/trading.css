@@ -1727,3 +1727,31 @@ html.theme-light {
     transform: rotate(360deg);
   }
 }
+
+/* The broker's own ticket fields (#341): its options side by side, like the inputs. */
+.trd-tk-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.trd-tk-choice-option {
+  flex: 1 1 0;
+  min-width: 56px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 400 14px/18px var(--trd-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trd-tk-choice-option:hover {
+  color: var(--color-text-primary);
+}
+.trd-tk-choice-option.is-selected {
+  border-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+}

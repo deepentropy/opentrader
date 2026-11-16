@@ -92,6 +92,7 @@ import { replayBroker } from "./data/trading/replay-broker";
 import { pluginBroker } from "./data/trading/plugin-broker";
 import { events } from "./bindings";
 import { refreshPluginSessions } from "./data/session/symbol-sessions";
+import { forgetUnknownSymbols } from "./data/unknown-symbols";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
@@ -433,6 +434,7 @@ function App() {
   onMount(() => {
     if (!isTauri()) return;
     const stop = events.pluginsChanged.listen(() => {
+      forgetUnknownSymbols();
       void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
     });
     onCleanup(() => void stop.then((f) => f()));

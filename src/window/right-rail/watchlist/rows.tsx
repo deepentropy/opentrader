@@ -10,6 +10,7 @@ import { flagOf } from "../../../data/symbol-flags";
 import { FlagMarker } from "./markers";
 import { NotesMark } from "../notes/SymbolNotes";
 import { emitAppEvent } from "../../../data/app-events";
+import { isUnknownSymbol } from "../../../data/unknown-symbols";
 import { type WatchlistCx } from "./context";
 import type { JSX } from "solid-js";
 
@@ -142,6 +143,8 @@ export function createRows(cx: WatchlistCx): RowsApi {
       role="row"
       class="watchlist-row"
       classList={{
+        // A symbol that no longer exists: its name in red (reference app).
+        "is-invalid": isUnknownSymbol(r.ticker),
         selected: isSelected(r),
         highlighted: isHighlighted(r),
         dragging: isDragging(r.ticker),
@@ -166,8 +169,8 @@ export function createRows(cx: WatchlistCx): RowsApi {
           <span class="ot-ticker-logo ot-ticker-logo--sm watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
         </Show>
         <span class="watchlist-ticker" data-no-translate>{primaryLabel(r)}</span>
-        <Show when={dotClass(r)}>
-          {(c) => <span class={c()} aria-hidden="true" />}
+        <Show when={!isUnknownSymbol(r.ticker) && dotClass(r)}>
+          {(c) => <span class={c() as string} aria-hidden="true" />}
         </Show>
         <NotesMark
           symbol={r.ticker}
@@ -204,6 +207,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
         role="row"
         class="watchlist-tile"
         classList={{
+          "is-invalid": isUnknownSymbol(r.ticker),
           selected: isSelected(r),
           highlighted: isHighlighted(r),
           dragging: isDragging(r.ticker),
@@ -227,8 +231,8 @@ export function createRows(cx: WatchlistCx): RowsApi {
         <div class="watchlist-tile-main">
           <div class="watchlist-tile-line">
             <span class="watchlist-tile-ticker">{r.short}</span>
-            <Show when={dotClass(r)}>
-              {(c) => <span class={c()} aria-hidden="true" />}
+            <Show when={!isUnknownSymbol(r.ticker) && dotClass(r)}>
+              {(c) => <span class={c() as string} aria-hidden="true" />}
             </Show>
             <span class="watchlist-tile-last">{lastForRow(r)}</span>
           </div>

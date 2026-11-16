@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ALL_CAPABILITIES, canAddOrderBrackets, canMove, capabilitiesOf, takesOrder, type TradingCapabilities } from "../capabilities";
+import { ALL_CAPABILITIES, ANY_INSTRUMENT, canAddOrderBrackets, canMove, capabilitiesOf, instrumentOf, qtyArrowStep, qtyProblem, takesOrder, wholeLots, type TradingCapabilities } from "../capabilities";
+import { qtyMessage } from "../qty-message";
 import type { TradingOrder } from "../types";
 
 const order = (p: Partial<TradingOrder>): TradingOrder => ({
@@ -82,5 +83,45 @@ describe("canMove", () => {
     expect(canAddOrderBrackets(ALL_CAPABILITIES)).toBe(true);
     expect(canAddOrderBrackets(caps({ brackets: false }))).toBe(false);
     expect(canAddOrderBrackets(caps({ modifyOrders: false }))).toBe(false);
+  });
+});
+
+describe("broker instruments (#341)", () => {
+  const product = { id: "product", label: "Product", options: [{ value: "MIS", label: "Intraday" }, { value: "CNC", label: null }, { value: "", label: "none" }], default: "CNC" };
+
+  it("reads a plugin's instrument and its ticket fields", () => {
+    const i = instrumentOf({ qtyMin: 65, qtyStep: 65, pointValue: null }, [product]);
+    expect(i).toMatchObject({ qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1 });
+    expect(i.fields).toEqual([{ id: "product", label: "Product", options: [{ value: "MIS", label: "Intraday" }, { value: "CNC", label: "CNC" }], default: "CNC" }]);
+    // The instrument's own fields replace the broker's; a field without options or id is left out.
+    expect(instrumentOf({ ticketFields: [{ ...product, default: "X" }] }, []).fields[0].default).toBe("MIS");
+    expect(instrumentOf({ ticketFields: [{ id: "x", options: [] }, { options: [{ value: "a" }] }] }, [product]).fields).toEqual([]);
+    expect(instrumentOf(null, null)).toEqual(ANY_INSTRUMENT);
+    expect(instrumentOf({ qtyStep: 0, pointValue: -1 }, null)).toMatchObject({ qtyStep: null, pointValue: 1 });
+  });
+
+  it("checks a quantity against the lots, minimum and maximum", () => {
+    const lot = { ...ANY_INSTRUMENT, qtyMin: 65, qtyStep: 65 };
+    expect(qtyProblem(130, lot)).toBeNull();
+    expect(qtyProblem(1, lot)).toEqual({ kind: "step", n: 65, next: 130 });
+    expect(qtyProblem(50, { ...ANY_INSTRUMENT, qtyMin: 100, qtyStep: 10 })).toEqual({ kind: "min", n: 100 });
+    expect(qtyProblem(100, lot)).toEqual({ kind: "step", n: 65, next: 130 });
+    expect(qtyProblem(200, lot)).toEqual({ kind: "step", n: 195, next: 260 });
+    expect(qtyProblem(5, { ...ANY_INSTRUMENT, qtyMax: 4 })).toEqual({ kind: "max", n: 4 });
+    expect(qtyProblem(0.3, { ...ANY_INSTRUMENT, qtyStep: 0.1 })).toBeNull();
+    expect(qtyProblem(7, ANY_INSTRUMENT)).toBeNull();
+    expect(qtyMessage(1, lot)).toBe("65 is one lot: use 65 or 130");
+    expect(qtyMessage(1, { ...ANY_INSTRUMENT, qtyMin: 5 })).toBe("The smallest quantity is 5");
+    expect(qtyMessage(130, lot)).toBeNull();
+  });
+
+  it("rounds units down to whole lots and steps by a lot", () => {
+    const lot = { ...ANY_INSTRUMENT, qtyMin: 65, qtyStep: 65 };
+    expect(wholeLots(200, lot)).toBe(195);
+    expect(wholeLots(60, lot)).toBeNull();
+    expect(wholeLots(0.37, { ...ANY_INSTRUMENT, qtyStep: 0.01 })).toBe(0.37);
+    expect(wholeLots(10, { ...ANY_INSTRUMENT, qtyStep: 1, qtyMax: 4 })).toBe(4);
+    expect(qtyArrowStep(lot)).toBe(65);
+    expect(qtyArrowStep(ANY_INSTRUMENT)).toBe(1);
   });
 });

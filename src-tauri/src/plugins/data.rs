@@ -14,7 +14,7 @@ use super::Plugins;
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::types::{Candle, ChartAggregate, Snapshot, SymbolSearchResult, TickerInfo, TradeTick};
 use opentrader_core::host::HostRef;
-use opentrader_core::plugins::hub::HubEvent;
+use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::sync::LockExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -28,6 +28,8 @@ const BARS_TIMEOUT: Duration = Duration::from_secs(60);
 const INFO_TIMEOUT: Duration = Duration::from_secs(15);
 /// Bars asked at most in one request.
 const MAX_BARS: u64 = 50_000;
+/// The error code of a plugin that doesn't know a symbol (an expired contract, a renamed ticker).
+const UNKNOWN_SYMBOL: i64 = -32004;
 
 /// What the plugin says of a symbol (`data.symbolInfo`).
 #[derive(Clone, Debug, Deserialize)]
@@ -77,6 +79,9 @@ pub struct PluginData {
     /// The plugins asked with whole symbols (they serve several exchanges).
     whole: Mutex<HashSet<String>>,
     infos: Mutex<HashMap<String, Arc<Info>>>,
+    /// The symbols a plugin said it doesn't know (`UNKNOWN_SYMBOL`): not asked again, nor streamed, until it connects
+    /// again. A watchlist of expired contracts would otherwise ask for each of them at every look.
+    unknown: Mutex<HashSet<String>>,
     subs: Mutex<Subscriptions>,
     /// The tickers each plugin was last asked to stream.
     streaming: Mutex<HashMap<String, BTreeSet<String>>>,
@@ -126,6 +131,7 @@ pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashS
     *s.exchanges.locked() = map;
     *s.whole.locked() = whole;
     s.infos.locked().clear();
+    s.unknown.locked().clear();
 }
 
 pub fn init(app: &AppHandle) {
@@ -158,6 +164,12 @@ fn forget(app: &AppHandle, plugin: &str) {
     let s = state(app);
     let exchanges: Vec<String> = s.exchanges.locked().iter().filter(|(_, p)| *p == plugin).map(|(e, _)| format!("{e}:")).collect();
     s.infos.locked().retain(|sym, _| !exchanges.iter().any(|e| sym.starts_with(e)));
+    s.unknown.locked().retain(|sym| !exchanges.iter().any(|e| sym.starts_with(e)));
+}
+
+/// The error of a symbol its plugin doesn't know: final, like the gateway's (the window doesn't retry it).
+fn unknown_symbol(symbol: &str) -> String {
+    format!("{symbol}: unknown symbol (NOT_FOUND)")
 }
 
 async fn ask(app: &AppHandle, r: &Route, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
@@ -169,7 +181,20 @@ pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
     if let Some(i) = state(app).infos.locked().get(&r.symbol) {
         return Ok(i.clone());
     }
-    let v = ask(app, r, "data.symbolInfo", json!({ "ticker": r.ticker }), INFO_TIMEOUT).await?;
+    if state(app).unknown.locked().contains(&r.symbol) {
+        return Err(unknown_symbol(&r.symbol));
+    }
+    let hub = app.state::<Plugins>().hub.clone();
+    let v = match hub.request(&r.plugin, "data.symbolInfo", json!({ "ticker": r.ticker }), INFO_TIMEOUT).await {
+        Ok(v) => v,
+        Err(PluginError::Rpc { code: UNKNOWN_SYMBOL, .. }) => {
+            state(app).unknown.locked().insert(r.symbol.clone());
+            // Streamed no more.
+            push_subscriptions(app);
+            return Err(unknown_symbol(&r.symbol));
+        }
+        Err(e) => return Err(e.to_string()),
+    };
     let info: Info = serde_json::from_value(v).map_err(|e| format!("{}: bad symbol info ({e})", r.symbol))?;
     if info.pricescale == 0 {
         return Err(format!("{}: bad symbol info (pricescale 0)", r.symbol));
@@ -491,8 +516,9 @@ fn push_subscriptions(app: &AppHandle) {
     for p in s.exchanges.locked().values() {
         per_plugin.entry(p.clone()).or_default();
     }
+    let unknown = s.unknown.locked().clone();
     for sym in wanted {
-        if let Some(r) = route(app, &sym) {
+        if let Some(r) = route(app, &sym).filter(|r| !unknown.contains(&r.symbol)) {
             per_plugin.entry(r.plugin).or_default().insert(r.ticker);
         }
     }

@@ -4,6 +4,9 @@
  */
 import { createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js";
 import { broker } from "../../data/trading/broker";
+import { pluginBroker } from "../../data/trading/plugin-broker";
+import { ANY_INSTRUMENT, qtyArrowStep, qtyProblem, wholeLots, type Instrument } from "../../data/trading/capabilities";
+import { ticketFieldPrefs } from "../../data/trading/trading-ui";
 import { POSITION_EDIT, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
 import type { OrderType } from "../../data/trading/types";
 import { replayStartSeq } from "../../data/replay";
@@ -43,7 +46,9 @@ export function createTicketModel() {
   /** Balance the "% balance" types are measured on: the initial capital
    *  plus the closed trades. */
   const balance = createMemo(() => broker.balance());
-  const ctx = () => ({ tick: tick(), decimals: dec(), balance: balance(), pointValue: 1 });
+  /** How the ticket's ticker trades (#341): its lots, point value and the broker's own ticket fields. */
+  const inst = createMemo<Instrument>(() => broker.instrument(tradingUi.draft()?.paneId), ANY_INSTRUMENT, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  const ctx = () => ({ tick: tick(), decimals: dec(), balance: balance(), pointValue: inst().pointValue, instrument: inst() });
   const types = () => fieldTypes(d());
   /** What the broker of the ticket's chart supports (#320). */
   const caps = () => broker.capabilities(tradingUi.draft()?.paneId);
@@ -81,6 +86,34 @@ export function createTicketModel() {
       tradingUi.setSent(true);
     }, { defer: false }),
   );
+
+  // The broker's account as it is now: a plugin that only sends it on activity may not have sent it yet.
+  pluginBroker.refresh();
+
+  // A ticker sized in lots: a new order's quantity the broker doesn't take becomes the smallest it does (a ticket
+  // that starts at 1 on a contract of 65).
+  createEffect(
+    on(inst, (i) => {
+      const x = untrack(d);
+      if (!x || x.editing || fieldTypes(x).qtyType !== "units") return;
+      const qty = parsePositive(x.qty);
+      if (qty != null && !qtyProblem(qty, i)) return;
+      const step = i.qtyStep;
+      const least = step ? Math.ceil((i.qtyMin ?? step) / step - 1e-9) * step : i.qtyMin;
+      const next = (qty != null ? wholeLots(qty, i) : null) ?? least;
+      if (next != null) tradingUi.patchDraft({ qty: String(Number(next.toFixed(10))) });
+    }),
+  );
+
+  // ── The broker's ticket fields (a product type) ─────────────────────────
+  /** The value picked in a field: this order's, else the last one picked, else its default. */
+  const fieldValue = (id: string): string => {
+    const f = inst().fields.find((x) => x.id === id);
+    if (!f) return "";
+    const ok = (v: string | undefined) => (v !== undefined && f.options.some((o) => o.value === v) ? v : undefined);
+    return ok(d().fields?.[id]) ?? ok(ticketFieldPrefs()[id]) ?? f.default;
+  };
+  const setField = (id: string, value: string) => patch({ fields: { ...d().fields, [id]: value } });
 
   // The modified order ended (filled / cancelled): back to a new order.
   createEffect(() => {
@@ -236,6 +269,15 @@ export function createTicketModel() {
       if (wasOff && takeTip("stopLoss")) setSlTip(TIPS.stopLoss);
     }
   };
+  /** ArrowUp / ArrowDown on a quantity in units: one lot (1 without lots), never below the smallest order. */
+  const stepQty = (up: boolean) => {
+    const i = inst();
+    const step = qtyArrowStep(i);
+    const v = parsePositive(d().qty) ?? 0;
+    const least = Math.max(i.qtyMin ?? step, step);
+    const next = Math.max(least, (Math.round(v / step) + (up ? 1 : -1)) * step);
+    patch({ qty: String(Number(next.toFixed(10))) });
+  };
   const qtyValueText = (type: QtyType): string => {
     const v = qtyValueIn(type, r(), q(), ctx());
     return v == null ? "⌀" : fmtTypeValue(type, v, dec());
@@ -278,7 +320,7 @@ export function createTicketModel() {
       tradingUi.setSent(false);
       return;
     }
-    const t = buildTicket(r(), q());
+    const t = buildTicket(r(), q(), inst());
     if (typeof t === "string") {
       setErrorText(t);
       return;
@@ -291,14 +333,17 @@ export function createTicketModel() {
       return;
     }
     if (x.editing) {
-      broker.modify(x.editing, t, x.paneId ?? undefined);
+      // A modified order keeps the ticket fields it was placed with (the broker's).
+      const { fields: _, ...order } = t;
+      broker.modify(x.editing, order, x.paneId ?? undefined);
       if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
       tradingUi.setDraft({ ...x, editing: null, paneId: null });
       tradingUi.setSent(true);
       return;
     }
-    if (broker.place(t) === null && !state().ok) return;
-    tradingUi.savePrefs(r());
+    const fields = Object.fromEntries(inst().fields.map((f) => [f.id, fieldValue(f.id)]));
+    if (broker.place({ ...t, ...(inst().fields.length ? { fields } : {}) }) === null && !state().ok) return;
+    tradingUi.savePrefs({ ...r(), fields });
     // The order dialog of the DOM closes once the order is sent.
     if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
     tradingUi.setSent(true);
@@ -307,7 +352,7 @@ export function createTicketModel() {
   /** The modified order differs from the working one. */
   const changed = createMemo(() => {
     const o = editing();
-    const t = buildTicket(r(), q());
+    const t = buildTicket(r(), q(), inst());
     const pos = editingPos();
     if (pos && typeof t !== "string") return t.takeProfit !== pos.takeProfit || t.stopLoss !== pos.stopLoss;
     if (!o || typeof t === "string") return false;
@@ -391,7 +436,7 @@ export function createTicketModel() {
   onCleanup(() => (document.body.style.cursor = ""));
 
   return {
-    d, q, tick, dec, ccy, state, r, types, caps, qtyTypes, isPos, editing, editingPos, errorText, qtyTip, setQtyTip, slTip, setSlTip, boxes,
+    d, q, tick, dec, ccy, state, r, types, caps, inst, fieldValue, setField, stepQty, qtyTypes, isPos, editing, editingPos, errorText, qtyTip, setQtyTip, slTip, setSlTip, boxes,
     patch, spread, setType,
     exitOn, exitType, exitEquiv, qtyNum, exitValueText, exitInputValue, setExit, setExitType, setExitEquiv, swapExit, exitStep,
     setQtyType, qtyValueText, priceMode, swapPrice, stepKey,

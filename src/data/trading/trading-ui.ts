@@ -49,6 +49,8 @@ export type TicketDraft = {
   /** Order preset to apply when the ticket opens (chart Buy / Sell buttons
    *  with an active preset). */
   applyPreset?: string;
+  /** The values picked in the broker's own ticket fields (field id → value). */
+  fields?: Record<string, string>;
 };
 
 /** What the open order ticket offers the chart's project order line. */
@@ -119,7 +121,7 @@ function parsePresets(raw: string): OrderPreset[] {
   return Array.isArray(v) ? v.filter((p): p is OrderPreset => !!p && typeof p.id === "string" && typeof p.title === "string" && typeof p.orderType === "string") : [];
 }
 
-type TicketPrefs = { qty: string; orderType: OrderType };
+type TicketPrefs = { qty: string; orderType: OrderType; fields?: Record<string, string> };
 const DEFAULT_PREFS: TicketPrefs = { qty: "1", orderType: "market" };
 
 /** Decimals of a price step (0.01 → 2). */
@@ -144,6 +146,12 @@ const [prefs, setPrefs] = createRoot(() =>
 export function ticketQty(): number {
   const q = Number(prefs().qty);
   return Number.isFinite(q) && q > 0 ? q : 1;
+}
+
+/** The broker ticket fields' last picked values (a product type): the next orders start from them, the chart's
+ *  one-click orders too. */
+export function ticketFieldPrefs(): Record<string, string> {
+  return prefs().fields ?? {};
 }
 
 /** The quantity of the next orders (chart Buy / Sell quantity calculator). */
@@ -226,6 +234,7 @@ export const tradingUi = createRoot(() => {
       stopLoss: "",
       editing: null,
       paneId: null,
+      fields: { ...p.fields },
     };
   };
 
@@ -251,7 +260,7 @@ export const tradingUi = createRoot(() => {
     setSent,
     /** Remember the ticket choices the next order starts from. */
     savePrefs(d: TicketDraft) {
-      setPrefs({ qty: d.qty, orderType: d.orderType });
+      setPrefs({ qty: d.qty, orderType: d.orderType, fields: { ...prefs().fields, ...d.fields } });
     },
     /** A new order's draft (the ticket's starting values). */
     newDraft,

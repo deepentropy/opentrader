@@ -31,6 +31,8 @@ export const broker = {
   tradability: () => brokerOf().tradability(),
   /** What the broker of a chart (none given: of the focused one) supports. */
   capabilities: (paneId?: number | null) => brokerOf(paneId).capabilities(),
+  /** How the ticker of a chart (none given: of the focused one) trades: lots, point value, the broker's ticket fields. */
+  instrument: (paneId?: number | null) => brokerOf(paneId).instrument(paneId),
   symbol: () => brokerOf().symbol(),
   description: (symbol: string) => brokerOf().description(symbol),
   iconUrl: (symbol: string) => brokerOf().iconUrl(symbol),

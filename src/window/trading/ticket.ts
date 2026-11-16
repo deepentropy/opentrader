@@ -7,6 +7,9 @@ import type { ExitFieldType, OrderPreset, TicketDraft } from "../../data/trading
 import type { OrderRequest, TradingQuote } from "../../data/trading/types";
 import { fmtQty, parsePositive, tickerOf } from "./format";
 import { localNumber } from "../../i18n/format";
+import { translate } from "../../i18n/translator";
+import { ANY_INSTRUMENT, wholeLots, type Instrument } from "../../data/trading/capabilities";
+import { qtyMessage } from "../../data/trading/qty-message";
 
 /** Default exit distances in ticks (take profit / stop loss). */
 export const TP_TICKS = 75;
@@ -79,8 +82,8 @@ export type ExitKind = "tp" | "sl";
 export const EXIT_TYPES: ExitType[] = ["price", "ticks", "pricePct", "cash", "balancePct"];
 export const QTY_TYPES: QtyType[] = ["units", "riskUsd", "riskPct"];
 
-/** Prices, balance and point value the conversions need. */
-export type TicketCtx = { tick: number; decimals: number; balance: number | null; pointValue?: number };
+/** Prices, balance and point value the conversions need; the instrument's lots size a risk. */
+export type TicketCtx = { tick: number; decimals: number; balance: number | null; pointValue?: number; instrument?: Instrument };
 
 /** The field types of a draft (defaults: prices, units). */
 export function fieldTypes(d: TicketDraft) {
@@ -200,7 +203,11 @@ export function resolveDraft(d: TicketDraft, q: Quote | null, c: TicketCtx): Tic
     const risk = parsePositive(d.risk ?? "");
     const sl = parsePositive(r.stopLoss);
     const cash = risk == null ? null : t.qtyType === "riskUsd" ? risk : c.balance ? (c.balance * risk) / 100 : null;
-    const units = d.slOn && cash != null && entry != null && sl != null ? unitsForRisk(cash, entry, sl, c.pointValue) : null;
+    const lots = c.instrument?.qtyStep != null || c.instrument?.qtyMin != null;
+    const per = entry != null && sl != null ? Math.abs(entry - sl) * (c.pointValue ?? 1) : 0;
+    // Whole units, or whole lots of an instrument sized in lots.
+    const units =
+      !d.slOn || cash == null || entry == null || sl == null ? null : lots ? (per > 0 && cash > 0 ? wholeLots(cash / per, c.instrument!) : null) : unitsForRisk(cash, entry, sl, c.pointValue);
     r.qty = units != null ? String(units) : "";
   }
   r.takeProfit = exit("tp", parsePositive(r.qty));
@@ -257,25 +264,27 @@ export function riskReward(d: TicketDraft, q: Quote | null): number | null {
   return Math.abs(tp - e) / Math.abs(e - sl);
 }
 
-/** The order to send, or the message of what is missing / wrong. */
-export function buildTicket(d: TicketDraft, q: Quote | null): OrderRequest | string {
+/** The order to send, or the message of what is missing / wrong (a quantity the instrument doesn't take too). */
+export function buildTicket(d: TicketDraft, q: Quote | null, instrument: Instrument = ANY_INSTRUMENT): OrderRequest | string {
   const qty = parsePositive(d.qty);
-  if (qty == null) return "Enter a quantity";
+  if (qty == null) return translate("Enter a quantity");
+  const lots = qtyMessage(qty, instrument);
+  if (lots) return lots;
   const needsLimit = d.orderType === "limit" || d.orderType === "stopLimit";
   const needsStop = d.orderType === "stop" || d.orderType === "stopLimit";
   const limit = needsLimit ? parsePositive(d.limitPrice) : null;
   const stop = needsStop ? parsePositive(d.stopPrice) : null;
-  if (needsLimit && limit == null) return "Enter a limit price";
-  if (needsStop && stop == null) return "Enter a stop price";
+  if (needsLimit && limit == null) return translate("Enter a limit price");
+  if (needsStop && stop == null) return translate("Enter a stop price");
   const tp = d.tpOn ? parsePositive(d.takeProfit) : null;
   const sl = d.slOn ? parsePositive(d.stopLoss) : null;
-  if (d.tpOn && tp == null) return "Enter a take profit price";
-  if (d.slOn && sl == null) return "Enter a stop loss price";
+  if (d.tpOn && tp == null) return translate("Enter a take profit price");
+  if (d.slOn && sl == null) return translate("Enter a stop loss price");
   const e = entryPrice(d, q);
   if (e != null) {
     const up = d.side === "buy" ? 1 : -1;
-    if (tp != null && (tp - e) * up <= 0) return `Take profit must be ${d.side === "buy" ? "above" : "below"} the entry price`;
-    if (sl != null && (sl - e) * up >= 0) return `Stop loss must be ${d.side === "buy" ? "below" : "above"} the entry price`;
+    if (tp != null && (tp - e) * up <= 0) return d.side === "buy" ? translate("Take profit must be above the entry price") : translate("Take profit must be below the entry price");
+    if (sl != null && (sl - e) * up >= 0) return d.side === "buy" ? translate("Stop loss must be below the entry price") : translate("Stop loss must be above the entry price");
   }
   return {
     symbol: d.symbol,
@@ -286,6 +295,7 @@ export function buildTicket(d: TicketDraft, q: Quote | null): OrderRequest | str
     stopPrice: stop,
     takeProfit: tp,
     stopLoss: sl,
+    ...(d.fields && Object.keys(d.fields).length ? { fields: { ...d.fields } } : {}),
   };
 }
 

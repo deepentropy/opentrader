@@ -34,7 +34,7 @@ import type { OrderType } from "../../data/trading/types";
 import { fmtPrice, tickerOf } from "./format";
 import { describeTicket } from "./ticket";
 import { createTicketModel } from "./ticket-model";
-import { ExitInput, PriceInput, QtyInput } from "./TicketFields";
+import { BrokerFieldInput, ExitInput, PriceInput, QtyInput } from "./TicketFields";
 import { ExitsSection, FieldTip, TicketSettingsMenu } from "./TicketSettingsMenu";
 import { CloseIcon } from "./icons";
 import { FavoritePresets, OrderPresetsButton } from "./OrderPresets";
@@ -306,6 +306,10 @@ function TicketBody(props: { floating: boolean }) {
 
           <Show when={!isPos()}>
           <div class="trd-tk-inputs" classList={{ "is-editing": !!d().editing }}>
+            {/* The broker's own choices (a product type); an order being modified keeps its own. */}
+            <Show when={!d().editing}>
+              <For each={m.inst().fields}>{(f) => <BrokerFieldInput m={m} field={f} />}</For>
+            </Show>
             <Show when={d().orderType === "limit"}><PriceInput m={m} f="limitPrice" /></Show>
             <Show when={d().orderType === "stop"}><PriceInput m={m} f="stopPrice" /></Show>
             <Show when={d().orderType === "stopLimit"}>
@@ -316,7 +320,7 @@ function TicketBody(props: { floating: boolean }) {
             <div class="trd-tk-row">
               <span>Tick value</span>
               <span class="trd-tk-row-value">
-                {((qtyNum() ?? 0) * tick()).toFixed(dec())}
+                {((qtyNum() ?? 0) * tick() * m.inst().pointValue).toFixed(dec())}
                 <small> {ccy()}</small>
               </span>
             </div>
@@ -352,7 +356,7 @@ function TicketBody(props: { floating: boolean }) {
                 <div class="trd-tk-row">
                   <span>Tick value</span>
                   <span class="trd-tk-row-value">
-                    {(pos().qty * tick()).toFixed(dec())}
+                    {(pos().qty * tick() * m.inst().pointValue).toFixed(dec())}
                     <small> {ccy()}</small>
                   </span>
                 </div>

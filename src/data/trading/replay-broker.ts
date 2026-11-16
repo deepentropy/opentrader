@@ -27,7 +27,7 @@ import {
   setReplayTradingSave,
 } from "../replay";
 import { symbolSessions } from "../session";
-import { ALL_CAPABILITIES, type TradingCapabilities } from "./capabilities";
+import { ALL_CAPABILITIES, ANY_INSTRUMENT, type Instrument, type TradingCapabilities } from "./capabilities";
 import { DEFAULT_REPLAY_SETTINGS, ReplayAccount, type ReplayAccountSnapshot, type ReplaySettings } from "./replay-account";
 import type { OrderRequest, TradingEvent, TradingExecution, TradingOrder, TradingPosition, TradingQuote } from "./types";
 
@@ -263,6 +263,7 @@ export const replayBroker = createRoot(() => {
     tradability: () => tradabilityOf(activeId()),
     /** Paper trading takes every order type, brackets, partial closes and modifications. */
     capabilities: (): TradingCapabilities => ALL_CAPABILITIES,
+    instrument: (_paneId?: number | null): Instrument => ANY_INSTRUMENT,
     /** The focused chart's symbol. */
     symbol: (): string | null => {
       version();

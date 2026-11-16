@@ -141,6 +141,8 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
   const [page, setPage] = createSignal<Page>("positions");
   const [exporting, setExporting] = createSignal(false);
   const [filter, setFilter] = createSignal<Filter>("all");
+  // The account as it is now, not as the plugin last sent it.
+  pluginBroker.refresh();
   const st = () => pluginBroker.account();
   const show = (ticker: string) => {
     const s = pluginBroker.chartSymbolFor(ticker);

@@ -3,16 +3,16 @@ import { translate, translateWith } from "../../i18n/translator";
  * The order ticket's fields: an order price, the quantity, a take profit / stop loss. Each is typed in the type of
  * its label menu, shows its equivalent on the right (a drop-down picks its type) and ⇄ swaps the two.
  */
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { broker } from "../../data/trading/broker";
 import type { TicketDraft } from "../../data/trading/trading-ui";
 import { Switch } from "../../components/form";
-import { parsePositive } from "./format";
 import { localNumber } from "../../i18n/format";
 import { priceFieldProps } from "../../i18n/price-field";
 import { EXIT_TYPES, exitTypeDisabled, marketHint, priceBase, type ExitKind, type ExitType, type PriceField } from "./ticket";
 import { NO_MONEY_SL, exitInfo, exitLabel, exitTitle, exitUnit, qtyInfo, qtyTitle, qtyUnit } from "./ticket-labels";
 import type { TicketModel } from "./ticket-model";
+import type { TicketField } from "../../data/trading/capabilities";
 import { EquivButton, LabelMenu, SwapButton, type MenuRow } from "./TicketMenus";
 
 /** Order price field: a price (its distance to the base on the right) or
@@ -119,7 +119,7 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
 }
 
 export function QtyInput(props: { m: TicketModel }) {
-  const { d, ccy, types, qtyTypes, setQtyType, qtyValueText, patch, stepKey, submit, boxes } = props.m;
+  const { d, ccy, types, qtyTypes, setQtyType, qtyValueText, patch, stepKey, stepQty, submit, boxes } = props.m;
   const stock = () => broker.isStock(d().symbol);
   const type = () => types().qtyType;
   const eq = () => types().qtyEquiv;
@@ -140,8 +140,7 @@ export function QtyInput(props: { m: TicketModel }) {
             if (risk()) stepKey(e, "risk", 0.01);
             else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault();
-              const v = parsePositive(d().qty) ?? 0;
-              patch({ qty: String(Math.max(1, Math.round(v) + (e.key === "ArrowUp" ? 1 : -1))) });
+              stepQty(e.key === "ArrowUp");
             }
             if (e.key === "Enter") submit();
           }}
@@ -168,3 +167,33 @@ export function QtyInput(props: { m: TicketModel }) {
   );
 }
 
+
+/** A choice the broker needs with each order (#341: a product type such as intraday or delivery): its options side by
+ *  side. The label and options are the plugin's own words. */
+export function BrokerFieldInput(props: { m: TicketModel; field: TicketField }) {
+  const { fieldValue, setField } = props.m;
+  return (
+    <div class="trd-tk-field">
+      <span class="trd-tk-label" data-no-translate>
+        {props.field.label}
+      </span>
+      <div class="trd-tk-choice" role="radiogroup" aria-label={props.field.label}>
+        <For each={props.field.options}>
+          {(o) => (
+            <button
+              type="button"
+              role="radio"
+              class="trd-tk-choice-option"
+              classList={{ "is-selected": fieldValue(props.field.id) === o.value }}
+              aria-checked={fieldValue(props.field.id) === o.value}
+              data-no-translate
+              onClick={() => setField(props.field.id, o.value)}
+            >
+              {o.label}
+            </button>
+          )}
+        </For>
+      </div>
+    </div>
+  );
+}

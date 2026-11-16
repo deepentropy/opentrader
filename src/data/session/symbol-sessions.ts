@@ -16,6 +16,7 @@ import { splitSymbol } from "../symbol-name";
 import { SessionSpec } from "./spec";
 import { localDay, localToUtc } from "./zone";
 import { isLocalSymbol, localSession } from "../local-series";
+import { isUnknownSymbol, noteSymbolError } from "../unknown-symbols";
 
 /** Bottom-bar session choice: regular hours or the extended (whole traded)
  *  day. */
@@ -191,7 +192,10 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
       ? localSession(key).then((data) => ({ status: "ok" as const, data }))
       : commands.getSymbolSession(`${exchange}:${ticker}`);
     p = info.then((r) => {
-      if (r.status === "error") throw new Error(r.error);
+      if (r.status === "error") {
+        noteSymbolError(key, r.error);
+        throw new Error(r.error);
+      }
       const s = new SymbolSessions(r.data);
       resolved.set(key, s);
       if (s.intervals.length) pluginInfos.set(key, JSON.stringify(r.data));
@@ -233,9 +237,11 @@ export async function refreshPluginSessions(): Promise<boolean> {
 export function cachedSymbolSessions(symbol: string): SymbolSessions | null {
   version();
   if (!symbol) return null;
-  const done = resolved.get(keyOf(symbol).key);
+  const { key } = keyOf(symbol);
+  const done = resolved.get(key);
   if (done) return done;
-  void symbolSessions(symbol).catch(() => undefined);
+  // A symbol that doesn't exist is not asked for at every look.
+  if (!isUnknownSymbol(key)) void symbolSessions(symbol).catch(() => undefined);
   return null;
 }
 

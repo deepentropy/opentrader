@@ -8,6 +8,7 @@
  * (shares, currency units, contracts), not lots: a plugin whose broker counts lots converts.
  */
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -95,6 +96,8 @@ pub struct BrokerCapabilities {
     pub partial_close: bool,
     /// Modify a working order's price or quantity.
     pub modify_orders: bool,
+    /// The broker's own order choices (a product type…), shown as selectors in the order ticket.
+    pub ticket_fields: Vec<TicketField>,
 }
 
 impl Default for BrokerCapabilities {
@@ -105,8 +108,48 @@ impl Default for BrokerCapabilities {
             position_brackets: true,
             partial_close: true,
             modify_orders: true,
+            ticket_fields: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TicketFieldOption {
+    /// What the order carries (`fields.product = "CNC"`).
+    pub value: String,
+    /// What the ticket shows; the value when empty.
+    pub label: String,
+}
+
+/// A choice the broker needs with each order, beyond the app's own fields: a product type (intraday / delivery), a
+/// margin mode… The order ticket shows it as a selector; the value picked goes with the order in `fields`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TicketField {
+    pub id: String,
+    pub label: String,
+    pub options: Vec<TicketFieldOption>,
+    /// The value picked at first; the first option when left out.
+    pub default: Option<String>,
+}
+
+/// How a ticker trades at the broker (`broker.instrument`): the quantities it takes and the money one point moves
+/// one unit by. Every field may be left out.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Instrument {
+    /// The smallest order, in units.
+    pub qty_min: Option<f64>,
+    /// Orders are whole multiples of it, in units: the lot size of a contract sized in lots.
+    pub qty_step: Option<f64>,
+    pub qty_max: Option<f64>,
+    /// Money (account currency) one unit gains or loses when the price moves by 1: a futures multiplier. 1 when left
+    /// out.
+    pub point_value: Option<f64>,
+    /// This ticker's choices, in place of the capabilities' `ticketFields` (a product type that depends on the
+    /// segment).
+    pub ticket_fields: Option<Vec<TicketField>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -160,6 +203,9 @@ pub struct Order {
     pub message: Option<String>,
     #[serde(default)]
     pub updated_ms: Option<f64>,
+    /// The ticket fields it was placed with (`ticketFields`): sent again when it is modified.
+    #[serde(default)]
+    pub fields: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -224,6 +270,9 @@ pub struct OrderTicket {
     pub stop_price: Option<f64>,
     pub take_profit: Option<f64>,
     pub stop_loss: Option<f64>,
+    /// The values picked in the broker's ticket fields (`{"product":"CNC"}`), empty without any.
+    #[serde(default)]
+    pub fields: BTreeMap<String, String>,
 }
 
 #[cfg(test)]
@@ -243,5 +292,25 @@ mod tests {
         assert_eq!(s.position_mode, PositionMode::Netting);
         assert_eq!(s.orders[0].status, OrderStatus::Working);
         assert!(s.capabilities.brackets);
+        assert!(s.capabilities.ticket_fields.is_empty());
+        assert!(s.orders[0].fields.is_empty());
+    }
+
+    #[test]
+    fn ticket_fields_and_instruments_read() {
+        let c: BrokerCapabilities = serde_json::from_value(serde_json::json!({
+            "ticketFields": [{ "id": "product", "label": "Product", "options": [{ "value": "MIS", "label": "Intraday" }, { "value": "CNC" }], "default": "MIS" }]
+        }))
+        .unwrap();
+        assert_eq!(c.ticket_fields[0].options[1].value, "CNC");
+        assert_eq!(c.ticket_fields[0].default.as_deref(), Some("MIS"));
+        assert!(c.modify_orders);
+        let i: Instrument = serde_json::from_value(serde_json::json!({ "qtyMin": 65, "qtyStep": 65 })).unwrap();
+        assert_eq!((i.qty_step, i.point_value, i.ticket_fields), (Some(65.0), None, None));
+        // A ticket without fields reads, and the fields go to the plugin as an object.
+        let t: OrderTicket = serde_json::from_value(serde_json::json!({ "ticker": "X", "side": "buy", "type": "market", "qty": 1, "limitPrice": null, "stopPrice": null, "takeProfit": null, "stopLoss": null })).unwrap();
+        assert!(t.fields.is_empty());
+        let t = OrderTicket { fields: [("product".to_string(), "CNC".to_string())].into(), ..t };
+        assert_eq!(serde_json::to_value(&t).unwrap()["fields"]["product"], "CNC");
     }
 }

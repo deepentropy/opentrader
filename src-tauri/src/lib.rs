@@ -140,6 +140,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::broker::broker_set_position_brackets,
             plugins::broker::broker_watch_quotes,
             plugins::broker::broker_set_symbol_map,
+            plugins::broker::broker_refresh_state,
+            plugins::broker::broker_instrument,
         ])
         .events(collect_events![
             data::types::ChartAggregate,

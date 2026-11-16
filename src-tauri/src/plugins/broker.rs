@@ -7,8 +7,8 @@
  * stay possible, so a position can always be got out of.
  */
 use super::{installed_manifest, Plugins};
-use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, OrderTicket};
-use opentrader_core::plugins::hub::HubEvent;
+use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, Instrument, OrderTicket};
+use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::plugins::manifest::Capability;
 use opentrader_core::sync::LockExt;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,9 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 const ORDER_TIMEOUT: Duration = Duration::from_secs(30);
+/// The optional requests (`broker.getState`, `broker.instrument`): a plugin that doesn't answer them in time has none.
+const OPTIONAL_TIMEOUT: Duration = Duration::from_secs(10);
+const UNKNOWN_METHOD: i64 = -32601;
 const NOTICES: usize = 200;
 
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
@@ -85,6 +88,8 @@ pub struct PluginBroker {
     notices: Mutex<VecDeque<BrokerNotice>>,
     /// Chart symbol → the active broker's ticker (None: not traded there), asked once per connection.
     resolved: Mutex<HashMap<String, Option<String>>>,
+    /// Broker ticker → how it trades (`broker.instrument`), asked once per connection.
+    instruments: Mutex<HashMap<String, Instrument>>,
     version: AtomicU32,
     dirty: AtomicBool,
 }
@@ -154,13 +159,17 @@ pub fn init(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             match events.recv().await {
-                Ok(HubEvent::Connected { .. }) => {
-                    state(&handle).resolved.locked().clear();
+                Ok(HubEvent::Connected { plugin, .. }) => {
+                    forget_symbols(&handle);
                     changed(&handle);
+                    if active(&handle).as_deref() == Some(&plugin) {
+                        let app = handle.clone();
+                        tauri::async_runtime::spawn(async move { refresh_state(&app).await });
+                    }
                 }
                 Ok(HubEvent::Disconnected { plugin }) => {
                     state(&handle).states.locked().remove(&plugin);
-                    state(&handle).resolved.locked().clear();
+                    forget_symbols(&handle);
                     if active(&handle).as_deref() == Some(&plugin) {
                         notice(&handle, "warn", "The broker plugin disconnected".into());
                     }
@@ -219,6 +228,32 @@ fn on_notification(app: &AppHandle, plugin: &str, method: &str, params: Value) {
     }
 }
 
+/// The tickers and instruments asked of the active broker: asked again (another broker, a new connection).
+fn forget_symbols(app: &AppHandle) {
+    state(app).resolved.locked().clear();
+    state(app).instruments.locked().clear();
+}
+
+/// Ask the active plugin for its whole state (`broker.getState`) instead of waiting for its next `broker.state`: when it
+/// connects, is picked, or the order ticket / account manager opens. A plugin without the request is left as it is.
+pub async fn refresh_state(app: &AppHandle) {
+    let Ok(id) = connected_broker(app) else { return };
+    let hub = app.state::<Plugins>().hub.clone();
+    match hub.request(&id, "broker.getState", json!({}), OPTIONAL_TIMEOUT).await {
+        Ok(v) => match serde_json::from_value::<BrokerState>(v) {
+            Ok(s) => {
+                state(app).states.locked().insert(id.clone(), s);
+                if active(app).as_deref() == Some(id.as_str()) {
+                    changed(app);
+                }
+            }
+            Err(e) => super::log(app, &id, format!("[error] broker.getState: {e}")),
+        },
+        Err(PluginError::Rpc { code: UNKNOWN_METHOD, .. }) | Err(PluginError::Timeout) | Err(PluginError::NotConnected(_)) => {}
+        Err(e) => super::log(app, &id, format!("[error] broker.getState: {e}")),
+    }
+}
+
 /// The active broker plugin, connected.
 fn connected_broker(app: &AppHandle) -> Result<String, String> {
     let id = active(app).ok_or("No broker is connected")?;
@@ -271,9 +306,40 @@ pub fn broker_set_active(app: AppHandle, id: Option<String>) -> Result<BrokerSta
         c.clone()
     };
     super::write_config(&app, &config)?;
-    state(&app).resolved.locked().clear();
+    forget_symbols(&app);
     changed(&app);
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move { refresh_state(&handle).await });
     Ok(status(&app))
+}
+
+/// Ask the connected broker plugin for its state again (the order ticket or the account manager opened).
+#[tauri::command]
+#[specta::specta]
+pub async fn broker_refresh_state(app: AppHandle) {
+    refresh_state(&app).await;
+}
+
+/// How the active broker trades a ticker (`broker.instrument`): its quantity step, minimum, point value and ticket
+/// fields. A plugin without the request trades in any quantity, one unit moving by the price.
+#[tauri::command]
+#[specta::specta]
+pub async fn broker_instrument(app: AppHandle, ticker: String) -> Result<Instrument, String> {
+    let id = connected_broker(&app)?;
+    if let Some(i) = state(&app).instruments.locked().get(&ticker) {
+        return Ok(i.clone());
+    }
+    let hub = app.state::<Plugins>().hub.clone();
+    let found = match hub.request(&id, "broker.instrument", json!({ "ticker": ticker }), OPTIONAL_TIMEOUT).await {
+        Ok(v) => serde_json::from_value::<Instrument>(v).map_err(|e| {
+            super::log(&app, &id, format!("[error] broker.instrument: {e}"));
+            e.to_string()
+        })?,
+        Err(PluginError::Rpc { code: UNKNOWN_METHOD, .. }) | Err(PluginError::Timeout) => Instrument::default(),
+        Err(e) => return Err(e.to_string()),
+    };
+    state(&app).instruments.locked().insert(ticker, found.clone());
+    Ok(found)
 }
 
 /// Allow or stop placing and changing orders. Turned off whenever the broker changes is not needed: the switch is the
@@ -375,7 +441,7 @@ pub fn broker_watch_quotes(app: AppHandle, tickers: Vec<String>) -> Result<(), S
 pub fn broker_set_symbol_map(app: AppHandle, id: String, map: std::collections::BTreeMap<String, String>) -> Result<super::PluginsStatus, String> {
     let map = map.into_iter().map(|(k, v)| (k.trim().to_uppercase(), v.trim().to_string())).filter(|(k, v)| k.contains(':') && !v.is_empty()).collect();
     super::update_plugin(&app, &id, |p| p.symbol_map = map)?;
-    state(&app).resolved.locked().clear();
+    forget_symbols(&app);
     changed(&app);
     Ok(super::status(&app))
 }

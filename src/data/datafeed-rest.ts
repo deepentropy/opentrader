@@ -9,6 +9,7 @@
 import * as gen from "../bindings";
 import { commands, type Candle, type History, type TickerInfo } from "../bindings";
 import { retryTransient } from "./connection";
+import { noteSymbolError } from "./unknown-symbols";
 import { isLocalSymbol, localSnapshot, localTickerInfo } from "./local-series";
 
 export type { TickerInfo } from "../bindings";
@@ -107,7 +108,10 @@ export function getTickerInfo(symbol: string): Promise<TickerInfo> {
   infoCache.set(symbol, entry);
   p.then(
     () => { entry.at = Date.now(); },
-    () => { if (infoCache.get(symbol) === entry) infoCache.delete(symbol); },
+    (e) => {
+      if (infoCache.get(symbol) === entry) infoCache.delete(symbol);
+      noteSymbolError(symbol, e);
+    },
   );
   return p;
 }

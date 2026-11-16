@@ -1799,3 +1799,9 @@ html.theme-light .watchlist-col-guide {
   border-top: 6px solid var(--color-pane-bg);
   font-size: 11px;
 }
+
+/* A symbol that no longer exists (#341): its name in red, as the reference app shows it. */
+.watchlist-row.is-invalid .watchlist-ticker,
+.watchlist-tile.is-invalid .watchlist-tile-ticker {
+  color: var(--color-ripe-red-400);
+}

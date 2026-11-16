@@ -101,6 +101,10 @@ anywhere else install as *not verified*.
       unanswered.
 - [ ] A slow request (long history) does not block the others: the template answers each request on its own thread.
 - [ ] Losing your source's connection shows: send `"connected": false` in the broker state, and `log` a warning.
+      Getting it back shows too: send the state again as soon as you are logged in, not only on the next order.
+- [ ] A symbol you don't know (expired, renamed) answers `PluginError("…", -32004)`.
+- [ ] A broker that only takes whole lots answers `broker.instrument` with its `qtyStep`; a broker that needs a choice
+      with each order (a product type) declares it in `ticketFields`.
 - [ ] Bars are oldest first, without duplicates, times in UTC seconds; prices on the symbol's tick.
 - [ ] Nothing secret is printed to the log (it is shown in Settings).
 - [ ] The README of your repository says what the plugin needs (an account, an API key, another program running).

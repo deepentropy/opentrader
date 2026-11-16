@@ -150,6 +150,27 @@ describe("order ticket field types (reference: QQQ at 717.12, TP 75 / SL 25 tick
     expect(qtyValueIn("riskUsd", resolveDraft(base, q, c), q, c)).toBeNull();
   });
 
+  it("sizes a risk in whole lots with the instrument's point value (#341)", () => {
+    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [] };
+    const d = { ...base, qtyType: "riskUsd" as const, risk: "1000", slOn: true, stopLoss: "707.12" };
+    // 1000 at 10 a unit = 100 units: one lot of 65.
+    expect(resolveDraft(d, q, { ...c, instrument: nifty }).qty).toBe("65");
+    expect(resolveDraft({ ...d, risk: "500" }, q, { ...c, instrument: nifty }).qty).toBe("");
+    // A futures multiplier: 1000 at 10 × 50 a contract = 2 contracts.
+    const es = { qtyMin: null, qtyStep: 1, qtyMax: null, pointValue: 50, fields: [] };
+    expect(resolveDraft(d, q, { ...c, pointValue: 50, instrument: es }).qty).toBe("2");
+    expect(riskValue({ ...d, qty: "2" }, q, 50)).toBeCloseTo(1000, 6);
+  });
+
+  it("refuses a quantity that is not whole lots and sends the broker's fields (#341)", () => {
+    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [] };
+    expect(buildTicket({ ...base, qty: "1" }, q, nifty)).toBe("65 is one lot: use 65 or 130");
+    expect(buildTicket({ ...base, qty: "100" }, q, nifty)).toBe("65 is one lot: use 65 or 130");
+    expect(buildTicket({ ...base, qty: "130" }, q, nifty)).toMatchObject({ qty: 130 });
+    expect(buildTicket({ ...base, qty: "1", fields: { product: "CNC" } }, q)).toMatchObject({ fields: { product: "CNC" } });
+    expect(buildTicket({ ...base, qty: "1" }, q)).not.toHaveProperty("fields");
+  });
+
   it("resolves exits typed in ticks / money with the quantity", () => {
     const d = { ...base, qty: "2", tpOn: true, tpType: "ticks" as const, tpValue: "75", slOn: true, slType: "cash" as const, slValue: "0.5" };
     const r = resolveDraft(d, q, c);
