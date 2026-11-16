@@ -145,3 +145,28 @@ describe("future bars of the time scale (#184)", () => {
     expect(list).toEqual([ny(2026, 11, 27), ny(2026, 11, 30), ny(2026, 12, 1)]);
   });
 });
+
+describe("future bars of a source whose bars ignore the session open (#340)", () => {
+  // A broker terminal's gold: trading 18:01-16:58 New York, bars on the server clock whose day starts at 17:00.
+  const gold = new SessionSpec(NY, "1801-1658:23456");
+  const grid = (sec: number, step: number) => {
+    const day = Math.floor((sec - 5 * 3600) / 86400);
+    let anchor = localToUtc(NY, day, 17 * 60);
+    if (anchor > sec) anchor = localToUtc(NY, day - 1, 17 * 60);
+    return anchor + Math.floor((sec - anchor) / step) * step;
+  };
+
+  it("the next session's bars start on the grid, from the bar that holds its open", () => {
+    // the last 5-minute bar: Tuesday 10/11/2026 16:55, then the 16:58 close; Wednesday's trading day opens at 18:01
+    const times = sessionFutureTimes("5", gold, ny(2026, 11, 10, 16, 55), 3, grid);
+    expect(times).toEqual([ny(2026, 11, 10, 18, 0), ny(2026, 11, 10, 18, 5), ny(2026, 11, 10, 18, 10)]);
+    expect(sessionFutureTimes("5", gold, ny(2026, 11, 10, 16, 55), 1)).toEqual([ny(2026, 11, 10, 18, 1)]);
+  });
+
+  it("a time is drawn on the grid bar that holds it", () => {
+    const axis = sessionFutureAxis("5", gold, gold, grid)!;
+    const last = ny(2026, 11, 10, 16, 55);
+    expect(axis.slots(ny(2026, 11, 10, 18, 7), last)).toBe(2);
+    expect(axis.time(2, last)).toBe(ny(2026, 11, 10, 18, 5));
+  });
+});

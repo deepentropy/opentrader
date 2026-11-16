@@ -46,7 +46,7 @@ export function createFutureAxis(cx: ChartCx): FutureAxisApi {
     if (key !== futureKey || futureSpec !== spec) {
       futureKey = key;
       futureSpec = spec;
-      futureValue = sessionFutureAxis(interval, spec, sessions.regular);
+      futureValue = sessionFutureAxis(interval, spec, sessions.regular, sessions.barGrid);
     }
     return futureValue;
   }
@@ -79,7 +79,8 @@ export function createFutureAxis(cx: ChartCx): FutureAxisApi {
   function syncFutureBars() {
     const { chart, raw } = cx;
     if (!chart || !cx.series) return;
-    const spec = raw.length > 0 ? cachedSymbolSessions(props.symbol ?? "")?.spec(props.session ?? "RTH") : null;
+    const sessions = raw.length > 0 ? cachedSymbolSessions(props.symbol ?? "") : null;
+    const spec = sessions?.spec(props.session ?? "RTH");
     if (!spec) {
       if (futureBuilt) {
         futureSeries?.setData([]);
@@ -91,7 +92,7 @@ export function createFutureAxis(cx: ChartCx): FutureAxisApi {
     const needed = futureBarsNeeded();
     const key = `${props.symbol}|${props.interval}|${props.session}`;
     if (futureBuilt && futureBuilt.key === key && futureBuilt.spec === spec && last >= futureBuilt.last && futureBarsLeft(futureBuilt.times, last) >= needed) return;
-    const times = sessionFutureTimes(props.interval ?? "1D", spec, last, needed * 2);
+    const times = sessionFutureTimes(props.interval ?? "1D", spec, last, needed * 2, sessions?.barGrid);
     if (times.length === 0) return;
     futureSeries ??= chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceScaleId: "future-bars" }, cx.mainPane());
     futureSeries.setData(times.map((t) => ({ time: t as UTCTimestamp })));

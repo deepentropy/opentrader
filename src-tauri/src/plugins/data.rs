@@ -54,6 +54,10 @@ pub struct Info {
     /// The resolutions served: "1", "5", "60" (minutes), "1D", "1W", "1M", "15S" (seconds).
     #[serde(default)]
     pub intervals: Vec<String>,
+    /// "HHMM" in `timezone` where intraday bars of every size start their clock grid, when they ignore the session
+    /// opens (a broker terminal: 5-minute bars at 01:00 when trading opens at 01:01).
+    #[serde(default)]
+    pub bar_origin: Option<String>,
 }
 
 fn one() -> u32 {
@@ -170,6 +174,9 @@ pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
     if info.pricescale == 0 {
         return Err(format!("{}: bad symbol info (pricescale 0)", r.symbol));
     }
+    if info.bar_origin.as_deref().is_some_and(|o| origin_minutes(o).is_none()) {
+        return Err(format!("{}: bad symbol info (barOrigin is not HHMM)", r.symbol));
+    }
     let info = Arc::new(info);
     state(app).infos.locked().insert(r.symbol.clone(), info.clone());
     Ok(info)
@@ -191,7 +198,17 @@ pub async fn session(app: &AppHandle, r: &Route) -> Result<SymbolSession, String
         minmov: i.minmov.max(1),
         variable_tick_size: String::new(),
         intervals: i.intervals.clone(),
+        bar_origin: i.bar_origin.as_deref().and_then(origin_minutes),
     })
+}
+
+/// Minutes after midnight of an "HHMM" time of day.
+fn origin_minutes(hhmm: &str) -> Option<u32> {
+    if hhmm.len() != 4 || !hhmm.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let (h, m) = (hhmm[..2].parse::<u32>().ok()?, hhmm[2..].parse::<u32>().ok()?);
+    (h < 24 && m < 60).then_some(h * 60 + m)
 }
 
 pub async fn ticker_info(app: &AppHandle, r: &Route) -> Result<TickerInfo, String> {
@@ -556,6 +573,15 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bar_origin_is_a_time_of_day() {
+        assert_eq!(origin_minutes("1700"), Some(1020));
+        assert_eq!(origin_minutes("0000"), Some(0));
+        assert_eq!(origin_minutes("2400"), None);
+        assert_eq!(origin_minutes("17:00"), None);
+        assert_eq!(origin_minutes("930"), None);
+    }
 
     fn iv(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()

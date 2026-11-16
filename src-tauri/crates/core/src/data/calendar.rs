@@ -150,6 +150,7 @@ mod tests {
             minmov: 1,
             variable_tick_size: String::new(),
             intervals: Vec::new(),
+            bar_origin: None,
         }
     }
 

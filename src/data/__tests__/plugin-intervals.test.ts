@@ -19,9 +19,11 @@ vi.mock("../kv", () => ({
 import { bucketLiveTick, getBars, getBarsBefore, symbolServesResolution, unsupportedIntervalMessage } from "../datafeed";
 import type { ChartAggregate } from "../datafeed-live";
 import { symbolSessions } from "../session";
+import { barBucket } from "../alert-bars";
 
-function session(intervals: string[], timezone = "Etc/UTC", hours = "24x7"): SymbolSession {
+function session(intervals: string[], timezone = "Etc/UTC", hours = "24x7", barOrigin: number | null = null): SymbolSession {
   return {
+    barOrigin,
     timezone,
     session: hours,
     subsessions: [{ id: "regular", description: "Regular Trading Hours", session: hours, corrections: "" }],
@@ -39,10 +41,15 @@ const OWN = "NASDAQ:AAPL";
 // Sessions that open at 09:30 New York (#332): one plugin serves hours only, the other minutes too.
 const HOURLY = "TESTX:HOURLY";
 const FINE = "TESTX:FINE";
+// A broker terminal's gold (#340): trading opens at 18:01 New York, bars on the server clock whose day starts at 17:00.
+const GOLD = "TESTX:XAUUSD";
+const MT5_SIZES = ["1", "5", "15", "60", "240", "1D"];
 mocks.getSymbolSession.mockImplementation(async (symbol: string) => ({
   status: "ok",
   data:
-    symbol === HOURLY || symbol === FINE
+    symbol === GOLD
+      ? session(MT5_SIZES, "America/New_York", "1801-1658:23456", 17 * 60)
+      : symbol === HOURLY || symbol === FINE
       ? session(symbol === HOURLY ? ["60", "1D"] : ["1", "60", "1D"], "America/New_York", "0930-1600")
       : session(symbol === PLUGIN ? ["2", "15", "1D"] : symbol === "TESTX:MINUTES" ? ["5"] : []),
 }));
@@ -139,5 +146,46 @@ describe("a data plugin whose bar sizes don't fit its session open (#332)", () =
     const { bars } = await getBars(FINE, "60", "RTH");
     expect(mocks.getMinuteHistory.mock.calls.map((c) => (c as unknown[])[2])).toEqual([1]);
     expect(bars.map((b) => b.time)).toEqual([at(9, 30), at(10, 30)]);
+  });
+});
+
+describe("a data plugin whose bars ignore the session open (barOrigin, #340)", () => {
+  // Monday 09/11/2026 18:00 New York: the bar that holds Tuesday's 18:01 open.
+  const OPEN = Date.parse("2026-11-09T23:00Z") / 1000;
+  const at = (min: number) => OPEN + min * 60;
+  const rows = (size: number, count: number) =>
+    Array.from({ length: count }, (_, i) => ({ time: at(i * size), open: i, high: i + 1, low: i - 1, close: i + 0.5, volume: 1 }));
+  const ny = (sec: number) => new Date((sec - 5 * 3600) * 1000).toISOString().slice(11, 16);
+
+  it("shows the plugin's own bars, the one that holds the open included", async () => {
+    await symbolSessions(GOLD);
+    mocks.getMinuteHistory.mockClear();
+    mocks.getMinuteHistory.mockResolvedValueOnce({ status: "ok", data: { bars: rows(5, 4), partial: false } });
+    const { bars } = await getBars(GOLD, "5");
+    expect(mocks.getMinuteHistory.mock.calls.map((c) => (c as unknown[])[2])).toEqual([5]);
+    expect(bars.map((b) => ny(b.time as number))).toEqual(["18:00", "18:05", "18:10", "18:15"]);
+  });
+
+  it("builds other sizes on the plugin's grid, not from the open", async () => {
+    mocks.getMinuteHistory.mockResolvedValueOnce({ status: "ok", data: { bars: rows(5, 24), partial: false } });
+    const ten = (await getBars(GOLD, "10")).bars;
+    expect(ten.slice(0, 3).map((b) => ny(b.time as number))).toEqual(["18:00", "18:10", "18:20"]);
+    expect(ten[0]).toMatchObject({ open: 0, high: 2, low: -1, close: 1.5, volume: 2 });
+    mocks.getMinuteHistory.mockResolvedValueOnce({ status: "ok", data: { bars: rows(60, 8), partial: false } });
+    // 2 hours from 17:00, the server's midnight: 18:00 to 01:00 in 17:00, 19:00, 21:00, 23:00, 01:00
+    expect((await getBars(GOLD, "120")).bars.map((b) => ny(b.time as number))).toEqual(["17:00", "19:00", "21:00", "23:00", "01:00"]);
+  });
+
+  it("puts live minutes in the same bars", () => {
+    const tick = (min: number) => ({ symbol: GOLD, time: at(min), open: 1, high: 1, low: 1, close: 1, volume: 1 }) as ChartAggregate;
+    expect(ny(bucketLiveTick("5", tick(1))!.time)).toBe("18:00");
+    expect(ny(bucketLiveTick("5", tick(6))!.time)).toBe("18:05");
+    expect(ny(bucketLiveTick("240", tick(125))!.time)).toBe("17:00");
+    expect(ny(bucketLiveTick("240", tick(245))!.time)).toBe("21:00");
+  });
+
+  it("an alert's once-per-bar throttle uses the same bars", () => {
+    expect(ny(barBucket(GOLD, "5", "ETH", at(1) * 1000)! / 1000)).toBe("18:00");
+    expect(ny(barBucket(GOLD, "60", "ETH", at(75) * 1000)! / 1000)).toBe("19:00");
   });
 });

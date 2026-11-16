@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.0"
+#define PLUGIN_VERSION "0.1.1"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -639,11 +639,14 @@ string DataSymbolInfo(CJ *p, string &error)
    int shift;
    string zone = Zone(shift);
    string currency = SymbolInfoString(t, SYMBOL_CURRENCY_PROFIT);
+   // MetaTrader's bars start on the server clock, whatever the trading hours (5 minutes at 01:00 when trading opens
+   // at 01:01): their grid starts at the server's midnight, in the zone's time.
    return "{\"description\":" + JQ(SymbolInfoString(t, SYMBOL_DESCRIPTION)) +
           ",\"type\":" + JQ(KindOf(t)) +
           ",\"currency\":" + JQ(currency) +
           ",\"timezone\":" + JQ(zone) +
           ",\"session\":" + JQ(SessionSpec(t, shift)) +
+          ",\"barOrigin\":" + JQ(Hhmm(-shift / 60)) +
           ",\"pricescale\":" + IntegerToString(pricescale) +
           ",\"minmov\":" + IntegerToString(minmov) +
           ",\"intervals\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"10\",\"12\",\"15\",\"20\",\"30\",\"60\",\"120\",\"180\",\"240\",\"360\",\"480\",\"720\",\"1D\"]}";

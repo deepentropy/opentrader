@@ -986,7 +986,7 @@ export class IndicatorLayer {
     const chart = this.scriptChart;
     const sessions = chart?.tickerid ? cachedSymbolSessions(chart.tickerid) : null;
     if (!sessions || !chart?.timeframe) return null;
-    return sessionFutureSlots(chart.timeframe, chart.sessionType === 'extended' ? sessions.extended : sessions.regular);
+    return sessionFutureSlots(chart.timeframe, chart.sessionType === 'extended' ? sessions.extended : sessions.regular, sessions.barGrid);
   }
 
   /** The renderer of the current main series (a new one when it changed). */

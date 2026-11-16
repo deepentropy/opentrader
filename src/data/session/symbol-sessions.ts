@@ -14,6 +14,7 @@ import { createSignal } from "solid-js";
 import { commands, type SymbolSession } from "../../bindings";
 import { splitSymbol } from "../symbol-name";
 import { SessionSpec } from "./spec";
+import { localDay, localToUtc } from "./zone";
 import { isLocalSymbol, localSession } from "../local-series";
 
 /** Bottom-bar session choice: regular hours or the extended (whole traded)
@@ -30,6 +31,8 @@ export interface ScriptSession {
   session: string;
   corrections: string;
   holidays: string;
+  /** The bars' clock grid (SymbolSessions.barOrigin): scripts' intraday periods follow it. */
+  barOrigin: number | null;
 }
 
 /** A symbol's schedules, parsed. */
@@ -60,6 +63,12 @@ export class SymbolSessions {
   /** Interval ids served by the symbol's data plugin; empty for the provider's
    *  symbols (its capabilities say what it serves). */
   readonly intervals: readonly string[];
+  /** Minutes after local midnight where the source's intraday bars of every size start their clock grid (a data
+   *  plugin whose bars ignore the session opens, like a broker terminal's: 5-minute bars at 01:00 when trading opens
+   *  at 01:01); null when bars start at the session opens. */
+  readonly barOrigin: number | null;
+  /** `barGridStart` when the bars are on the source's clock grid (barOrigin), for the code that steps through bars. */
+  readonly barGrid: ((sec: number, stepSecs: number) => number) | undefined;
 
   constructor(info: SymbolSession) {
     const tz = info.timezone;
@@ -69,8 +78,12 @@ export class SymbolSessions {
     const pre = sub("premarket");
     const post = sub("postmarket");
     this.timeZone = tz;
-    this.regularScript = { session: info.session, corrections: info.corrections, holidays: info.holidays };
-    this.extendedScript = ext ? { session: ext.session, corrections: ext.corrections, holidays: info.holidays } : this.regularScript;
+    this.barOrigin = info.barOrigin ?? null;
+    this.barGrid = this.barOrigin === null ? undefined : (sec, stepSecs) => this.barGridStart(sec, stepSecs);
+    this.regularScript = { session: info.session, corrections: info.corrections, holidays: info.holidays, barOrigin: this.barOrigin };
+    this.extendedScript = ext
+      ? { session: ext.session, corrections: ext.corrections, holidays: info.holidays, barOrigin: this.barOrigin }
+      : this.regularScript;
     this.regular = spec(info.session, info.corrections);
     this.extended = ext ? spec(ext.session, ext.corrections) : this.regular;
     this.premarket = pre ? spec(pre.session, pre.corrections) : null;
@@ -105,6 +118,16 @@ export class SymbolSessions {
    *  moves (a 0.5 change of a 123.45 US stock is 0.50, not the 0.5000 of a price under 1). */
   decimalsAt(price: number): number {
     return tickDecimals(this.tickAt(price));
+  }
+
+  /** Start of the `stepSecs` bar of the clock grid (`barOrigin`, else midnight) that holds `sec`; each local day
+   *  restarts the grid. */
+  barGridStart(sec: number, stepSecs: number): number {
+    const origin = this.barOrigin ?? 0;
+    const day = localDay(this.timeZone, sec);
+    let anchor = localToUtc(this.timeZone, day, origin);
+    if (anchor > sec) anchor = localToUtc(this.timeZone, day - 1, origin);
+    return anchor + Math.floor((sec - anchor) / stepSecs) * stepSecs;
   }
 
   /** Schedule of the bottom-bar session choice. */

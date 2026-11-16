@@ -219,7 +219,7 @@ export function countdownText(
   if (intraday) {
     const step = /S$/.test(id) ? parseInt(id, 10) : parseInt(id, 10) * 60;
     if (!Number.isFinite(step) || step <= 0) return null;
-    const base = lastBarSec ?? Math.floor(nowSec / step) * step;
+    const base = lastBarSec ?? (sessions.barOrigin !== null ? sessions.barGridStart(nowSec, step) : Math.floor(nowSec / step) * step);
     const into = ((nowSec - base) % step + step) % step;
     // The bar closes with its session interval at the latest.
     return formatRemaining(Math.min(step - into, iv.end - nowSec));

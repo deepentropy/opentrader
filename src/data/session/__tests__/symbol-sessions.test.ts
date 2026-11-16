@@ -49,8 +49,8 @@ describe("SymbolSessions", () => {
 
   it("reads the regular, extended, pre and post schedules", () => {
     expect(s.timeZone).toBe("America/New_York");
-    expect(s.regularScript).toEqual({ session: "0930-1600", corrections: "", holidays: "20261126" });
-    expect(s.extendedScript).toEqual({ session: "0400-2000", corrections: "", holidays: "20261126" });
+    expect(s.regularScript).toEqual({ session: "0930-1600", corrections: "", holidays: "20261126", barOrigin: null });
+    expect(s.extendedScript).toEqual({ session: "0400-2000", corrections: "", holidays: "20261126", barOrigin: null });
     expect(s.hasExtendedHours).toBe(true);
     expect(s.premarket).not.toBeNull();
     expect(s.postmarket).not.toBeNull();

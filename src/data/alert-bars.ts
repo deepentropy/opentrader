@@ -27,7 +27,8 @@ export function resolutionMs(res: string): number {
  *  once-per-bar throttling, in the rule's session: intraday bars anchored at
  *  the start of each interval of that session (regular hours: 09:30, 10:30,
  *  ... on a US stock at 1 hour; extended hours: 04:00, 05:00, ...); daily /
- *  weekly / monthly bars by trading day in the exchange zone. Once a session
+ *  weekly / monthly bars by trading day in the exchange zone; bars on the
+ *  source's clock grid (SymbolSessions.barOrigin) on that grid. Once a session
  *  ends, the time belongs to the next session's first bar, so the last bar
  *  closes at the session end (not at the next tick of the next session). Null
  *  until the symbol's session is known. */
@@ -48,6 +49,8 @@ export function barBucket(symbol: string, res: string, session: SessionId, timeM
   if (!iv) return null;
   const step = resolutionMs(res) / 1000;
   const t = Math.max(sec, iv.start);
+  // Bars on the source's clock grid (a broker terminal's, #340) start on it, not at the open.
+  if (sessions.barOrigin !== null) return sessions.barGridStart(t, step) * 1000;
   return (iv.start + Math.floor((t - iv.start) / step) * step) * 1000;
 }
 

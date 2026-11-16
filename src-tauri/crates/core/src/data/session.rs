@@ -48,6 +48,10 @@ pub struct SymbolSession {
     /// "1S", "1D"); the app builds the others it can from them. Empty: the provider's capabilities.
     #[serde(default)]
     pub intervals: Vec<String>,
+    /// Minutes after local midnight where the source's intraday bars of every size start their clock grid (a data
+    /// plugin's `barOrigin`: a broker terminal's bars ignore the session opens). None: bars start at the opens.
+    #[serde(default)]
+    pub bar_origin: Option<u32>,
 }
 
 /// One named part of the trading day.

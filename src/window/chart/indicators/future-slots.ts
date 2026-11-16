@@ -10,7 +10,7 @@
  */
 import type { FutureSlots } from "lightweight-charts-indicators/render";
 import type { FutureAxis } from "lightweight-charts-drawing/runtime/coords";
-import { localDay, localToUtc, type SessionSpec } from "../../../data/session";
+import { localDay, localToUtc, type SessionInterval, type SessionSpec } from "../../../data/session";
 import { intervalSeconds, parseInterval } from "../../../data/interval";
 
 /** Days scanned at most after the last bar (a decade of pivots on a daily chart). */
@@ -32,6 +32,17 @@ function slotsOf(interval: string): Slots | null {
   return { unit: "s", n: intervalSeconds(iv)! };
 }
 
+/** Start of the bar of `stepSecs` that holds a time, for a source whose bars are on its own clock grid
+ *  (SymbolSessions.barGridStart, #340): its sessions' bars start on that grid, not at their opens. */
+export type BarGrid = (sec: number, stepSecs: number) => number;
+
+/** Session intervals of a day as the bars of `step` seconds fill them: from the open, or from the grid bar that holds
+ *  the open. */
+function barIntervals(spec: SessionSpec, step: number, grid: BarGrid | undefined): (day: number) => SessionInterval[] {
+  if (!grid) return (day) => spec.dayIntervals(day);
+  return (day) => spec.dayIntervals(day).map((s) => ({ ...s, start: grid(s.start, step) }));
+}
+
 /** Week number of a local day (weeks from Monday; day 0 = Thursday 01/01/1970). */
 const weekOf = (day: number) => Math.floor((day + 3) / 7);
 /** Month number of a local day. */
@@ -45,18 +56,19 @@ function monthOf(day: number): number {
  * intraday bars at their open, daily and longer bars at the local midnight of their first trading day). null when the
  * interval is not a time interval (the renderer then counts calendar time).
  */
-export function sessionFutureSlots(interval: string, spec: SessionSpec): FutureSlots | null {
+export function sessionFutureSlots(interval: string, spec: SessionSpec, grid?: BarGrid): FutureSlots | null {
   const iv = slotsOf(interval);
   if (!iv) return null;
   const tz = spec.timeZone;
   if (iv.unit === "s") {
     const step = iv.n;
+    const intervals = barIntervals(spec, step, grid);
     return (time, lastTime) => {
       let k = 0;
       const first = localDay(tz, lastTime) - 2;
       const lastDay = localDay(tz, time) + 2;
       for (let day = first; day <= lastDay && day <= first + MAX_DAYS; day++) {
-        for (const s of spec.dayIntervals(day)) {
+        for (const s of intervals(day)) {
           if (s.end <= lastTime || s.start > time) continue;
           // bars of the last bar's session follow the last bar; a later session starts its bars at its open
           const from = s.start <= lastTime ? lastTime + step : s.start;
@@ -95,18 +107,19 @@ export function sessionFutureSlots(interval: string, spec: SessionSpec): FutureS
  * the next bars of the session, then each later session's bars from its open; daily and longer bars at the local
  * midnight of their first trading day. null past the scanned range or when the interval is not a time interval.
  */
-export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: number, lastTime: number) => number | null) | null {
+export function sessionFutureTime(interval: string, spec: SessionSpec, grid?: BarGrid): ((k: number, lastTime: number) => number | null) | null {
   const iv = slotsOf(interval);
   if (!iv) return null;
   const tz = spec.timeZone;
   if (iv.unit === "s") {
     const step = iv.n;
+    const intervals = barIntervals(spec, step, grid);
     return (k, lastTime) => {
       if (!(k >= 1)) return null;
       let left = k;
       const first = localDay(tz, lastTime) - 2;
       for (let day = first; day <= first + MAX_DAYS; day++) {
-        for (const s of spec.dayIntervals(day)) {
+        for (const s of intervals(day)) {
           if (s.end <= lastTime) continue;
           const from = s.start <= lastTime ? lastTime + step : s.start;
           const base = s.start <= lastTime ? lastTime : s.start;
@@ -147,16 +160,17 @@ export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: num
  * Open times of the next `count` future bars after the bar opening at `lastTime` (fewer past the scanned range), in one
  * pass over the calendar: what `sessionFutureTime` gives for k = 1..count. The time scale's bars after the last bar.
  */
-export function sessionFutureTimes(interval: string, spec: SessionSpec, lastTime: number, count: number): number[] {
+export function sessionFutureTimes(interval: string, spec: SessionSpec, lastTime: number, count: number, grid?: BarGrid): number[] {
   const iv = slotsOf(interval);
   if (!iv || !(count > 0)) return [];
   const tz = spec.timeZone;
   const out: number[] = [];
   if (iv.unit === "s") {
     const step = iv.n;
+    const intervals = barIntervals(spec, step, grid);
     const first = localDay(tz, lastTime) - 2;
     for (let day = first; day <= first + MAX_DAYS; day++) {
-      for (const s of spec.dayIntervals(day)) {
+      for (const s of intervals(day)) {
         if (s.end <= lastTime) continue;
         const base = s.start <= lastTime ? lastTime : s.start;
         const from = s.start <= lastTime ? lastTime + step : s.start;
@@ -225,21 +239,22 @@ export function dayOpenKey(regular: SessionSpec): (time: number) => number {
  * not a time interval (the drawings then count calendar time). `regular` = the symbol's regular session (daily bars
  * open at its open), `spec` = the chart's session.
  */
-export function sessionFutureAxis(interval: string, spec: SessionSpec, regular: SessionSpec = spec): FutureAxis | null {
+export function sessionFutureAxis(interval: string, spec: SessionSpec, regular: SessionSpec = spec, grid?: BarGrid): FutureAxis | null {
   const iv = slotsOf(interval);
-  const slots = sessionFutureSlots(interval, spec);
-  const time = sessionFutureTime(interval, spec);
+  const slots = sessionFutureSlots(interval, spec, grid);
+  const time = sessionFutureTime(interval, spec, grid);
   if (!iv || !slots || !time) return null;
   const tz = spec.timeZone;
   const timeKey = dayOpenKey(regular);
   if (iv.unit === "s") {
     const step = iv.n;
+    const intervals = barIntervals(spec, step, grid);
     /** Bars opening strictly after `lo` and before `hi`. */
     const opensBetween = (lo: number, hi: number) => {
       let n = 0;
       const last = localDay(tz, hi) + 1;
       for (let day = Math.max(localDay(tz, lo) - 1, last - MAX_PAST_DAYS); day <= last; day++) {
-        for (const s of spec.dayIntervals(day)) {
+        for (const s of intervals(day)) {
           const top = Math.min(s.end, hi);
           if (top <= s.start || s.end <= lo) continue;
           const jMin = lo < s.start ? 0 : Math.floor((lo - s.start) / step) + 1;
@@ -259,7 +274,7 @@ export function sessionFutureAxis(interval: string, spec: SessionSpec, regular: 
         let left = k;
         const d0 = localDay(tz, first) + 1;
         for (let day = d0; day >= d0 - MAX_PAST_DAYS; day--) {
-          const ivs = spec.dayIntervals(day);
+          const ivs = intervals(day);
           for (let i = ivs.length - 1; i >= 0; i--) {
             const s = ivs[i];
             const top = Math.min(s.end, first);
