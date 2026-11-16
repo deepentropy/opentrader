@@ -78,8 +78,12 @@
     </div>
     <script>
       // Only the main window shows the splash; detached chart windows load
-      // straight into their tabs.
-      if ((window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? "main") !== "main") {
+      // straight into their tabs, and a chart or widget embedded in another
+      // website (#338) straight into itself.
+      if (
+        (window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? "main") !== "main" ||
+        new URLSearchParams(location.search).get("view") === "embed"
+      ) {
         document.getElementById("splash")?.remove();
       }
     </script>

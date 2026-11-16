@@ -42,12 +42,11 @@ void hydrateKv().finally(async () => {
     hideSplash();
     return;
   }
-  // An embedded widget (#339) holds that widget only, drawn at once (no splash).
+  // An embedded widget (#339) holds that widget only (index.html shows no splash in an embed).
   const embed = embedConfig();
   if (embed && embed.widget !== "chart") {
     const { EmbedWidget } = await import("./embed/widgets/EmbedWidget");
     render(() => <EmbedWidget config={embed} />, document.getElementById("root") as HTMLElement);
-    document.getElementById("splash")?.remove();
     const { initAnalytics } = await import("./data/analytics");
     initAnalytics();
     return;
