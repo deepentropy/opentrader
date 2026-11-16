@@ -15,6 +15,11 @@
   pointer-events: visiblePainted;
 }
 
+/* The mouse is over a fill only: the press goes to the chart, which pans. */
+.ot-drawings-pass .ot-drawing-hit {
+  pointer-events: none;
+}
+
 /* Text kept as typed (runs of spaces, multi-line labels). */
 .ot-svg-pre {
   white-space: pre;

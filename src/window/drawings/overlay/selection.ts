@@ -1,14 +1,15 @@
 /*
  * Pointer interaction with placed drawings: the topmost hit test, the
  * selection (click, Ctrl / Cmd toggle, middle-click removal), body / anchor /
- * group drags, the eraser, the pointer move of the armed overlay and the
- * drawing context menu.
+ * group drags, the eraser, the pointer move of the armed overlay, the
+ * drawing context menu and the mouse pass-through of filled areas.
  */
+import { createSignal, onCleanup, type Accessor } from "solid-js";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
 import type { HitResult, Pt } from "lightweight-charts-drawing/core/_shared";
 import { suspendDrawingPersist, resumeDrawingPersist } from "../persistence";
 import { emitAppEvent } from "../../../data/app-events";
-import { hitTestKind } from "lightweight-charts-drawing/core/kinds/hit-tests";
+import { hitTestKind, pickTopmostHit } from "lightweight-charts-drawing/core/kinds/hit-tests";
 import { DRAG_THRESHOLD } from "lightweight-charts-drawing/core/interact/constants";
 import { screenPoints, translateDrawing } from "lightweight-charts-drawing/core/interact/project";
 import { lockAxisDelta } from "lightweight-charts-drawing/core/interact/shift";
@@ -20,13 +21,22 @@ import { type Frame, type OverlayCx } from "./context";
 /** What createSelection adds to the overlay context. */
 export interface SelectionApi {
   eraseAt: (e: PointerEvent) => void;
-  hitTopmost: (spG: Pt) => { drawing: Drawing; mode: HitResult; pts: Pt[]; frame: Frame } | null;
+  /** The pointer is over a drawing's fill only: the drawings let a mouse
+   *  press through to the chart, which pans. */
+  fillPassThrough: Accessor<boolean>;
+  hitTopmost: (spG: Pt, touch?: boolean) => { drawing: Drawing; mode: HitResult; pts: Pt[]; frame: Frame } | null;
   onContextMenu: (e: MouseEvent) => void;
   onMove: (e: PointerEvent) => void;
   onSelectionPointerDown: (e: PointerEvent) => void;
   removeDrawings: (ids: string[]) => boolean;
   selIds: () => string[];
+  /** The last press on the overlay was a touch (its double tap hits fills). */
+  touchPress: () => boolean;
 }
+
+/** A touch press. A mouse or pen press on a fill passes through to the chart
+ *  (TV counts a fill hit only for touch). */
+const isTouch = (e: MouseEvent) => (e as PointerEvent).pointerType === "touch";
 
 export function createSelection(cx: OverlayCx): SelectionApi {
   const { armedSpec, cmode, drag, intervalHidden, notShown, props, setCursor, setDrag, setMenu, shiftDown } = cx;
@@ -35,30 +45,51 @@ export function createSelection(cx: OverlayCx): SelectionApi {
    *  Locked drawings are left alone, matching the Delete-key guard. */
   function eraseAt(e: PointerEvent) {
     const sp = eventPoint(cx.svg, e);
-    const hit = hitTopmost(sp);
+    const hit = hitTopmost(sp, isTouch(e));
     if (hit && !hit.drawing.locked) props.onRemove(hit.drawing.id);
   }
 
-  /** Topmost-first hit test across every drawing on the chart. Skips
-   *  hidden drawings entirely so the cursor passes through to whatever is
-   *  underneath (incl. the chart for pan). */
-  function hitTopmost(spG: Pt): { drawing: Drawing; mode: HitResult; pts: Pt[]; frame: Frame } | null {
-    for (let i = props.drawings.length - 1; i >= 0; i--) {
-      const d = props.drawings[i];
-      if (notShown(d)) continue;
+  /** Topmost hit across every drawing on the chart: the handles, strokes
+   *  and text of any drawing before the topmost fill, and a fill only for
+   *  `touch`. Skips hidden drawings entirely so the cursor passes through to
+   *  whatever is underneath (incl. the chart for pan). */
+  function hitTopmost(spG: Pt, touch = false): { drawing: Drawing; mode: HitResult; pts: Pt[]; frame: Frame } | null {
+    const seen = new Map<Drawing, { pts: Pt[]; frame: Frame }>();
+    const pick = pickTopmostHit(props.drawings, (d) => {
+      if (notShown(d)) return null;
       // Drawings are clipped to their pane: nothing hits outside it.
       const f = cx.drawFrame(d);
-      if (!f) continue;
+      if (!f) return null;
       const { w, h } = f.dims;
       const sp = cx.toLocal(spG, f);
-      if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) continue;
+      if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) return null;
       const pts = screenPoints(f.coords, d, f.dims);
-      if (!pts) continue;
-      const r = hitTestKind(d, pts, sp, w, h, f.coords, selIds().includes(d.id));
-      if (r) return { drawing: d, mode: r, pts, frame: f };
-    }
-    return null;
+      if (!pts) return null;
+      seen.set(d, { pts, frame: f });
+      return hitTestKind(d, pts, sp, w, h, f.coords, selIds().includes(d.id));
+    }, { fills: touch });
+    const at = pick && seen.get(pick.item);
+    return pick && at ? { drawing: pick.item, mode: pick.hit, ...at } : null;
   }
+
+  // Mouse over a fill only (TV: a fill takes no hover, selection, drag or
+  // menu from a mouse): the drawings stop taking the pointer, so a press there
+  // reaches the chart and pans it. Decided on hover, before the press; a held
+  // button keeps the state of the gesture in progress.
+  const [fillPassThrough, setFillPassThrough] = createSignal(false);
+  const onWindowMove = (e: PointerEvent) => {
+    if (e.pointerType === "touch" || e.buttons) return;
+    const onLayer = !!cx.svg && cx.svg.contains(e.target as Node);
+    if (!onLayer && !fillPassThrough()) return;
+    const spG = eventPoint(cx.svg, e);
+    const { w, h } = cx.size();
+    const inside = spG.x >= 0 && spG.y >= 0 && spG.x <= w && spG.y <= h;
+    setFillPassThrough(inside && !armedSpec() && cmode() !== "eraser" && hitTopmost(spG) === null);
+  };
+  window.addEventListener("pointermove", onWindowMove, { capture: true, passive: true });
+  onCleanup(() => window.removeEventListener("pointermove", onWindowMove, { capture: true }));
+
+  let lastTouch = false;
 
   /** Current selection as an id list (multi-aware; falls back to the single id). */
   function selIds(): string[] {
@@ -84,13 +115,12 @@ export function createSelection(cx: OverlayCx): SelectionApi {
 
   function onSelectionPointerDown(e: PointerEvent) {
     if (armedSpec()) return;
+    lastTouch = isTouch(e);
     const spG = eventPoint(cx.svg, e);
-    const hit = hitTopmost(spG);
+    const hit = hitTopmost(spG, lastTouch);
     // Middle (wheel) click on a drawing removes it: an
     // unselected drawing becomes the selection first, then the selection is
-    // removed like Delete. OT hit tests do not tell a shape's fill from its
-    // outline, so a click on a fill also removes (by design fill hits are
-    // ignored).
+    // removed like Delete.
     if (e.button === 1) {
       if (!hit) return;
       e.preventDefault();
@@ -290,7 +320,7 @@ export function createSelection(cx: OverlayCx): SelectionApi {
     // Only intervene if the right-click landed on a drawing — otherwise
     // we'd swallow the native menu for the rest of the chart.
     const sp = eventPoint(cx.svg, e as unknown as PointerEvent);
-    const hit = hitTopmost(sp);
+    const hit = hitTopmost(sp, isTouch(e));
     if (!hit) return;
     e.preventDefault();
     e.stopPropagation();
@@ -301,5 +331,5 @@ export function createSelection(cx: OverlayCx): SelectionApi {
     setMenu({ drawing: hit.drawing, pos: { x: e.clientX, y: e.clientY } });
   }
 
-  return { eraseAt, hitTopmost, onContextMenu, onMove, onSelectionPointerDown, removeDrawings, selIds };
+  return { eraseAt, fillPassThrough, hitTopmost, onContextMenu, onMove, onSelectionPointerDown, removeDrawings, selIds, touchPress: () => lastTouch };
 }

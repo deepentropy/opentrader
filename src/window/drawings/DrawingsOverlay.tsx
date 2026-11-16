@@ -14,8 +14,9 @@
  *     to pointer-events: auto so it captures placement clicks.
  *   • Per-drawing <g>s opt back in via pointer-events: visiblePainted
  *     (SVG default), so clicks on painted areas (incl. transparent-but-
- *     stroked hit lines and translucent fills) select / start-drag the
- *     drawing even when not armed.
+ *     stroked hit lines) select / start-drag the drawing even when not
+ *     armed. Over a fill only, a mouse press goes to the chart (pans):
+ *     the drawings stop taking the pointer (selection.ts fillPassThrough).
  *
  * Parts: this file owns the pointer state and the outer <svg>; the rest
  * lives in overlay/* (panes, placement, selection and drags, text editor,
@@ -154,7 +155,7 @@ export function DrawingsOverlay(props: OverlayProps) {
   // Inline text editor (overlay/text-edit.tsx).
   const { TextEditor, setTextEdit, textAnchorScreen, textEdit } = attach(cx, createTextEdit(cx));
   // Hit test, selection, drags, eraser, context menu (overlay/selection.ts).
-  const { eraseAt, hitTopmost, onContextMenu, onMove, onSelectionPointerDown } = attach(cx, createSelection(cx));
+  const { eraseAt, fillPassThrough, hitTopmost, onContextMenu, onMove, onSelectionPointerDown, touchPress } = attach(cx, createSelection(cx));
   // Window-wide keys, paste, nudge, click-outside, place-at-cursor and the
   // held modifiers, on mount (overlay/window-events.ts).
   attach(cx, createWindowEvents(cx));
@@ -238,6 +239,7 @@ export function DrawingsOverlay(props: OverlayProps) {
       width="100%"
       height="100%"
       class="ot-drawings-layer"
+      classList={{ "ot-drawings-pass": fillPassThrough() }}
       style={{
         left: `${props.leftInset ?? 0}px`,
         width: `calc(100% - ${props.leftInset ?? 0}px)`,
@@ -296,7 +298,7 @@ export function DrawingsOverlay(props: OverlayProps) {
         // that preceded the dblclick already selected it).
         if (!armedSpec()) {
           const sp = eventPoint(svg, e as unknown as PointerEvent);
-          const hit = hitTopmost(sp);
+          const hit = hitTopmost(sp, touchPress());
           // Fib retracement / trend-based extension: a double-click on a
           // level line edits that level's text on the chart.
           const fibLevel = hit && !hit.drawing.locked && (hit.drawing.kind === "fib-retracement" || hit.drawing.kind === "trend-based-fib-extension")
