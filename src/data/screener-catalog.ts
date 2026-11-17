@@ -17,6 +17,7 @@
  */
 import { formatted, translate } from "../i18n/translator";
 import { listText } from "../i18n/format";
+import { CANDLE_PATTERNS } from "./candle-patterns";
 
 export type ColumnRef = { id: string; params: Record<string, string> };
 
@@ -32,6 +33,7 @@ export type Fmt =
   | "integer" //     25
   | "date" //        27/09/2026 (UNIX seconds)
   | "rating" //      Strong buy (a technical rating from -1 to 1)
+  | "patterns" //    candlestick pattern badges (comma-joined pattern ids)
   | "text";
 
 export type Category = "securityInfo" | "marketData" | "technicals" | "financials" | "valuation" | "growth" | "margins" | "dividends";
@@ -186,6 +188,11 @@ const MA_PRESETS = (id: "Ema" | "Ma"): Preset[] => [
   { operation: "below", target: id, leftParams: { length: "50" }, right: { column: { id, params: { length: "100", resolution: "TimeResolution1D" } } }, ...d("Bearish alignment") },
 ];
 
+/** An ETF's weight of its largest holdings, % of net assets. */
+const topWeight = (id: string, title: string, short: string, field: string): ColumnDef => ({
+  id, title, short, category: "securityInfo", align: "right", fmt: "percent", width: 90, field,
+  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "above", targets: [["value"]] },
+});
 /** A technical rating column: its number (sorting, the cell) and its bucket text (the checkbox filter). */
 const rating = (id: string, title: string, short: string, field: string, bucketField: string): ColumnDef => ({
   id, title, short, category: "technicals", align: "left", fmt: "rating", width: 110, field, filterField: bucketField,
@@ -465,6 +472,8 @@ export const COLUMNS: ColumnDef[] = [
   { id: "Ma", title: "Simple moving average", short: "SMA", category: "technicals", align: "right", fmt: "price", width: 99, params: MA_PARAMS("SMA"),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Ma"), presets: MA_PRESETS("Ma") } },
   rating("TechnicalRating", "Technical rating", "Tech rating", "Recommend.All", "TechRating_1D"),
+  { id: "Pattern", title: "Candlestick pattern", short: "Pattern", category: "technicals", align: "left", fmt: "patterns", width: 130,
+    params: RES_1D("candlestick_patterns"), filter: { type: "CheckboxGroup", options: CANDLE_PATTERNS.map((p): [string, string] => [p.id, p.title]) } },
   rating("RatingMa", "Moving averages rating", "MA rating", "Recommend.MA", "MARating_1D"),
   rating("RatingOscillators", "Oscillators rating", "Os rating", "Recommend.Other", "OsRating_1D"),
   oscillator("Momentum", "Momentum", "Mom", [
@@ -522,13 +531,32 @@ export const COLUMNS: ColumnDef[] = [
   // ETF: assets under management (shares outstanding x price).
   { id: "AssetsUnderManagement", title: "Assets under management", short: "AUM", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
+  // ETF fund data (the regulator's fund reports, the fund's name, its distributions).
+  { id: "AssetClass", title: "Asset class", short: "Asset class", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "f.asset_class",
+    filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "ExpenseRatio", title: "Expense ratio", short: "Expense ratio", category: "valuation", align: "right", fmt: "percent", width: 90, field: "f.expense_ratio",
+    filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "below", targets: [["value"]] } },
+  { id: "TotalHoldings", title: "Total holdings", short: "Holdings", category: "securityInfo", align: "right", fmt: "integer", width: 90, field: "f.holdings",
+    filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "above", targets: [["value"]] } },
+  topWeight("PercentInTop10", "Top 10 weight (% in top)", "Top 10 weight", "f.weight_top_10"),
+  topWeight("PercentInTop25", "Top 25 weight (% in top)", "Top 25 weight", "f.weight_top_25"),
+  topWeight("PercentInTop50", "Top 50 weight (% in top)", "Top 50 weight", "f.weight_top_50"),
+  { id: "DividendsFrequency", title: "Dividend frequency", short: "Div freq", category: "dividends", align: "left", fmt: "text", width: 100, field: "f.dividends_frequency",
+    filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "Leveraged", title: "Leveraged", short: "Leveraged", category: "securityInfo", align: "left", fmt: "text", width: 110, field: "f.leveraged", noColumn: true,
+    filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "LeverageRatio", title: "Leverage ratio", short: "Leverage ratio", category: "securityInfo", align: "left", fmt: "text", width: 100, field: "f.leverage_ratio",
+    filter: { type: "CheckboxGroup", options: "data" } },
 ];
+/** Columns of the ETF Screener only (fund data). */
+const ETF_ONLY = new Set(["AssetsUnderManagement", "AssetClass", "ExpenseRatio", "TotalHoldings", "PercentInTop10", "PercentInTop25", "PercentInTop50",
+  "DividendsFrequency", "Leveraged", "LeverageRatio"]);
 
 /** Columns of the ETF Screener (the reference ETF catalog restricted to ours): market data, technicals, exchange,
- *  indicated dividend yield and AUM. The Stock Screener has every other column. */
-const ETF_EXTRA = new Set(["Exchange", "DividendsYieldForward", "AssetsUnderManagement"]);
+ *  indicated dividend yield and the fund data. The Stock Screener has every other column. */
+const ETF_EXTRA = new Set(["Exchange", "DividendsYieldForward"]);
 export function columnForType(def: ColumnDef, type: ScreenerType): boolean {
-  if (def.id === "AssetsUnderManagement") return type === "etf";
+  if (ETF_ONLY.has(def.id)) return type === "etf";
   if (type === "stock") return true;
   if (def.id === "Index" || def.id === "Sector" || def.id === "Industry" || def.id === "MarketCap") return false;
   return def.category === "marketData" || def.category === "technicals" || ETF_EXTRA.has(def.id);
@@ -681,13 +709,13 @@ const YOY_TTM = { period: "YoYTTM" };
 const YOY_FY = { period: "YoYAnnual" };
 const FISCAL = [C("RecentFiscalPeriod", CURRENT), C("FiscalPeriodEndDate", CURRENT)];
 const STOCH_3_3 = (plot: string) => C("Stochastic", { resolution: "TimeResolution1D", plot, inputsGroup: "Stochastic:14_3_3" });
-/** The reference Technicals column set (both screeners), without its candlestick Pattern column. */
+/** The reference Technicals column set (both screeners). */
 const TECHNICALS = [C("TechnicalRating", R1D), C("RatingMa", R1D), C("RatingOscillators", R1D),
   C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" }), C("Momentum", { resolution: "TimeResolution1D", length: "10" }),
-  C("AwesomeOscillator", R1D), C("CommodityChannelIndex", { resolution: "TimeResolution1D", length: "20" }), STOCH_3_3("Stochastic:K"), STOCH_3_3("Stochastic:D")];
+  C("AwesomeOscillator", R1D), C("CommodityChannelIndex", { resolution: "TimeResolution1D", length: "20" }), STOCH_3_3("Stochastic:K"), STOCH_3_3("Stochastic:D"),
+  C("Pattern", R1D)];
 /** The reference app column-set presets, in the reference app menu order (03/11/2026). Columns without a data
- *  source are left out (analyst rating, estimates, extended hours, all-time performance, candlestick
- *  pattern...); a preset with no column the backend has is not listed. */
+ *  source are left out (analyst rating, estimates, extended hours, all-time performance...); a preset with no column the backend has is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("PriceToEarnings"),
     C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM), C("DividendsYield", TTM), C("Sector")] },
@@ -712,14 +740,16 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
   { id: "perShare", title: "Per share", columns: [C("RevenuePerShare", TTM), C("BasicEps", TTM), C("EpsDiluted", TTM), C("OperatingCashFlowPerShare", TTM), C("FreeCashFlowPerShare", TTM),
     C("EBITPerShare", TTM), C("EBITDAPerShare", TTM), C("BookPerShare", FQ), C("TotalDebtPerShare", FQ), C("CashPerShare", FQ)] },
 ];
-/** The reference ETF column sets restricted to ours (Fund flows, NAV performance and Holdings have no data source). */
+/** The reference ETF column sets restricted to ours (Fund flows and NAV performance have no data source). */
 export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
-  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement")] },
+  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement"),
+    C("TotalHoldings"), C("ExpenseRatio"), C("AssetClass")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
-  { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward")] },
+  { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward"), C("DividendsFrequency")] },
+  { id: "holdings", title: "Holdings", columns: [C("TotalHoldings"), C("PercentInTop10"), C("PercentInTop25"), C("PercentInTop50")] },
   { id: "risk", title: "Risk", columns: [C("Beta", { interval: "Interval1Y" }), C("Beta", { interval: "Interval3Y" }), C("Beta", { interval: "Interval5Y" }),
     ...["Interval1D", "Interval1W", "Interval1M"].map((i) => C("Volatility", { interval: i }))] },
 ];
@@ -829,9 +859,10 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE, pills: ColumnRef[] =
   };
 }
 
-/** The reference ETF default pills that have a data source (Asset class, Focus, Niche, Holdings region, Brand,
- *  NAV total return, Management style, Strategy, Div treat, Div freq, Leveraged, Expense ratio and UCITS have none). */
-const ETF_DEFAULT_PILLS: ColumnRef[] = [C("Performance", { interval: "IntervalYTD" }), C("AssetsUnderManagement"), C("DividendsYieldForward")];
+/** The reference ETF default pills that have a data source (Focus, Niche, Holdings region, Brand, NAV total return,
+ *  Management style, Strategy, Div treat and UCITS have none). */
+const ETF_DEFAULT_PILLS: ColumnRef[] = [C("AssetClass"), C("Performance", { interval: "IntervalYTD" }), C("AssetsUnderManagement"), C("DividendsYieldForward"),
+  C("DividendsFrequency"), C("Leveraged"), C("ExpenseRatio")];
 
 /** The reference ETF Screener's "Untitled screen": its default pills, Overview, sorted by AUM; primary listing off. */
 export function defaultEtfScreen(title = DEFAULT_SCREEN_TITLE): Screen {

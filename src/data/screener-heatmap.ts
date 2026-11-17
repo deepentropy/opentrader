@@ -76,10 +76,11 @@ export const HEAT_COLOR: HeatOption[] = [
   })),
 ];
 
-/** Group by (the ETF Screener's "Asset class" has no data source). */
+/** Group by. */
 export const HEAT_GROUP: { id: string; short: string; column: ColumnRef | null; type?: ScreenerType }[] = [
   { id: "None", short: "No group", column: null },
   { id: "Sector", short: "Sector", column: { id: "Sector", params: {} }, type: "stock" },
+  { id: "AssetClass", short: "Asset class", column: { id: "AssetClass", params: {} }, type: "etf" },
 ];
 
 const ofType = <T extends { type?: ScreenerType }>(list: T[], type: ScreenerType) => list.filter((o) => !o.type || o.type === type);

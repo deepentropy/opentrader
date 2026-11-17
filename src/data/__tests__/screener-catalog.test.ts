@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DASH, formatCell } from "../screener-format";
 import {
   COLUMNS,
   COLUMN_BY_ID,
@@ -198,9 +199,17 @@ describe("filters and screens", () => {
     expect(isOffered(COLUMN_BY_ID.Stochastic, has("Stoch.K_14_1_3"))).toBe(true);
   });
 
-  it("the Technicals set: ratings, RSI, Momentum, AO, CCI and the slow Stochastic", () => {
+  it("the Technicals set: ratings, RSI, Momentum, AO, CCI, the slow Stochastic and the candlestick patterns", () => {
     const set = COLUMN_SETS.find((x) => x.id === "technicals")!;
-    expect(set.columns.map(fieldOf)).toEqual(["Recommend.All", "Recommend.MA", "Recommend.Other", "RSI", "Mom", "AO", "CCI20", "Stoch.K", "Stoch.D"]);
+    expect(set.columns.map(fieldOf)).toEqual(["Recommend.All", "Recommend.MA", "Recommend.Other", "RSI", "Mom", "AO", "CCI20", "Stoch.K", "Stoch.D",
+      "candlestick_patterns"]);
+  });
+
+  it("a Pattern cell lists the patterns of its ids, unknown ids left out", () => {
+    const cell = formatCell("patterns", "engulfing_bullish,nope,doji", null);
+    expect(cell.patterns?.map((p) => p.abbr)).toEqual(["BE", "D"]);
+    expect(cell.text).toBe("Engulfing - Bullish, Doji");
+    expect(formatCell("patterns", null, null).text).toBe(DASH);
   });
 
   it("volume, turnover and volatility over the week and the month", () => {

@@ -707,6 +707,41 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-rating-neutral {
   color: var(--color-symbol-rating-neutral);
 }
+/* Candlestick pattern cells: up to four badges in a row, then a "+N" counter. */
+.scr-patterns {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+.scr-pattern,
+.scr-pattern-more {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+}
+.scr-pattern {
+  border: 1px solid currentColor;
+}
+.scr-pattern-bullish {
+  color: var(--color-symbol-rating-positive);
+}
+.scr-pattern-bearish {
+  color: var(--color-symbol-rating-negative);
+}
+.scr-pattern-neutral {
+  color: var(--color-symbol-rating-neutral);
+}
+.scr-pattern-more {
+  border-radius: 9px;
+  padding: 0 6px;
+  background: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-content-primary-neutral);
+}
 .scr-spacer {
   height: 0;
 }

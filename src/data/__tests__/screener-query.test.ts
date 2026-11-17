@@ -264,7 +264,7 @@ describe("planScreen", () => {
     const plan = planScreen(defaultEtfScreen(), all, null);
     expect(plan.filter).toEqual([ETF_UNIVERSE_CLAUSE]);
     expect(planScreen({ ...defaultEtfScreen(), primaryListing: true }, all, null).filter).toEqual([ETF_PRIMARY_UNIVERSE_CLAUSE]);
-    expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "VolumePrice", "RelativeVolume", "AssetsUnderManagement"]);
+    expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "VolumePrice", "RelativeVolume", "AssetsUnderManagement", "TotalHoldings", "ExpenseRatio", "AssetClass"]);
   });
 
   it("never sends fields the backend does not have", () => {

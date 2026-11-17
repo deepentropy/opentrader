@@ -27,6 +27,8 @@ import {
   type ColumnRef,
 } from "../../data/screener-catalog";
 import { DASH, type Rating } from "../../data/screener-format";
+import type { CandlePattern } from "../../data/candle-patterns";
+import { translate } from "../../i18n/translator";
 import { displayCell } from "../../data/screener-display";
 import { screenerSettings } from "../../data/screener-settings";
 import { EXTRA_FIELDS } from "../../data/screener-query";
@@ -255,11 +257,15 @@ export function ScreenerTable(props: Props) {
       return t === "up" ? "scr-up" : t === "down" ? "scr-down" : undefined;
     };
     const rating = () => f()?.rating;
+    const patterns = () => f()?.patterns;
     return (
       <td class="scr-td" classList={{ "is-right": def?.align !== "left" }} title={def?.cellText ? text() : undefined}>
         <Show when={rating()}>{(r) => <RatingIcon rating={r()} />}</Show>
+        <PatternBadges patterns={patterns() ?? []} />
         {/* A text column (index, sector, industry, exchange) shows data. */}
-        <span class={rating() ? `scr-rating scr-rating-${RATING_CLASS[rating()!]}` : tone()} data-no-translate={def?.fmt === "text" || undefined}>{text()}</span>
+        {!patterns() && (
+          <span class={rating() ? `scr-rating scr-rating-${RATING_CLASS[rating()!]}` : tone()} data-no-translate={def?.fmt === "text" || undefined}>{text()}</span>
+        )}
         <Show when={unit()}>
           <span class="scr-currency"> {unit()}</span>
         </Show>
@@ -455,6 +461,30 @@ const RATING_PATH: Record<Rating, string> = {
   Sell: "M5 7l4 4 4-4",
   StrongSell: "M5 4.5l4 4 4-4M5 9.5l4 4 4-4",
 };
+
+/** A Pattern cell: the first four patterns as badges (their short label, coloured by side, the name on hover),
+ *  then a "+N" counter whose tooltip lists the others. */
+function PatternBadges(props: { patterns: CandlePattern[] }) {
+  const shown = () => props.patterns.slice(0, 4);
+  const rest = () => props.patterns.slice(4);
+  // The abbreviations are data; the titles are translated here (the subtree is not looked up).
+  return (
+    <span class="scr-patterns" data-no-translate>
+      <For each={shown()}>
+        {(p) => (
+          <span class={`scr-pattern scr-pattern-${p.side}`} title={translate(p.title)}>
+            {p.abbr}
+          </span>
+        )}
+      </For>
+      <Show when={rest().length}>
+        <span class="scr-pattern-more" title={rest().map((p) => translate(p.title)).join("\n")}>
+          +{rest().length}
+        </span>
+      </Show>
+    </span>
+  );
+}
 
 function RatingIcon(props: { rating: Rating }) {
   return (

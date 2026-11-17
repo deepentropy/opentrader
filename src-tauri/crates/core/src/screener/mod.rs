@@ -12,6 +12,7 @@
  * scroll never wait on the network. Each new table is announced with a
  * `ScreenerUpdate` event; the panel then re-runs its scan.
  */
+pub mod candles;
 pub mod clock;
 pub mod closes;
 pub mod fields;
