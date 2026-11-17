@@ -121,20 +121,20 @@ const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {
   index: "indices", bond: "bonds",
 };
 
-/** Search row of an economic series: the country flag as its logo, no type label, its source agency (short name)
- *  on the right without a flag. */
-export function economicRow(ticker: string, description: string, source: string): SymbolRow {
+/** Search row of an economic series: the flag of its economy as its logo, no type label, its source agency (short
+ *  name) on the right without a flag. */
+export function economicRow(ticker: string, description: string, source: string, country = "US"): SymbolRow {
   return {
     symbolName: `ECONOMICS:${ticker}`, ticker, description,
     marketType: "economic", exchange: source, exchangeTooltip: source || undefined,
-    logoSrc: flagUrl("US"), category: "economy",
+    logoSrc: flagUrl(country), category: "economy",
   };
 }
 
 /** Map one raw `search_tickers` reference result into a dialog row. The
  *  source half of symbol search; ../symbol-search applies the generic ranking. */
 export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
-  if (r.type === "economic") return economicRow(r.ticker, r.name ?? "", r.exchange ?? "");
+  if (r.type === "economic") return economicRow(r.ticker, r.name ?? "", r.exchange ?? "", (r.locale ?? "us").toUpperCase());
   const ex = (r.exchange && SEARCH_EXCHANGE_NAMES[r.exchange.toUpperCase().replace(/\s+/g, "")]) || r.exchange || "";
   // The row shows the descriptive name; the symbol's identity uses the code.
   const code = r.exchange ? exchangeCode(r.exchange) : "";

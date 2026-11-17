@@ -23,7 +23,7 @@ import { FlagColorPopup } from "../FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "../ChartSyncMenu";
 import { FLAG_HEX } from "../../../data/watchlist";
 import { type PriceSource } from "../../header/chart-settings";
-import { intervalLabel, isEconomicSymbol, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
+import { economicCountry, intervalLabel, isEconomicSymbol, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
 import { flagUrl } from "../../../data/country-flags";
 import { CHART_TYPE_ICON, isTransformType, transformBarsOf, type OHLC } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
@@ -192,7 +192,7 @@ export function createLegend(cx: ChartCx): LegendApi {
             ticker={splitSymbol(props.symbol ?? "").ticker}
             interval={intervalLabel(props.interval ?? "1D")}
             exchange={isEconomicSymbol(props.symbol) ? cx.legendSource() : splitSymbol(props.symbol ?? "").exchange}
-            logoUrl={isEconomicSymbol(props.symbol) ? flagUrl("US") : undefined}
+            logoUrl={isEconomicSymbol(props.symbol) ? flagUrl(economicCountry(props.symbol!)) : undefined}
             values={legend()}
             formatPrice={cx.legendPriceFormat()}
             titleMode={appearance().legendTitleMode}

@@ -67,15 +67,23 @@ pub async fn search_tickers(
 }
 
 /// Economy tab of the symbol search: the series matching `query` (the most
-/// popular for an empty query) within a source agency and / or a category.
+/// popular for an empty query) within a source agency, a category and / or an economy.
 #[tauri::command]
 #[specta::specta]
 pub async fn search_economic(
     query: String,
     source: Option<String>,
     category: Option<String>,
+    country: Option<String>,
 ) -> Result<Vec<SymbolSearchResult>, String> {
-    Ok(core::search_economic(&query, source.as_deref(), category.as_deref()))
+    Ok(core::search_economic(&query, source.as_deref(), category.as_deref(), country.as_deref()))
+}
+
+/// The economies of the economic series catalog (the country panel).
+#[tauri::command]
+#[specta::specta]
+pub async fn economic_countries() -> Result<Vec<opentrader_core::data::market_rest::economics::EconomicCountry>, String> {
+    Ok(core::economic_countries())
 }
 
 /// The source agencies of the economic series catalog, most series first.

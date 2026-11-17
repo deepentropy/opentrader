@@ -39,6 +39,7 @@ pub const SERVED: &[&str] = &[
     "search_tickers",
     "search_economic",
     "economic_sources",
+    "economic_countries",
     "get_dividends",
     "get_splits",
     "get_latest_news",
@@ -149,6 +150,8 @@ pub mod args {
         pub query: String,
         pub source: Option<String>,
         pub category: Option<String>,
+        #[serde(default)]
+        pub country: Option<String>,
     }
 
     #[derive(Deserialize)]
@@ -249,12 +252,16 @@ pub async fn search_tickers(provider: &Provider, query: &str, type_filter: Optio
     Ok(provider.search(query.trim(), type_filter).await?)
 }
 
-pub fn search_economic(query: &str, source: Option<&str>, category: Option<&str>) -> Vec<SymbolSearchResult> {
-    economics::search_filtered(query.trim(), &economics::Filter { source, category })
+pub fn search_economic(query: &str, source: Option<&str>, category: Option<&str>, country: Option<&str>) -> Vec<SymbolSearchResult> {
+    economics::search_filtered(query.trim(), &economics::Filter { source, category, country })
 }
 
 pub fn economic_sources() -> Vec<String> {
     economics::sources()
+}
+
+pub fn economic_countries() -> Vec<economics::EconomicCountry> {
+    economics::countries()
 }
 
 // ── Chart events ──

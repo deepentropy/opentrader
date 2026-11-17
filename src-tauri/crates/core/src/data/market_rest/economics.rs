@@ -63,6 +63,18 @@ pub struct EconomicMeta {
     /// Symbol search category ("GDP", "Labor", "Prices"…; empty when none).
     #[serde(default)]
     pub category: String,
+    /// ISO 3166 code of the economy ("US", "DE").
+    #[serde(default)]
+    pub country: String,
+}
+
+/// An economy of the catalog: the Economy tab's country panel.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct EconomicCountry {
+    pub code: String,
+    pub name: String,
+    /// "North America", "Europe", "Asia"…
+    pub region: String,
 }
 
 #[derive(Deserialize)]
@@ -79,6 +91,11 @@ struct File {
     /// Absent from a catalog built before categories.
     #[serde(default)]
     category: Vec<String>,
+    /// Absent from a catalog built before the international series (all US).
+    #[serde(default)]
+    country: Vec<String>,
+    #[serde(default)]
+    countries: Vec<EconomicCountry>,
 }
 
 /// Symbol search filters of the Economy tab (None = all).
@@ -86,17 +103,21 @@ struct File {
 pub struct Filter<'a> {
     pub source: Option<&'a str>,
     pub category: Option<&'a str>,
+    pub country: Option<&'a str>,
 }
 
 impl Filter<'_> {
     fn keeps(&self, r: &EconomicMeta) -> bool {
-        self.source.is_none_or(|s| r.source == s) && self.category.is_none_or(|c| r.category == c)
+        self.source.is_none_or(|s| r.source == s)
+            && self.category.is_none_or(|c| r.category == c)
+            && self.country.is_none_or(|c| r.country.eq_ignore_ascii_case(c))
     }
 }
 
 struct Catalog {
     date: String,
     rows: Vec<EconomicMeta>,
+    countries: Vec<EconomicCountry>,
     /// Lower-case names, for the word-start search.
     keys: Vec<String>,
     by_id: HashMap<String, usize>,
@@ -137,6 +158,7 @@ impl Catalog {
             .iter()
             .any(|&l| l != n)
             || !(f.category.is_empty() || f.category.len() == n)
+            || !(f.country.is_empty() || f.country.len() == n)
         {
             return None;
         }
@@ -150,11 +172,17 @@ impl Catalog {
                 seasonal: f.seasonal[i].clone(),
                 source: f.source[i].clone(),
                 category: f.category.get(i).cloned().unwrap_or_default(),
+                country: f.country.get(i).cloned().unwrap_or_else(|| "US".into()),
             })
             .collect();
+        let countries = if f.countries.is_empty() {
+            vec![EconomicCountry { code: "US".into(), name: "USA".into(), region: "North America".into() }]
+        } else {
+            f.countries
+        };
         let keys = rows.iter().map(|r| normalize(&r.name)).collect();
         let by_id = rows.iter().enumerate().map(|(i, r)| (r.id.clone(), i)).collect();
-        Some(Catalog { date: f.date, rows, keys, by_id })
+        Some(Catalog { date: f.date, rows, countries, keys, by_id })
     }
 
     /// Series ids starting with the query first (catalog order: most popular
@@ -270,7 +298,7 @@ pub fn search_filtered(query: &str, filter: &Filter) -> Vec<SymbolSearchResult> 
             ticker: r.id.clone(),
             name: Some(r.name.clone()),
             market: Some("economy".into()),
-            locale: Some("us".into()),
+            locale: Some(r.country.to_lowercase()),
             exchange: Some(source_short(&r.source)),
             r#type: Some("economic".into()),
         })
@@ -287,6 +315,11 @@ pub fn sources() -> Vec<String> {
     let mut v: Vec<(&str, usize)> = count.into_iter().filter(|(s, _)| !s.is_empty()).collect();
     v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
     v.into_iter().map(|(s, _)| s.to_string()).collect()
+}
+
+/// The economies of the catalog, in its order (the US first).
+pub fn countries() -> Vec<EconomicCountry> {
+    current().map(|c| c.countries.clone()).unwrap_or_default()
 }
 
 /// Description of a catalogued series (None when the catalog is not loaded or
@@ -385,6 +418,9 @@ struct SeriesAnswer {
     source: String,
     #[serde(default)]
     category: String,
+    /// Absent from a gateway before the international series (all US).
+    #[serde(default)]
+    country: String,
     #[serde(default)]
     t: Vec<Option<f64>>,
     #[serde(default)]
@@ -423,6 +459,7 @@ pub async fn fetch_series(id: &str) -> Result<Arc<EconomicSeries>, ApiError> {
             seasonal: a.seasonal,
             source: a.source,
             category: a.category,
+            country: if a.country.is_empty() { "US".into() } else { a.country },
         },
         time,
         value,
@@ -469,11 +506,25 @@ mod tests {
         json["category"] = serde_json::json!(["Labor", "GDP", "Labor", "Prices"]);
         let c = Catalog::parse(json.to_string().as_bytes()).unwrap();
         let ids = |q: &str, f: Filter| c.search(q, &f).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
-        assert_eq!(ids("", Filter { source: None, category: Some("Labor") }), ["UNRATE", "UNRATENSA"]);
-        assert_eq!(ids("", Filter { source: Some("U.S. Bureau of Economic Analysis"), category: None }), ["GDP"]);
-        assert!(ids("unrate", Filter { source: None, category: Some("Prices") }).is_empty());
+        assert_eq!(ids("", Filter { source: None, category: Some("Labor"), country: None }), ["UNRATE", "UNRATENSA"]);
+        assert_eq!(ids("", Filter { source: Some("U.S. Bureau of Economic Analysis"), category: None, country: None }), ["GDP"]);
+        assert!(ids("unrate", Filter { source: None, category: Some("Prices"), country: None }).is_empty());
         // A catalog without categories still loads.
         assert_eq!(catalog().rows[0].category, "");
+    }
+
+    #[test]
+    fn filters_by_country_and_lists_the_economies() {
+        let mut json: serde_json::Value = serde_json::from_slice(&catalog_json()).unwrap();
+        json["country"] = serde_json::json!(["US", "US", "DE", "US"]);
+        json["countries"] = serde_json::json!([{ "code": "US", "name": "USA", "region": "North America" }, { "code": "DE", "name": "Germany", "region": "Europe" }]);
+        let c = Catalog::parse(json.to_string().as_bytes()).unwrap();
+        let ids = |f: Filter| c.search("", &f).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(Filter { country: Some("DE"), ..Filter::default() }), [c.rows[2].id.clone()]);
+        assert_eq!(c.countries.iter().map(|x| x.code.as_str()).collect::<Vec<_>>(), ["US", "DE"]);
+        // A catalog without countries: its series are US ones.
+        assert_eq!(catalog().rows[0].country, "US");
+        assert_eq!(catalog().countries.len(), 1);
     }
 
     #[test]
@@ -484,7 +535,7 @@ mod tests {
         let ids = |f: Filter| c.search("", &f).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
         // CPIAUCSL and UNRATE are popular (in that order), then catalog order.
         assert_eq!(ids(Filter::default()), ["CPIAUCSL", "UNRATE", "GDP", "UNRATENSA"]);
-        assert_eq!(ids(Filter { source: None, category: Some("Labor") }), ["UNRATE", "UNRATENSA"]);
+        assert_eq!(ids(Filter { source: None, category: Some("Labor"), country: None }), ["UNRATE", "UNRATENSA"]);
     }
 
     #[test]

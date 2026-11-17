@@ -162,6 +162,7 @@ routes!(
     search_tickers,
     search_economic,
     economic_sources,
+    economic_countries,
     get_dividends,
     get_splits,
     get_latest_news,
@@ -280,11 +281,15 @@ async fn search_tickers(state: &Shared, _: &HeaderMap, body: &Bytes) -> Answer {
 
 async fn search_economic(_: &Shared, _: &HeaderMap, body: &Bytes) -> Answer {
     let a: args::EconomicSearch = args(body)?;
-    ok(core::search_economic(&a.query, a.source.as_deref(), a.category.as_deref()))
+    ok(core::search_economic(&a.query, a.source.as_deref(), a.category.as_deref(), a.country.as_deref()))
 }
 
 async fn economic_sources(_: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
     ok(core::economic_sources())
+}
+
+async fn economic_countries(_: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
+    ok(core::economic_countries())
 }
 
 // ── Chart events ──

@@ -52,6 +52,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::ticker::search_tickers,
             commands::ticker::search_economic,
             commands::ticker::economic_sources,
+            commands::ticker::economic_countries,
             commands::events::get_dividends,
             commands::events::get_splits,
             commands::events::get_latest_news,

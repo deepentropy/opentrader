@@ -17,7 +17,7 @@
  * Time is UNIX seconds everywhere (lightweight-charts UTCTimestamp), matching
  * the backend `Candle.time`.
  */
-import { commands, type Candle, type SymbolSearchResult } from "../bindings";
+import { commands, type Candle, type EconomicCountry, type SymbolSearchResult } from "../bindings";
 import {
   getSecondHistory,
   getSecondHistoryTail,
@@ -227,6 +227,12 @@ export function isEconomicSymbol(symbol: string | null | undefined): boolean {
   return !!symbol && /^ECONOMICS:/i.test(symbol.trim());
 }
 
+/** The economy of an economic series: the international series' ids start with its code ("ECONOMICS:DE_INFL"),
+ *  the others are US series. */
+export function economicCountry(symbol: string): string {
+  return /^ECONOMICS:([A-Z]{2})_[A-Z0-9]+$/i.exec(symbol.trim())?.[1].toUpperCase() ?? "US";
+}
+
 /** Text of an interval `symbol` has no bars on: the ones under its finest bars
  *  (an imported series' file, a data plugin's finest served interval), under D
  *  for an economic series. */
@@ -353,11 +359,17 @@ export async function searchSymbols(
 }
 
 /** Economy tab of the symbol search: series matching `query` (the most popular for an empty query) within a source
- *  agency and / or a category (null = all). */
-export async function searchEconomic(query: string, source: string | null, category: string | null): Promise<SymbolSearchResult[]> {
-  const res = await commands.searchEconomic(query, source, category);
+ *  agency, a category and / or an economy (null = all). */
+export async function searchEconomic(query: string, source: string | null, category: string | null, country: string | null = null): Promise<SymbolSearchResult[]> {
+  const res = await commands.searchEconomic(query, source, category, country);
   if (res.status === "error") throw new Error(res.error);
   return res.data;
+}
+
+/** The economies of the economic series (the country panel), the US first. */
+export async function economicCountries(): Promise<EconomicCountry[]> {
+  const res = await commands.economicCountries();
+  return res.status === "ok" ? res.data : [];
 }
 
 /** Source agencies of the economic series, most series first (the Sources filter). */
