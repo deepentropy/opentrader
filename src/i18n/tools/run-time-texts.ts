@@ -127,6 +127,15 @@ const GROUPS: Record<string, string[]> = {
     "Untitled script",
   ],
   "window/right-rail/AlertsPanel.tsx, the Log tab (SegmentedControl sense)": ["Log|history"],
+  "window/header/symbol-search/search-model.ts REGION_ORDER, the region headers of the Economy country panel": [
+    "North America",
+    "Latin America",
+    "Europe",
+    "Asia",
+    "Africa",
+    "Middle East",
+    "Pacific",
+  ],
 };
 
 export const RUN_TIME_TEXTS: FoundText[] = Object.entries(GROUPS).flatMap(([at, texts]) => texts.map((text) => ({ text, at: `run time: ${at}` })));
