@@ -9,6 +9,8 @@
  * The plugin answers `data.symbolInfo` (description, sessions, tick size, the intervals it serves), `data.bars` and
  * `data.search`; it pushes `data.quote` for the symbols of `data.subscribe`, which become the `chart-aggregate` and
  * `trade-tick` events the gateway's live task sends. Bars are not kept on disk: the plugin's source owns its history.
+ * A symbol's recent bars are kept in memory a while (`recent`): the chart, the Details panel, its quote, replay and
+ * alerts ask the same history, and each ask costs the plugin's source requests (#347).
  */
 use super::Plugins;
 use crate::data::session::{Subsession, SymbolSession};
@@ -20,7 +22,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
@@ -30,6 +32,15 @@ const INFO_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_BARS: u64 = 50_000;
 /// The error code of a plugin that doesn't know a symbol (an expired contract, a renamed ticker).
 const UNKNOWN_SYMBOL: i64 = -32004;
+/// The error code of a plugin whose source is busy (rate limited): the window asks again later, waiting longer each time.
+const BUSY: i64 = -32005;
+/// A kept series answers without asking the plugin for this long; then only its newest bars are asked again.
+const RECENT_FRESH: Duration = Duration::from_secs(10);
+/// Series kept at most (the one read longest ago goes first).
+const RECENT_KEPT: usize = 32;
+/// How long a scroll-back page is kept, and how many at most.
+const PAGE_KEPT_FOR: Duration = Duration::from_secs(600);
+const PAGES_KEPT: usize = 64;
 
 /// What the plugin says of a symbol (`data.symbolInfo`).
 #[derive(Clone, Debug, Deserialize)]
@@ -63,6 +74,32 @@ pub struct Info {
     /// Money one unit makes per price point: a future counted in contracts gives its multiplier.
     #[serde(default)]
     pub point_value: Option<f64>,
+    /// How far back, in calendar days, the source serves each family of bars: the app asks nothing older.
+    #[serde(default)]
+    pub history: HistoryDepth,
+}
+
+/// Calendar days of history per family of bars (`history` of `data.symbolInfo`); none = as far as the asks go.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct HistoryDepth {
+    #[serde(default)]
+    pub second: Option<f64>,
+    #[serde(default)]
+    pub minute: Option<f64>,
+    #[serde(default)]
+    pub day: Option<f64>,
+}
+
+impl HistoryDepth {
+    /// The depth of a unit's bars (weeks and months are built from days).
+    fn of(&self, unit: &str) -> Option<f64> {
+        match unit {
+            "second" => self.second,
+            "minute" => self.minute,
+            _ => self.day,
+        }
+        .filter(|d| d.is_finite() && *d > 0.0)
+    }
 }
 
 fn one() -> u32 {
@@ -73,6 +110,18 @@ fn one() -> u32 {
 struct Subscriptions {
     charts: HashMap<String, String>,
     watchlists: HashMap<String, Vec<String>>,
+}
+
+/// A symbol's series of one bar size: the symbol, the unit and the multiplier.
+type RecentKey = (String, String, u32);
+/// A scroll-back page: the series' key, the time it ends before and its trading days.
+type PageKey = (String, String, u32, i64, u32);
+
+/// The last `days` trading days of a symbol's bars, as read at `at` (and completed since by newer bars).
+struct Recent {
+    days: u32,
+    at: Instant,
+    bars: Arc<Vec<Candle>>,
 }
 
 #[derive(Default)]
@@ -88,6 +137,10 @@ pub struct PluginData {
     subs: Mutex<Subscriptions>,
     /// The tickers each plugin was last asked to stream.
     streaming: Mutex<HashMap<String, BTreeSet<String>>>,
+    recent: Mutex<HashMap<RecentKey, Recent>>,
+    /// One read of a series at a time: the asks that come meanwhile wait for it and are answered from it.
+    reading: Mutex<HashMap<RecentKey, Arc<tokio::sync::Mutex<()>>>>,
+    pages: Mutex<HashMap<PageKey, (Instant, Arc<Vec<Candle>>)>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -135,6 +188,14 @@ pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashS
     *s.whole.locked() = whole;
     s.infos.locked().clear();
     s.unknown.locked().clear();
+    s.recent.locked().clear();
+    s.pages.locked().clear();
+}
+
+/// Settings > Service > "Clear cache": the plugins' series kept in memory.
+pub fn clear_recent(app: &AppHandle) {
+    state(app).recent.locked().clear();
+    state(app).pages.locked().clear();
 }
 
 pub fn init(app: &AppHandle) {
@@ -168,6 +229,8 @@ fn forget(app: &AppHandle, plugin: &str) {
     let exchanges: Vec<String> = s.exchanges.locked().iter().filter(|(_, p)| *p == plugin).map(|(e, _)| format!("{e}:")).collect();
     s.infos.locked().retain(|sym, _| !exchanges.iter().any(|e| sym.starts_with(e)));
     s.unknown.locked().retain(|sym| !exchanges.iter().any(|e| sym.starts_with(e)));
+    s.recent.locked().retain(|(sym, _, _), _| !exchanges.iter().any(|e| sym.starts_with(e)));
+    s.pages.locked().retain(|(sym, ..), _| !exchanges.iter().any(|e| sym.starts_with(e)));
 }
 
 /// The error of a symbol its plugin doesn't know: final, like the gateway's (the window doesn't retry it).
@@ -175,9 +238,17 @@ fn unknown_symbol(symbol: &str) -> String {
     format!("{symbol}: unknown symbol (NOT_FOUND)")
 }
 
+/// A plugin's error as the window reads it: a busy source is a failure of the moment, asked again (data/connection.ts).
+fn error_text(e: PluginError) -> String {
+    match e {
+        PluginError::Rpc { code: BUSY, message } => format!("{message} (RATE_LIMITED)"),
+        e => e.to_string(),
+    }
+}
+
 async fn ask(app: &AppHandle, r: &Route, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
     let hub = app.state::<Plugins>().hub.clone();
-    hub.request(&r.plugin, method, params, timeout).await.map_err(|e| e.to_string())
+    hub.request(&r.plugin, method, params, timeout).await.map_err(error_text)
 }
 
 pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
@@ -196,7 +267,7 @@ pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
             push_subscriptions(app);
             return Err(unknown_symbol(&r.symbol));
         }
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(error_text(e)),
     };
     let info: Info = serde_json::from_value(v).map_err(|e| format!("{}: bad symbol info ({e})", r.symbol))?;
     if info.pricescale == 0 {
@@ -324,6 +395,10 @@ pub async fn bars(app: &AppHandle, r: &Route, unit: &str, mult: u32, from: f64, 
         return Ok(Vec::new());
     };
     let ask_count = if bucket > 0 { count.saturating_mul(bucket / base_seconds(&resolution).max(1)) } else { count };
+    // Older than the source's history: nothing to ask (a scroll-back past it ends there).
+    let Some((from, ask_count)) = reachable(i.history.of(unit), from, to, ask_count, base_seconds(&resolution), now()) else {
+        return Ok(Vec::new());
+    };
     let params = json!({
         "ticker": r.ticker, "resolution": resolution,
         "from": from.max(0.0).floor(), "to": to.floor(), "countBack": ask_count.clamp(1, MAX_BARS),
@@ -332,6 +407,17 @@ pub async fn bars(app: &AppHandle, r: &Route, unit: &str, mult: u32, from: f64, 
     let mut bars = parse_bars(&v)?;
     bars.retain(|b| b.time >= from && b.time <= to);
     Ok(if bucket > 0 { rebuild(bars, bucket) } else { bars })
+}
+
+/// The part of [`from`, `to`] a source `depth` calendar days deep reaches, and at most as many bars of `bar_secs` as
+/// fit in it; None when it reaches none of it.
+fn reachable(depth: Option<f64>, from: f64, to: f64, count: u64, bar_secs: u64, now: f64) -> Option<(f64, u64)> {
+    let from = depth.map_or(from, |d| from.max(now - d * 86_400.0));
+    if to < from {
+        return None;
+    }
+    let fit = ((to - from) / bar_secs.max(1) as f64).floor() as u64 + 1;
+    Some((from, count.min(fit)))
 }
 
 fn base_seconds(resolution: &str) -> u64 {
@@ -354,26 +440,108 @@ fn span(days: u32) -> f64 {
     (days as f64 * 7.0 / 5.0 + 3.0) * 86_400.0
 }
 
-/// The last `days` trading days of `unit` bars.
-pub async fn recent(app: &AppHandle, r: &Route, unit: &str, mult: u32, days: u32) -> Result<Vec<Candle>, String> {
-    let to = now();
-    let per_day = match unit {
+/// Bars of `unit` × `mult` in a day at most (a 24-hour day).
+fn per_day(unit: &str, mult: u32) -> u64 {
+    match unit {
         "second" => 86_400 / mult.max(1) as u64,
         "minute" => 1_440 / mult.max(1) as u64,
         _ => 1,
-    };
-    bars(app, r, unit, mult, to - span(days), to, per_day.max(1) * days as u64).await
+    }
+    .max(1)
 }
 
-/// Bars strictly before `before_sec`, over `span_days` trading days.
-pub async fn before(app: &AppHandle, r: &Route, unit: &str, mult: u32, before_sec: f64, span_days: u32) -> Result<Vec<Candle>, String> {
-    let to = before_sec - 1.0;
-    let per_day = match unit {
-        "second" => 86_400 / mult.max(1) as u64,
-        "minute" => 1_440 / mult.max(1) as u64,
-        _ => 1,
+/// Seconds of one bar of `unit` × `mult`.
+fn bar_seconds(unit: &str, mult: u32) -> u64 {
+    match unit {
+        "second" => mult.max(1) as u64,
+        "minute" => mult.max(1) as u64 * 60,
+        _ => 86_400,
+    }
+}
+
+/// The last `days` trading days of `unit` bars. A series read a moment ago answers at once; an older one asks only
+/// the bars from its last one on; one read over fewer days, or none, asks the whole window. The asks of a series that
+/// come while it is read wait for it.
+pub async fn recent(app: &AppHandle, r: &Route, unit: &str, mult: u32, days: u32) -> Result<Vec<Candle>, String> {
+    let key: RecentKey = (r.symbol.clone(), unit.to_string(), mult.max(1));
+    let gate = state(app).reading.locked().entry(key.clone()).or_default().clone();
+    let read = {
+        let _turn = gate.lock().await;
+        read_recent(app, r, &key, unit, mult, days).await
     };
-    bars(app, r, unit, mult, to - span(span_days), to, per_day.max(1) * span_days as u64).await
+    drop(gate);
+    let mut reading = state(app).reading.locked();
+    if reading.get(&key).is_some_and(|g| Arc::strong_count(g) == 1) {
+        reading.remove(&key);
+    }
+    read
+}
+
+async fn read_recent(app: &AppHandle, r: &Route, key: &RecentKey, unit: &str, mult: u32, days: u32) -> Result<Vec<Candle>, String> {
+    let to = now();
+    let from = to - span(days);
+    let count = per_day(unit, mult) * days as u64;
+    let kept = state(app).recent.locked().get(key).filter(|k| k.days >= days && !k.bars.is_empty()).map(|k| (k.at, k.days, k.bars.clone()));
+    let series = match kept {
+        Some((at, _, series)) if at.elapsed() < RECENT_FRESH => series,
+        Some((_, kept_days, series)) => {
+            let last = series[series.len() - 1].time;
+            let newer_count = ((to - last) / bar_seconds(unit, mult) as f64).ceil().max(0.0) as u64 + 1;
+            let newer = bars(app, r, unit, mult, last, to, newer_count).await?;
+            keep(app, key, kept_days, with_newer(&series, newer))
+        }
+        None => keep(app, key, days, bars(app, r, unit, mult, from, to, count).await?),
+    };
+    Ok(window_of(&series, from, count))
+}
+
+fn keep(app: &AppHandle, key: &RecentKey, days: u32, bars: Vec<Candle>) -> Arc<Vec<Candle>> {
+    let bars = Arc::new(bars);
+    let mut recent = state(app).recent.locked();
+    recent.insert(key.clone(), Recent { days, at: Instant::now(), bars: bars.clone() });
+    if recent.len() > RECENT_KEPT {
+        if let Some(oldest) = recent.iter().min_by_key(|(_, k)| k.at).map(|(key, _)| key.clone()) {
+            recent.remove(&oldest);
+        }
+    }
+    bars
+}
+
+/// A series completed by the bars read since: they replace the ones from their first time on (the last bar moved).
+fn with_newer(bars: &[Candle], newer: Vec<Candle>) -> Vec<Candle> {
+    let Some(first) = newer.first().map(|b| b.time) else {
+        return bars.to_vec();
+    };
+    let mut out: Vec<Candle> = bars.iter().filter(|b| b.time < first).cloned().collect();
+    out.extend(newer);
+    out
+}
+
+/// The newest `count` bars of a series from `from` on.
+fn window_of(bars: &[Candle], from: f64, count: u64) -> Vec<Candle> {
+    let start = bars.partition_point(|b| b.time < from).max(bars.len().saturating_sub(count as usize));
+    bars[start..].to_vec()
+}
+
+/// Bars strictly before `before_sec`, over `span_days` trading days. Pages are past bars: one read a while ago answers
+/// the same page again (a chart loaded again asks the page it asked before).
+pub async fn before(app: &AppHandle, r: &Route, unit: &str, mult: u32, before_sec: f64, span_days: u32) -> Result<Vec<Candle>, String> {
+    let key: PageKey = (r.symbol.clone(), unit.to_string(), mult.max(1), before_sec as i64, span_days);
+    let kept = state(app).pages.locked().get(&key).filter(|(at, _)| at.elapsed() < PAGE_KEPT_FOR).map(|(_, bars)| bars.clone());
+    if let Some(bars) = kept {
+        return Ok(bars.to_vec());
+    }
+    let to = before_sec - 1.0;
+    let page = bars(app, r, unit, mult, to - span(span_days), to, per_day(unit, mult) * span_days as u64).await?;
+    let mut pages = state(app).pages.locked();
+    pages.retain(|_, (at, _)| at.elapsed() < PAGE_KEPT_FOR);
+    if pages.len() >= PAGES_KEPT {
+        if let Some(oldest) = pages.iter().min_by_key(|(_, (at, _))| *at).map(|(key, _)| key.clone()) {
+            pages.remove(&oldest);
+        }
+    }
+    pages.insert(key, (Instant::now(), Arc::new(page.clone())));
+    Ok(page)
 }
 
 /// The quote panel's numbers, from the last two daily bars.
@@ -671,6 +839,46 @@ mod tests {
         assert_eq!(rows.iter().map(|r| format!("{}:{}", r.exchange.as_deref().unwrap(), r.ticker)).collect::<Vec<_>>(), vec!["NSE:RELIANCE", "BSE:RELIANCE"]);
         let only = found_rows(&ex, &whole, "algo", Some("BSE"), vec![found("NSE:RELIANCE"), found("BSE:RELIANCE")]);
         assert_eq!(only.len(), 1);
+    }
+
+    #[test]
+    fn asks_only_what_the_source_history_reaches() {
+        let day = 86_400.0;
+        let now = 1000.0 * day;
+        // 30 years asked of a source a year deep: the last year, a year of daily bars at most.
+        assert_eq!(reachable(Some(365.0), now - 10_000.0 * day, now, 7560, 86_400, now), Some((now - 365.0 * day, 366)));
+        // A scroll-back page older than it: nothing to ask.
+        assert_eq!(reachable(Some(365.0), now - 500.0 * day, now - 400.0 * day, 100, 86_400, now), None);
+        // No depth: the window as asked, the count kept when it fits.
+        assert_eq!(reachable(None, now - 10.0 * day, now, 2880, 300, now), Some((now - 10.0 * day, 2880)));
+        let depth = HistoryDepth { second: None, minute: Some(30.0), day: Some(0.0) };
+        assert_eq!((depth.of("minute"), depth.of("day"), depth.of("second")), (Some(30.0), None, None));
+    }
+
+    fn c(t: f64, close: f64) -> Candle {
+        Candle { time: t, open: close, high: close, low: close, close, volume: 1.0 }
+    }
+
+    #[test]
+    fn completes_a_kept_series_with_the_newer_bars() {
+        let kept = vec![c(1.0, 1.0), c(2.0, 2.0), c(3.0, 3.0)];
+        // The last bar moved and a new one opened.
+        let out = with_newer(&kept, vec![c(3.0, 3.5), c(4.0, 4.0)]);
+        assert_eq!(out.iter().map(|b| (b.time, b.close)).collect::<Vec<_>>(), vec![(1.0, 1.0), (2.0, 2.0), (3.0, 3.5), (4.0, 4.0)]);
+        assert_eq!(with_newer(&kept, Vec::new()).len(), 3);
+    }
+
+    #[test]
+    fn answers_a_shorter_window_from_a_kept_series() {
+        let kept: Vec<Candle> = (1..=10).map(|t| c(t as f64, t as f64)).collect();
+        assert_eq!(window_of(&kept, 7.0, 100).iter().map(|b| b.time).collect::<Vec<_>>(), vec![7.0, 8.0, 9.0, 10.0]);
+        assert_eq!(window_of(&kept, 0.0, 2).iter().map(|b| b.time).collect::<Vec<_>>(), vec![9.0, 10.0]);
+    }
+
+    #[test]
+    fn a_busy_source_is_asked_again() {
+        assert_eq!(error_text(PluginError::Rpc { code: BUSY, message: "Too many requests".into() }), "Too many requests (RATE_LIMITED)");
+        assert_eq!(error_text(PluginError::Rpc { code: -32000, message: "No data".into() }), "No data");
     }
 
     #[test]

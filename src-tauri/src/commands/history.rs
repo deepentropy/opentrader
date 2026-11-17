@@ -10,10 +10,11 @@ use opentrader_core::history::{self, History};
 use tauri::{AppHandle, State};
 
 /// Settings > Service > "Clear cache": the market-data disk cache and the
-/// in-memory series and memos.
+/// in-memory series and memos (the data plugins' too).
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_cache() -> Result<(), String> {
+pub async fn clear_cache(app: AppHandle) -> Result<(), String> {
+    plugin::clear_recent(&app);
     Ok(history::clear_cache().await?)
 }
 

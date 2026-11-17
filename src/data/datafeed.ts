@@ -678,6 +678,25 @@ async function getBarsOnce(symbol: string, resolution: string, session: SessionI
   return { bars, daily, aggregate: cfg.aggregate ?? null, partial: res.data.partial };
 }
 
+/** Daily sessions a figure of the last year reads (52-week range, performance, YTD): a year of a market open every
+ *  day, with margin. */
+const YEAR_DAYS = 400;
+
+/** Daily bars of at least the last year, for figures of the last year (the Details panel's 52-week range and
+ *  performance). A data plugin's symbol asks just that window: its source owns its history, and the daily chart's
+ *  30 years can cost it a request per year (#347). The others read the series the daily chart reads, kept once
+ *  read. */
+export async function getLastYearDailyBars(symbol: string, wanted?: () => boolean): Promise<Candle[]> {
+  if (!isLocalSymbol(symbol) && !isEconomicSymbol(symbol) && (await symbolSessions(symbol)).intervals.length) {
+    return retryTransient(async () => {
+      const res = await commands.getDailyHistory(symbol, YEAR_DAYS, isAdjusted());
+      if (res.status === "error") throw new Error(res.error);
+      return res.data.bars;
+    }, wanted);
+  }
+  return (await getBars(symbol, "1D", "ETH", wanted)).bars;
+}
+
 /** Bars of an imported series: the whole series at once. */
 async function localBars(symbol: string, resolution: string): Promise<BarsResult> {
   const cfg = dailyFamily(resolution);

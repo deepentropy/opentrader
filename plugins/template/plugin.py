@@ -100,6 +100,8 @@ class Source:
             # The money one unit makes per price point; a future counted in contracts gives its multiplier (NSE NIFTY: 65).
             "pointValue": 1,
             "intervals": list(self.RESOLUTIONS),
+            # Optional: how far back the source serves bars, in calendar days, e.g. {"minute": 30, "day": 365}.
+            # The app then asks for nothing older.
         }
 
     def bars(self, ticker, resolution, frm, to, count_back):
