@@ -205,6 +205,7 @@ const STATE: &[(&str, Step)] = &[
     ("Perf.6M", Step::Perf),
     ("Perf.Y", Step::Perf),
     ("Perf.5Y", Step::Perf),
+    ("Perf.10Y", Step::Perf),
     ("Perf.YTD", Step::PerfYtd),
     ("average_volume_10d_calc", Step::AvgVolIncl(10)),
     ("average_volume_30d_calc", Step::AvgVolIncl(30)),
@@ -275,7 +276,7 @@ fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
 
 /// State fields offered only once the served state holds their key (added after the first state version).
 const STATE_OPTIONAL: &[&str] = &[
-    "Perf.5Y", "Recommend.All", "Recommend.MA", "Recommend.Other", "TechRating_1D", "MARating_1D", "OsRating_1D", "Mom",
+    "Perf.5Y", "Perf.10Y", "Recommend.All", "Recommend.MA", "Recommend.Other", "TechRating_1D", "MARating_1D", "OsRating_1D", "Mom",
     "Mom_14", "AO", "CCI20", "Stoch.K", "Stoch.D", "Stoch.K_14_1_3", "Stoch.D_14_1_3", "Volatility.W", "Volatility.M",
     "volume|1W", "volume|1M", "Value.Traded|1W", "Value.Traded|1M",
 ];

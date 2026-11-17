@@ -391,6 +391,7 @@ export const COLUMNS: ColumnDef[] = [
       { value: "IntervalYTD", label: "Year to date", short: "YTD", field: "Perf.YTD" },
       { value: "Interval1Y", label: "1 year", short: "1Y", field: "Perf.Y" },
       { value: "Interval5Y", label: "5 years", short: "5Y", field: "Perf.5Y" },
+      { value: "Interval10Y", label: "10 years", short: "10Y", field: "Perf.10Y" },
     ] }],
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: BANDS } },
   { id: "Price", title: "Price", short: "Price", category: "marketData", align: "right", fmt: "price", width: 99, field: "close",
@@ -685,13 +686,13 @@ const TECHNICALS = [C("TechnicalRating", R1D), C("RatingMa", R1D), C("RatingOsci
   C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" }), C("Momentum", { resolution: "TimeResolution1D", length: "10" }),
   C("AwesomeOscillator", R1D), C("CommodityChannelIndex", { resolution: "TimeResolution1D", length: "20" }), STOCH_3_3("Stochastic:K"), STOCH_3_3("Stochastic:D")];
 /** The reference app column-set presets, in the reference app menu order (03/11/2026). Columns without a data
- *  source are left out (analyst rating, estimates, extended hours, 10-year and all-time performance, candlestick
+ *  source are left out (analyst rating, estimates, extended hours, all-time performance, candlestick
  *  pattern...); a preset with no column the backend has is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("PriceToEarnings"),
     C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM), C("DividendsYield", TTM), C("Sector")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
-    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i })),
+    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i })),
     C("Volatility", { interval: "Interval1W" }), C("Volatility", { interval: "Interval1M" })] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
@@ -715,7 +716,7 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
 export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
-    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i }))] },
+    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
   { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward")] },
