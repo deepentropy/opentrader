@@ -1,14 +1,15 @@
 /*
- * `opentrader://` links (#233, src-tauri/src/deep_link.rs): "Open in
- * OpenTrader" on the Community website gives `opentrader://post/<id>`; the
- * app opens the post in the Community panel and its shared chart on the
- * active chart. The window a link is for takes it from the app's queue when
- * told; main also takes the ones the app was started with.
+ * `opentrader://` links (src-tauri/src/deep_link.rs):
+ *  - `opentrader://post/<id>` (#233), "Open in OpenTrader" on the Community website: the post opens in the
+ *    Community panel and its shared chart on the active chart;
+ *  - `opentrader://chart?symbol=…&interval=…` (#350): a new chart tab on that symbol and interval.
+ * The window a link is for takes it from the app's queue when told; main also takes the ones the app was started
+ * with.
  */
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { commands, events } from "../../bindings";
-import { COMMUNITY_ENABLED, COMMUNITY_URL } from "./api";
-import { requestOpenPost } from "./notifications";
+import { commands, events } from "../bindings";
+import { COMMUNITY_ENABLED, COMMUNITY_URL } from "./community/api";
+import { chartLinkOfUrl, type ChartLink } from "./chart-link";
 
 /** The post of a link: `opentrader://post/<id>`; null for anything else. */
 export function linkedPost(url: string): string | null {
@@ -29,15 +30,24 @@ export function postOfLink(url: string, site = COMMUNITY_URL): string | null {
   return m ? m[1].toLowerCase() : null;
 }
 
+/** What a link the app opens is: a Community post or a chart; null for anything else. */
+export type OpenedLink = { post: string } | { chart: ChartLink };
+
+/** A link the app opens (a deep link, "Open link from clipboard"). */
+export function openedLink(url: string): OpenedLink | null {
+  const post = postOfLink(url);
+  if (post) return { post };
+  const chart = chartLinkOfUrl(url);
+  return chart ? { chart } : null;
+}
+
 /** Starts taking this window's links; returns the stop. */
-export async function startDeepLinks(openPanel: () => void): Promise<() => void> {
+export async function startDeepLinks(open: (link: OpenedLink) => void): Promise<() => void> {
   const label = getCurrentWindow().label;
   const take = async () => {
     for (const url of await commands.deepLinkTake()) {
-      const id = linkedPost(url);
-      if (!id) continue;
-      openPanel();
-      requestOpenPost(id, { openChart: true });
+      const link = openedLink(url);
+      if (link) open(link);
     }
   };
   const stop = await events.deepLinkOpened.listen((e) => {

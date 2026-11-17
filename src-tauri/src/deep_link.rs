@@ -1,7 +1,9 @@
 /*
  * Deep links (#233): `opentrader://post/<id>` from the Community website
  * ("Open in OpenTrader" on a post's chart) brings the app forward and opens
- * the post in the Community panel, its shared chart on the active chart.
+ * the post in the Community panel, its shared chart on the active chart;
+ * `opentrader://chart?symbol=…&interval=…` (#350) opens a new chart tab
+ * (src/data/deep-link.ts reads them).
  *
  *  - One app at a time (single-instance plugin): a link clicked while the
  *    app runs reaches the running app instead of starting a second one, and

@@ -16,11 +16,9 @@ import { startAlignedClamped } from "../../components/reading-direction";
 import { commands } from "../../bindings";
 import { installUpdate, updateReady } from "../../data/app-update";
 import { stepZoom, zoom, zoomPercent } from "../../data/app-zoom";
-import { postOfLink } from "../../data/community/deep-link";
-import { requestOpenPost } from "../../data/community/notifications";
+import { openedLink, type OpenedLink } from "../../data/deep-link";
 import { ThemePicker } from "../header/AppSettingsDialog";
 import type { ThemeSetting } from "./app-theme";
-import { setActiveRailTab } from "./app-dialogs";
 import { isTauri, openNewWindow } from "./window-bridge";
 
 export type MainMenuAction = "app-settings" | "new-tab" | "reopen-closed";
@@ -37,6 +35,8 @@ type Props = {
   reopenLabel?: string | null;
   themeSetting: ThemeSetting;
   onThemeChange: (s: ThemeSetting) => void;
+  /** "Open link from clipboard": a Community post or a chart link (a new tab). */
+  onOpenLink: (link: OpenedLink) => void;
 };
 
 function MenuRow(props: { row: Row; onClose: () => void }) {
@@ -69,12 +69,12 @@ export function MainMenu(props: Props) {
     on: { target: "window", capture: false },
   });
 
-  // The post of the link on the clipboard, read once the menu is open (by the
+  // The link on the clipboard (a post or a chart), read once the menu is open (by the
   // desktop app: the webview's clipboard API wants focus and may ask permission).
-  const [clipPost, setClipPost] = createSignal<string | null>(null);
+  const [clipLink, setClipLink] = createSignal<OpenedLink | null>(null);
   onMount(() => {
     const text = desktop ? commands.appClipboardText() : navigator.clipboard?.readText();
-    void text?.then((t) => setClipPost(t ? postOfLink(t) : null), () => setClipPost(null));
+    void text?.then((t) => setClipLink(t ? openedLink(t) : null), () => setClipLink(null));
   });
 
   const rows = (): Row[] => {
@@ -89,12 +89,10 @@ export function MainMenu(props: Props) {
     out.push({
       label: "Open link from clipboard",
       icon: "main-menu-open-link",
-      disabled: clipPost() === null,
+      disabled: clipLink() === null,
       run: () => {
-        const id = clipPost();
-        if (!id) return;
-        setActiveRailTab("community");
-        requestOpenPost(id, { openChart: true });
+        const link = clipLink();
+        if (link) props.onOpenLink(link);
       },
     });
     return out;

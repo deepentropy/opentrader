@@ -79,6 +79,9 @@ import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
 import { embedConfig } from "./embed/config";
+import { chartLinkOf, type ChartLink } from "./data/chart-link";
+import { startDeepLinks, type OpenedLink } from "./data/deep-link";
+import { requestOpenPost } from "./data/community/notifications";
 import { installEmbedHost, openEmbedPopup, seedEmbedWatchlist } from "./embed/host";
 import { EmbedSidePanel } from "./embed/EmbedSidePanel";
 import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabSource } from "./data/replay";
@@ -156,6 +159,7 @@ import {
   setOakPanelOpen,
   setSettingsDialogOpen,
   setSettingsDialogTab,
+  setActiveRailTab,
   setSymbolDialogOpen,
   setTemplateNameDialogOpen,
   settingsDialogOpen,
@@ -480,6 +484,46 @@ function App() {
   });
   onCleanup(() => tradeJournal.setNavigator(null));
 
+  // Chart links (#350): the symbol and interval of a link on every chart of the shown tab (the web version opened on
+  // `/chart/?symbol=…`, the reference site's way), or of a new tab (a link the desktop app opens, as the reference
+  // app does). A symbol not found is still shown (its chart says so); an interval the symbol has not is left out.
+  const showChartLink = (link: ChartLink, newTab: boolean) => {
+    void toFullSymbol(link.symbol)
+      .catch(() => link.symbol)
+      .then((full) => {
+        const iv = link.interval && symbolServesResolution(full, link.interval) ? link.interval : undefined;
+        batch(() => {
+          if (newTab || !activeTab().isChart) appTabs.newTab();
+          patchAllPanes({ symbol: full, ...(iv ? { interval: iv } : {}) });
+        });
+        broadcastLink("symbol", full);
+        if (iv) broadcastLink("interval", iv);
+      });
+  };
+  /** A link the app opens: a Community post (its panel) or a chart (a new tab). */
+  const openLink = (link: OpenedLink) => {
+    if ("chart" in link) return showChartLink(link.chart, true);
+    setActiveRailTab("community");
+    requestOpenPost(link.post, { openChart: true });
+  };
+  if (!embed && !isTauri()) {
+    const link = chartLinkOf(location.search);
+    if (link) showChartLink(link, false);
+  }
+  onMount(() => {
+    if (embed || !isTauri()) return;
+    let stop: (() => void) | null = null;
+    let gone = false;
+    void startDeepLinks(openLink).then(
+      (s) => (gone ? s() : (stop = s)),
+      (e) => console.warn("[deep-link] links not taken", e),
+    );
+    onCleanup(() => {
+      gone = true;
+      stop?.();
+    });
+  });
+
   // Symbol notes (#301): a note keeps the shown charts; a click on it puts them back, each chart framed on its span
   // once its data is in (the charts a larger template adds listen from their first frame).
   setNotesChartHost({
@@ -758,6 +802,7 @@ function App() {
           onCloseOthers={appTabs.closeOthers}
           onCloseToRight={appTabs.closeToRight}
           onCopySymbol={appTabs.copyTabSymbol}
+          onCopyLink={appTabs.copyTabLink}
           onDetach={appTabs.detachTab}
           onDropOnWindow={appTabs.dropTabOnWindow}
           onReload={appTabs.reloadTab}
@@ -777,6 +822,7 @@ function App() {
           onReopen={() => void appTabs.reopenClosed()}
           themeSetting={themeSetting()}
           onThemeChange={setThemeSetting}
+          onOpenLink={openLink}
         />
         <WindowControls />
       </div>

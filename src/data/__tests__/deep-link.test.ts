@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkedPost, postOfLink } from "../deep-link";
+import { linkedPost, openedLink, postOfLink } from "../deep-link";
 
 describe("opentrader:// links", () => {
   it("reads a post's link", () => {
@@ -8,7 +8,7 @@ describe("opentrader:// links", () => {
     expect(linkedPost("opentrader://p/tkjs1al6fa?from=web")).toBe("tkjs1al6fa");
   });
   it("ignores anything else", () => {
-    for (const u of ["https://community.opentrader.markets/p/abc123", "opentrader://chart/NVDA", "opentrader://post/../x", "opentrader://post/"]) expect(linkedPost(u)).toBeNull();
+    for (const u of ["https://community.opentrader.markets/p/abc123", "opentrader://chart?symbol=NVDA", "opentrader://post/../x", "opentrader://post/"]) expect(linkedPost(u)).toBeNull();
   });
 });
 
@@ -21,5 +21,14 @@ describe("links the main menu opens from the clipboard", () => {
   it("ignores anything else", () => {
     for (const u of ["", "hello", "https://community.opentrader.markets/", "https://community.opentrader.markets/p/", "https://example.com/p/abc123", "https://community.opentrader.markets/p/abc123/extra"])
       expect(postOfLink(u, site)).toBeNull();
+  });
+});
+
+describe("links the app opens (#350)", () => {
+  it("tells a post from a chart", () => {
+    expect(openedLink("opentrader://post/tkjs1al6fa")).toEqual({ post: "tkjs1al6fa" });
+    expect(openedLink("opentrader://chart?symbol=ARRY&interval=60")).toEqual({ chart: { symbol: "ARRY", interval: "60" } });
+    expect(openedLink("https://demo.opentrader.markets/chart/?symbol=ARRY")).toEqual({ chart: { symbol: "ARRY" } });
+    expect(openedLink("hello")).toBeNull();
   });
 });

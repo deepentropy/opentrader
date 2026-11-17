@@ -9,6 +9,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { MainMenu } from "./MainMenu";
 import type { ThemeSetting } from "./app-theme";
+import type { OpenedLink } from "../../data/deep-link";
 import { updateReady } from "../../data/app-update";
 import { zoom } from "../../data/app-zoom";
 import { track } from "../../data/analytics";
@@ -29,6 +30,7 @@ type Props = {
   onReopen: () => void;
   themeSetting: ThemeSetting;
   onThemeChange: (s: ThemeSetting) => void;
+  onOpenLink: (link: OpenedLink) => void;
 };
 
 export function TabPanelActions(props: Props) {
@@ -139,6 +141,7 @@ export function TabPanelActions(props: Props) {
             reopenLabel={props.reopenLabel}
             themeSetting={props.themeSetting}
             onThemeChange={props.onThemeChange}
+            onOpenLink={props.onOpenLink}
             onAction={(action) => {
               if (action === "app-settings") props.onOpenAppSettings();
               else if (action === "new-tab") props.onNewTab();

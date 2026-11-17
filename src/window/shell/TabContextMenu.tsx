@@ -1,12 +1,11 @@
 /*
  * Right-click context menu for a tab, in this order:
- * Duplicate tab, Reload tab, Pin / Unpin
- * tab, Detach tab, Customize tab title..., Close, Close other tabs, Close tabs
- * to the right, Developer tools (Shift held), then the "Tab linking" section
- * (9-colour picker + per-channel switches). Copy symbol is an opentrader row.
- * Not shown: "Copy link" (opentrader layouts are local, there is no hosted
- * page to link to) and "Go back" / "Go forward" (opentrader tabs do not
- * navigate, so there is no navigation history).
+ * Duplicate tab, Reload tab, Copy link (a chart tab: the web link of its
+ * chart, #350), Pin / Unpin tab, Detach tab, Customize tab title..., Close,
+ * Close other tabs, Close tabs to the right, Developer tools (Shift held),
+ * then the "Tab linking" section (9-colour picker + per-channel switches).
+ * Copy symbol is an opentrader row. Not shown: "Go back" / "Go forward"
+ * (opentrader tabs do not navigate, so there is no navigation history).
  */
 import { onMount, For, Show, createSignal } from "solid-js";
 import { createPopover } from "../../components/popover";
@@ -42,6 +41,7 @@ type Props = {
   onTogglePin: (id: string) => void;
   onDevTools: () => void;
   onCopySymbol: (id: string) => void;
+  onCopyLink: (id: string) => void;
   onDetach: (id: string, screenX: number, screenY: number) => void;
   onCustomizeTitle: () => void;
   onCloseTab: (id: string) => void;
@@ -80,6 +80,7 @@ export function TabContextMenu(props: Props) {
   const rows = (): Row[] => [
     { kind: "item", label: "Duplicate tab", icon: "tab-chart", hotkey: "Ctrl+U", onClick: () => props.onDuplicate(id) },
     { kind: "item", label: "Reload tab", icon: "tab-menu-reload", hotkey: "Ctrl+R", onClick: () => props.onReload(id) },
+    ...(a.isChart ? [{ kind: "item" as const, label: "Copy link", icon: "main-menu-open-link" as IconName, onClick: () => props.onCopyLink(id) }] : []),
     {
       kind: "item",
       label: a.pinned ? "Unpin tab" : "Pin tab",

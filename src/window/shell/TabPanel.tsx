@@ -44,6 +44,7 @@ type Props = {
   onCloseOthers: (id: string) => void;
   onCloseToRight: (id: string) => void;
   onCopySymbol: (id: string) => void;
+  onCopyLink: (id: string) => void;
   /** Open App Settings → Tabs to customise the tab title. */
   onCustomizeTitle: () => void;
   /** Tab-title parts (order + visibility) from App Settings → Tabs. */
@@ -397,6 +398,7 @@ export function TabPanel(props: Props) {
             onTogglePin={props.onTogglePin}
             onDevTools={props.onDevTools}
             onCopySymbol={props.onCopySymbol}
+            onCopyLink={props.onCopyLink}
             onDetach={props.onDetach}
             onCustomizeTitle={props.onCustomizeTitle}
             onCloseTab={props.onClose}
