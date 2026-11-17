@@ -79,6 +79,8 @@ export function createBarSlice(cx: ChartCx): BarSliceApi {
 
   /** Show slice [a, b): the chart's data, its studies drawn there, the view on the same bars. */
   function moveTo(a: number, b: number): boolean {
+    // Bar Replay: the chart keeps the replayed bars (a move would show the bars after the replay time).
+    if (cx.replayActive) return false;
     if (moving || (a === from && b === from + cx.raw.length)) return false;
     const r = view();
     const shift = from - a;
@@ -215,7 +217,8 @@ export function createBarSlice(cx: ChartCx): BarSliceApi {
     get sliceFrom() {
       return from;
     },
-    sliceAtEnd: () => from + cx.raw.length === cx.allBars.length,
+    // Bar Replay draws the replayed bars, not a slice: the chart is on its newest bar (#353).
+    sliceAtEnd: () => cx.replayActive || from + cx.raw.length === cx.allBars.length,
     // In Bar Replay the newest bar replayed.
     latestBar: () => (cx.replayActive ? cx.raw[cx.raw.length - 1] : cx.allBars[cx.allBars.length - 1]),
     loadBars,
