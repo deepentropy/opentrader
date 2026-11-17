@@ -95,6 +95,22 @@ pub struct BrokerCapabilities {
     pub position_brackets: bool,
     pub partial_close: bool,
     pub modify_orders: bool,
+    /// The times in force the order ticket offers.
+    pub durations: Vec<OrderDuration>,
+}
+
+/// A time in force (`capabilities.durations`): the id the order carries and `orders[].duration` reports.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderDuration {
+    pub id: String,
+    pub label: String,
+    /// The order types it applies to; all of them when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub order_types: Vec<OrderType>,
+    /// The one picked at first.
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub default: bool,
 }
 
 impl Default for BrokerCapabilities {
@@ -105,6 +121,7 @@ impl Default for BrokerCapabilities {
             position_brackets: true,
             partial_close: true,
             modify_orders: true,
+            durations: crate::orders::durations(),
         }
     }
 }
@@ -204,6 +221,9 @@ pub struct OrderTicket {
     pub take_profit: Option<f64>,
     #[serde(default)]
     pub stop_loss: Option<f64>,
+    /// The time in force picked (a `durations` id); left out by an app that has none to offer.
+    #[serde(default)]
+    pub duration: Option<String>,
 }
 
 /// How a ticker trades (`broker.instrument`): quantities in units, and the money one unit makes per price point.

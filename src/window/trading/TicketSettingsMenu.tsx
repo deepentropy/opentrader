@@ -1,6 +1,6 @@
 /*
  * The order ticket's ⋯ menu (dock / undock, Trading settings, DOM and risk options), its field tips and the
- * Exits section.
+ * collapsible sections (Exits, Extra settings).
  */
 import { Show, createSignal, onCleanup, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -146,12 +146,13 @@ function CheckRow(p: { label: string; on: boolean; onToggle: () => void }) {
   );
 }
 
-export function ExitsSection(props: { children: JSX.Element }) {
+/** A collapsible part of the ticket, open at first: Exits, Extra settings. */
+export function TicketSection(props: { title: string; class?: string; children: JSX.Element }) {
   const [open, setOpen] = createSignal(true);
   return (
-    <div class="trd-tk-section">
+    <div class={`trd-tk-section ${props.class ?? ""}`}>
       <button type="button" class="trd-tk-section-head" onClick={() => setOpen(!open())} aria-expanded={open()}>
-        Exits <ChevronIcon open={open()} />
+        {props.title} <ChevronIcon open={open()} />
       </button>
       <Show when={open()}>{props.children}</Show>
     </div>

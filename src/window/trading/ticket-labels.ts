@@ -31,13 +31,16 @@ export const exitInfo = (kind: ExitKind, t: ExitType): string | undefined =>
       kind === "tp" ? "Percentage of equity you will gain if the take profit is executed" : "Percentage of equity you will lose if the stop loss is executed",
   })[t];
 /** Quantity type titles: shares for a stock, else units (reference app); the
- *  equivalent reads singular ("3 unit"). */
+ *  equivalent reads singular ("3 unit"). The order's value reads as the account currency ("USD"). */
 export const qtyTitle = (t: QtyType, ccy: string, stock = false): string =>
-  ({ units: stock ? "Shares" : "Units", riskUsd: `Risk ${ccy}`, riskPct: "Risk % balance" })[t];
-export const qtyUnit = (t: QtyType, ccy: string, stock = false): string => ({ units: stock ? "share" : "unit", riskUsd: `${ccy} risk`, riskPct: "% risk" })[t];
+  ({ units: stock ? "Shares" : "Units", money: ccy, balancePct: "% balance", riskUsd: `Risk ${ccy}`, riskPct: "Risk % balance" })[t];
+export const qtyUnit = (t: QtyType, ccy: string, stock = false): string =>
+  ({ units: stock ? "share" : "unit", money: ccy, balancePct: "% balance", riskUsd: `${ccy} risk`, riskPct: "% risk" })[t];
 export const qtyInfo = (t: QtyType): string | undefined =>
   ({
     units: undefined,
+    money: "Order size in cash equivalent",
+    balancePct: "Order size in equity percentage equivalent",
     riskUsd:
       "Order size equivalent to the risk amount in cash, based on the set stop loss price. Changing the risk amount or stop loss price changes the quantity.",
     riskPct:

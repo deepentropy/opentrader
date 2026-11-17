@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_CAPABILITIES, ANY_INSTRUMENT, canAddOrderBrackets, canMove, capabilitiesOf, instrumentOf, qtyArrowStep, qtyProblem, takesOrder, wholeLots, type TradingCapabilities } from "../capabilities";
+import { ALL_CAPABILITIES, ANY_INSTRUMENT, canAddOrderBrackets, canMove, capabilitiesOf, durationsFor, instrumentOf, pickDuration, qtyArrowStep, qtyProblem, takesOrder, wholeLots, type TradingCapabilities } from "../capabilities";
 import { qtyMessage } from "../qty-message";
 import type { TradingOrder } from "../types";
 
@@ -98,6 +98,31 @@ describe("broker instruments (#341)", () => {
     expect(instrumentOf({ ticketFields: [{ id: "x", options: [] }, { options: [{ value: "a" }] }] }, [product]).fields).toEqual([]);
     expect(instrumentOf(null, null)).toEqual(ANY_INSTRUMENT);
     expect(instrumentOf({ qtyStep: 0, pointValue: -1 }, null)).toMatchObject({ qtyStep: null, pointValue: 1 });
+  });
+
+  it("reads the durations and picks an order's time in force (#349)", () => {
+    const caps = [
+      { id: "day", label: "Day" },
+      { id: "gtc", label: "Good Till Cancel", default: true },
+      { id: "ioc", label: null, orderTypes: ["market", "limit", "bogus"] },
+      { id: "", label: "none" },
+    ];
+    const i = instrumentOf(null, null, caps);
+    expect(i.durations).toEqual([
+      { id: "day", label: "Day", orderTypes: null, default: false },
+      { id: "gtc", label: "Good Till Cancel", orderTypes: null, default: true },
+      { id: "ioc", label: "ioc", orderTypes: ["market", "limit"], default: false },
+    ]);
+    expect(durationsFor(i.durations, "stop").map((d) => d.id)).toEqual(["day", "gtc"]);
+    // The one wanted when the type takes it, else the default, else the first; none declared: none sent.
+    expect(pickDuration(i.durations, "limit", "ioc")).toBe("ioc");
+    expect(pickDuration(i.durations, "stop", "ioc", "day")).toBe("day");
+    expect(pickDuration(i.durations, "stop", undefined)).toBe("gtc");
+    expect(pickDuration([{ id: "day", label: "Day", orderTypes: ["limit"], default: false }], "limit")).toBe("day");
+    expect(pickDuration([{ id: "day", label: "Day", orderTypes: ["limit"], default: false }], "market")).toBeNull();
+    expect(pickDuration([], "market", "day")).toBeNull();
+    // The ticker's own replace the broker's.
+    expect(instrumentOf({ durations: [{ id: "gfd" }] }, null, caps).durations.map((d) => d.id)).toEqual(["gfd"]);
   });
 
   it("checks a quantity against the lots, minimum and maximum", () => {

@@ -1728,30 +1728,40 @@ html.theme-light {
   }
 }
 
-/* The broker's own ticket fields (#341): its options side by side, like the inputs. */
-.trd-tk-choice {
+/* A field picked from a list (the time in force, the broker's own fields, #346 / #349): the value in a box with a
+   caret at its end, as the reference's read-only select. */
+.trd-tk-select {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  text-align: start;
 }
-.trd-tk-choice-option {
-  flex: 1 1 0;
-  min-width: 56px;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--trd-input-border);
-  border-radius: 8px;
-  background: transparent;
+.trd-tk-select.is-open {
+  border-color: var(--trd-buy);
+}
+.trd-tk-select:disabled {
+  cursor: default;
   color: var(--color-text-secondary);
-  font: 400 14px/18px var(--trd-font);
-  white-space: nowrap;
+}
+.trd-tk-select-value {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.trd-tk-choice-option:hover {
-  color: var(--color-text-primary);
+.trd-tk-select svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
 }
-.trd-tk-choice-option.is-selected {
-  border-color: var(--color-text-primary);
-  color: var(--color-text-primary);
+/* Extra settings: its fields 16 px apart (reference). */
+.trd-tk-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 8px;
 }

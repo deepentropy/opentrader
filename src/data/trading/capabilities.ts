@@ -62,6 +62,9 @@ export const canAddOrderBrackets = (c: TradingCapabilities) => c.modifyOrders &&
 /** A choice the broker needs with each order (a product type…): a selector in the order ticket. */
 export type TicketField = { id: string; label: string; options: { value: string; label: string }[]; default: string };
 
+/** A time in force the broker takes (#349): its id goes with the order, the label shows in the ticket. */
+export type TicketDuration = { id: string; label: string; orderTypes: OrderType[] | null; default: boolean };
+
 /** How the ticket's ticker trades: the quantities the broker takes (units) and the money one unit moves by a point. */
 export type Instrument = {
   qtyMin: number | null;
@@ -70,9 +73,11 @@ export type Instrument = {
   qtyMax: number | null;
   pointValue: number;
   fields: TicketField[];
+  /** Its times in force; none: the broker's own, and the ticket shows no selector. */
+  durations: TicketDuration[];
 };
 
-export const ANY_INSTRUMENT: Instrument = { qtyMin: null, qtyStep: null, qtyMax: null, pointValue: 1, fields: [] };
+export const ANY_INSTRUMENT: Instrument = { qtyMin: null, qtyStep: null, qtyMax: null, pointValue: 1, fields: [], durations: [] };
 
 type WireField = { id?: string | null; label?: string | null; options?: { value?: string | null; label?: string | null }[] | null; default?: string | null };
 
@@ -88,12 +93,38 @@ export function ticketFieldsOf(list: WireField[] | null | undefined): TicketFiel
   return out;
 }
 
+type WireDuration = { id?: string | null; label?: string | null; orderTypes?: string[] | null; default?: boolean | null };
+
+/** The durations a plugin declares, cleaned: without an id they are left out; no order type the app knows is all. */
+export function durationsOf(list: WireDuration[] | null | undefined): TicketDuration[] {
+  return (list ?? [])
+    .filter((d) => d.id)
+    .map((d) => {
+      const types = ORDER_TYPES.filter((t) => d.orderTypes?.includes(t));
+      return { id: d.id!, label: d.label || d.id!, orderTypes: types.length ? types : null, default: !!d.default };
+    });
+}
+
+/** The durations an order of `type` may have. */
+export const durationsFor = (list: TicketDuration[], type: OrderType): TicketDuration[] => list.filter((d) => !d.orderTypes || d.orderTypes.includes(type));
+
+/** The duration of an order of `type`: the first of `wanted` it may have, else the broker's default, else the first;
+ *  null when the broker declares none for it. */
+export function pickDuration(list: TicketDuration[], type: OrderType, ...wanted: (string | null | undefined)[]): string | null {
+  const ok = durationsFor(list, type);
+  return wanted.find((w) => w && ok.some((d) => d.id === w)) ?? ok.find((d) => d.default)?.id ?? ok[0]?.id ?? null;
+}
+
 const positive = (v: number | null | undefined) => (v != null && Number.isFinite(v) && v > 0 ? v : null);
 
-/** A plugin's instrument (`broker.instrument`), the capabilities' ticket fields when it names none. */
+/** A plugin's instrument (`broker.instrument`), the capabilities' ticket fields and durations when it names none. */
 export function instrumentOf(
-  i: { qtyMin?: number | null; qtyStep?: number | null; qtyMax?: number | null; pointValue?: number | null; ticketFields?: WireField[] | null } | null | undefined,
+  i:
+    | { qtyMin?: number | null; qtyStep?: number | null; qtyMax?: number | null; pointValue?: number | null; ticketFields?: WireField[] | null; durations?: WireDuration[] | null }
+    | null
+    | undefined,
   fields: WireField[] | null | undefined,
+  durations?: WireDuration[] | null,
 ): Instrument {
   return {
     qtyMin: positive(i?.qtyMin),
@@ -101,6 +132,7 @@ export function instrumentOf(
     qtyMax: positive(i?.qtyMax),
     pointValue: positive(i?.pointValue) ?? 1,
     fields: ticketFieldsOf(i?.ticketFields ?? fields),
+    durations: durationsOf(i?.durations ?? durations),
   };
 }
 

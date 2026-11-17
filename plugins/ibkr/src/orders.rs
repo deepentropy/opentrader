@@ -3,7 +3,7 @@
  * (a bracket when it carries a take profit or stop loss), the exit orders of a position, and reading the broker's
  * order types, statuses and times back.
  */
-use crate::wire::{OrderStatus, OrderTicket, OrderType, Side};
+use crate::wire::{OrderDuration, OrderStatus, OrderTicket, OrderType, Side};
 use ibapi::orders::{Action, OcaType, Order as IbOrder, OrderStatusKind, TimeInForce};
 
 /// Prefix of the one-cancels-all groups this plugin gives a position's exit orders, so they are found again as the
@@ -79,7 +79,33 @@ pub fn side_of(a: &Action) -> Side {
     }
 }
 
-/// The broker's order for a ticket. Market orders last the day; the others stay until cancelled, as on the chart.
+/// The times in force the order ticket offers (`capabilities.durations`): the day by default; at the opening and
+/// immediate or cancel for market and limit orders only, as the broker takes them.
+pub fn durations() -> Vec<OrderDuration> {
+    let d = |id: &str, label: &str, order_types: Vec<OrderType>, default: bool| OrderDuration { id: id.into(), label: label.into(), order_types, default };
+    let market_limit = || vec![OrderType::Market, OrderType::Limit];
+    vec![
+        d("day", "Day", vec![], true),
+        d("gtc", "Good Till Cancel", vec![], false),
+        d("opg", "At The Opening", market_limit(), false),
+        d("ioc", "Immediate or Cancel", market_limit(), false),
+    ]
+}
+
+/// The time in force of a ticket: the duration picked; without one (an app that offers none), market orders last the
+/// day and the others stay until cancelled, as on the chart.
+pub fn tif_of(t: &OrderTicket) -> TimeInForce {
+    match t.duration.as_deref().map(str::to_ascii_lowercase).as_deref() {
+        Some("day") => TimeInForce::Day,
+        Some("gtc") => TimeInForce::GoodTillCanceled,
+        Some("opg") => TimeInForce::OnOpen,
+        Some("ioc") => TimeInForce::ImmediateOrCancel,
+        _ if t.order_type == OrderType::Market => TimeInForce::Day,
+        _ => TimeInForce::GoodTillCanceled,
+    }
+}
+
+/// The broker's order for a ticket.
 pub fn build_order(t: &OrderTicket, account: &str) -> IbOrder {
     let (order_type, limit, stop) = match t.order_type {
         OrderType::Market => ("MKT", None, None),
@@ -93,7 +119,7 @@ pub fn build_order(t: &OrderTicket, account: &str) -> IbOrder {
         order_type: order_type.into(),
         limit_price: limit,
         aux_price: stop,
-        tif: if t.order_type == OrderType::Market { TimeInForce::Day } else { TimeInForce::GoodTillCanceled },
+        tif: tif_of(t),
         account: account.to_string(),
         transmit: true,
         ..Default::default()
@@ -245,7 +271,28 @@ mod tests {
             stop_price: stop,
             take_profit: None,
             stop_loss: None,
+            duration: None,
         }
+    }
+
+    #[test]
+    fn the_duration_picked_is_the_time_in_force() {
+        let with = |d: &str, t: OrderType| tif_of(&OrderTicket { duration: Some(d.into()), ..ticket(t, Some(100.0), None) });
+        assert_eq!(with("day", OrderType::Limit), TimeInForce::Day);
+        assert_eq!(with("gtc", OrderType::Market), TimeInForce::GoodTillCanceled);
+        assert_eq!(with("opg", OrderType::Limit), TimeInForce::OnOpen);
+        assert_eq!(with("IOC", OrderType::Market), TimeInForce::ImmediateOrCancel);
+        // None picked (an older app): the day for a market order, until cancelled for the others.
+        assert_eq!(tif_of(&ticket(OrderType::Market, None, None)), TimeInForce::Day);
+        assert_eq!(tif_of(&ticket(OrderType::Stop, None, Some(1.0))), TimeInForce::GoodTillCanceled);
+        // Each one declared reads back from the broker's order as its id; the day is the default.
+        for d in durations() {
+            assert_eq!(tif_word(&with(&d.id, OrderType::Limit)), d.id);
+        }
+        assert_eq!(durations().iter().filter(|d| d.default).map(|d| d.id.as_str()).collect::<Vec<_>>(), ["day"]);
+        let caps = serde_json::to_value(crate::wire::BrokerCapabilities::default()).unwrap();
+        assert_eq!(caps["durations"][2], serde_json::json!({ "id": "opg", "label": "At The Opening", "orderTypes": ["market", "limit"] }));
+        assert_eq!(caps["durations"][0], serde_json::json!({ "id": "day", "label": "Day", "default": true }));
     }
 
     #[test]

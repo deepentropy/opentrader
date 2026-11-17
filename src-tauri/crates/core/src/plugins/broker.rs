@@ -98,6 +98,8 @@ pub struct BrokerCapabilities {
     pub modify_orders: bool,
     /// The broker's own order choices (a product type…), shown as selectors in the order ticket.
     pub ticket_fields: Vec<TicketField>,
+    /// How long an order stays working (time in force): the order ticket's selector. None: the plugin's own.
+    pub durations: Vec<OrderDuration>,
 }
 
 impl Default for BrokerCapabilities {
@@ -109,6 +111,7 @@ impl Default for BrokerCapabilities {
             partial_close: true,
             modify_orders: true,
             ticket_fields: Vec::new(),
+            durations: Vec::new(),
         }
     }
 }
@@ -134,6 +137,20 @@ pub struct TicketField {
     pub default: Option<String>,
 }
 
+/// A time in force the broker takes: "day", "gtc"… as the plugin names it, and what the ticket shows.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OrderDuration {
+    /// What the order carries (`duration: "gtc"`), and what `orders[].duration` reports.
+    pub id: String,
+    /// What the ticket shows; the id when empty.
+    pub label: String,
+    /// The order types it applies to; all of them when empty.
+    pub order_types: Vec<OrderType>,
+    /// The one picked at first; else the first that applies to the order type.
+    pub default: bool,
+}
+
 /// How a ticker trades at the broker (`broker.instrument`): the quantities it takes and the money one point moves
 /// one unit by. Every field may be left out.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -150,6 +167,8 @@ pub struct Instrument {
     /// This ticker's choices, in place of the capabilities' `ticketFields` (a product type that depends on the
     /// segment).
     pub ticket_fields: Option<Vec<TicketField>>,
+    /// This ticker's times in force, in place of the capabilities' `durations`.
+    pub durations: Option<Vec<OrderDuration>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -273,6 +292,9 @@ pub struct OrderTicket {
     /// The values picked in the broker's ticket fields (`{"product":"CNC"}`), empty without any.
     #[serde(default)]
     pub fields: BTreeMap<String, String>,
+    /// The time in force picked (a `durations` id); left out when the broker declares none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<String>,
 }
 
 #[cfg(test)]
@@ -312,5 +334,22 @@ mod tests {
         assert!(t.fields.is_empty());
         let t = OrderTicket { fields: [("product".to_string(), "CNC".to_string())].into(), ..t };
         assert_eq!(serde_json::to_value(&t).unwrap()["fields"]["product"], "CNC");
+    }
+
+    #[test]
+    fn durations_read_and_go_with_the_order() {
+        let c: BrokerCapabilities = serde_json::from_value(serde_json::json!({
+            "durations": [{ "id": "day", "label": "Day", "default": true }, { "id": "ioc", "orderTypes": ["market", "limit"] }]
+        }))
+        .unwrap();
+        assert!(c.durations[0].default && c.durations[0].order_types.is_empty());
+        assert_eq!(c.durations[1].order_types, vec![OrderType::Market, OrderType::Limit]);
+        let i: Instrument = serde_json::from_value(serde_json::json!({ "durations": [{ "id": "gtc" }] })).unwrap();
+        assert_eq!(i.durations.unwrap()[0].id, "gtc");
+        // Left out of the order when none was picked, so a plugin without durations sees the same order as before.
+        let t: OrderTicket = serde_json::from_value(serde_json::json!({ "ticker": "X", "side": "buy", "type": "limit", "qty": 1, "limitPrice": 1, "stopPrice": null, "takeProfit": null, "stopLoss": null })).unwrap();
+        assert!(serde_json::to_value(&t).unwrap().get("duration").is_none());
+        let t = OrderTicket { duration: Some("gtc".into()), ..t };
+        assert_eq!(serde_json::to_value(&t).unwrap()["duration"], "gtc");
     }
 }

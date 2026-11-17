@@ -24,7 +24,7 @@ export type MenuRow = {
 };
 
 /** A menu under `anchor` (left edges aligned, or right edges with `alignEnd`). */
-export function Popup(props: { anchor: HTMLElement; alignEnd?: boolean; onClose: () => void; class?: string; label?: string; children: JSX.Element }) {
+export function Popup(props: { anchor: HTMLElement; alignEnd?: boolean; onClose: () => void; class?: string; label?: string; matchWidth?: boolean; children: JSX.Element }) {
   const el = createPopover(() => props.anchor, {
     onClose: () => props.onClose(),
     placement: { align: props.alignEnd ? "end" : "start", gap: 4 },
@@ -36,7 +36,7 @@ export function Popup(props: { anchor: HTMLElement; alignEnd?: boolean; onClose:
   });
   return (
     <Portal>
-      <div ref={el} class={`trd-menu ${props.class ?? ""}`} role="menu" aria-label={props.label}>
+      <div ref={el} class={`trd-menu ${props.class ?? ""}`} role="menu" aria-label={props.label} style={props.matchWidth ? { "min-width": `${props.anchor.offsetWidth}px` } : undefined}>
         {props.children}
       </div>
     </Portal>
@@ -133,6 +133,38 @@ export function SwapButton(props: { onClick: () => void; disabled?: boolean }) {
         <SwapIcon />
       </button>
     </Tooltip>
+  );
+}
+
+/** A field picked from a list (a broker's own choice, the time in force): the value picked in a box with a caret, the
+ *  list under it as wide as the box. */
+export function SelectField(props: { value: string; rows: MenuRow[]; ariaLabel: string; disabled?: boolean; noTranslate?: boolean }) {
+  const [open, setOpen] = createSignal(false);
+  let btn!: HTMLButtonElement;
+  return (
+    <>
+      <button
+        type="button"
+        ref={btn}
+        class="trd-tk-input trd-tk-select"
+        classList={{ "is-open": open() }}
+        disabled={props.disabled}
+        aria-haspopup="menu"
+        aria-expanded={open()}
+        aria-label={props.ariaLabel}
+        onClick={() => setOpen(!open())}
+      >
+        <span class="trd-tk-select-value" data-no-translate={props.noTranslate || undefined}>
+          {props.value}
+        </span>
+        <ChevronIcon open={open()} />
+      </button>
+      <Show when={open()}>
+        <Popup anchor={btn} matchWidth onClose={() => setOpen(false)} class="trd-menu-select" label={props.ariaLabel}>
+          <MenuRows rows={props.rows} onClose={() => setOpen(false)} />
+        </Popup>
+      </Show>
+    </>
   );
 }
 

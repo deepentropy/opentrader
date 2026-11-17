@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.2"
+#define PLUGIN_VERSION "0.1.3"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -817,6 +817,31 @@ double Lots(const string t, const double units, string &error)
    return NormalizeDouble(lots, 8);
   }
 
+//--- The times in force a symbol takes (its expiration modes): until cancelled (the default) and today, for pending
+//--- orders only. A market order fills at once.
+string Durations(const string t)
+  {
+   long modes = SymbolInfoInteger(t, SYMBOL_EXPIRATION_MODE);
+   string pending = ",\"orderTypes\":[\"limit\",\"stop\",\"stopLimit\"]";
+   string out = "";
+   if((modes & SYMBOL_EXPIRATION_GTC) != 0)
+      out += "{\"id\":\"gtc\",\"label\":\"Good Till Cancel\",\"default\":true" + pending + "}";
+   if((modes & SYMBOL_EXPIRATION_DAY) != 0)
+      out += (out == "" ? "" : ",") + "{\"id\":\"day\",\"label\":\"Day\"" + pending + "}";
+   return out;
+  }
+
+//--- The expiration of a pending order: the duration picked, else until cancelled when the symbol takes it, else today.
+ENUM_ORDER_TYPE_TIME Life(CJ *p, const string t)
+  {
+   string d = JStr(p, "duration");
+   if(d == "day")
+      return ORDER_TIME_DAY;
+   if(d == "gtc")
+      return ORDER_TIME_GTC;
+   return (SymbolInfoInteger(t, SYMBOL_EXPIRATION_MODE) & SYMBOL_EXPIRATION_GTC) != 0 ? ORDER_TIME_GTC : ORDER_TIME_DAY;
+  }
+
 //--- How a symbol trades (broker.instrument): its volumes in units (lots × contract size), so the order ticket steps
 //--- and checks by the volume step, and the money one unit makes per price point (the ticket's risk and tick value).
 string BrokerInstrument(CJ *p, string &error)
@@ -850,6 +875,9 @@ string BrokerInstrument(CJ *p, string &error)
       out += "\"qtyMax\":" + JN(max * size, 8) + ",";
    if(pointValue > 0)
       out += "\"pointValue\":" + JN(pointValue, 10) + ",";
+   string durations = Durations(t);
+   if(durations != "")
+      out += "\"durations\":[" + durations + "],";
    if(StringLen(out) > 1)
       out = StringSubstr(out, 0, StringLen(out) - 1);
    return out + "}";
@@ -1075,17 +1103,18 @@ string BrokerPlace(CJ *p, string &error)
    string type = JStr(p, "type");
    double limit = Price(p, "limitPrice"), stop = Price(p, "stopPrice"), tp = Price(p, "takeProfit"), sl = Price(p, "stopLoss");
    bool ok = false;
+   ENUM_ORDER_TYPE_TIME life = Life(p, t);
    if(type == "market")
       ok = buy ? g_trade.Buy(lots, t, 0, sl, tp, "OpenTrader") : g_trade.Sell(lots, t, 0, sl, tp, "OpenTrader");
    else
       if(type == "limit")
-         ok = buy ? g_trade.BuyLimit(lots, limit, t, sl, tp, ORDER_TIME_GTC, 0, "OpenTrader") : g_trade.SellLimit(lots, limit, t, sl, tp, ORDER_TIME_GTC, 0, "OpenTrader");
+         ok = buy ? g_trade.BuyLimit(lots, limit, t, sl, tp, life, 0, "OpenTrader") : g_trade.SellLimit(lots, limit, t, sl, tp, life, 0, "OpenTrader");
       else
          if(type == "stop")
-            ok = buy ? g_trade.BuyStop(lots, stop, t, sl, tp, ORDER_TIME_GTC, 0, "OpenTrader") : g_trade.SellStop(lots, stop, t, sl, tp, ORDER_TIME_GTC, 0, "OpenTrader");
+            ok = buy ? g_trade.BuyStop(lots, stop, t, sl, tp, life, 0, "OpenTrader") : g_trade.SellStop(lots, stop, t, sl, tp, life, 0, "OpenTrader");
          else
             if(type == "stopLimit")
-               ok = g_trade.OrderOpen(t, buy ? ORDER_TYPE_BUY_STOP_LIMIT : ORDER_TYPE_SELL_STOP_LIMIT, lots, limit, stop, sl, tp, ORDER_TIME_GTC, 0, "OpenTrader");
+               ok = g_trade.OrderOpen(t, buy ? ORDER_TYPE_BUY_STOP_LIMIT : ORDER_TYPE_SELL_STOP_LIMIT, lots, limit, stop, sl, tp, life, 0, "OpenTrader");
    error = Outcome();
    if(!ok && error == "")
       error = "The order was not sent (" + IntegerToString(GetLastError()) + ")";
@@ -1117,8 +1146,9 @@ string BrokerModify(CJ *p, string &error)
    string kind = OrderTypeOf((ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE));
    double price = kind == "limit" ? Price(p, "limitPrice") : Price(p, "stopPrice");
    double stoplimit = kind == "stopLimit" ? Price(p, "limitPrice") : 0;
-   bool ok = g_trade.OrderModify(ticket, price, Price(p, "stopLoss"), Price(p, "takeProfit"), (ENUM_ORDER_TYPE_TIME)OrderGetInteger(ORDER_TYPE_TIME),
-                                 (datetime)OrderGetInteger(ORDER_TIME_EXPIRATION), stoplimit);
+   // The duration picked; without one the order keeps its own.
+   ENUM_ORDER_TYPE_TIME life = JStr(p, "duration") != "" ? Life(p, t) : (ENUM_ORDER_TYPE_TIME)OrderGetInteger(ORDER_TYPE_TIME);
+   bool ok = g_trade.OrderModify(ticket, price, Price(p, "stopLoss"), Price(p, "takeProfit"), life, (datetime)OrderGetInteger(ORDER_TIME_EXPIRATION), stoplimit);
    error = Outcome();
    if(!ok && error == "")
       error = "The order was not modified (" + IntegerToString(GetLastError()) + ")";

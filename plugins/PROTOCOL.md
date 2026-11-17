@@ -208,6 +208,8 @@ When `broker.instrument` gives no point value, the order ticket uses the symbol'
 
 **Ticket fields.** A broker that needs a choice with each order that the app doesn't have (a product type: intraday, delivery, carry forward…) declares it in `capabilities.ticketFields`, or per ticker in `broker.instrument`. The order ticket shows each field as a selector and sends the values picked in `fields`; the chart's one-click orders send the last values picked. A modified order keeps the fields it was placed with, from `orders[].fields`.
 
+**Time in force.** A broker that lets the user pick how long an order stays working declares its durations in `capabilities.durations`, or per ticker in `broker.instrument`. The order ticket shows them in a selector (only those whose `orderTypes` include the ticket's order type) and sends the id picked in `duration`; the chart's one-click orders send the last one picked, else the default. A modified order keeps its duration, from `orders[].duration`. A broker that declares none receives no `duration` and keeps its own.
+
 ### `broker.state` (plugin → app, notification)
 
 The whole account. Send it once after `hello`, then whenever any part changes: an order, a fill, a position, the balance, the P&L, and `connected` turning true or false. A few per second are fine. The app keeps the last one it got: a plugin that sends `connected: false` at start and nothing once it is logged in stays "not connected". The app also asks for it with `broker.getState` when the plugin connects and when the order ticket or the account manager opens.
@@ -223,7 +225,10 @@ The whole account. Send it once after `hello`, then whenever any part changes: a
   "positionMode": "hedging",
   "capabilities": { "orderTypes": ["market", "limit", "stop", "stopLimit"], "brackets": true,
                     "positionBrackets": true, "partialClose": true, "modifyOrders": true,
-                    "ticketFields": [] },
+                    "ticketFields": [],
+                    "durations": [{ "id": "day", "label": "Day", "default": true },
+                                  { "id": "gtc", "label": "Good Till Cancel" },
+                                  { "id": "ioc", "label": "Immediate or Cancel", "orderTypes": ["market", "limit"] }] },
   "positions": [{ "id": "8812", "ticker": "EURUSD", "side": "buy", "qty": 1000, "avgPrice": 1.0811,
                   "last": 1.0823, "unrealizedPnl": 1.2, "takeProfit": 1.09, "stopLoss": null }],
   "orders": [{ "id": "8813", "ticker": "EURUSD", "side": "sell", "type": "limit", "qty": 1000,
@@ -241,6 +246,8 @@ The whole account. Send it once after `hello`, then whenever any part changes: a
 | `positionMode` | `netting` gives one position per symbol. `hedging` allows several, each closed on its own. A chart shows a hedging account's positions of a symbol as one net position. |
 | `orders[].status` | `placing`, `working`, `inactive`, `filled`, `cancelled` or `rejected`. Keep recent filled, cancelled and rejected orders for the account manager's filters. |
 | `capabilities.ticketFields` | The broker's own choices for each order, for example `[{"id":"product","label":"Product","options":[{"value":"MIS","label":"Intraday"},{"value":"CNC","label":"Delivery"}],"default":"MIS"}]`. `default` is the value picked at first (the first option when left out). Leave it out or empty when there are none. |
+| `capabilities.durations` | The times in force the broker takes: `id` goes with the order and comes back in `orders[].duration`, `label` is what the ticket shows (the id when left out), `orderTypes` the order types it applies to (all when left out), `default: true` marks the one picked at first (else the first that applies). Leave it out or empty to keep the broker's own. |
+| `orders[].duration` | The order's time in force, a `durations` id: shown in the account manager and sent back by `broker.modify`. |
 | `orders[].takeProfit`, `stopLoss` | The brackets an order opens its position with. |
 | `orders[].fields` | The ticket fields' values the order was placed with (`{"product":"CNC"}`): `broker.modify` sends them back. |
 | `positions[].takeProfit`, `stopLoss` | A position's brackets. |
@@ -269,9 +276,9 @@ An order notification, shown as a toast:
 |---|---|---|
 | `broker.getState` | `{}` | The whole account, as `broker.state` sends it. Optional: a plugin that answers `-32601` is only read from its `broker.state`. |
 | `broker.resolveSymbol` | `{"symbol":"NASDAQ:AAPL","ticker":"AAPL"}` | `{"ticker":"AAPL.US"}`, or `{"ticker":null}` when the broker doesn't trade it. |
-| `broker.instrument` | `{"ticker":"NIFTY25NOVFUT"}` | How the ticker trades, every field optional: `{"qtyMin":65,"qtyStep":65,"qtyMax":1800,"pointValue":1,"ticketFields":[…]}`. `qtyStep` is the lot in units; orders are whole multiples of it. `pointValue` is the money one unit makes when the price moves by 1 (a futures multiplier; 1 when left out): the ticket's risk sizing and tick value use it. `ticketFields` replaces the capabilities' for this ticker. Asked once per ticker and connection. Optional: a plugin that answers `-32601` trades any quantity with a point value of 1. |
+| `broker.instrument` | `{"ticker":"NIFTY25NOVFUT"}` | How the ticker trades, every field optional: `{"qtyMin":65,"qtyStep":65,"qtyMax":1800,"pointValue":1,"ticketFields":[…]}`. `qtyStep` is the lot in units; orders are whole multiples of it. `pointValue` is the money one unit makes when the price moves by 1 (a futures multiplier; 1 when left out): the ticket's risk sizing and tick value use it. `ticketFields` and `durations` replace the capabilities' for this ticker. Asked once per ticker and connection. Optional: a plugin that answers `-32601` trades any quantity with a point value of 1. |
 | `broker.selectAccount` | `{"account":"51234567"}` | `{}`. Then send the new account's `broker.state`. |
-| `broker.place` | `{"ticker","side","type","qty","limitPrice","stopPrice","takeProfit","stopLoss","fields"}` | `{"orderId":"8813"}`. An error answer is shown as a rejected order with its message. `fields` holds the ticket fields' values (`{"product":"CNC"}`), `{}` without any. |
+| `broker.place` | `{"ticker","side","type","qty","limitPrice","stopPrice","takeProfit","stopLoss","fields","duration"}` | `{"orderId":"8813"}`. An error answer is shown as a rejected order with its message. `fields` holds the ticket fields' values (`{"product":"CNC"}`), `{}` without any. `duration` is a `durations` id, left out when the broker declares none. |
 | `broker.modify` | the same as `broker.place`, plus `"orderId"` | `{}` |
 | `broker.cancel` | `{"orderId":"8813"}` | `{}` |
 | `broker.closePosition` | `{"positionId":"8812","qty":null}` | `{}`. `qty` null closes the whole position. |

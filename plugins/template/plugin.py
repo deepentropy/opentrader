@@ -178,7 +178,8 @@ class Source:
         order = {"id": order_id, "ticker": ticker, "side": side, "type": kind, "qty": qty, "filledQty": 0,
                  "limitPrice": p.get("limitPrice"), "stopPrice": p.get("stopPrice"),
                  "takeProfit": p.get("takeProfit"), "stopLoss": p.get("stopLoss"), "status": "working",
-                 "duration": "gtc", "updatedMs": int(time.time() * 1000),
+                 # The time in force picked, one of the capabilities' durations ("gtc" when the app sends none).
+                 "duration": p.get("duration") or "gtc", "updatedMs": int(time.time() * 1000),
                  # The values of the capabilities' ticketFields (a product type), sent back by broker.modify.
                  "fields": p.get("fields") or {}}
         self.orders[order_id] = order
@@ -197,7 +198,7 @@ class Source:
         order = self.orders.get(p["orderId"])
         if not order or order["status"] != "working":
             raise PluginError("The order is no longer working")
-        for k in ("qty", "limitPrice", "stopPrice", "takeProfit", "stopLoss"):
+        for k in ("qty", "limitPrice", "stopPrice", "takeProfit", "stopLoss", "duration"):
             if k in p:
                 order[k] = p[k]
         order["updatedMs"] = int(time.time() * 1000)
@@ -268,8 +269,11 @@ class Source:
             # ticketFields: the broker's own choices with each order, e.g. a product type:
             # [{"id": "product", "label": "Product", "options": [{"value": "MIS", "label": "Intraday"},
             #   {"value": "CNC", "label": "Delivery"}], "default": "MIS"}]
+            # durations: the times in force the order ticket offers; leave it empty to keep your broker's own.
             "capabilities": {"orderTypes": ["market", "limit", "stop"], "brackets": True, "positionBrackets": True,
-                             "partialClose": True, "modifyOrders": True, "ticketFields": []},
+                             "partialClose": True, "modifyOrders": True, "ticketFields": [],
+                             "durations": [{"id": "day", "label": "Day"},
+                                           {"id": "gtc", "label": "Good Till Cancel", "default": True}]},
             "positions": positions,
             "orders": sorted(self.orders.values(), key=lambda o: o["updatedMs"])[-200:],
             "executions": self.executions[-200:],
