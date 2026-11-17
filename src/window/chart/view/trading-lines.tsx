@@ -56,6 +56,7 @@ import {
   orderMenuTitle,
   orderTypeText,
   plText,
+  plTone,
   positionQtyText,
   requestWithPrice,
   snapToTick,
@@ -73,6 +74,9 @@ const BLUE = "#2962ff";
 const TP_COLOR = "#089981";
 const SL_COLOR = "#ff9800";
 const SELL_COLOR = "#f23645";
+
+/** A P&L text's colour, over the line's: green in profit, red in loss. */
+const toneClass = (tone: ReturnType<typeof plTone> | undefined) => ({ "is-profit": tone === "profit", "is-loss": tone === "loss" });
 /** The replay broker projects no market order (reference app: none on the
  *  chart while the ticket is on Market, whatever "Project order for market
  *  orders" says; the setting adds Market to the project order's types). */
@@ -390,9 +394,9 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 <Icon name="replay-status" size={14} />
                 {fmtQty(o()!.qty)}
               </span>
-              <Show when={canMove(caps(), o()!)} fallback={<span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>}>
+              <Show when={canMove(caps(), o()!)} fallback={<span class="ot-trd-chip__part is-text" classList={toneClass(bracketPl(o()!)?.tone)}>{bracketPl(o()!)?.text ?? orderChipText(o()!)}</span>}>
                 <Tooltip text="Modify order" side="top">
-                  <span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>
+                  <span class="ot-trd-chip__part is-text" classList={toneClass(bracketPl(o()!)?.tone)}>{bracketPl(o()!)?.text ?? orderChipText(o()!)}</span>
                 </Tooltip>
               </Show>
               {/* A bracket goes by modifying its order or the position's brackets. */}
@@ -449,7 +453,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               </Tooltip>
               <Show when={ta().plPositions}>
                 {(kind) => (
-                  <span class="ot-trd-chip__part is-text is-pl">
+                  <span class="ot-trd-chip__part is-text is-pl" classList={toneClass(plTone(p.pos.pl, kind() === "money"))}>
                     {plText(p.pos.qty > 0 ? p.pos.pl / p.pos.qty : 0, p.pos.qty, p.pos.avgPrice, kind(), tick(), ccy())}
                   </span>
                 )}
@@ -473,7 +477,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
 
     /** P&L of a bracket if it fills (Profit and loss value → Brackets), from the
      *  position's average price or its order's price; null = the plain text. */
-    const bracketPl = (o: TradingOrder): string | null => {
+    const bracketPl = (o: TradingOrder): { text: string; tone: ReturnType<typeof plTone> } | null => {
       const kind = ta().plBrackets;
       if (!kind || o.kind === "order") return null;
       const at = orderLinePrice(o);
@@ -491,7 +495,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         long = parent.side === "buy";
       }
       if (at === null || base === null) return null;
-      return plText((at - base) * (long ? 1 : -1), o.qty, base, kind, tick(), ccy());
+      const perUnit = (at - base) * (long ? 1 : -1);
+      return { text: plText(perUnit, o.qty, base, kind, tick(), ccy()), tone: plTone(perUnit) };
     };
 
     /** A take profit / stop loss dragged out of its dotted chip. */
@@ -645,16 +650,17 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     function ProjectSideRow(p: { g: Geom; k: "limit" | "tp" | "sl" }) {
       const y = () => yOf(projectPrice(p.k), p.g);
       const color = () => (p.k === "tp" ? TP_COLOR : p.k === "sl" ? SL_COLOR : sideColor(project()!.side));
-      const text = () => {
+      const text = (): { text: string; tone?: ReturnType<typeof plTone> } => {
         const pr = project()!;
-        if (p.k === "limit") return orderTypeText("limit");
+        if (p.k === "limit") return { text: orderTypeText("limit") };
         const at = projectPrice(p.k);
         const kind = ta().plBrackets;
         if (kind && at !== null && pr.main !== null && pr.qty !== null) {
           const base = pr.type === "stopLimit" ? pr.limit ?? pr.main : pr.main;
-          return plText((at - base) * (pr.side === "buy" ? 1 : -1), pr.qty, base, kind, tick(), ccy());
+          const perUnit = (at - base) * (pr.side === "buy" ? 1 : -1);
+          return { text: plText(perUnit, pr.qty, base, kind, tick(), ccy()), tone: plTone(perUnit) };
         }
-        return p.k === "tp" ? "Take profit" : "Stop loss";
+        return { text: p.k === "tp" ? "Take profit" : "Stop loss" };
       };
       return (
         <Show when={y() !== null}>
@@ -669,7 +675,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 <Icon name="replay-status" size={14} />
                 {project()!.qty !== null ? fmtQty(project()!.qty!) : "\u2014"}
               </span>
-              <span class="ot-trd-chip__part is-text">{text()}</span>
+              <span class="ot-trd-chip__part is-text" classList={toneClass(text().tone)}>{text().text}</span>
               <Show when={p.k !== "limit"}>
                 <Tooltip text={p.k === "tp" ? "Cancel take profit" : "Cancel stop loss"} side="top">
                   <button type="button" class="ot-trd-chip__part is-close" aria-label={p.k === "tp" ? "Cancel take profit" : "Cancel stop loss"} onPointerDown={stop} onMouseDown={stop} onClick={() => project()!.actions.setExit(p.k as "tp" | "sl", null)}>

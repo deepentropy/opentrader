@@ -9,6 +9,7 @@ import {
   orderLinePrice,
   orderMenuTitle,
   plText,
+  plTone,
   positionQtyText,
   orderSummary,
   cancelTitle,
@@ -113,5 +114,14 @@ describe("trading lines model", () => {
     expect(plText(5, 2, 655.11, "money", 0.01, "USD")).toBe("+10.00 USD");
     expect(plText(0.75, 1, 640, "ticks", 0.01, "USD")).toBe("+75 ticks");
     expect(plText(-6.4, 1, 640, "percent", 0.01, "USD")).toBe("−1.00%");
+  });
+
+  it("profit and loss colour: profit, loss, neutral at zero (money judged on cents)", () => {
+    expect(plTone(12.46)).toBe("profit");
+    expect(plTone(-98)).toBe("loss");
+    expect(plTone(0)).toBeNull();
+    expect(plTone(0.004, true)).toBeNull();
+    expect(plTone(-0.004, true)).toBeNull();
+    expect(plTone(0.004)).toBe("profit");
   });
 });

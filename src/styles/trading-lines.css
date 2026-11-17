@@ -88,6 +88,9 @@
 /* (Tooltip wrappers sit between the parts: no sibling selector.) */
 .ot-trd-chip__part.is-text,
 .ot-trd-chip__part.is-close { border-left: 1px solid var(--c); }
+/* P&L text: its own colour, the line keeps its side's (reference app, both themes). */
+.ot-trd-chip__part.is-profit { color: var(--color-minty-green-500); }
+.ot-trd-chip__part.is-loss { color: var(--color-ripe-red-500); }
 .ot-trd-chip__part.is-filled {
   background: var(--c);
   color: var(--color-white);

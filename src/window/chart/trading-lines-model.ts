@@ -106,6 +106,14 @@ export function fmtPl(v: number, currency: string): string {
   return localNumber(`${sign}${abs} ${currency}`);
 }
 
+/** Colour of a P&L text (the reference app's rule): green in profit, red in
+ *  loss, the line's own colour at zero (null). A money P&L is judged on its
+ *  cents, so a shown "0.00" stays neutral. */
+export function plTone(v: number, cents = false): "profit" | "loss" | null {
+  const x = cents ? Math.round(v * 100) / 100 : v;
+  return x > 0 ? "profit" : x < 0 ? "loss" : null;
+}
+
 /** Take profit / stop loss of a position at the ticket's default distance. */
 export function defaultBracket(p: TradingPosition, kind: "tp" | "sl", tick: number): number {
   const sign = p.side === "buy" ? 1 : -1;
