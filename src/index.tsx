@@ -6,10 +6,13 @@ import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";
 import { installBrowserMenuBlock } from "./components/browser-menu";
 import { installErrorReports } from "./data/error-reports";
+import { installNewBuildCheck } from "./data/new-build";
 import { embedConfig } from "./embed/config";
 
 // App errors from the start, startup included; sent once the statistics start.
 installErrorReports();
+// Web: code that no longer loads because a new build is out offers a reload.
+installNewBuildCheck();
 
 // A tooltip on menu labels only when they are cut.
 installOverflowTooltip();

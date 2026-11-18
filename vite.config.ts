@@ -68,6 +68,15 @@ const webSeo = () => ({
   },
 });
 
+// Web version on Cloudflare: the build's files have their content's hash in their name, so a browser keeps them (the
+// page itself is read again each time). A study worker then starts from the browser's copy, not the network (#362).
+const webCacheHeaders = () => ({
+  name: "web-cache-headers",
+  generateBundle(this: { emitFile: (f: { type: "asset"; fileName: string; source: string }) => void }) {
+    this.emitFile({ type: "asset", fileName: "_headers", source: "/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n" });
+  },
+});
+
 export default defineConfig(async ({ mode }: { mode: string }) => ({
   ...(COMMUNITY(mode)
     ? {
@@ -93,7 +102,7 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
     },
     // Web version: what search engines and link previews show for the demo, and a robots.txt that keeps
     // crawlers off the API (the single-page fallback would otherwise answer it with the app).
-    ...(mode === "web" ? [webSeo()] : []),
+    ...(mode === "web" ? [webSeo(), webCacheHeaders()] : []),
     { name: "watch-drawing-core", configureServer: (server: { watcher: { add: (p: string) => void } }) => { server.watcher.add(drawingCore); server.watcher.add(drawingRuntime); } },
   ],
   // ES module workers: a worker can load a module on demand (the backtest worker loads the indicator library only

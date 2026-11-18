@@ -17,8 +17,10 @@ const worker = vi.hoisted(() => ({
   fullRunReason: null as string | null,
   posted: [] as { id: number; live?: { from: number } }[],
 }));
-vi.mock("../oakscript-worker?worker", () => ({
-  default: class {
+vi.mock("../oakscript-worker?worker&url", () => ({ default: "oakscript-worker.js" }));
+vi.stubGlobal(
+  "Worker",
+  class {
     onmessage: ((e: { data: unknown }) => void) | null = null;
     onerror: (() => void) | null = null;
     postMessage(msg: { id: number; type: string; live?: { key: string; from: number } }) {
@@ -31,7 +33,7 @@ vi.mock("../oakscript-worker?worker", () => ({
     }
     terminate() {}
   },
-}));
+);
 
 import { HEAVY_SHARE, closeWarning, isHeavy, limitSeconds, wasClosed } from "../heavy-script";
 import { OakEngine, RUN_TIMEOUT_MS, type OakCalculation } from "../engine";

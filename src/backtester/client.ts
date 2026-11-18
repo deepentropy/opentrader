@@ -15,9 +15,9 @@
 import { intrabarsRef } from './intrabars';
 import { translateWith } from '../i18n/translator';
 import { SentRuns } from './live-runs';
-import BacktestWorkerCtor from './worker?worker';
+import backtestWorkerUrl from './worker?worker&url';
 import type { BacktestError, BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
-import { reportWorkerError } from '../data/error-reports';
+import { startWorker, type AppWorker } from '../data/worker-start';
 
 export type { BacktestError };
 
@@ -39,7 +39,7 @@ type Pending = {
 };
 
 export class BacktestClient {
-  private worker: Worker | null = null;
+  private worker: AppWorker | null = null;
   private pending = new Map<number, Pending>();
   private seq = 0;
   /** Latest run ticket per channel: a run still fetching magnifier data when a newer one starts resolves null. */
@@ -50,10 +50,9 @@ export class BacktestClient {
   /** Bars and drawn outputs of the live runs, by channel. */
   private live = new SentRuns();
 
-  private ensureWorker(): Worker {
+  private ensureWorker(): AppWorker {
     if (this.worker) return this.worker;
-    const worker = new BacktestWorkerCtor();
-    worker.onmessage = (e: MessageEvent<BacktestResponse>) => {
+    const onmessage = (e: MessageEvent<BacktestResponse>) => {
       const p = this.pending.get(e.data.id);
       if (!p) return; // superseded or timed out
       this.pending.delete(e.data.id);
@@ -69,10 +68,7 @@ export class BacktestClient {
         p.reject(new BacktestFailed(res.error));
       }
     };
-    worker.onerror = (e) => {
-      reportWorkerError('backtest', e);
-      this.restart('The backtest worker crashed.');
-    };
+    const worker = startWorker(backtestWorkerUrl, 'backtest', { message: onmessage, crash: () => this.restart('The backtest worker crashed.') });
     this.worker = worker;
     return worker;
   }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cleanText, reportError, reportWorkerError, resetErrorReports, startErrorReports } from "../error-reports";
+import { cleanText, reportError, reportWorkerError, reportWorkerLoad, resetErrorReports, startErrorReports } from "../error-reports";
 
 type Sent = { event: string; props: Record<string, string | number> };
 
@@ -56,5 +56,21 @@ describe("error reports", () => {
     const sent = collect();
     reportWorkerError("backtest", { message: "Uncaught RangeError: Maximum call stack size exceeded", filename: "http://tauri.localhost/assets/worker-9.js", lineno: 7, colno: 9 } as unknown as Event);
     expect(sent[0].props).toMatchObject({ kind: "worker", where: "backtest", source: "worker-9.js", line: 7, column: 9 });
+  });
+
+  it("reports an empty worker error event as a worker that did not start (#362)", () => {
+    const sent = collect();
+    reportWorkerError("study", new Event("error"));
+    expect(sent[0].props).toMatchObject({ kind: "worker_load", name: "WorkerLoadError", message: "worker failed to start (unknown)", where: "study" });
+  });
+
+  it("names the script of a worker that did not start, and each attempt once", () => {
+    const sent = collect();
+    reportWorkerLoad("study", "https://demo.example.com/assets/worker-tK41tuzE.js", "network", 1);
+    reportWorkerLoad("study", "https://demo.example.com/assets/worker-tK41tuzE.js", "network", 1);
+    reportWorkerLoad("study", "https://demo.example.com/assets/worker-tK41tuzE.js", "network", 2);
+    expect(sent).toHaveLength(2);
+    expect(sent[0].props).toMatchObject({ kind: "worker_load", message: "worker failed to start (network)", source: "worker-tK41tuzE.js", attempt: 1 });
+    expect(sent[1].props.attempt).toBe(2);
   });
 });
