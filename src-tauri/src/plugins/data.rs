@@ -13,11 +13,13 @@
  * alerts ask the same history, and each ask costs the plugin's source requests (#347).
  */
 use super::Plugins;
+use crate::data::calendar::SessionCalendar;
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::types::{Candle, ChartAggregate, Snapshot, SymbolSearchResult, TickerInfo, TradeTick};
 use opentrader_core::host::HostRef;
 use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::sync::LockExt;
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -141,6 +143,8 @@ pub struct PluginData {
     /// One read of a series at a time: the asks that come meanwhile wait for it and are answered from it.
     reading: Mutex<HashMap<RecentKey, Arc<tokio::sync::Mutex<()>>>>,
     pages: Mutex<HashMap<PageKey, (Instant, Arc<Vec<Candle>>)>>,
+    /// Each symbol's last quote time (UNIX seconds, the feed's clock).
+    quoted: Mutex<HashMap<String, f64>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -282,12 +286,15 @@ pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
 }
 
 pub async fn session(app: &AppHandle, r: &Route) -> Result<SymbolSession, String> {
-    let i = info(app, r).await?;
+    Ok(symbol_session(&*info(app, r).await?))
+}
+
+fn symbol_session(i: &Info) -> SymbolSession {
     let mut subsessions = vec![Subsession::new("regular", "Regular Trading Hours", &i.session)];
     if let Some(ext) = i.extended.as_ref().filter(|e| **e != i.session) {
         subsessions.push(Subsession::new("extended", "Extended Trading Hours", ext));
     }
-    Ok(SymbolSession {
+    SymbolSession {
         timezone: i.timezone.clone(),
         session: i.session.clone(),
         subsessions,
@@ -299,7 +306,12 @@ pub async fn session(app: &AppHandle, r: &Route) -> Result<SymbolSession, String
         intervals: i.intervals.clone(),
         bar_origin: i.bar_origin.as_deref().and_then(origin_minutes),
         point_value: i.point_value.filter(|v| v.is_finite() && *v > 0.0),
-    })
+    }
+}
+
+/// The trading calendar of a plugin symbol: its days, holidays and hours size the windows asked of the plugin.
+async fn calendar(app: &AppHandle, r: &Route) -> Result<SessionCalendar, String> {
+    Ok(SessionCalendar::new(&symbol_session(&*info(app, r).await?)))
 }
 
 /// Minutes after midnight of an "HHMM" time of day.
@@ -435,19 +447,20 @@ fn now() -> f64 {
     chrono::Utc::now().timestamp() as f64
 }
 
-/// Calendar seconds that cover `days` trading days (weekends, a holiday).
-fn span(days: u32) -> f64 {
-    (days as f64 * 7.0 / 5.0 + 3.0) * 86_400.0
+/// Bars of `unit` × `mult` in one trading day at most: its traded hours, and one more for a bar its open or close cuts
+/// (bars on a clock grid of their own).
+fn per_day(cal: &SessionCalendar, unit: &str, mult: u32) -> u64 {
+    if unit == "day" {
+        return 1;
+    }
+    let bar = bar_seconds(unit, mult);
+    (cal.day_minutes() as u64 * 60).div_ceil(bar).saturating_add(1).min(86_400u64.div_ceil(bar))
 }
 
-/// Bars of `unit` × `mult` in a day at most (a 24-hour day).
-fn per_day(unit: &str, mult: u32) -> u64 {
-    match unit {
-        "second" => 86_400 / mult.max(1) as u64,
-        "minute" => 1_440 / mult.max(1) as u64,
-        _ => 1,
-    }
-    .max(1)
+/// From the start of trading day `first` to the end of `last`: its start (UNIX seconds) and the bars it holds at most.
+fn window(cal: &SessionCalendar, unit: &str, mult: u32, first: NaiveDate, last: NaiveDate) -> (f64, u64) {
+    let days = cal.trading_days_in_range(first, last).len().max(1) as u64;
+    (cal.day_start(first) as f64, per_day(cal, unit, mult) * days)
 }
 
 /// Seconds of one bar of `unit` × `mult`.
@@ -479,8 +492,11 @@ pub async fn recent(app: &AppHandle, r: &Route, unit: &str, mult: u32, days: u32
 
 async fn read_recent(app: &AppHandle, r: &Route, key: &RecentKey, unit: &str, mult: u32, days: u32) -> Result<Vec<Candle>, String> {
     let to = now();
-    let from = to - span(days);
-    let count = per_day(unit, mult) * days as u64;
+    // As the app's own history: the last `days` trading days before today, and today's bars.
+    let cal = calendar(app, r).await?;
+    let today = cal.window_end();
+    let first = cal.last_trading_days(days.max(1) as usize).first().copied().unwrap_or(today);
+    let (from, count) = window(&cal, unit, mult, first, today);
     let kept = state(app).recent.locked().get(key).filter(|k| k.days >= days && !k.bars.is_empty()).map(|k| (k.at, k.days, k.bars.clone()));
     let series = match kept {
         Some((at, _, series)) if at.elapsed() < RECENT_FRESH => series,
@@ -532,7 +548,15 @@ pub async fn before(app: &AppHandle, r: &Route, unit: &str, mult: u32, before_se
         return Ok(bars.to_vec());
     }
     let to = before_sec - 1.0;
-    let page = bars(app, r, unit, mult, to - span(span_days), to, per_day(unit, mult) * span_days as u64).await?;
+    let cal = calendar(app, r).await?;
+    let Some(last) = cal.date_of(to as i64) else {
+        return Ok(Vec::new());
+    };
+    // The day of an intraday page's end is mostly after it (the chart's oldest bar opened it): one day more.
+    let n = span_days.max(1) as usize + usize::from(unit != "day");
+    let first = cal.trading_days_before(last, n).first().copied().unwrap_or(last);
+    let (from, count) = window(&cal, unit, mult, first, last);
+    let page = bars(app, r, unit, mult, from, to, count).await?;
     let mut pages = state(app).pages.locked();
     pages.retain(|_, (at, _)| at.elapsed() < PAGE_KEPT_FOR);
     if pages.len() >= PAGES_KEPT {
@@ -560,7 +584,8 @@ pub async fn snapshot(app: &AppHandle, r: &Route) -> Result<Snapshot, String> {
         day_volume: last.volume,
         ext_change_percent: None,
         source: "live".into(),
-        updated_ms: now() * 1000.0,
+        // The feed's time, as its quotes: the details panel compares them (#356).
+        updated_ms: state(app).quoted.locked().get(&r.symbol).copied().unwrap_or_else(now) * 1000.0,
     })
 }
 
@@ -740,6 +765,7 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     let Some(symbol) = symbol else { return };
     let minute = q.minute.map(candle);
     let time = q.time.unwrap_or_else(now);
+    state(app).quoted.locked().insert(symbol.clone(), time);
     if let Some(m) = &minute {
         let day = q.day.map(|d| Candle { time, ..candle(d) });
         let _ = ChartAggregate { symbol: symbol.clone(), time: m.time, open: m.open, high: m.high, low: m.low, close: m.close, volume: m.volume, day }
@@ -853,6 +879,33 @@ mod tests {
         assert_eq!(reachable(None, now - 10.0 * day, now, 2880, 300, now), Some((now - 10.0 * day, 2880)));
         let depth = HistoryDepth { second: None, minute: Some(30.0), day: Some(0.0) };
         assert_eq!((depth.of("minute"), depth.of("day"), depth.of("second")), (Some(30.0), None, None));
+    }
+
+    fn cal(tz: &str, session: &str, extended: Option<&str>, holidays: &str) -> SessionCalendar {
+        let i: Info = serde_json::from_value(json!({
+            "timezone": tz, "session": session, "extended": extended, "holidays": holidays, "pricescale": 100,
+        }))
+        .unwrap();
+        SessionCalendar::new(&symbol_session(&i))
+    }
+
+    #[test]
+    fn sizes_windows_by_the_trading_sessions() {
+        let d = |y, m, day| NaiveDate::from_ymd_opt(y, m, day).unwrap();
+        // NSE (#363): 375 minutes a day, a holiday on Friday 20/11/2026: Monday 16 to Monday 23 is 5 trading days.
+        let nse = cal("Asia/Kolkata", "0915-1530", None, "20261120");
+        assert_eq!(per_day(&nse, "minute", 1), 376);
+        assert_eq!(per_day(&nse, "minute", 5), 76);
+        assert_eq!(per_day(&nse, "second", 15), 1501);
+        assert_eq!(per_day(&nse, "day", 1), 1);
+        let (from, count) = window(&nse, "minute", 1, d(2026, 11, 16), d(2026, 11, 23));
+        assert_eq!((from as i64, count), (d(2026, 11, 16).and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() - 19_800, 376 * 5));
+        // Extended hours count; around the clock keeps whole days.
+        assert_eq!(per_day(&cal("America/New_York", "0930-1600", Some("0400-2000"), ""), "minute", 1), 961);
+        let crypto = cal("UTC", "24x7", None, "");
+        assert_eq!(per_day(&crypto, "minute", 1), 1440);
+        assert_eq!(per_day(&crypto, "minute", 7), 206);
+        assert_eq!(window(&crypto, "day", 1, d(2026, 11, 1), d(2026, 11, 30)).1, 30);
     }
 
     fn c(t: f64, close: f64) -> Candle {

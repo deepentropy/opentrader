@@ -8,21 +8,28 @@
  * Spec grammar: see src/data/session/spec.ts. Only the weekdays matter here:
  * "24x7" trades every day; a section "ranges:days" lists its days (1 = Sunday
  * … 7 = Saturday); a section without days trades Monday to Friday; the last
- * history entry ("…#YYYYMMDD/current") is the current schedule.
+ * history entry ("…#YYYYMMDD/current") is the current schedule. The hours
+ * of its longest day (regular and extended together) size how many bars a
+ * day can hold.
  */
 use crate::data::session::SymbolSession;
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use std::collections::HashSet;
 
 /// Loop-safety bound of the backward walk (same floor as the US calendar).
 const FLOOR_YEAR: i32 = 2000;
+const MINUTES_PER_DAY: i32 = 1440;
 
 pub struct SessionCalendar {
     tz: Tz,
     /// Index `Weekday::num_days_from_monday()`: the session trades that day.
     days: [bool; 7],
     closed: HashSet<NaiveDate>,
+    /// Traded minutes of the longest trading day (the widest of the session and its parts), and its earliest open
+    /// from the trading day's local midnight: a day the spec doesn't tell is a whole calendar day.
+    day_minutes: i32,
+    open: i32,
 }
 
 /// TV-style day digit (1 = Sunday … 7 = Saturday) → Monday-based index.
@@ -34,14 +41,20 @@ fn monday_index(digit: u32) -> Option<usize> {
     }
 }
 
-fn weekdays_of(spec: &str) -> [bool; 7] {
+/// The current schedule of a spec: its last history entry, without the first-day-of-week part.
+fn current_body(spec: &str) -> &str {
     let current = spec.rsplit('/').next().unwrap_or(spec);
-    let body = match current.split_once(';') {
+    match current.split_once(';') {
         // "2;spec" or "spec;2": the part with ranges is the spec.
         Some((a, b)) => if a.contains('-') { a } else { b },
         None => current,
-    };
-    if body.trim().eq_ignore_ascii_case("24x7") {
+    }
+    .trim()
+}
+
+fn weekdays_of(spec: &str) -> [bool; 7] {
+    let body = current_body(spec);
+    if body.eq_ignore_ascii_case("24x7") {
         return [true; 7];
     }
     let mut days = [false; 7];
@@ -60,6 +73,57 @@ fn weekdays_of(spec: &str) -> [bool; 7] {
     days
 }
 
+/// "HHMM" or "HHMMF<n>" → minutes after midnight and the days it is moved back.
+fn bound(s: &str) -> Option<(i32, i32)> {
+    let (hhmm, back) = match s.split_once('F') {
+        Some((t, n)) => (t, if n.is_empty() { 1 } else { n.parse().ok()? }),
+        None => (s, 0),
+    };
+    if hhmm.len() != 4 || !hhmm.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let v: i32 = hhmm.parse().ok()?;
+    Some((v / 100 * 60 + v % 100, back))
+}
+
+/// One "HHMM-HHMM" interval (markers stripped) → minutes from and to the trading day's local midnight (from is
+/// negative when it opens on an earlier calendar day). Same reading as src/data/session/spec.ts.
+fn interval(s: &str) -> Option<(i32, i32)> {
+    let main = s.split('E').next()?.split('A').next()?;
+    let mut parts = main.split('-');
+    let (a, b) = (parts.next()?, parts.next()?);
+    if parts.next().is_some() {
+        return None;
+    }
+    let ((start, mut start_back), (end, end_back)) = (bound(a)?, bound(b)?);
+    let to = if end == 0 { MINUTES_PER_DAY } else { end };
+    if start_back == end_back && to <= start {
+        start_back += 1;
+    }
+    Some((start - start_back * MINUTES_PER_DAY, to - end_back * MINUTES_PER_DAY))
+}
+
+/// The traded minutes of the longest trading day of a spec, and the earliest open in minutes from the trading day's
+/// local midnight (negative: the day before). None when it doesn't read.
+fn day_hours(spec: &str) -> Option<(i32, i32)> {
+    let body = current_body(spec);
+    if body.eq_ignore_ascii_case("24x7") {
+        return Some((MINUTES_PER_DAY, 0));
+    }
+    let (mut longest, mut open) = (0, i32::MAX);
+    for section in body.split('|') {
+        let ranges = section.split(':').next().unwrap_or_default();
+        let mut day = 0;
+        for piece in ranges.split([',', 'U', 'S']).filter(|p| !p.is_empty()) {
+            let (from, to) = interval(piece)?;
+            day += (to - from).max(0);
+            open = open.min(from);
+        }
+        longest = longest.max(day);
+    }
+    (longest > 0).then_some((longest.min(MINUTES_PER_DAY), open))
+}
+
 fn parse_date(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s.trim(), "%Y%m%d").ok()
 }
@@ -73,7 +137,25 @@ impl SessionCalendar {
                 closed.extend(dates.split(',').filter_map(parse_date));
             }
         }
-        Self { tz, days: weekdays_of(&s.session), closed }
+        let specs = std::iter::once(&s.session).chain(s.subsessions.iter().map(|p| &p.session));
+        let (day_minutes, open) = specs
+            .filter_map(|spec| day_hours(spec))
+            .reduce(|(m, o), (m2, o2)| (m.max(m2), o.min(o2)))
+            .unwrap_or((MINUTES_PER_DAY, 0));
+        Self { tz, days: weekdays_of(&s.session), closed, day_minutes, open }
+    }
+
+    /// Traded minutes of the longest trading day, regular and extended hours together (a whole day at most).
+    pub fn day_minutes(&self) -> u32 {
+        self.day_minutes as u32
+    }
+
+    /// UNIX seconds where the bars of trading day `d` can start: its earliest open (the evening before for an
+    /// overnight session), or the UTC midnight of `d` when that is earlier (daily bars stamped at UTC midnight).
+    pub fn day_start(&self, d: NaiveDate) -> i64 {
+        let utc = d.and_hms_opt(0, 0, 0).map_or(0, |t| t.and_utc().timestamp());
+        let local = d.and_hms_opt(0, 0, 0).and_then(|t| self.tz.from_local_datetime(&t).earliest()).map(|t| t.timestamp());
+        local.map_or(utc, |l| (l + self.open.min(0) as i64 * 60).min(utc))
     }
 
     pub fn is_trading_day(&self, d: NaiveDate) -> bool {
@@ -175,6 +257,40 @@ mod tests {
         assert_eq!(weekdays_of("1700-1600:12345"), [true, true, true, true, false, false, true]);
         // History: the current (last) entry counts.
         assert_eq!(weekdays_of("0900-1746:23456#20251201/0800-2200:234567"), [true, true, true, true, true, true, false]);
+    }
+
+    #[test]
+    fn hours_of_the_longest_trading_day() {
+        assert_eq!(day_hours("0915-1530"), Some((375, 555)));
+        assert_eq!(day_hours("24x7"), Some((1440, 0)));
+        // Overnight: FX opens at 17:00 the day before and trades 24 hours.
+        assert_eq!(day_hours("1700-1700"), Some((1440, -420)));
+        assert_eq!(day_hours("1800-1700:23456"), Some((1380, -360)));
+        // Several intervals, sections and a history: the current entry's longest day.
+        assert_eq!(day_hours("0900-1130,1230-1500"), Some((300, 540)));
+        assert_eq!(day_hours("0930-1600:23456|0930-1300:7"), Some((390, 570)));
+        assert_eq!(day_hours("0900-1000#20251201/0800-2200:234567"), Some((840, 480)));
+        assert_eq!(day_hours("1700F-1600"), Some((1380, -420)));
+        assert_eq!(day_hours("bad"), None);
+    }
+
+    #[test]
+    fn day_start_is_the_earliest_open() {
+        let d = NaiveDate::from_ymd_opt(2026, 11, 16).unwrap();
+        let utc = d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp();
+        // Kolkata (UTC+05:30): its midnight, before the UTC one.
+        let nse = SessionCalendar::new(&session("Asia/Kolkata", "0915-1530", "", ""));
+        assert_eq!((nse.day_start(d), nse.day_minutes()), (utc - 19_800, 375));
+        // New York: daily bars stamped at UTC midnight start before its own midnight.
+        let mut us = session("America/New_York", "0930-1600", "", "");
+        us.subsessions.push(Subsession::new("extended", "Extended", "0400-2000"));
+        let us = SessionCalendar::new(&us);
+        assert_eq!((us.day_start(d), us.day_minutes()), (utc, 960));
+        // FX: Monday's session opens Sunday 17:00 New York (22:00 UTC).
+        let fx = SessionCalendar::new(&session("America/New_York", "1700-1700", "", ""));
+        assert_eq!((fx.day_start(d), fx.day_minutes()), (utc - 2 * 3600, 1440));
+        // A spec that doesn't read: whole days.
+        assert_eq!(SessionCalendar::new(&session("UTC", "?", "", "")).day_minutes(), 1440);
     }
 
     #[test]

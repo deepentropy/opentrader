@@ -13,6 +13,7 @@
  */
 import type { TabChart } from "./tabs";
 import { currentWindowLabel } from "./window-bridge";
+import { openChannel } from "../../data/broadcast";
 
 type Msg =
   | { kind: "strip-query"; id: string; from: string; sx: number; sy: number }
@@ -21,8 +22,7 @@ type Msg =
   | { kind: "merge-ack"; id: string; to: string }
   | { kind: "reopen-tab"; to: string; tab: TabChart; position: number; active: boolean };
 
-const bus: BroadcastChannel | null =
-  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("ot:shell") : null;
+const bus = openChannel("ot:shell");
 
 let seq = 0;
 const newId = () => `${currentWindowLabel()}:${Date.now().toString(36)}:${seq++}`;

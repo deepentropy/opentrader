@@ -781,7 +781,18 @@ function App() {
       });
     if (embed) {
       seedEmbedWatchlist(embed);
-      onCleanup(installEmbedHost(embed, { symbol, interval, setSymbol, setInterval, setChartType, setTheme: setThemeSetting }));
+      onCleanup(
+        installEmbedHost(embed, {
+          symbol,
+          interval,
+          charts: () => activeTab().panes.map((p) => ({ symbol: p.symbol, interval: p.interval })),
+          setSymbol,
+          setChartSymbols: (list) => patchActive({ panes: activeTab().panes.map((p, i) => (list[i] && list[i] !== p.symbol ? { ...p, symbol: list[i] } : p)) }),
+          setInterval,
+          setChartType,
+          setTheme: setThemeSetting,
+        }),
+      );
     }
     let toastSeq = 0;
     const offFire = onAlertFire((f) => {

@@ -4,16 +4,19 @@
  * Out: `ready` once it is up, then for the chart `symbol` and `interval` on
  * each change, for a widget `symbol-click` (the loader turns them into the
  * element's ot-* events). In: `config`, the settings changed in place (the
- * chart's symbol, interval, chart type; any embed's theme). Only
+ * chart's symbol, interval, chart type, the layout's symbols, marks, shaded
+ * periods and framed span; any embed's theme). Only
  * messages from the parent window are read; what goes out is the chart's
  * symbol and interval, sent to whichever page holds it.
  */
 import { createEffect, on, type Accessor } from "solid-js";
 import type { EmbedConfig } from "./config";
 import { parseEmbedConfig } from "./config";
+import { chartTimeContext, frameSpan, setEmbedAnnotations } from "./annotations";
 import { emitAppEvent } from "../data/app-events";
 import type { AppEvents } from "../data/app-events";
 import { watchlistStore, newRow } from "../data/watchlist-store";
+import { embedChartSymbols } from "./seed";
 import { CHART_TYPE_IDS, type ChartTypeId } from "../window/chart/chart-types";
 import type { ThemeSetting } from "../window/shell/app-theme";
 
@@ -24,7 +27,11 @@ export const FROM_PAGE = "opentrader-embed-host";
 export type EmbedHostDeps = {
   symbol: Accessor<string>;
   interval: Accessor<string>;
+  /** The charts of the layout, in order. */
+  charts: Accessor<{ symbol: string; interval: string }[]>;
   setSymbol: (full: string) => void;
+  /** The layout's charts take these symbols, in order. */
+  setChartSymbols: (symbols: string[]) => void;
   setInterval: (id: string) => void;
   setChartType: (id: ChartTypeId) => void;
   setTheme: (t: ThemeSetting) => void;
@@ -46,24 +53,36 @@ export function seedEmbedWatchlist(c: EmbedConfig): void {
   watchlistStore.addSymbols(c.watchlist.map(newRow), null);
 }
 
-/** Frames the embed's first date range once the chart has its bars (the chart
- *  frames a range when it hears of it before or after the bars land, but must
- *  be listening). Gives up after 30 s. */
-function frameFirstRange(range: string): () => void {
+/** Runs `frame` once every chart has its bars (a chart frames a range when it
+ *  hears of it before or after the bars land, but must be listening). Gives up
+ *  after 30 s. */
+function whenChartsUp(count: number, frame: () => void): () => void {
   const started = Date.now();
   const timer = window.setInterval(() => {
     const q: AppEvents["chart-view-query"] = { ranges: {} };
     emitAppEvent("chart-view-query", q);
-    if (q.ranges[0] || Date.now() - started > 30_000) {
+    const up = Object.keys(q.ranges).length >= count;
+    if (up || Date.now() - started > 30_000) {
       window.clearInterval(timer);
-      if (q.ranges[0]) emitAppEvent("chart-set-range", { span: range });
+      if (up) frame();
     }
   }, 200);
   return () => window.clearInterval(timer);
 }
 
+/** Frames each chart on the page's span, read in that chart's terms (its exchange zone and interval). */
+function frameCharts(c: EmbedConfig, charts: { symbol: string; interval: string }[]): void {
+  if (!c.from || !c.to) return;
+  charts.forEach((ch, paneIndex) => {
+    const span = frameSpan(c.from!, c.to!, chartTimeContext(ch.symbol, ch.interval));
+    emitAppEvent("chart-show-range", { ...span, paneIndex, series: `${ch.symbol}|${ch.interval}` });
+  });
+}
+
 /** Wires the chart to its page; returns the cleanup. */
 export function installEmbedHost(c: EmbedConfig, deps: EmbedHostDeps): () => void {
+  // The settings as last changed in place: a later change is read over them.
+  let current = c;
   // A pane edit re-runs these with the same values: only a change is told.
   let symbol = deps.symbol();
   let interval = deps.interval();
@@ -74,14 +93,25 @@ export function installEmbedHost(c: EmbedConfig, deps: EmbedHostDeps): () => voi
     if (e.source !== window.parent || !e.data || e.data.source !== FROM_PAGE || e.data.type !== "config") return;
     const raw = e.data.config;
     if (!raw || typeof raw !== "object") return;
-    const next = parseEmbedConfig({ ...c, ...raw });
+    const next = parseEmbedConfig({ ...current, ...raw });
+    current = next;
     if ("symbol" in raw && next.symbol !== deps.symbol()) deps.setSymbol(next.symbol);
+    if ("symbols" in raw && next.layout) deps.setChartSymbols(embedChartSymbols(next, deps.charts().length));
+    if ("markers" in raw || "highlights" in raw) setEmbedAnnotations(next);
     if ("interval" in raw && next.interval !== deps.interval()) deps.setInterval(next.interval);
     if ("chartType" in raw && next.chartType && CHART_TYPE_IDS.has(next.chartType as ChartTypeId)) deps.setChartType(next.chartType as ChartTypeId);
     if ("theme" in raw) deps.setTheme(next.theme ?? "system");
+    // After the symbol and interval: each chart frames the span once that series is shown.
+    if ("from" in raw || "to" in raw) frameCharts(next, deps.charts());
   };
   window.addEventListener("message", onMessage);
-  const stopRange = c.range ? frameFirstRange(c.range) : () => {};
+  setEmbedAnnotations(c);
+  const stopRange =
+    c.from && c.to
+      ? whenChartsUp(deps.charts().length, () => frameCharts(c, deps.charts()))
+      : c.range
+        ? whenChartsUp(1, () => emitAppEvent("chart-set-range", { span: c.range! }))
+        : () => {};
   postToPage("ready", { symbol, interval });
   return () => {
     window.removeEventListener("message", onMessage);

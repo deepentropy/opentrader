@@ -4,7 +4,7 @@
  * click on a symbol tells the page.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import type { EmbedConfig } from "../config";
+import { tapeSymbols, type EmbedConfig } from "../config";
 import { tickerOf } from "../../data/datafeed";
 import { createWidgetQuotes } from "./widget-quotes";
 import { changeText, moveClass, percentText, pickSymbol, priceText, SymbolLogo } from "./parts";
@@ -13,7 +13,7 @@ import { changeText, moveClass, percentText, pickSymbol, priceText, SymbolLogo }
 const SPEED = 50;
 
 export function TickerTape(props: { config: EmbedConfig }) {
-  const symbols = () => props.config.symbols;
+  const symbols = () => tapeSymbols(props.config);
   const data = createWidgetQuotes(symbols);
   const vertical = () => props.config.direction === "vertical";
 

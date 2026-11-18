@@ -1,8 +1,9 @@
 /*
  * The time axis and what follows the trading days of the bars: the label
  * formats, the year / month / day ticks in the zone the labels are read in,
- * the session breaks, the pre / post-market tint and the previous day's close
- * of every bar (the legend's "Last day change").
+ * the session breaks, the pre / post-market tint, the periods a page shades on
+ * an embedded chart (#366) and the previous day's close of every bar (the
+ * legend's "Last day change").
  */
 import { createEffect } from "solid-js";
 import { LineSeries, type TickMarkType, type Time, type UTCTimestamp } from "lightweight-charts";
@@ -10,6 +11,9 @@ import { isIntradayInterval, isIntradayResolution, isSecondResolution } from "..
 import { cachedSymbolSessions } from "../../../data/session";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "../session-breaks";
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "../session-backgrounds";
+import { EmbedHighlightsPrimitive, type HighlightBand } from "../embed-highlights";
+import { chartTimeContext, embedHighlights as pageHighlights, highlightBars, onChart } from "../../../embed/annotations";
+import { readFontFamily } from "../chart-tokens";
 import { dayKeyer } from "../day-key";
 import { zonedTimeScale } from "./zoned-time-scale";
 import { barTimeZone, formatAxisTime, formatTick, type AxisFmt } from "./helpers";
@@ -22,6 +26,8 @@ export interface TimeAxisApi {
   /** Session-breaks separators and the pre / post-market tint, attached to the main series. */
   sessionBreaks: SessionBreaksPrimitive;
   sessionBackgrounds: SessionBackgroundsPrimitive;
+  /** An embedded chart's shaded periods, attached to the main series. */
+  embedHighlights: EmbedHighlightsPrimitive;
   /** The chart's time scale behaviour (ticks weighed in the labels' zone). */
   timeScaleBehavior: ReturnType<typeof zonedTimeScale>["behavior"];
   /** Recompute what follows the trading days from the current bars and appearance. */
@@ -33,6 +39,7 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
   // One instance per chart, re-attached to the price series whenever it's rebuilt (chart-type change).
   const sessionBreaks = new SessionBreaksPrimitive();
   const sessionBackgrounds = new SessionBackgroundsPrimitive();
+  const embedHighlights = new EmbedHighlightsPrimitive();
   let prevDayClose: (number | null)[] = [];
 
   // Year / month / day ticks in the zone the axis labels are read in (#270).
@@ -107,10 +114,31 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
         ? computeSessionRuns(raw, sessions)
         : [],
     );
+    updateEmbedHighlights();
     recomputePrevDayClose();
     cx.updatePrevClosePriceLine();
     cx.updateHighLowLines();
   }
+
+  /** The page's periods on this chart's symbol, placed on the current bars. */
+  function updateEmbedHighlights() {
+    const list = pageHighlights().filter((h) => onChart(h.symbol, props.symbol ?? ""));
+    const raw = cx.raw as readonly { time: number }[];
+    const bands: HighlightBand[] = [];
+    if (list.length && raw.length) {
+      const tc = chartTimeContext(props.symbol ?? "", props.interval ?? "1D");
+      for (const h of list) {
+        const r = highlightBars(raw, h, tc);
+        if (r) bands.push({ from: raw[r.first].time, to: raw[r.last].time, color: h.color, label: h.label });
+      }
+    }
+    const t = currentTokens();
+    embedHighlights.setBands(bands, t.text, t.bg, readFontFamily());
+  }
+  createEffect(() => {
+    pageHighlights();
+    updateEmbedHighlights();
+  });
 
   // Time-axis precision: seconds show "14:30:05", intraday "Apr 22 14:30",
   // daily/weekly/monthly just "Apr 22".
@@ -151,6 +179,7 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
     },
     sessionBreaks,
     sessionBackgrounds,
+    embedHighlights,
     timeScaleBehavior: timeScale.behavior,
     updateSessionBreaks,
   };
