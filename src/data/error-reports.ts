@@ -134,6 +134,24 @@ export function reportWorkerLoad(where: string, url: string, cause: string, atte
   submit("worker_load", "WorkerLoadError", `worker failed to start (${cause})`, "", { where, source: url || undefined }, { attempt });
 }
 
+const unorderedSeen = new Set<string>();
+
+/**
+ * A study output whose points were not in ascending time order: the indicators' renderer put them in order (the chart
+ * library throws "Value is null" at paint on them, #360). Sent once per study and output, with what locates the cause.
+ */
+export function reportUnorderedData(
+  study: string,
+  info: { output: string; seriesType: string; points: number; dropped: number; index: number; time: number; previous: number },
+  live: boolean,
+): void {
+  const key = `${study}|${info.output}`;
+  if (unorderedSeen.has(key)) return;
+  unorderedSeen.add(key);
+  const { seriesType, ...rest } = info;
+  submit("study_data", "UnorderedData", `${seriesType} points out of time order`, "", { where: `study ${study}` }, { ...rest, live: live ? 1 : 0 });
+}
+
 /** Listen for uncaught errors and unhandled rejections, from page start. */
 export function installErrorReports(): void {
   window.addEventListener("error", (e: ErrorEvent) => {
@@ -170,6 +188,7 @@ export function resetErrorReports(): void {
   send = null;
   buffer.length = 0;
   seen.clear();
+  unorderedSeen.clear();
   reported = 0;
   log.length = 0;
 }

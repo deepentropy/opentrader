@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cleanText, reportError, reportWorkerError, reportWorkerLoad, resetErrorReports, startErrorReports } from "../error-reports";
+import { cleanText, reportError, reportUnorderedData, reportWorkerError, reportWorkerLoad, resetErrorReports, startErrorReports } from "../error-reports";
 
 type Sent = { event: string; props: Record<string, string | number> };
 
@@ -72,5 +72,16 @@ describe("error reports", () => {
     expect(sent).toHaveLength(2);
     expect(sent[0].props).toMatchObject({ kind: "worker_load", message: "worker failed to start (network)", source: "worker-tK41tuzE.js", attempt: 1 });
     expect(sent[1].props.attempt).toBe(2);
+  });
+
+  it("sends a study's points out of time order once per study and output (#360)", () => {
+    const sent = collect();
+    const info = { output: "vol", seriesType: "Histogram", points: 6000, dropped: 1, index: 5999, time: 1700000060, previous: 1700000060 };
+    reportUnorderedData("volume", info, true);
+    reportUnorderedData("volume", { ...info, dropped: 2 }, true);
+    reportUnorderedData("volume", { ...info, output: "vol_ma", seriesType: "Line" }, false);
+    expect(sent).toHaveLength(2);
+    expect(sent[0].props).toMatchObject({ kind: "study_data", name: "UnorderedData", message: "Histogram points out of time order", where: "study volume", output: "vol", points: 6000, dropped: 1, index: 5999, live: 1 });
+    expect(sent[1].props).toMatchObject({ output: "vol_ma", live: 0 });
   });
 });

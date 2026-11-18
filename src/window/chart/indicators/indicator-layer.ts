@@ -26,6 +26,7 @@ import { setSourceResolver, type Bar, type PlotConfig, type IndicatorResult } fr
 import type { StudyChart } from './script-chart';
 import type { ChartContext as IndicatorChartContext, IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { IndicatorRenderer, type PlotOverride } from 'lightweight-charts-indicators/render';
+import { reportUnorderedData } from '../../../data/error-reports';
 import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
 import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
@@ -866,6 +867,7 @@ export class IndicatorLayer {
   /** Draw the last result (nothing when not drawn or when it failed).
    *  `reuseSeries`: keep the series of the previous draw (live update). */
   private draw(reuseSeries = false): void {
+    this.liveDraw = reuseSeries;
     this.detachMarkers();
     this.removeExtras();
     this.plotSeries = [];
@@ -989,12 +991,24 @@ export class IndicatorLayer {
     return sessionFutureSlots(chart.timeframe, chart.sessionType === 'extended' ? sessions.extended : sessions.regular, sessions.barGrid);
   }
 
+  /** The draw under way is a live update (reuseSeries). */
+  private liveDraw = false;
+
   /** The renderer of the current main series (a new one when it changed). */
   private rendererFor(): IndicatorRenderer {
     const main = this.mainSeries();
     if (!this.renderer || main !== this.rendererMain) {
       try { this.renderer?.clear(); } catch { /* the old main series is gone */ }
-      this.renderer = new IndicatorRenderer(this.chart, { paneIndex: this.paneIndex, mainSeries: main ?? undefined });
+      this.renderer = new IndicatorRenderer(this.chart, {
+        paneIndex: this.paneIndex,
+        mainSeries: main ?? undefined,
+        // Points out of time order are drawn in order; which study gave them tells where they come from (#360).
+        // A user's script is not named.
+        onUnorderedData: (info) => {
+          const id = this.entry?.id ?? '';
+          reportUnorderedData(isUserIndicatorId(id) || isStrategyId(id) ? 'script' : id, info, this.liveDraw);
+        },
+      });
       this.rendererMain = main;
     }
     return this.renderer;
