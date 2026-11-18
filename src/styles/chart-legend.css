@@ -31,7 +31,7 @@
   pointer-events: none;
   user-select: none;
   font-family: var(--font-family-base);
-  color: var(--color-main-text);
+  color: var(--ot-legend-text-color, var(--color-main-text));
 }
 
 /* item — the single source row. */
@@ -73,15 +73,13 @@
   font-size: 16px;
   font-weight: 400;
   line-height: 20px;
-  /* The title row is dimmer than the values (#B2B5BE on the dark theme;
-     values keep --color-main-text). */
-  color: var(--ot-legend-title-color);
+  /* Match the chart's scale text; retain the theme title color as fallback. */
+  color: var(--ot-legend-text-color, var(--ot-legend-title-color));
 }
 
-/* The ACTIVE chart's legend title is brighter on the dark theme (#DBDBDB;
-   inactive charts keep #B2B5BE); #0F0F0F on the light theme. */
+/* Use the active-title theme color only when no chart text override is set. */
 .chart-grid-cell.is-active .ot-legend-titles {
-  color: var(--ot-legend-title-active-color);
+  color: var(--ot-legend-text-color, var(--ot-legend-title-active-color));
 }
 
 .ot-legend-title-piece {
@@ -194,7 +192,7 @@
 /* The O/H/L/C letters. */
 .ot-legend-value-title {
   padding-right: 1px;
-  color: var(--color-main-text);
+  color: var(--ot-legend-text-color, var(--color-main-text));
 }
 
 /* The numbers + the change item — coloured by direction. */
