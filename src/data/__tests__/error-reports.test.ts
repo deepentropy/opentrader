@@ -21,6 +21,13 @@ describe("error reports", () => {
     expect(cleanText("at run (http://tauri.localhost/assets/App-x1y2.js:12:345)")).toBe("at run (App-x1y2.js:12:345)");
   });
 
+  it("keeps the property a TypeError names, not other quoted text", () => {
+    expect(cleanText("Cannot read properties of undefined (reading 'time')")).toBe("Cannot read properties of undefined (reading 'time')");
+    expect(cleanText("Cannot set properties of null (setting '$v')")).toBe("Cannot set properties of null (setting '$v')");
+    expect(cleanText("Cannot read properties of undefined (reading 'My list')")).toBe("Cannot read properties of undefined (reading '…')");
+    expect(cleanText("reading 'secret' failed")).toBe("reading '…' failed");
+  });
+
   it("waits for the statistics, then sends each distinct error once", () => {
     // The same error thrown again from the same place.
     const thrown = () => new TypeError("x is undefined");

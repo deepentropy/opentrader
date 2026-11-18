@@ -77,8 +77,10 @@ export function windowResult<B extends Timed, R extends { plots?: Record<string,
   win: DrawWindow,
 ): { bars: B[]; result: R } {
   const [a, b] = barRange(bars, win);
-  const from = a === 0 ? -Infinity : timeOf(bars[a]);
-  const to = b === bars.length ? Infinity : timeOf(bars[b - 1]);
+  // A window made for other bars may lie past either end of these (#359): nothing is in it.
+  const outside = a === b && bars.length > 0;
+  const from = outside ? Infinity : a === 0 ? -Infinity : timeOf(bars[a]);
+  const to = outside ? -Infinity : b === bars.length ? Infinity : timeOf(bars[b - 1]);
   const r = result as R & Record<string, unknown>;
   const out: Record<string, unknown> = { ...r };
   const plotCuts = new Map<string, { a: number; b: number; n: number }>();

@@ -61,7 +61,9 @@ function cleanAddress(url: string): string {
 export function cleanText(text: string, max = 300): string {
   return text
     .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s)'"`]+/gi, cleanAddress)
-    .replace(/(["'`])[^"'`\n]{1,200}\1/g, "$1…$1")
+    // The property a TypeError names ("Cannot read properties of undefined (reading 'time')") is code, kept.
+    .replace(/(\((?:reading|setting) )?(["'`])([^"'`\n]{1,200})\2/g, (_m, prop: string | undefined, q: string, inner: string) =>
+      prop && /^[\w$]{1,60}$/.test(inner) ? `${prop}${q}${inner}${q}` : `${prop ?? ""}${q}…${q}`)
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "…@…")
     .replace(/(?:\b[A-Za-z]:)?(?:[\\/][^\\/\s:)'"`]+)+[\\/]([^\\/\s:)'"`]+)/g, (_m, last: string) => `…/${last}`)
     .slice(0, max);

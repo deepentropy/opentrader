@@ -435,6 +435,10 @@ export class IndicatorLayer {
 
   /** Bars the study draws (null: all), set by the controller as the view moves. */
   private drawWindow: DrawWindow | null = null;
+  /** The study was last given these bars. */
+  holdsBars(bars: readonly Bar[]): boolean {
+    return this.lastBars === bars;
+  }
   /** Draw in another window; `redraw`: the last result now, keeping the series drawn (no calculation). */
   setDrawWindow(win: DrawWindow | null, redraw = true): void {
     if (win === this.drawWindow) return;

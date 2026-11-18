@@ -93,4 +93,26 @@ describe("windowResult", () => {
     const { result: r } = windowResult(bars, result, { from: bars[2].time, to: Infinity });
     expect(r.plots.p.map((p) => p.time)).toEqual([bars[2].time, bars[3].time, bars[4].time, 9999]);
   });
+
+  it("draws nothing for a window made for other bars that lies past either end of these (#359)", () => {
+    // A study still holds its bars from before 65,000 older ones came; the view moved into the older ones.
+    const held = barsOf(10_000).map((b) => ({ ...b, time: b.time + 1_000_000 }));
+    const loaded = [...barsOf(65_000).map((b) => ({ ...b, time: b.time - 1_000_000 })), ...held];
+    const win = nextDrawWindow(loaded, { from: 20_000, to: 20_300 }, null)!;
+    expect(win.to).toBeLessThan(held[0].time);
+    const result = {
+      plots: { p: [...held, { time: held[held.length - 1].time + 10 }].map((b) => ({ time: b.time, value: 1 })) },
+      fills: [{ plot1: "p", plot2: "hline_lower", colors: held.map(() => "c") }],
+      markers: [{ time: held[3].time }],
+      lines: [{ x1: held[0].time }],
+    };
+    for (const w of [win, { from: held[held.length - 1].time + 1, to: Infinity }]) {
+      const { bars: cut, result: r } = windowResult(held, result, w);
+      expect(cut).toEqual([]);
+      expect(r.plots.p).toEqual([]);
+      expect(r.fills[0].colors).toEqual([]);
+      expect(r.markers).toEqual([]);
+      expect(r.lines).toBe(result.lines);
+    }
+  });
 });

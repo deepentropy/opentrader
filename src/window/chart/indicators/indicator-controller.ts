@@ -225,11 +225,14 @@ export class IndicatorController {
 
   /** Bars the studies draw on a long history (draw-window.ts); null: all. */
   private drawWindow: DrawWindow | null = null;
+  /** The bars the window was made for. */
+  private drawWindowBars: readonly Bar[] = [];
   /** The window for the view now; true when it changed. */
   private updateDrawWindow(): boolean {
     const view = pendingRange(this.chart) ?? this.chart.timeScale().getVisibleLogicalRange();
     if (!view) return false;
     const all = this.host.bars();
+    this.drawWindowBars = all;
     const chart = this.host.chartBars?.() ?? all;
     let next = nextDrawWindow(chart, view, this.drawWindow);
     // A slice of the bars: the studies draw on it only (their points on bars the chart does not have would move
@@ -249,14 +252,18 @@ export class IndicatorController {
   /** The chart was given other bars of the loaded ones (bar-slice.ts): the studies draw on them now. */
   followChart(): void {
     if (!this.updateDrawWindow()) return;
-    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setDrawWindow(this.drawWindow);
+    this.redrawInWindow();
   }
   /** The view settled near an edge of the window: the studies draw the bars around it (their results are kept). */
   private followView(): void {
     if (!this.updateDrawWindow()) return;
-    this.keepView(() => {
-      for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setDrawWindow(this.drawWindow);
-    });
+    this.keepView(() => this.redrawInWindow());
+  }
+  /** The studies calculated on the bars the window was made for draw in it. One still holding the bars before a page
+   *  of history (its calculation waits for the paging to pause) keeps its window: the new one may end before its
+   *  first bar (#359). It takes the window with its new bars. */
+  private redrawInWindow(): void {
+    for (const inst of this.instances.values()) if (!inst.owner && inst.layer.holdsBars(this.drawWindowBars)) inst.layer.setDrawWindow(this.drawWindow);
   }
 
   /** Bars of the other symbols the studies read; keys that moved wait here for one recalculation. */
@@ -637,6 +644,8 @@ export class IndicatorController {
     inst.layer.setDetachedScale(det?.id ?? null, det?.axis ?? false, !!o.scale);
     const drawn = !this.hidden.has(id) && this.onInterval(id);
     const inputs = this.effectiveInputs(id, entry);
+    // Bars that came since the window was made (a page of history before the debounced recalculation): its window.
+    if (!live && bars !== this.drawWindowBars && bars === this.host.bars()) this.updateDrawWindow();
     inst.layer.setDrawWindow(this.drawWindow, false);
     // The studies it reads that were not calculated (hidden) calculate now.
     this.ensureSources(id, entry, inputs);
