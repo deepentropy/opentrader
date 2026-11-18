@@ -58,6 +58,8 @@ type Props = {
   /** Price text of the main series (its Precision format); magnitude-based
    *  decimals when absent. */
   formatPrice?: (price: number) => string;
+  /** Canvas → Text color, shared with the chart scales. */
+  textColor?: string;
   /** Status line → Title select: "Name" (company name) | "Symbol" | "Symbol
    *  and name" (title source: description / ticker /
    *  ticker-and-description). Undefined = ticker. */
@@ -240,7 +242,7 @@ export function ChartLegend(props: Props) {
     props.values ? (props.values.single ? props.values.changeDir : props.values.barDir) : "up";
 
   return (
-    <div class="ot-legend">
+    <div class="ot-legend" style={{ "--ot-legend-text-color": props.textColor }}>
       <div class="ot-legend-source">
         {/* item — one flex line: titles + actions, then the values. */}
         <div class={`ot-legend-item${props.seriesHidden ? " is-disabled" : ""}${props.flagColor ? " is-flagged" : ""}${props.linkVisible && props.linkIcon ? " is-linked" : ""}`} data-name="legend-source-item">
