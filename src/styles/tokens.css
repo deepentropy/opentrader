@@ -231,7 +231,7 @@ html.theme-light {
   --color-brand-active: #1848cc;
   --color-brand-hover: #1e53e5;
   --color-chart-page-bg: #ebebeb;
-  --color-common-tooltip-bg: #2e2e2e;
+  --color-common-tooltip-bg: #fff;
   --color-danger: #f7525f;
   --color-danger-hover: #f23645;
   --color-danger-active: #cc2f3c;
@@ -396,7 +396,9 @@ html.theme-light {
   --color-boost-button-bg-hover: #ebebeb;
   --color-boost-button-border-hover: #ebebeb;
   --color-boost-button-border-default: #ebebeb;
-  --color-common-tooltip-text: #f2f2f2;
+  --color-common-hotkey-text: #fff;
+  --color-common-hotkey-bg: #575757;
+  --color-common-tooltip-text: #0f0f0f;
   --color-replay-data-mode: #f7525f;
   --color-legacy-success: #42bda8;
   --color-collapse-tabs-border: #f2f2f2;
@@ -1222,6 +1224,8 @@ html.theme-dark {
   --color-boost-button-bg-hover: #3d3d3d;
   --color-boost-button-border-hover: #3d3d3d;
   --color-boost-button-border-default: #4a4a4a;
+  --color-common-hotkey-text: #dbdbdb;
+  --color-common-hotkey-bg: #000;
   --color-common-tooltip-text: #f2f2f2;
   --color-replay-data-mode: #f7525f;
   --color-legacy-success: #42bda8;
