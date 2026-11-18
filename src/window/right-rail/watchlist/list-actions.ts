@@ -4,9 +4,11 @@
  */
 import { createEffect } from "solid-js";
 import { watchlistStore, consumeOpenListRequest, clearFiredForList, sectionId } from "../../../data/watchlist-store";
-import { showConfirm } from "../../../components/Dialogs";
+import { showConfirm, showNotice } from "../../../components/Dialogs";
+import { formatted, translateWith } from "../../../i18n/translator";
+import { numberText } from "../../../i18n/format";
 import { promptCopyWatchlist, promptNewWatchlist } from "../watchlist-prompts";
-import { parseWatchlistFile } from "./list-file";
+import { type ListFileError, MAX_LIST_FILE_ITEMS, MAX_LIST_FILE_KB, listFileTooBig, parseWatchlistFile } from "./list-file";
 import { type WatchlistCx } from "./context";
 
 /** What createListActions adds to the watchlist context. */
@@ -23,6 +25,20 @@ export interface ListActionsApi {
   renameList: () => void;
   saveAlert: (threshold: number) => void;
   uploadList: () => void;
+}
+
+/** Why an uploaded file made no list. */
+function refuseListFile(error: ListFileError): void {
+  if (error === "size") {
+    showNotice({ title: "File too big", text: formatted(translateWith("The file is larger than {0} KB.", numberText(MAX_LIST_FILE_KB))) });
+  } else if (error === "count") {
+    showNotice({ title: "Too many symbols", text: formatted(translateWith("A watchlist holds at most {0} symbols and sections.", numberText(MAX_LIST_FILE_ITEMS))) });
+  } else {
+    showNotice({
+      title: "Invalid file",
+      text: 'The file holds no list of symbols. Separate them with commas or put one per line, for example "NASDAQ:AAPL,NYSE:F" or "AAPL,F,MSFT".',
+    });
+  }
 }
 
 export function createListActions(cx: WatchlistCx): ListActionsApi {
@@ -65,8 +81,11 @@ export function createListActions(cx: WatchlistCx): ListActionsApi {
   // "Upload list…": open the hidden file picker; parsed in onUploadFile.
   const uploadList = () => cx.uploadInput?.click();
   const onUploadFile = (file: File) => {
+    if (listFileTooBig(file.size)) return refuseListFile("size");
     void file.text().then((text) => {
-      const { groups, extras } = parseWatchlistFile(text);
+      const parsed = parseWatchlistFile(text);
+      if ("error" in parsed) return refuseListFile(parsed.error);
+      const { groups, extras } = parsed;
       if (groups.length || extras.length) {
         // Imported lists start in "default" (file) order — see importList — so
         // rows keep the file's order and don't reshuffle as live quotes arrive.

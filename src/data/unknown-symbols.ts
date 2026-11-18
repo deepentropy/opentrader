@@ -13,11 +13,16 @@ const [unknown, setUnknown] = createSignal<ReadonlySet<string>>(new Set());
 /** The data source said `symbol` doesn't exist (reactive). */
 export const isUnknownSymbol = (symbol: string): boolean => unknown().has(symbol.toUpperCase());
 
+/** `error` says the symbol doesn't exist. */
+export function isNotFoundError(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return NOT_FOUND.test(text);
+}
+
 /** Remember `symbol` as unknown when `error` says so. */
 export function noteSymbolError(symbol: string, error: unknown): void {
-  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   const key = symbol.toUpperCase();
-  if (!NOT_FOUND.test(text) || unknown().has(key)) return;
+  if (!isNotFoundError(error) || unknown().has(key)) return;
   setUnknown(new Set([...unknown(), key]));
 }
 

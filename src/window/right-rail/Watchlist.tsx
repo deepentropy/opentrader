@@ -425,7 +425,7 @@ export function Watchlist(props: WatchlistProps) {
       <input
         ref={uploadInput}
         type="file"
-        accept=".txt,.csv,text/plain"
+        accept=".txt,text/plain"
         style={{ display: "none" }}
         onChange={(e) => {
           const file = e.currentTarget.files?.[0];

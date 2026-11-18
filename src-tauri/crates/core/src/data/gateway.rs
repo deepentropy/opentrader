@@ -161,6 +161,18 @@ pub struct ApiError {
 }
 
 impl ApiError {
+    /// The answer for a symbol that cannot exist, given without asking.
+    pub fn unknown_symbol(what: &'static str) -> Self {
+        Self {
+            what,
+            code: ErrorCode::NotFound,
+            code_text: "NOT_FOUND".into(),
+            message: "unknown symbol".into(),
+            reference: None,
+            retry_after: None,
+        }
+    }
+
     /// The request did not reach the gateway or its answer could not be read.
     pub fn transport(what: &'static str, message: impl Into<String>) -> Self {
         Self {

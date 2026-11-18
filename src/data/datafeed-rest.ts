@@ -9,7 +9,7 @@
 import * as gen from "../bindings";
 import { commands, type Candle, type History, type TickerInfo } from "../bindings";
 import { retryTransient } from "./connection";
-import { noteSymbolError } from "./unknown-symbols";
+import { isNotFoundError, noteSymbolError } from "./unknown-symbols";
 import { isLocalSymbol, localSnapshot, localTickerInfo } from "./local-series";
 
 export type { TickerInfo } from "../bindings";
@@ -94,7 +94,8 @@ const INFO_TTL_MS = 60 * 60_000;
 
 /** Ticker info requests, one per symbol: every caller waiting out a lost
  *  connection shares one retry loop, and the answer serves every caller for
- *  INFO_TTL_MS. A failure is not kept. */
+ *  INFO_TTL_MS. So does "unknown symbol" (a watchlist of uploaded junk would
+ *  ask at every look, #355); another failure is not kept. */
 const infoCache = new Map<string, { at: number; p: Promise<TickerInfo> }>();
 
 /** Reference data of `symbol`; a server that cannot be reached is tried again
@@ -109,7 +110,8 @@ export function getTickerInfo(symbol: string): Promise<TickerInfo> {
   p.then(
     () => { entry.at = Date.now(); },
     (e) => {
-      if (infoCache.get(symbol) === entry) infoCache.delete(symbol);
+      if (isNotFoundError(e)) entry.at = Date.now();
+      else if (infoCache.get(symbol) === entry) infoCache.delete(symbol);
       noteSymbolError(symbol, e);
     },
   );

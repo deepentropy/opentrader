@@ -30,6 +30,7 @@
  */
 use crate::data::market_rest::{self, LiveTick};
 use crate::data::trading_calendar;
+use crate::data::symbol::could_be_ticker;
 use crate::screener::clock::ny_offset_hours;
 use chrono::{DateTime, Timelike, Utc};
 use crate::data::market_stream::{ticker_of, ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
@@ -169,7 +170,11 @@ impl Poller {
         if tickers.is_empty() {
             return;
         }
-        let symbols: Vec<String> = tickers.into_iter().collect();
+        // A watchlist row that cannot be a ticker (an uploaded table's cell) is not asked for (#355).
+        let symbols: Vec<String> = tickers.into_iter().filter(|t| could_be_ticker(t)).collect();
+        if symbols.is_empty() {
+            return;
+        }
 
         let ticks = match market_rest::fetch_snapshots(&symbols).await {
             Ok(t) => t,
