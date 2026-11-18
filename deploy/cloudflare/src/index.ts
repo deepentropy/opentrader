@@ -147,6 +147,10 @@ export default {
       if (blockedNetwork(request, env)) return new Response("network not allowed", { status: 403 });
       return getContainer(env.SERVER, INSTANCE).fetch(request);
     }
+    // Chart links (#350) open the app's one page, which reads the symbol from the address.
+    if (url.pathname === "/chart" || url.pathname === "/chart/") {
+      return env.ASSETS.fetch(new Request(new URL("/", url), request));
+    }
     // Not one of the app's files: no page here (search engines drop the address).
     return new Response(NOT_FOUND, { status: 404, headers: { "content-type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex" } });
   },
