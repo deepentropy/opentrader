@@ -1,0 +1,79 @@
+name: Feature request
+description: Suggest a new feature or a change to an existing one.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please search the [open issues](https://github.com/deepentropy/opentrader/issues) first: if it is there, add a 👍 or a comment instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The task or problem behind the request, in your own trading or analysis.
+      placeholder: When I compare two stocks, I have to switch charts back and forth…
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: How it should work, step by step. Where it would appear in the app (menu, toolbar, panel, dialog).
+    validations:
+      required: true
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Do you know another charting app that does this?
+      description: Describe how it works there. Screenshots help a lot.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the app
+      options:
+        - Chart (candles, scales, scrolling, zoom)
+        - Indicators
+        - Drawings
+        - Script editor / scripts
+        - Strategy tester
+        - Screener
+        - Watchlist
+        - Alerts
+        - Bar Replay
+        - Trading panel / broker plugin
+        - Data plugin / imported data
+        - Layouts, tabs, saving
+        - Coding agent (MCP)
+        - Community
+        - Settings, languages, updates
+        - New area
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: How important is it for you?
+      options:
+        - Nice to have
+        - I would use it regularly
+        - It blocks me from using the app
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you use today
+      description: How you do it now, if at all.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Mock-ups, links, examples of the expected result.

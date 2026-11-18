@@ -1,0 +1,122 @@
+name: Bug report
+description: Something in the app does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The more precise the steps, the faster we can reproduce and fix it.
+        Please search the [open issues](https://github.com/deepentropy/opentrader/issues) first: if yours is there, add a comment instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the problem in a few sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Start from opening the app. Name the symbol, the interval and the indicators, drawings or scripts involved.
+      placeholder: |
+        1. Open a chart of AAPL on 5 minutes
+        2. Add the RSI indicator
+        3. Scroll back two days
+        4. The RSI line disappears
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does it happen?
+      options:
+        - Every time
+        - Sometimes
+        - Only once so far
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the app
+      options:
+        - Chart (candles, scales, scrolling, zoom)
+        - Indicators
+        - Drawings
+        - Script editor / scripts
+        - Strategy tester
+        - Screener
+        - Watchlist
+        - Alerts
+        - Bar Replay
+        - Trading panel / broker plugin
+        - Data plugin / imported data
+        - Layouts, tabs, saving
+        - Coding agent (MCP)
+        - Community
+        - Settings, languages, updates
+        - Installation / start-up
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in Settings > About (for example 0.4.27). Write "web" for the online version.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (AppImage)
+        - Linux (.deb / .rpm)
+        - Linux (Flatpak)
+        - Web (online version)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system version
+      placeholder: Windows 11 24H2, macOS 15.1, Ubuntu 24.04…
+
+  - type: textarea
+    id: script
+    attributes:
+      label: Script source (if a script is involved)
+      description: Paste the smallest script that shows the problem.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or video
+      description: Drag images or a short recording here. Show the whole chart, with the symbol and interval visible.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Error messages, when it started (after an update?), what you already tried.
