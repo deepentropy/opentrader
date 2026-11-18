@@ -10,7 +10,7 @@
  * The worker chunk (monaco-sized nothing — just oakscriptjs, ~100 KB) is
  * fetched lazily on the first request.
  */
-import OakWorkerCtor from "./oakscript-worker?worker";
+import oakWorkerUrl from "./oakscript-worker?worker&url";
 import type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakRequest, OakResponse, OakScriptError, OakSourceData, OakSymbolData } from "./engine-types";
 import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
@@ -18,7 +18,7 @@ import type { BacktestOutput } from "../../backtester/worker-types";
 import { intrabarsRef } from "../../backtester/intrabars";
 import { translateWith } from "../../i18n/translator";
 import { SentRuns } from "../../backtester/live-runs";
-import { reportWorkerError } from "../../data/error-reports";
+import { startWorker, type AppWorker } from "../../data/worker-start";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakProfile, OakScriptError };
 
@@ -51,7 +51,7 @@ type Pending = {
 };
 
 export class OakEngine {
-  private worker: Worker | null = null;
+  private worker: AppWorker | null = null;
   private pending = new Map<number, Pending>();
   private seq = 0;
   private gen = 0;
@@ -72,10 +72,9 @@ export class OakEngine {
     return this.gen;
   }
 
-  private ensureWorker(): Worker {
+  private ensureWorker(): AppWorker {
     if (this.worker) return this.worker;
-    const worker = new OakWorkerCtor();
-    worker.onmessage = (e: MessageEvent<OakResponse>) => {
+    const onmessage = (e: MessageEvent<OakResponse>) => {
       const p = this.pending.get(e.data.id);
       if (!p) return;
       const res = e.data;
@@ -86,10 +85,7 @@ export class OakEngine {
       clearTimeout(p.timer);
       p.resolve(e.data);
     };
-    worker.onerror = (e) => {
-      reportWorkerError("script", e);
-      this.restart("The script worker crashed.");
-    };
+    const worker = startWorker(oakWorkerUrl, "script", { message: onmessage, crash: () => this.restart("The script worker crashed.") });
     this.worker = worker;
     return worker;
   }

@@ -25,6 +25,15 @@ import { type ChartCx } from "./context";
  *  closest (277 ms median), measured on a busy symbol. */
 const LIVE_PAINT_MS = 33;
 
+/** The bar a live paint gives the series' incremental update, or null to set the whole series again. The paint
+ *  waits for a frame and the studies' results (up to LIVE_WAIT_MS): the series may have been given other bars
+ *  meanwhile (another interval or symbol, a reload), whose newest bar can be later than the queued one, which the
+ *  chart library refuses (#361). The bars' own newest bar is painted, the queued one only told which bar moved. */
+export function liveUpdateBar(queued: OHLC | null, bars: readonly OHLC[]): OHLC | null {
+  const last = bars[bars.length - 1];
+  return queued && last && last.time === queued.time ? last : null;
+}
+
 /** What createLive adds to the chart context. */
 export interface LiveApi {
   liveAppendedWhileHidden: boolean;
@@ -162,11 +171,12 @@ export function createLive(cx: ChartCx): LiveApi {
   function paintLive(next: OHLC | null, appended: boolean) {
     withCrosshairParked(() => paintLiveData(next, appended));
   }
-  function paintLiveData(next: OHLC | null, appended: boolean) {
+  function paintLiveData(queued: OHLC | null, appended: boolean) {
     if (!cx.series) return;
     const st = currentTokens().styles;
     // The chart given a slice of older bars (bar-slice.ts) keeps its series as it is; the studies update.
     const onChart = cx.sliceAtEnd();
+    const next = liveUpdateBar(queued, cx.raw);
     if (
       onChart &&
       next &&

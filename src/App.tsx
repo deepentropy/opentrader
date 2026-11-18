@@ -34,6 +34,7 @@ import { whenAlertLeader } from "./data/alert-backend";
 import { startScreenAlerts } from "./data/screen-alerts";
 import { AlertToasts, type AlertToastData } from "./window/alerts/AlertToast";
 import { UpdateRequiredBanner } from "./window/shell/UpdateRequiredBanner";
+import { NewBuildBanner } from "./window/shell/NewBuildBanner";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
 import { reopenLabel } from "./window/shell/closed-stack";
 import { initShellBus } from "./window/shell/shell-bus";
@@ -1272,6 +1273,7 @@ function App() {
       {/* Settings → Alerts → "Automatically hide toasts" (focused pane, default
           on): off keeps a popup until it is closed. */}
       <UpdateRequiredBanner />
+      <NewBuildBanner />
       <AlertToasts
         toasts={alertToasts()}
         autoHide={appearanceFrom(activePaneState().settings).autoHideToasts ?? true}

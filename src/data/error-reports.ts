@@ -1,6 +1,6 @@
 /*
  * App errors in the usage statistics (event `app_error`): uncaught errors, unhandled promise
- * rejections and crashed workers, so the failures nobody reports still show up. The listeners
+ * rejections, crashed workers and workers that did not start, so the failures nobody reports still show up. The listeners
  * start with the page; what happens before the statistics start (src/data/analytics.ts) waits in
  * a short buffer, and is dropped with the rest when statistics are off.
  *
@@ -61,7 +61,9 @@ function cleanAddress(url: string): string {
 export function cleanText(text: string, max = 300): string {
   return text
     .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s)'"`]+/gi, cleanAddress)
-    .replace(/(["'`])[^"'`\n]{1,200}\1/g, "$1…$1")
+    // The property a TypeError names ("Cannot read properties of undefined (reading 'time')") is code, kept.
+    .replace(/(\((?:reading|setting) )?(["'`])([^"'`\n]{1,200})\2/g, (_m, prop: string | undefined, q: string, inner: string) =>
+      prop && /^[\w$]{1,60}$/.test(inner) ? `${prop}${q}${inner}${q}` : `${prop ?? ""}${q}…${q}`)
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "…@…")
     .replace(/(?:\b[A-Za-z]:)?(?:[\\/][^\\/\s:)'"`]+)+[\\/]([^\\/\s:)'"`]+)/g, (_m, last: string) => `…/${last}`)
     .slice(0, max);
@@ -97,14 +99,18 @@ export function reportError(kind: string, error: unknown, at: { where?: string; 
   if (at.source && FOREIGN.test(at.source)) return;
   const stack = cleanStack(err?.stack);
   if (/(chrome|moz|safari)(-web)?-extension:/.test(err?.stack ?? "")) return;
-  const message = cleanText(raw);
+  submit(kind, name, cleanText(raw), stack, at);
+}
+
+/** Log, then send once per distinct error. `detail`: the report's message, cleaned already. */
+function submit(kind: string, name: string, detail: string, stack: string, at: { where?: string; source?: string; line?: number; column?: number }, extra: Report = {}): void {
   const top = stack.split("\n")[0] ?? "";
-  remember(at.where ? `${kind} (${at.where})` : kind, [name && `${name}:`, message, top && `(${top})`].filter(Boolean).join(" "));
-  const key = [kind, at.where ?? "", name, message, stack.split("\n")[0] ?? ""].join("|");
+  remember(at.where ? `${kind} (${at.where})` : kind, [name && `${name}:`, detail, top && `(${top})`].filter(Boolean).join(" "));
+  const key = [kind, at.where ?? "", name, detail, top, ...Object.values(extra)].join("|");
   if (seen.has(key) || reported >= MAX_PER_RUN) return;
   seen.add(key);
   reported++;
-  const report: Report = { kind, name, message, stack, run_seconds: Math.round(performance.now() / 1000) };
+  const report: Report = { kind, name, message: detail, stack, run_seconds: Math.round(performance.now() / 1000), ...extra };
   if (at.where) report.where = at.where;
   if (at.source) report.source = cleanAddress(at.source);
   if (at.line) report.line = at.line;
@@ -112,10 +118,40 @@ export function reportError(kind: string, error: unknown, at: { where?: string; 
   deliver(report);
 }
 
-/** A worker's `error` event (the worker crashed). */
+/** A worker's `error` event. A crash carries its error; an event with nothing in it is a script that did not load. */
 export function reportWorkerError(where: string, ev: Event): void {
   const e = ev as ErrorEvent;
-  reportError("worker", e.error ?? e.message ?? "", { where, source: e.filename || undefined, line: e.lineno || undefined, column: e.colno || undefined });
+  if (e.error == null && !e.message) {
+    reportWorkerLoad(where, "", "unknown", 1);
+    return;
+  }
+  reportError("worker", e.error ?? e.message, { where, source: e.filename || undefined, line: e.lineno || undefined, column: e.colno || undefined });
+}
+
+/**
+ * A worker whose script did not load (src/data/worker-start.ts), counted apart from the crashes: `url` its script,
+ * `cause` what the check after the failure found, `attempt` 1 for the first start, 2 for the start again.
+ */
+export function reportWorkerLoad(where: string, url: string, cause: string, attempt: number): void {
+  submit("worker_load", "WorkerLoadError", `worker failed to start (${cause})`, "", { where, source: url || undefined }, { attempt });
+}
+
+const unorderedSeen = new Set<string>();
+
+/**
+ * A study output whose points were not in ascending time order: the indicators' renderer put them in order (the chart
+ * library throws "Value is null" at paint on them, #360). Sent once per study and output, with what locates the cause.
+ */
+export function reportUnorderedData(
+  study: string,
+  info: { output: string; seriesType: string; points: number; dropped: number; index: number; time: number; previous: number },
+  live: boolean,
+): void {
+  const key = `${study}|${info.output}`;
+  if (unorderedSeen.has(key)) return;
+  unorderedSeen.add(key);
+  const { seriesType, ...rest } = info;
+  submit("study_data", "UnorderedData", `${seriesType} points out of time order`, "", { where: `study ${study}` }, { ...rest, live: live ? 1 : 0 });
 }
 
 /** Listen for uncaught errors and unhandled rejections, from page start. */
@@ -154,6 +190,7 @@ export function resetErrorReports(): void {
   send = null;
   buffer.length = 0;
   seen.clear();
+  unorderedSeen.clear();
   reported = 0;
   log.length = 0;
 }
