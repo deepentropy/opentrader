@@ -3,7 +3,8 @@ import { localNumber } from "../../../i18n/format";
 /*
  * Strategies on a chart view: their filled orders as trade marks on the price
  * series, and the Settings dialog config of a strategy study. The trade
- * journal's trades on the chart's symbol share the same marks.
+ * journal's trades on the chart's symbol and the marks a page puts on an
+ * embedded chart (#366) share the same marks.
  */
 /*
  * ChartView — single chart pane backed by lightweight-charts (v5).
@@ -29,6 +30,7 @@ import { tradeJournal, type JournalTrade } from "../../../data/trade-journal";
 import { intervalSec } from "../../../data/trade-journal-calc";
 import { type ChartCx } from "./context";
 import { lastAtOrBefore } from "../time-search";
+import { chartTimeContext, embedMarkers, markerBar, onChart } from "../../../embed/annotations";
 
 /** What createStrategyMarks adds to the chart context. */
 export interface StrategyMarksApi {
@@ -88,7 +90,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
         );
       }
     }
-    marks.push(...journalMarks());
+    marks.push(...journalMarks(), ...pageMarks());
     marks.sort((a, b) => (a.time as number) - (b.time as number));
     if (tradeMarkersSeries !== cx.series) {
       tradeMarkers?.detach();
@@ -146,6 +148,32 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
     tradeJournal.selectedId();
     applyStrategyMarkers();
   });
+
+  // An embedded chart: the page's marks on this chart's symbol.
+  const pageMarkers = () => embedMarkers().filter((m) => onChart(m.symbol, props.symbol ?? ""));
+  function pageMarks(): SeriesMarker<Time>[] {
+    const list = pageMarkers();
+    const raw = cx.raw;
+    if (list.length === 0 || raw.length === 0) return [];
+    const tc = chartTimeContext(props.symbol ?? "", props.interval ?? "1D");
+    const out: SeriesMarker<Time>[] = [];
+    for (const m of list) {
+      const i = markerBar(raw, m.time, tc);
+      if (i < 0) continue;
+      out.push({
+        time: raw[i].time,
+        position: m.position === "above" ? "aboveBar" : m.position === "below" ? "belowBar" : "inBar",
+        shape: m.shape,
+        color: m.color ?? "#2962ff",
+        text: m.text ?? "",
+      });
+    }
+    return out;
+  }
+  createEffect(() => {
+    embedMarkers();
+    applyStrategyMarkers();
+  });
   let journalKey = "";
   function syncJournalMarks() {
     // First and last bar: older history, a new bar, a Bar Replay step.
@@ -153,7 +181,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
     const key = `${props.symbol}|${raw.length ? `${raw[0].time as number}-${raw[raw.length - 1].time as number}` : ""}`;
     if (key === journalKey) return;
     journalKey = key;
-    if (journalTrades().length > 0) applyStrategyMarkers();
+    if (journalTrades().length > 0 || pageMarkers().length > 0) applyStrategyMarkers();
   }
 
   /** A rebuilt series took its trade marks with it: they are made again. */

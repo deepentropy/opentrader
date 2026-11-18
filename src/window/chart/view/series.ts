@@ -299,6 +299,7 @@ export function createSeries(cx: ChartCx): SeriesApi {
     // their boundaries against the current bars.
     series.attachPrimitive(cx.sessionBreaks);
     series.attachPrimitive(cx.sessionBackgrounds);
+    series.attachPrimitive(cx.embedHighlights);
     if (cx.lockAxis) series.attachPrimitive(cx.lockAxis);
     // Strategy trade marks belong to the series: re-attach to the new one.
     cx.forgetTradeMarkers();

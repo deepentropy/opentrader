@@ -8,6 +8,7 @@
  * rather than failing the chart. Kept free of app imports: the boot reads it
  * before any store loads.
  */
+import { LAYOUT_SPECS, type LayoutId } from "../window/chart/layouts";
 
 /** Date ranges a chart can open on (the bottom bar's range tabs). */
 export const EMBED_RANGES = ["1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"] as const;
@@ -18,6 +19,33 @@ export type EmbedStudy = { id: string; inputs?: Record<string, unknown> };
 export const EMBED_WIDGETS = ["chart", "ticker-tape", "mini-chart", "quote"] as const;
 export type EmbedWidget = (typeof EMBED_WIDGETS)[number];
 
+/** A time a page gives (#366): a calendar date, a wall-clock time in the
+ *  exchange's zone, or an instant (UNIX seconds). */
+export type EmbedTime =
+  | { date: { y: number; m: number; d: number } }
+  | { wall: { y: number; m: number; d: number; minutes: number } }
+  | { sec: number };
+
+export const MARKER_POSITIONS = ["above", "below", "inBar"] as const;
+export const MARKER_SHAPES = ["arrowUp", "arrowDown", "circle", "square"] as const;
+
+/** A mark on the bar holding `time`; with `symbol`, only on that symbol's chart. */
+export type EmbedMarker = {
+  time: EmbedTime;
+  text?: string;
+  color?: string;
+  position: (typeof MARKER_POSITIONS)[number];
+  shape: (typeof MARKER_SHAPES)[number];
+  symbol?: string;
+};
+
+/** A shaded period, over the bars from `from` to `to`; with `symbol`, only on that symbol's chart. */
+export type EmbedHighlight = { from: EmbedTime; to: EmbedTime; color?: string; label?: string; symbol?: string };
+
+/** At most this many marks and periods: they ride in the iframe's address. */
+export const MAX_MARKERS = 500;
+export const MAX_HIGHLIGHTS = 50;
+
 /** Colours and font of the page around the embed (its `--opentrader-*` CSS properties). */
 export type EmbedColors = Partial<Record<"background" | "text" | "accent" | "up" | "down" | "border" | "font", string>>;
 const COLOR_KEYS = ["background", "text", "accent", "up", "down", "border"] as const;
@@ -25,13 +53,21 @@ const COLOR_KEYS = ["background", "text", "accent", "up", "down", "border"] as c
 export type EmbedConfig = {
   widget: EmbedWidget;
   symbol: string;
-  /** Ticker tape: its symbols, in order. */
+  /** Ticker tape: its symbols, in order (none given: DEFAULT_TAPE). Chart with
+   *  a layout: one per chart (none given: every chart shows `symbol`). */
   symbols: string[];
   /** Ticker tape: a scrolling row, or a column. */
   direction: "horizontal" | "vertical";
   hideLogos: boolean;
   interval: string;
   range?: EmbedRange;
+  /** Chart: the span it opens framed on (wins over `range`). */
+  from?: EmbedTime;
+  to?: EmbedTime;
+  /** Chart: several charts in a layout template. */
+  layout?: LayoutId;
+  markers: EmbedMarker[];
+  highlights: EmbedHighlight[];
   chartType?: string;
   theme?: "light" | "dark";
   locale?: string;
@@ -63,12 +99,14 @@ export const DEFAULT_TAPE = ["AMEX:SPY", "NASDAQ:QQQ", "NASDAQ:AAPL", "NASDAQ:MS
 export const EMBED_DEFAULTS: EmbedConfig = {
   widget: "chart",
   symbol: "NASDAQ:AAPL",
-  symbols: DEFAULT_TAPE,
+  symbols: [],
   direction: "horizontal",
   hideLogos: false,
   interval: "1D",
   extendedHours: false,
   studies: [],
+  markers: [],
+  highlights: [],
   hideVolume: false,
   compare: [],
   allowSymbolChange: false,
@@ -85,6 +123,9 @@ export const EMBED_DEFAULTS: EmbedConfig = {
   popupHeight: 650,
   colors: {},
 };
+
+/** A ticker tape's symbols: the page's, or DEFAULT_TAPE. */
+export const tapeSymbols = (c: EmbedConfig): string[] => (c.symbols.length ? c.symbols : DEFAULT_TAPE);
 
 /** At most this many symbols in a ticker tape. */
 export const MAX_TAPE = 30;
@@ -156,17 +197,109 @@ const colorsOf = (v: unknown): EmbedColors => {
   return out;
 };
 
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const WALL_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
+const ZONED_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i;
+
+/** A real calendar date (month 0-based), or null. */
+function dateOf(y: number, m: number, d: number): { y: number; m: number; d: number } | null {
+  const t = new Date(Date.UTC(y, m, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m && t.getUTCDate() === d ? { y, m, d } : null;
+}
+
+/** A page's time: "2026-03-14" (a date), "2026-03-14 10:30" (exchange time), ISO with Z or an offset, or UNIX
+ *  seconds (milliseconds read as such). Anything else: undefined. */
+export function timeOf(v: unknown): EmbedTime | undefined {
+  if (typeof v === "number") {
+    if (!Number.isFinite(v) || v <= 0) return undefined;
+    return { sec: Math.floor(v > 1e11 ? v / 1000 : v) };
+  }
+  // Already read (settings changed in place are read over the current ones).
+  if (v && typeof v === "object") {
+    const t = v as Record<string, { y?: unknown; m?: unknown; d?: unknown; minutes?: unknown } | undefined> & { sec?: unknown };
+    if (typeof t.sec === "number") return timeOf(t.sec);
+    const d = t.date ?? t.wall;
+    if (!d || typeof d.y !== "number" || typeof d.m !== "number" || typeof d.d !== "number") return undefined;
+    const date = dateOf(d.y, d.m, d.d);
+    if (!date) return undefined;
+    if (t.date) return { date };
+    const minutes = d.minutes;
+    return typeof minutes === "number" && Number.isInteger(minutes) && minutes >= 0 && minutes < 1440 ? { wall: { ...date, minutes } } : undefined;
+  }
+  if (typeof v !== "string") return undefined;
+  const s = v.trim();
+  if (/^\d+$/.test(s)) return timeOf(Number(s));
+  let m = DATE_RE.exec(s);
+  if (m) {
+    const date = dateOf(+m[1], +m[2] - 1, +m[3]);
+    return date ? { date } : undefined;
+  }
+  m = WALL_RE.exec(s);
+  if (m) {
+    const date = dateOf(+m[1], +m[2] - 1, +m[3]);
+    const h = +m[4];
+    const mi = +m[5];
+    return date && h < 24 && mi < 60 ? { wall: { ...date, minutes: h * 60 + mi } } : undefined;
+  }
+  if (ZONED_RE.test(s)) {
+    const ms = Date.parse(s);
+    return Number.isFinite(ms) ? { sec: Math.floor(ms / 1000) } : undefined;
+  }
+  return undefined;
+}
+
+/** A page's text on the chart: one line, at most 100 characters. */
+const textOf = (v: unknown): string | undefined => {
+  if (typeof v !== "string" && typeof v !== "number") return undefined;
+  const t = String(v).replace(/\s+/g, " ").trim().slice(0, 100);
+  return t || undefined;
+};
+
+const colorOf = (v: unknown): string | undefined => (typeof v === "string" && COLOR_RE.test(v.trim()) ? v.trim() : undefined);
+
+const listOf = (v: unknown): Record<string, unknown>[] =>
+  Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x)) : [];
+
+function markersOf(v: unknown): EmbedMarker[] {
+  const out: EmbedMarker[] = [];
+  for (const r of listOf(v)) {
+    const time = timeOf(r.time);
+    if (!time) continue;
+    const position = MARKER_POSITIONS.find((p) => p === r.position) ?? "above";
+    const shape =
+      MARKER_SHAPES.find((s) => s === r.shape) ?? (position === "above" ? "arrowDown" : position === "below" ? "arrowUp" : "circle");
+    const text = textOf(r.text);
+    const color = colorOf(r.color);
+    const symbol = symbolOf(r.symbol);
+    out.push({ time, position, shape, ...(text ? { text } : {}), ...(color ? { color } : {}), ...(symbol ? { symbol } : {}) });
+    if (out.length === MAX_MARKERS) break;
+  }
+  return out;
+}
+
+function highlightsOf(v: unknown): EmbedHighlight[] {
+  const out: EmbedHighlight[] = [];
+  for (const r of listOf(v)) {
+    const from = timeOf(r.from);
+    const to = timeOf(r.to ?? r.from);
+    if (!from || !to) continue;
+    const label = textOf(r.label);
+    const color = colorOf(r.color);
+    const symbol = symbolOf(r.symbol);
+    out.push({ from, to, ...(label ? { label } : {}), ...(color ? { color } : {}), ...(symbol ? { symbol } : {}) });
+    if (out.length === MAX_HIGHLIGHTS) break;
+  }
+  return out;
+}
+
 /** Checked settings from what the page gave (an object, any shape). */
 export function parseEmbedConfig(raw: unknown): EmbedConfig {
   const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const c: EmbedConfig = { ...EMBED_DEFAULTS, studies: [], compare: [], watchlist: [], colors: {} };
+  const c: EmbedConfig = { ...EMBED_DEFAULTS, studies: [], compare: [], watchlist: [], markers: [], highlights: [], colors: {} };
   const widget = EMBED_WIDGETS.find((w) => w === r.widget);
   if (widget) c.widget = widget;
   c.symbol = symbolOf(r.symbol) ?? c.symbol;
-  if ("symbols" in r) {
-    const symbols = symbolsOf(r.symbols).slice(0, MAX_TAPE);
-    if (symbols.length) c.symbols = symbols;
-  }
+  if ("symbols" in r) c.symbols = symbolsOf(r.symbols).slice(0, MAX_TAPE);
   if (r.direction === "vertical") c.direction = "vertical";
   if (typeof r.interval === "string" && /^\d*[SDWM]?$/i.test(r.interval.trim()) && r.interval.trim()) {
     const iv = r.interval.trim().toUpperCase();
@@ -177,6 +310,12 @@ export function parseEmbedConfig(raw: unknown): EmbedConfig {
     const range = EMBED_RANGES.find((x) => x.toLowerCase() === (r.range as string).trim().toLowerCase());
     if (range) c.range = range;
   }
+  c.from = timeOf(r.from);
+  c.to = timeOf(r.to);
+  if (!c.from || !c.to) c.from = c.to = undefined;
+  if (typeof r.layout === "string" && Object.prototype.hasOwnProperty.call(LAYOUT_SPECS, r.layout)) c.layout = r.layout as LayoutId;
+  c.markers = markersOf(r.markers);
+  c.highlights = highlightsOf(r.highlights);
   if (typeof r.chartType === "string" && r.chartType.trim()) c.chartType = r.chartType.trim();
   if (r.theme === "light" || r.theme === "dark") c.theme = r.theme;
   if (typeof r.locale === "string" && /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(r.locale)) c.locale = r.locale;

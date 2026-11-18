@@ -83,6 +83,13 @@
         <label data-for="ticker-tape">Layout
           <select name="direction"><option value="horizontal">Scrolling row</option><option value="vertical">Column</option></select>
         </label>
+        <label data-for="chart">Charts
+          <select name="layout">
+            <option value="">One chart</option><option value="2h">Two, side by side</option><option value="2v">Two, stacked</option>
+            <option value="3h">Three, side by side</option><option value="4">Four</option>
+          </select>
+        </label>
+        <label data-for="chart" data-layout>Their symbols <input name="layoutSymbols" value="NASDAQ:AAPL, NASDAQ:MSFT" placeholder="one per chart" spellcheck="false"></label>
         <label data-for="chart">Interval
           <select name="interval">
             <option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option>
@@ -97,6 +104,8 @@
             <option value="1Y">1 year</option><option value="5Y">5 years</option><option value="All">All</option>
           </select>
         </label>
+        <label data-for="chart">From <input type="date" name="from"></label>
+        <label data-for="chart">To <input type="date" name="to"></label>
         <label data-for="chart">Chart type
           <select name="chartType">
             <option value="candle">Candles</option><option value="hollowCandle">Hollow candles</option><option value="bar">Bars</option>
@@ -122,6 +131,9 @@
         <label data-for="chart">Indicators <input name="studies" placeholder="e.g. rsi, macd" spellcheck="false"></label>
         <label data-for="chart">Compare with <input name="compare" placeholder="e.g. NASDAQ:MSFT" spellcheck="false"></label>
         <label data-for="chart">Watchlist <input name="watchlist" placeholder="e.g. NASDAQ:AAPL, NYSE:IBM" spellcheck="false"></label>
+        <label data-for="chart">Markers <textarea name="markers" rows="3" spellcheck="false" placeholder='[{"time": "2026-02-03", "text": "Earnings"}]'></textarea></label>
+        <label data-for="chart">Highlights <textarea name="highlights" rows="3" spellcheck="false" placeholder='[{"from": "2026-02-10", "to": "2026-02-20", "label": "Rally"}]'></textarea></label>
+        <p class="eb-error" id="eb-json" role="status" data-for="chart"></p>
         <fieldset data-for="chart">
           <legend>Chart parts</legend>
           <label class="eb-check"><input type="checkbox" name="allowSymbolChange"> Visitors can change the symbol</label>
@@ -178,7 +190,11 @@
       </div>
       <div>
         <h3>Changes and events</h3>
-        <p>Change the chart's <code>symbol</code>, <code>interval</code>, <code>chart-type</code> or any widget's <code>theme</code> attribute and it updates in place. Listen to <code>ot-ready</code>, <code>ot-symbol-change</code> and <code>ot-interval-change</code> on the chart, and <code>ot-symbol-click</code> on a widget, to follow what visitors do.</p>
+        <p>Change the chart's <code>symbol</code>, <code>symbols</code>, <code>interval</code>, <code>chart-type</code>, <code>markers</code>, <code>highlights</code>, <code>from</code>, <code>to</code> or any widget's <code>theme</code> attribute and it updates in place. Listen to <code>ot-ready</code>, <code>ot-symbol-change</code> and <code>ot-interval-change</code> on the chart, and <code>ot-symbol-click</code> on a widget, to follow what visitors do.</p>
+      </div>
+      <div>
+        <h3>Markers and periods</h3>
+        <p><code>markers</code> is a JSON list of <code>{"time", "text", "color", "position": "above" | "below" | "inBar", "shape": "arrowUp" | "arrowDown" | "circle" | "square"}</code>; <code>highlights</code> of <code>{"from", "to", "label", "color"}</code>. A time is a date (<code>"2026-03-14"</code>), a time at the exchange (<code>"2026-03-14 10:30"</code>), ISO with an offset or UNIX seconds. Add <code>"symbol"</code> to show one only on the chart of that symbol in a layout.</p>
       </div>
       <div>
         <h3>Size</h3>

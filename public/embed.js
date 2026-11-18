@@ -20,8 +20,15 @@
  * settings are read and checked there (src/embed/config.ts). The page's
  * --opentrader-background, -text, -accent, -up, -down, -border and -font CSS
  * properties on the element (or inherited) become its colours and font. The
- * chart's symbol, interval, chart-type and any embed's theme change in place;
- * any other change reloads it. The element (or the script's container)
+ * chart's symbol, interval, chart-type, the layout's symbols, its markers,
+ * highlights and from/to span, and any embed's theme change in place; any
+ * other change reloads it. markers and highlights are JSON lists in an
+ * attribute (#366):
+ *
+ *   <opentrader-chart symbol="NASDAQ:AAPL" from="2026-01-02" to="2026-03-31"
+ *     markers='[{"time": "2026-02-03", "text": "Earnings"}]'
+ *     highlights='[{"from": "2026-02-10", "to": "2026-02-20", "label": "Rally"}]'></opentrader-chart>
+ *   <opentrader-chart layout="2h" symbols="NASDAQ:AAPL,NASDAQ:MSFT" interval="1D"></opentrader-chart> The element (or the script's container)
  * dispatches ot-ready, ot-symbol-change (detail.symbol) and ot-interval-change
  * (detail.interval) for the chart, ot-symbol-click (detail.symbol) for a
  * widget's symbol.
@@ -36,7 +43,7 @@
   var FROM_PAGE = "opentrader-embed-host";
   // Each embed: its element, the height it takes when the page sets none, the settings changed in place, its credit.
   var WIDGETS = {
-    chart: { tag: "opentrader-chart", height: "500px", live: ["symbol", "interval", "chartType", "theme"], credit: "Chart by OpenTrader" },
+    chart: { tag: "opentrader-chart", height: "500px", live: ["symbol", "interval", "chartType", "theme", "symbols", "markers", "highlights", "from", "to"], credit: "Chart by OpenTrader" },
     "ticker-tape": { tag: "opentrader-ticker-tape", height: "70px", live: ["theme"], credit: "Quotes by OpenTrader" },
     "mini-chart": { tag: "opentrader-mini-chart", height: "244px", live: ["theme"], credit: "Chart by OpenTrader" },
     quote: { tag: "opentrader-quote", height: "96px", live: ["theme"], credit: "Quotes by OpenTrader" },
@@ -45,9 +52,9 @@
     "symbol", "symbols", "direction", "hide-logos", "interval", "range", "chart-type", "theme", "locale", "timezone",
     "extended-hours", "studies", "hide-volume", "compare", "allow-symbol-change", "hide-top-toolbar",
     "drawing-toolbar", "date-ranges", "hide-legend", "hide-snapshot-button", "watchlist", "details", "movers",
-    "popup-button", "popup-width", "popup-height",
+    "popup-button", "popup-width", "popup-height", "layout", "from", "to", "markers", "highlights",
   ];
-  var LISTS = ["studies", "compare", "watchlist", "symbols"];
+  var LISTS = ["studies", "compare", "watchlist", "symbols", "markers", "highlights"];
   var COLORS = ["background", "text", "accent", "up", "down", "border", "font"];
   var STYLE =
     ":host{display:block;position:relative}" +

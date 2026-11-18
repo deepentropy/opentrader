@@ -1,6 +1,7 @@
 /*
- * The chart an embed opens on (#338): one tab, one chart, built from the
- * embed's settings (the app would otherwise restore the visitor's tabs). The
+ * The chart an embed opens on (#338): one tab, built from the embed's settings
+ * (the app would otherwise restore the visitor's tabs): one chart, or a layout
+ * of charts with one symbol each, their interval and date range synced (#366). The
  * page's colours (#339) become the chart's own settings: background, candle
  * up/down colours, scale text and grid.
  */
@@ -11,12 +12,18 @@ import { CHART_TYPE_IDS, type ChartTypeId } from "../window/chart/chart-types";
 import { COMPARE_COLORS, newCompareStyle } from "../window/chart/compare/compare-style";
 import { DATE_RANGES } from "../window/bottom-bar/BottomBar";
 import { isSupportedResolution } from "../data/datafeed";
+import { defaultLayoutSync } from "../window/chart/layout-sync";
 
 /** The interval a chart opens on: the range's own interval when a range is set. */
 export function embedInterval(c: EmbedConfig): string {
   const range = c.range && DATE_RANGES.find((r) => r.id === c.range);
   if (range) return range.interval;
   return isSupportedResolution(c.interval) ? c.interval : "1D";
+}
+
+/** The symbol of each chart: the page's `symbols` in order, then `symbol`. */
+export function embedChartSymbols(c: EmbedConfig, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => (c.layout ? c.symbols[i] : undefined) ?? c.symbol);
 }
 
 /** The chart settings of a page's colours, over the theme's defaults (null: no colour the chart uses). */
@@ -56,24 +63,33 @@ export function embedSeedTab(c: EmbedConfig): TabChart {
     if (s.inputs) indicatorSettings[s.id] = { inputs: { ...s.inputs } };
   }
   const tab = makeTab({
+    layout: c.layout,
     symbol: c.symbol,
     interval: embedInterval(c),
     chartType: c.chartType && CHART_TYPE_IDS.has(c.chartType as ChartTypeId) ? (c.chartType as ChartTypeId) : undefined,
     session: c.extendedHours ? "ETH" : "RTH",
     indicators,
   });
-  const compare: CompareEntry[] = c.compare
-    .filter((s) => s !== c.symbol)
-    .map((symbol, i) => {
-      const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
-      return { id: newCompareId(), symbol, placement: "percent", color, style: newCompareStyle(color) };
-    });
+  const compareOf = (own: string): CompareEntry[] =>
+    c.compare
+      .filter((s) => s !== own)
+      .map((symbol, i) => {
+        const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
+        return { id: newCompareId(), symbol, placement: "percent", color, style: newCompareStyle(color) };
+      });
   const settings = embedChartDraft(c.colors);
-  tab.panes = tab.panes.map((p) => ({
-    ...p,
-    ...(settings ? { settings: cloneDraft(settings), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV } : {}),
-    ...(Object.keys(indicatorSettings).length ? { indicatorSettings } : {}),
-    ...(compare.length ? { compare } : {}),
-  }));
+  const symbols = embedChartSymbols(c, tab.panes.length);
+  tab.panes = tab.panes.map((p, i) => {
+    const compare = compareOf(symbols[i]);
+    return {
+      ...p,
+      symbol: symbols[i],
+      ...(settings ? { settings: cloneDraft(settings), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV } : {}),
+      ...(Object.keys(indicatorSettings).length ? { indicatorSettings: structuredClone(indicatorSettings) } : {}),
+      ...(compare.length ? { compare } : {}),
+    };
+  });
+  // Several charts: the page's interval and span apply to them all.
+  if (tab.panes.length > 1) tab.sync = { ...defaultLayoutSync(), interval: true, dateRange: true };
   return tab;
 }

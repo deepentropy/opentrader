@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TAPE, MAX_TAPE, parseEmbedConfig } from "../config";
+import { DEFAULT_TAPE, MAX_TAPE, parseEmbedConfig, tapeSymbols } from "../config";
 import { embedColorProperties } from "../boot";
 import { RANGE_BARS } from "../widgets/MiniChart";
 
@@ -8,7 +8,7 @@ describe("widget settings", () => {
     const c = parseEmbedConfig({ widget: "ticker-tape", symbols: "NASDAQ:AAPL, x, NYSE:IBM", direction: "vertical", hideLogos: "", movers: true });
     expect([c.widget, c.symbols, c.direction, c.hideLogos, c.movers]).toEqual(["ticker-tape", ["NASDAQ:AAPL", "NYSE:IBM"], "vertical", true, true]);
     expect(parseEmbedConfig({ widget: "nope" }).widget).toBe("chart");
-    expect(parseEmbedConfig({ symbols: "bad" }).symbols).toEqual(DEFAULT_TAPE);
+    expect(tapeSymbols(parseEmbedConfig({ symbols: "bad" }))).toEqual(DEFAULT_TAPE);
     const many = Array.from({ length: 40 }, (_, i) => `NYSE:T${i}`);
     expect(parseEmbedConfig({ symbols: many }).symbols).toHaveLength(MAX_TAPE);
   });

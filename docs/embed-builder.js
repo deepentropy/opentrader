@@ -11,14 +11,19 @@
   var HEIGHTS = { chart: 500, "ticker-tape": 70, "mini-chart": 244, quote: 96 };
   // The settings each widget takes, in the order they are written.
   var FIELDS = {
-    chart: ["symbol", "interval", "range", "chartType", "theme", "timezone", "locale", "studies", "compare", "watchlist",
+    chart: ["symbol", "layout", "layoutSymbols", "interval", "range", "from", "to", "chartType", "theme", "timezone", "locale",
+      "studies", "compare", "watchlist", "markers", "highlights",
       "allowSymbolChange", "hideTopToolbar", "drawingToolbar", "dateRanges", "hideLegend", "hideVolume",
       "hideSnapshotButton", "extendedHours", "details", "movers", "popupButton"],
     "ticker-tape": ["symbols", "direction", "theme", "hideLogos"],
     "mini-chart": ["symbol", "range", "theme"],
     quote: ["symbol", "theme"],
   };
-  var LISTS = ["symbols", "studies", "compare", "watchlist"];
+  var LISTS = ["symbols", "layoutSymbols", "studies", "compare", "watchlist"];
+  // Lists of objects, written as JSON.
+  var JSON_LISTS = ["markers", "highlights"];
+  // Form fields named apart from their setting (the ticker tape has its own symbols).
+  var KEYS = { layoutSymbols: "symbols" };
   // Values that are the defaults are left out of the code.
   var DEFAULTS = { interval: "1D", chartType: "candle", direction: "horizontal" };
   var COLORS = ["background", "text", "accent", "up", "down"];
@@ -42,6 +47,8 @@
   /** The chosen settings of the shown widget: { name: value } (lists as arrays, switches as true). */
   function settings() {
     var out = {};
+    var bad = [];
+    var layout = form.elements.layout.value;
     FIELDS[kind].forEach(function (name) {
       var el = form.elements[name];
       if (!el) return;
@@ -51,10 +58,34 @@
       }
       var v = el.value.trim();
       if (!v || DEFAULTS[name] === v) return;
-      out[name] = LISTS.indexOf(name) >= 0 ? listOf(v) : v;
+      if (name === "layoutSymbols" && !layout) return;
+      if (JSON_LISTS.indexOf(name) >= 0) {
+        try {
+          var list = JSON.parse(v);
+          if (Array.isArray(list)) out[name] = list;
+          else bad.push(name);
+        } catch (e) {
+          bad.push(name);
+        }
+        return;
+      }
+      out[KEYS[name] || name] = LISTS.indexOf(name) >= 0 ? listOf(v) : v;
     });
+    // A span needs both ends.
+    if (!out.from !== !out.to) {
+      delete out.from;
+      delete out.to;
+    }
+    var note = document.getElementById("eb-json");
+    if (note) note.textContent = bad.length ? "Not a JSON list, left out: " + bad.join(", ") + "." : "";
     return out;
   }
+
+  /** An attribute's value: lists of objects as JSON, others comma-separated. */
+  var attrValue = function (v) {
+    if (!Array.isArray(v)) return String(v);
+    return typeof v[0] === "object" ? JSON.stringify(v) : v.join(",");
+  };
 
   function colors() {
     if (!form.elements.useColors.checked) return null;
@@ -75,7 +106,9 @@
     var attrs = Object.keys(s).map(function (k) {
       var v = s[k];
       if (v === true) return kebab(k);
-      return kebab(k) + '="' + esc(Array.isArray(v) ? v.join(",") : v) + '"';
+      // JSON in single quotes, so its double quotes read as they are.
+      if (JSON_LISTS.indexOf(k) >= 0) return kebab(k) + "='" + attrValue(v).replace(/&/g, "&amp;").replace(/'/g, "&#39;") + "'";
+      return kebab(k) + '="' + esc(attrValue(v)) + '"';
     });
     attrs.push('style="' + styleText() + '"');
     return '<script src="' + SCRIPT + '" async></script>\n<' + TAGS[kind] + " " + attrs.join(" ") + "></" + TAGS[kind] + ">";
@@ -86,7 +119,8 @@
     if (kind !== "chart") s = Object.assign({ widget: kind }, s);
     var c = colors();
     if (c) s.colors = c;
-    var json = JSON.stringify(s, null, 2).replace(/\n/g, "\n  ");
+    // "<" escaped: a text holding "</script>" cannot end the tag.
+    var json = JSON.stringify(s, null, 2).replace(/</g, "\\u003c").replace(/\n/g, "\n  ");
     var h = Number(form.elements.height.value) || HEIGHTS[kind];
     return '<div class="opentrader-embed" style="height: ' + h + 'px">\n  <script src="' + SCRIPT + '" async>\n  ' + json + "\n  </script>\n</div>";
   }
@@ -108,7 +142,7 @@
     var el = document.createElement(TAGS[kind]);
     Object.keys(s).forEach(function (k) {
       var v = s[k];
-      el.setAttribute(kebab(k), v === true ? "" : Array.isArray(v) ? v.join(",") : v);
+      el.setAttribute(kebab(k), v === true ? "" : attrValue(v));
     });
     el.setAttribute("style", styleText());
     preview.appendChild(el);
@@ -120,7 +154,7 @@
       b.setAttribute("aria-selected", String(b.dataset.kind === kind));
     });
     form.querySelectorAll("[data-for]").forEach(function (el) {
-      el.hidden = el.dataset.for.split(" ").indexOf(kind) < 0;
+      el.hidden = el.dataset.for.split(" ").indexOf(kind) < 0 || (el.hasAttribute("data-layout") && !form.elements.layout.value);
     });
     if (!heightTouched) form.elements.height.value = HEIGHTS[kind];
     update();
@@ -131,7 +165,8 @@
   });
   form.addEventListener("input", function (e) {
     if (e.target.name === "height") heightTouched = true;
-    update();
+    if (e.target.name === "layout") showKind(kind);
+    else update();
   });
   form.addEventListener("submit", function (e) { e.preventDefault(); });
   document.querySelectorAll('input[name="format"]').forEach(function (r) { r.addEventListener("change", update); });
