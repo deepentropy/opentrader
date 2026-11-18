@@ -23,6 +23,7 @@ import { currentWindowLabel } from "../window/shell/window-bridge";
 import { crosshairSyncSetting } from "../window/header/AppSettingsDialog";
 import type { LinkColor, TabLinkingState } from "../window/shell/tab-linking";
 import { emitAppEvent, onAppEvent } from "./app-events";
+import { openChannel } from "./broadcast";
 
 type LinkMsg =
   | { kind: "symbol"; color: LinkColor; value: string; win: string }
@@ -31,8 +32,7 @@ type LinkMsg =
   | { kind: "dateRange"; color: LinkColor; from: number; to: number; win: string }
   | { kind: "time"; color: LinkColor; time: number; win: string };
 
-const bus: BroadcastChannel | null =
-  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("ot:tab-link") : null;
+const bus = openChannel("ot:tab-link");
 
 // The active (focused) tab's link state in THIS window: its colour plus the
 // group's channels. App keeps it current.
