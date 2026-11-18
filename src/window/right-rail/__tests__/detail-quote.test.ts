@@ -29,6 +29,7 @@ function live(over: Partial<LiveQuote>): LiveQuote {
     dayHigh: 1.1035,
     dayLow: 1.0998,
     time: T0 - 20_000 + 60_000,
+    receivedMs: T0,
     source: "live",
     ...over,
   };
@@ -77,6 +78,16 @@ describe("detailQuote", () => {
     expect(detailQuote(snap, live({ time: T0 - 20_000 }))!.last).toBe(1.10293);
     // Same minute: the update time stays the snapshot's finer stamp.
     expect(detailQuote(snap, live({ time: T0 - 20_000 }))!.updatedMs).toBe(T0);
+  });
+
+  it("follows a quote received after the snapshot was read, whatever its stamp (#356)", () => {
+    // A data plugin's snapshot is stamped with this computer's clock; its quotes with the feed's, here 10 minutes behind.
+    const lagging = live({ last: 25252, time: T0 - 20_000 - 10 * 60_000, receivedMs: T0 + 5_000 });
+    const q = detailQuote(snap, lagging, T0)!;
+    expect(q.last).toBe(25252);
+    expect(q.updatedMs).toBe(T0);
+    // Received before the read: an old quote left in the store, the snapshot stays.
+    expect(detailQuote(snap, { ...lagging, receivedMs: T0 - 5_000 }, T0)!.last).toBe(1.10301);
   });
 
   it("keeps the update time of the last trade when a quote has no minute", () => {

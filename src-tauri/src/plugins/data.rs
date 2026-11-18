@@ -143,6 +143,8 @@ pub struct PluginData {
     /// One read of a series at a time: the asks that come meanwhile wait for it and are answered from it.
     reading: Mutex<HashMap<RecentKey, Arc<tokio::sync::Mutex<()>>>>,
     pages: Mutex<HashMap<PageKey, (Instant, Arc<Vec<Candle>>)>>,
+    /// Each symbol's last quote time (UNIX seconds, the feed's clock).
+    quoted: Mutex<HashMap<String, f64>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -582,7 +584,8 @@ pub async fn snapshot(app: &AppHandle, r: &Route) -> Result<Snapshot, String> {
         day_volume: last.volume,
         ext_change_percent: None,
         source: "live".into(),
-        updated_ms: now() * 1000.0,
+        // The feed's time, as its quotes: the details panel compares them (#356).
+        updated_ms: state(app).quoted.locked().get(&r.symbol).copied().unwrap_or_else(now) * 1000.0,
     })
 }
 
@@ -762,6 +765,7 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     let Some(symbol) = symbol else { return };
     let minute = q.minute.map(candle);
     let time = q.time.unwrap_or_else(now);
+    state(app).quoted.locked().insert(symbol.clone(), time);
     if let Some(m) = &minute {
         let day = q.day.map(|d| Candle { time, ..candle(d) });
         let _ = ChartAggregate { symbol: symbol.clone(), time: m.time, open: m.open, high: m.high, low: m.low, close: m.close, volume: m.volume, day }

@@ -23,7 +23,7 @@ import { watchlistStore } from "./watchlist-store";
 /** Live per-symbol quote. Fields stay null until a tick carries them, so the
  *  static seed value shows until then. `last`/`change`/`changePercent`/`volume`/`dayHigh`/`dayLow` are the regular
  *  session; `extChangePercent` is the pre/post-market move; `time` is the start of the latest trade's minute (UNIX
- *  ms, pre/post-market included). */
+ *  ms, pre/post-market included); `receivedMs` is when the app got it (UNIX ms, this computer's clock). */
 export type LiveQuote = {
   last: number;
   change: number | null;
@@ -33,6 +33,7 @@ export type LiveQuote = {
   dayHigh: number | null;
   dayLow: number | null;
   time: number | null;
+  receivedMs: number;
   source: "live" | "prev" | null;
 };
 
@@ -59,6 +60,7 @@ function applyTick(t: TradeTick): void {
     dayHigh: t.dayHigh ?? cur?.dayHigh ?? null,
     dayLow: t.dayLow ?? cur?.dayLow ?? null,
     time: t.tradeTime != null ? t.tradeTime * 1000 : cur?.time ?? null,
+    receivedMs: Date.now(),
     source: t.source ?? cur?.source ?? null,
   });
 }
@@ -72,7 +74,7 @@ function loadEconomic(symbol: string): void {
   if (economicRead.has(key)) return;
   economicRead.add(key);
   getTickerSnapshot(key)
-    .then((s) => setQuotes(key, { last: s.last, change: s.change, changePercent: s.changePercent, extChangePercent: null, volume: null, dayHigh: null, dayLow: null, time: null, source: "prev" }))
+    .then((s) => setQuotes(key, { last: s.last, change: s.change, changePercent: s.changePercent, extChangePercent: null, volume: null, dayHigh: null, dayLow: null, time: null, receivedMs: Date.now(), source: "prev" }))
     .catch(() => economicRead.delete(key));
 }
 

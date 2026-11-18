@@ -24,8 +24,9 @@ export type DetailQuote = {
 const MINUTE_MS = 60_000;
 
 /** The snapshot with the live quote over it. A field the quote does not carry
- *  (a stream trade has only its price) keeps the snapshot's value. */
-export function detailQuote(snap: Snapshot | null, live: LiveQuote | undefined): DetailQuote | null {
+ *  (a stream trade has only its price) keeps the snapshot's value. `readMs`: when
+ *  the snapshot was read (UNIX ms, this computer's clock). */
+export function detailQuote(snap: Snapshot | null, live: LiveQuote | undefined, readMs = Infinity): DetailQuote | null {
   const base: DetailQuote | null = snap && {
     last: snap.last,
     change: snap.change,
@@ -40,7 +41,11 @@ export function detailQuote(snap: Snapshot | null, live: LiveQuote | undefined):
   if (!live) return base;
   // The store keeps a symbol's last quote after it leaves the lists: one older
   // than the snapshot's minute would take the panel back until the next tick.
-  if (snap && live.time != null && live.time < Math.floor(snap.updatedMs / MINUTE_MS) * MINUTE_MS) return base;
+  // A quote received after the snapshot was read is newer whatever its stamp: a
+  // data plugin's snapshot is stamped with this computer's clock, and its quotes
+  // with the feed's (a delayed feed, another clock, a minute bar's start).
+  const before = live.receivedMs <= readMs;
+  if (snap && before && live.time != null && live.time < Math.floor(snap.updatedMs / MINUTE_MS) * MINUTE_MS) return base;
   const high = live.dayHigh ?? base?.dayHigh ?? null;
   const low = live.dayLow ?? base?.dayLow ?? null;
   return {

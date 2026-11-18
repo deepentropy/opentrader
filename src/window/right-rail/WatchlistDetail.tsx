@@ -145,6 +145,8 @@ type QuoteData = {
   sym: string;
   info: TickerInfo | null;
   snap: Snapshot | null;
+  /** When the snapshot was read (UNIX ms): a live quote received after it is newer. */
+  readMs: number;
 };
 
 const PERIODS = ["1W", "1M", "3M", "6M", "YTD", "1Y"] as const;
@@ -245,6 +247,7 @@ export function WatchlistDetail(props: Props) {
       sym,
       info: info.status === "fulfilled" ? info.value : null,
       snap: snap.status === "fulfilled" ? snap.value : null,
+      readMs: Date.now(),
     };
   });
 
@@ -285,7 +288,7 @@ export function WatchlistDetail(props: Props) {
   const s = createMemo(() => {
     const q = quote();
     if (!q) return null;
-    return detailQuote(q.snap, econ() ? undefined : quoteFor(q.sym));
+    return detailQuote(q.snap, econ() ? undefined : quoteFor(q.sym), q.readMs);
   });
   const y = () => widenYearRange(yr() ?? null, econ() ? null : s());
 
