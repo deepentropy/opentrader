@@ -467,6 +467,9 @@
   font-size: 12px;
   line-height: 16px;
 }
+/* Report a bug, copy the diagnostic info. */
+.app-settings-about-report { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.app-settings-about-report-buttons { display: flex; gap: 8px; }
 .app-settings-about-link { color: var(--color-brand); text-decoration: none; cursor: pointer; }
 .app-settings-about-link:hover { text-decoration: underline; }
 /* Update status block, the reference app's About `update-app` (the reference app 3.4.1: 52px high, padding

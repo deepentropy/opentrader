@@ -85,6 +85,7 @@ import { requestOpenPost } from "./data/community/notifications";
 import { installEmbedHost, openEmbedPopup, seedEmbedWatchlist } from "./embed/host";
 import { EmbedSidePanel } from "./embed/EmbedSidePanel";
 import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabSource } from "./data/replay";
+import { setDiagnosticsHost } from "./data/diagnostics";
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
 import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
 import { OrderTicket } from "./window/trading/OrderTicket";
@@ -408,6 +409,8 @@ function App() {
     moveDrawingToDisplayIndex,
   } = drawingStore;
   const chartEdits = createChartEdits(appTabs, undo, drawingStore);
+  // Settings > About > Copy diagnostic info and the get_diagnostics agent tool read the tabs and drawings.
+  setDiagnosticsHost({ tabs: appTabs, drawings: drawingStore });
   const {
     patchStudyInputs,
     addIndicator,

@@ -5,14 +5,19 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. The more precise the steps, the faster we can reproduce and fix it.
+        Thanks for reporting. We fix fastest what we can reproduce on the first try.
+
+        - **One bug per issue.** Two problems, or a bug and a feature request, are two issues.
+        - **Diagnostic info:** in the app, *Settings > About > Report a bug* opens this form with it filled in, or *Copy diagnostic info* copies it. A coding agent gets the same from the app's `get_diagnostics` tool.
+        - **Write what you saw.** Leave out guesses about the code and lists of things to investigate: one line marked as a guess is enough.
+
         Please search the [open issues](https://github.com/deepentropy/opentrader/issues) first: if yours is there, add a comment instead.
 
   - type: textarea
     id: what-happened
     attributes:
       label: What happened
-      description: Describe the problem in a few sentences.
+      description: The problem in a few sentences.
     validations:
       required: true
 
@@ -20,7 +25,7 @@ body:
     id: expected
     attributes:
       label: What you expected
-      description: What should have happened instead.
+      description: What should have happened instead. If you know what another charting app does in the same case, say so.
     validations:
       required: true
 
@@ -28,12 +33,12 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: Start from opening the app. Name the symbol, the interval and the indicators, drawings or scripts involved.
+      description: From opening a chart. Give the exact symbol, interval, chart type, indicators with the settings you changed, and drawings involved.
       placeholder: |
-        1. Open a chart of AAPL on 5 minutes
-        2. Add the RSI indicator
-        3. Scroll back two days
-        4. The RSI line disappears
+        1. Open NASDAQ:AAPL on 5 minutes, candles, extended hours
+        2. Add Pivot Points Standard (Type: Camarilla, Pivots back: 5)
+        3. Scroll left until the last pivot period is off screen
+        4. All the levels disappear
     validations:
       required: true
 
@@ -45,6 +50,19 @@ body:
         - Every time
         - Sometimes
         - Only once so far
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-source
+    attributes:
+      label: Where the chart's data comes from
+      description: Many bugs only happen with one of them.
+      options:
+        - Built-in data
+        - A data plugin (name it in the steps)
+        - Imported series (LOCAL)
+        - Not chart related
     validations:
       required: true
 
@@ -68,8 +86,21 @@ body:
         - Coding agent (MCP)
         - Community
         - Settings, languages, updates
+        - Performance (CPU, memory, slowness)
         - Installation / start-up
         - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic info
+      description: |
+        Settings > About > Copy diagnostic info, with the chart in the state that shows the bug, pasted whole.
+        It gives the version, the computer, the window, the charts with their studies and data source, Bar Replay, the plugins and the last errors.
+        On the web version, or if the app does not start, write the version and your system instead.
+      render: markdown
     validations:
       required: true
 
@@ -77,30 +108,28 @@ body:
     id: version
     attributes:
       label: App version
-      description: Shown in Settings > About (for example 0.4.27). Write "web" for the online version.
+      description: Settings > About (for example 0.4.27). Write "web" for the online version.
     validations:
       required: true
 
-  - type: dropdown
-    id: platform
+  - type: textarea
+    id: screenshots
     attributes:
-      label: Platform
-      options:
-        - Windows
-        - macOS (Apple Silicon)
-        - macOS (Intel)
-        - Linux (AppImage)
-        - Linux (.deb / .rpm)
-        - Linux (Flatpak)
-        - Web (online version)
+      label: Screenshots or video
+      description: Drag images or a short recording here. Show the whole chart, with the symbol and interval visible. A coding agent can take one with the app's `screenshot` tool.
     validations:
       required: true
 
-  - type: input
-    id: os-version
+  - type: textarea
+    id: performance
     attributes:
-      label: Operating system version
-      placeholder: Windows 11 24H2, macOS 15.1, Ubuntu 24.04…
+      label: Performance problems only
+      description: Leave empty for other bugs.
+      placeholder: |
+        - CPU / memory use seen in the Task Manager (or Activity Monitor), and what it should be:
+        - Live ticks per second on the symbol, if known:
+        - How long it takes to appear (after a start, a symbol change, adding a study…):
+        - Does it go away with fewer charts, fewer studies or a smaller window?
 
   - type: textarea
     id: script
@@ -110,13 +139,7 @@ body:
       render: text
 
   - type: textarea
-    id: screenshots
-    attributes:
-      label: Screenshots or video
-      description: Drag images or a short recording here. Show the whole chart, with the symbol and interval visible.
-
-  - type: textarea
     id: extra
     attributes:
       label: Anything else
-      description: Error messages, when it started (after an update?), what you already tried.
+      description: When it started (after an update?), what you already tried, error messages the app showed.

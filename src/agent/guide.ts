@@ -51,7 +51,17 @@ Rules:
 - Companies: get_fundamentals (statements, latest and next earnings), get_revenue_breakdown (revenue by segment,
   product line, country, customer), list_filings, then read_filing (contents, then a section). Take figures from
   get_fundamentals and get_revenue_breakdown, not from a filing's text; nextEarnings is an estimate: say so. Filing ids
-  come from list_filings, never invented. Report what a filing says as written; never turn it into advice.`;
+  come from list_filings, never invented. Report what a filing says as written; never turn it into advice.
+
+Writing a GitHub issue for the user (a bug or a feature request for OpenTrader):
+- One problem per issue. Two bugs, or a bug and a request, are two issues.
+- A bug: first put the chart in the state that shows it, then call get_diagnostics and paste its block whole, and
+  attach a screenshot. Steps name the exact symbol, interval, chart type, study and setting values, from opening the
+  chart. Say how often it happens and what the reference app does, if the user knows.
+- Write only what the user saw or a tool returned. A guess at the cause is labelled as a guess, in one line; no lists
+  of things for the developers to investigate.
+- A feature request: what the user is trying to do, how it should work step by step and where in the app, and how
+  another charting app does it if the user knows one.`;
 
 // The libraries' agent guides (skills/ in each package), bundled as text; empty until a library ships one.
 const oakGuides = import.meta.glob("../../node_modules/oakscriptjs/skills/**/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;

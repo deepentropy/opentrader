@@ -8,6 +8,10 @@
  * quoted text (names, symbols, what the user wrote), e-mail addresses, the folders of file paths
  * and everything after a web address's host go, only the code's file names and lines stay.
  * One report per distinct error and at most MAX_PER_RUN per run.
+ *
+ * The same cleaned errors, and the console's errors, are also kept in this window for a bug report (Settings > About >
+ * Copy diagnostic info, the get_diagnostics agent tool): the last LOG_SIZE, whether statistics are on or off. They
+ * never leave the computer unless the user pastes them.
  */
 
 type Report = Record<string, string | number>;
@@ -26,6 +30,23 @@ let send: Send | null = null;
 const buffer: Report[] = [];
 const seen = new Set<string>();
 let reported = 0;
+
+const LOG_SIZE = 10;
+/** An error of this run, for a bug report: when it last happened and how many times. */
+export type LoggedError = { at: number; kind: string; text: string; count: number };
+const log: LoggedError[] = [];
+
+function remember(kind: string, text: string): void {
+  const same = log.findIndex((e) => e.kind === kind && e.text === text);
+  const entry = same >= 0 ? log.splice(same, 1)[0] : { at: 0, kind, text, count: 0 };
+  entry.at = Date.now();
+  entry.count++;
+  log.push(entry);
+  if (log.length > LOG_SIZE) log.shift();
+}
+
+/** The last errors of this run, oldest first. */
+export const recentErrors = (): LoggedError[] => log.map((e) => ({ ...e }));
 
 /** An address: the file name for the app's code, the host alone for anything else. */
 function cleanAddress(url: string): string {
@@ -77,6 +98,8 @@ export function reportError(kind: string, error: unknown, at: { where?: string; 
   const stack = cleanStack(err?.stack);
   if (/(chrome|moz|safari)(-web)?-extension:/.test(err?.stack ?? "")) return;
   const message = cleanText(raw);
+  const top = stack.split("\n")[0] ?? "";
+  remember(at.where ? `${kind} (${at.where})` : kind, [name && `${name}:`, message, top && `(${top})`].filter(Boolean).join(" "));
   const key = [kind, at.where ?? "", name, message, stack.split("\n")[0] ?? ""].join("|");
   if (seen.has(key) || reported >= MAX_PER_RUN) return;
   seen.add(key);
@@ -103,6 +126,21 @@ export function installErrorReports(): void {
     reportError("uncaught", e.error ?? e.message, { source: e.filename || undefined, line: e.lineno || undefined, column: e.colno || undefined });
   });
   window.addEventListener("unhandledrejection", (e: PromiseRejectionEvent) => reportError("rejection", e.reason));
+  // Errors the code caught and logged: often the only trace of a feature that silently failed.
+  const consoleError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    consoleError(...args);
+    logConsoleError(args);
+  };
+}
+
+/** A console.error call in the bug-report log (not in the statistics). */
+export function logConsoleError(args: unknown[]): void {
+  const text = args
+    .map((a) => (a instanceof Error ? `${a.name}: ${a.message}` : typeof a === "string" ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })()))
+    .join(" ");
+  if (IGNORED.some((r) => r.test(text))) return;
+  remember("console", cleanText(text));
 }
 
 /** The statistics have started: send what waited, then each report as it comes. */
@@ -117,4 +155,5 @@ export function resetErrorReports(): void {
   buffer.length = 0;
   seen.clear();
   reported = 0;
+  log.length = 0;
 }

@@ -102,6 +102,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_update::app_set_alerts_active,
             app_update::app_update_install,
             app_update::app_build_info,
+            app_update::app_system_info,
             agent::agent_server_status,
             agent::agent_server_set_enabled,
             agent::agent_server_set_port,

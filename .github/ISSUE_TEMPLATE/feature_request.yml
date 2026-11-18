@@ -5,7 +5,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea. Please search the [open issues](https://github.com/deepentropy/opentrader/issues) first: if it is there, add a 👍 or a comment instead.
+        Thanks for the idea.
+
+        - **One request per issue**, so each can be planned and closed on its own.
+        - **Describe the behaviour, not the code:** what you see and do in the app. Leave implementation plans out unless you are sending the change yourself.
+        - **Show it:** a screenshot of another app doing it, or a sketch, saves a round of questions.
+
+        Please search the [open issues](https://github.com/deepentropy/opentrader/issues) first: if it is there, add a 👍 or a comment instead.
 
   - type: textarea
     id: problem

@@ -1,12 +1,13 @@
 /*
  * Settings > About: version, update status and notices.
  */
-import { createSignal, onMount, Show, type JSX } from "solid-js";
+import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Icon } from "../../../components/Icon";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../../data/app-update";
 import type { BuildInfo } from "../../../bindings";
 import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../../data/community/api";
 import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../../data/economic-notice";
+import { diagnosticsText } from "../../../data/diagnostics";
 import { openLink } from "./io";
 import { translateWith } from "../../../i18n/translator";
 
@@ -30,6 +31,7 @@ export function AboutTab() {
         <UpdateAppBlock />
       </Show>
       <div class="app-settings-about-copyright">Copyright © 2026 OpenTrader</div>
+      <ReportProblem version={info()?.version} />
       <Show when={COMMUNITY_ENABLED}>
         <SuggestLink />
       </Show>
@@ -49,6 +51,46 @@ function EconomicDataNotice() {
           FRED® API Terms of Use
         </a>
         .
+      </div>
+    </div>
+  );
+}
+
+const NEW_BUG = "https://github.com/deepentropy/opentrader/issues/new?template=bug_report.yml";
+/** GitHub reads a form field's value from the address; past this length it refuses the page. */
+const MAX_URL = 7500;
+
+/** A bug report with what a fix needs to reproduce it: the issue form opened with the diagnostic info filled in, or
+ *  the info copied to paste (in an issue, or for a coding agent writing one: its get_diagnostics tool gives the same). */
+function ReportProblem(props: { version?: string }) {
+  const [copied, setCopied] = createSignal(false);
+  let timer: number | undefined;
+  onCleanup(() => window.clearTimeout(timer));
+  const copy = () =>
+    void diagnosticsText()
+      .then((text) => navigator.clipboard.writeText(text))
+      .then(() => {
+        setCopied(true);
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((e) => console.warn("[about] copy diagnostic info failed", e));
+  const report = () =>
+    void diagnosticsText().then((text) => {
+      let url = `${NEW_BUG}&diagnostics=${encodeURIComponent(text)}`;
+      if (props.version) url += `&version=${encodeURIComponent(props.version)}`;
+      openLink(url.length > MAX_URL ? NEW_BUG : url, "bug report");
+    });
+  return (
+    <div class="app-settings-about-report">
+      <span class="app-settings-about-notice">Found a bug? The report opens with the diagnostic info of this window filled in: check it before posting.</span>
+      <div class="app-settings-about-report-buttons">
+        <button type="button" class="app-settings-btn" onClick={report}>
+          Report a bug
+        </button>
+        <button type="button" class="app-settings-btn" onClick={copy}>
+          {copied() ? "Copied" : "Copy diagnostic info"}
+        </button>
       </div>
     </div>
   );

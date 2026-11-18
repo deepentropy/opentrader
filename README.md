@@ -40,7 +40,7 @@ Windows is the main development platform. The macOS and Linux builds are produce
 
 ## Use with a coding agent
 
-A coding agent (Claude Code, Claude Desktop, Codex, Cursor, …) can work with the running app: read your charts, add indicators, write and test scripts, run strategies, draw, screen the market and save screens, manage watchlists, alerts and layouts, read the Community, and take screenshots of the result. It cannot place orders or post in the Community.
+A coding agent (Claude Code, Claude Desktop, Codex, Cursor, …) can work with the running app: read your charts, add indicators, write and test scripts, run strategies, draw, screen the market and save screens, manage watchlists, alerts and layouts, read the Community, and take screenshots of the result. To report a bug, it reads the app's diagnostic info (get_diagnostics, also in Settings > About > Copy diagnostic info) for the issue. It cannot place orders or post in the Community.
 
 1. In the app, open *Settings > Coding agents* and tick *Allow coding agents to use OpenTrader*. The app then listens on this computer only (`http://127.0.0.1:47821/mcp`), and only for requests that carry its token.
 2. Copy the setup for your agent from the same page. For Claude Code it is one command:

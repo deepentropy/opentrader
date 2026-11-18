@@ -3,6 +3,7 @@
  * the same store functions as the app's own menus and dialogs (so every change is an undo step, saved and shown).
  */
 import { emitAppEvent } from "../data/app-events";
+import { diagnosticsText } from "../data/diagnostics";
 import { chartBars, chartComparesFor } from "../data/chart-state-registry";
 import { isSupportedResolution, supportedResolutions, toFullSymbol } from "../data/datafeed";
 import * as scripts from "../data/oakscript-store";
@@ -231,6 +232,15 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
           })),
         };
       },
+    },
+    {
+      name: "get_diagnostics",
+      title: "Get diagnostic info",
+      description:
+        "For a bug report: the app version, the computer, the window size and scaling, the focused tab's charts (symbol, interval, chart type, data source, bars loaded, studies with their changed inputs, drawings), Bar Replay, the plugins and the last errors, as Markdown to paste whole in the issue.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      run: () => diagnosticsText(),
     },
     {
       name: "set_symbol",

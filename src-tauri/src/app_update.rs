@@ -492,6 +492,53 @@ pub fn app_build_info(app: AppHandle) -> BuildInfo {
     }
 }
 
+/// The computer, for a bug report (Settings > About > Copy diagnostic info): what a performance or display problem
+/// depends on and the browser engine's user agent does not tell (Windows 11 reads as 10, macOS as 10.15).
+#[derive(Clone, Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemInfo {
+    /// "Windows 11 Pro (kernel 26200)", "macOS 15.1 Sequoia (kernel 24.1.0)"…
+    pub os: String,
+    pub arch: String,
+    pub cpu: String,
+    pub threads: u32,
+    pub memory_gb: f64,
+    /// The system web view's version (WebView2, WebKit).
+    pub webview: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn app_system_info() -> SystemInfo {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut sys = sysinfo::System::new();
+        sys.refresh_memory();
+        sys.refresh_cpu_list(sysinfo::CpuRefreshKind::nothing());
+        SystemInfo {
+            // The kernel build tells Windows releases apart ("Windows 11 Pro" alone does not).
+            os: match (sysinfo::System::long_os_version(), sysinfo::System::kernel_version()) {
+                (Some(os), Some(kernel)) => format!("{os} (kernel {kernel})"),
+                (Some(os), None) => os,
+                _ => std::env::consts::OS.to_string(),
+            },
+            arch: std::env::consts::ARCH.to_string(),
+            cpu: sys.cpus().first().map(|c| c.brand().trim().to_string()).unwrap_or_default(),
+            threads: sys.cpus().len() as u32,
+            memory_gb: (sys.total_memory() as f64 / 1e9 * 10.0).round() / 10.0,
+            webview: tauri::webview_version().unwrap_or_default(),
+        }
+    })
+    .await
+    .unwrap_or_else(|_| SystemInfo {
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        cpu: String::new(),
+        threads: 0,
+        memory_gb: 0.0,
+        webview: String::new(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
