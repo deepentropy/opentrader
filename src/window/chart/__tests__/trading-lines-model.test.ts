@@ -7,6 +7,7 @@ import {
   fmtPl,
   orderChipText,
   orderLinePrice,
+  orderLines,
   orderMenuTitle,
   plText,
   plTone,
@@ -123,5 +124,26 @@ describe("trading lines model", () => {
     expect(plTone(0.004, true)).toBeNull();
     expect(plTone(-0.004, true)).toBeNull();
     expect(plTone(0.004)).toBe("profit");
+  });
+
+  it("order lines: drawing order, and each line kept across broker updates (#370)", () => {
+    const list = () => [
+      order({ id: "2", type: "stopLimit", stopPrice: 655, limitPrice: 654 }),
+      order({ id: "2:tp", kind: "tp", parentId: "2", side: "sell", limitPrice: 660 }),
+      order({ id: "position:sl", kind: "sl", parentId: "position", side: "sell", type: "stop", limitPrice: null, stopPrice: 630 }),
+      order({ id: "1" }),
+    ];
+    const first = orderLines(list(), new Map());
+    expect(first.map((l) => l.key)).toEqual(["position:sl", "1", "2", "2#limit", "2:tp"]);
+    expect(first[3]).toEqual({ key: "2#limit", id: "2", limit: true });
+    // A quote rebuilds the orders: the same lines (same rows) come back, a new order adds its own.
+    const prev = new Map(first.map((l) => [l.key, l]));
+    const next = orderLines([...list(), order({ id: "3" })], prev);
+    expect(next.slice(0, 5).every((l, i) => l === first[i])).toBe(true);
+    expect(next[5]).toEqual({ key: "3", id: "3", limit: false });
+    // The stop reached: the limit line goes.
+    const hit = orderLines([order({ id: "2", type: "stopLimit", stopPrice: 655, limitPrice: 654, stopTriggered: true })], prev);
+    expect(hit.map((l) => l.key)).toEqual(["2"]);
+    expect(hit[0]).toBe(prev.get("2"));
   });
 });
