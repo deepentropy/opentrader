@@ -235,6 +235,8 @@ export function createLegend(cx: ChartCx): LegendApi {
             onChangeSymbol={props.onChangeSymbol}
             onChangeInterval={props.onChangeInterval}
             onMore={cx.openSeriesMoreMenu}
+            width={legendWidth()}
+            multiChart={(props.layoutCount ?? 1) > 1}
             linkVisible={!!props.linkSyncVisible}
             linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
             onLink={(r) => setSyncMenu(syncMenu() ? null : r)}

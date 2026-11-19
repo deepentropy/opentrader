@@ -7,7 +7,8 @@
  *   [logo] <symbol> · <interval> · <exchange>  [flag link eye more]   O H L C  <change>
  *   └────────── noWrapWrapper (titles + actions) ─────────────┘       └─ valuesWrapper ─┘
  *
- * O/H/L/C + change live on the SAME line as the title. The action buttons are
+ * O/H/L/C + change live on the SAME line as the title. A narrow chart drops
+ * the exchange, the interval and O/H/L (legend-widths.ts). The action buttons are
  * revealed on hover. Values track the crosshair (ChartView feeds the
  * hovered/latest bar in) and are coloured by the bar's direction.
  *
@@ -20,6 +21,7 @@ import { localNumber } from "../../i18n/format";
 import { translateAs } from "../../i18n/translator";
 import { STATUS_ITEMS, pillStatus } from "./legend-status";
 import { LegendStatusPopup } from "./LegendStatusPopup";
+import { legendHidesMinorValues, legendTitleParts } from "./legend-widths";
 
 /** Resolved, display-ready values for the legend's values line. Built by
  *  ChartView from the hovered (or latest) bar; see `buildLegend` there. */
@@ -108,6 +110,11 @@ type Props = {
   /** More button clicked (the series menu under the button); gets the button
    *  rect. */
   onMore?: (anchor: DOMRect) => void;
+  /** Width the legend may take (px): a narrow chart drops the exchange, the
+   *  interval and O/H/L (legend-widths.ts). */
+  width?: number;
+  /** The chart is one of several in the layout (keeps its interval longer). */
+  multiChart?: boolean;
 };
 
 /** Exchange full names of the legend exchange piece (its title, e.g.
@@ -225,10 +232,11 @@ export function ChartLegend(props: Props) {
   // Title select: "Name" swaps the symbol piece for the company name (ticker
   // until it loads); "Symbol and name" keeps the ticker and appends the name
   // as an extra dotted piece (before interval/exchange).
+  const parts = () => legendTitleParts(props.width, !!props.multiChart);
   const titleText = () =>
-    props.titleMode === "Name" ? props.description || props.ticker : props.ticker;
+    props.titleMode === "Name" && !parts().tickerOnly ? props.description || props.ticker : props.ticker;
   const showNamePiece = () =>
-    (props.showTitle ?? true) && props.titleMode === "Symbol and name" && !!props.description;
+    (props.showTitle ?? true) && props.titleMode === "Symbol and name" && !!props.description && !parts().tickerOnly;
   const price = (p: number) => (props.formatPrice ? props.formatPrice(p) : fmtPrice(p));
   /** A price change with its sign ("+1.23", "−1,204.50"). */
   const signedPrice = (n: number) => (n < 0 ? MINUS : "+") + price(Math.abs(n));
@@ -278,24 +286,28 @@ export function ChartLegend(props: Props) {
                   </span>
                 </Tooltip>
               </Show>
-              <Tooltip text="Change interval" side="bottom">
-                <span
-                  class="ot-legend-title-piece ot-legend-dot ot-legend-with-action"
-                  onMouseDown={(e) => { if (props.onChangeInterval) e.stopPropagation(); }}
-                  onClick={(e) => { if (!props.onChangeInterval) return; e.stopPropagation(); props.onChangeInterval(); }}
+              <Show when={parts().interval}>
+                <Tooltip text="Change interval" side="bottom">
+                  <span
+                    class="ot-legend-title-piece ot-legend-dot ot-legend-with-action"
+                    onMouseDown={(e) => { if (props.onChangeInterval) e.stopPropagation(); }}
+                    onClick={(e) => { if (!props.onChangeInterval) return; e.stopPropagation(); props.onChangeInterval(); }}
+                  >
+                    {props.interval}
+                  </span>
+                </Tooltip>
+              </Show>
+              <Show when={parts().exchange}>
+                <Show
+                  when={EXCHANGE_TITLES[props.exchange.toUpperCase()]}
+                  fallback={<span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>}
                 >
-                  {props.interval}
-                </span>
-              </Tooltip>
-              <Show
-                when={EXCHANGE_TITLES[props.exchange.toUpperCase()]}
-                fallback={<span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>}
-              >
-                {(t) => (
-                  <Tooltip text={t()} side="bottom">
-                    <span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>
-                  </Tooltip>
-                )}
+                  {(t) => (
+                    <Tooltip text={t()} side="bottom">
+                      <span class="ot-legend-title-piece ot-legend-dot" data-no-translate>{props.exchange}</span>
+                    </Tooltip>
+                  )}
+                </Show>
               </Show>
             </div>
             <div class="ot-legend-actions" data-name="actions">
@@ -378,9 +390,11 @@ export function ChartLegend(props: Props) {
                       <span class={`ot-legend-value-value ot-legend-${valueDir()}`}>{price(v().close)}</span>
                     }
                   >
-                    <ValueItem letter={translateAs("O", "legend")} value={price(v().open)} dir={v().barDir} />
-                    <ValueItem letter={translateAs("H", "legend")} value={price(v().high)} dir={v().barDir} />
-                    <ValueItem letter={translateAs("L", "legend")} value={price(v().low)} dir={v().barDir} />
+                    <Show when={!legendHidesMinorValues(props.width)}>
+                      <ValueItem letter={translateAs("O", "legend")} value={price(v().open)} dir={v().barDir} />
+                      <ValueItem letter={translateAs("H", "legend")} value={price(v().high)} dir={v().barDir} />
+                      <ValueItem letter={translateAs("L", "legend")} value={price(v().low)} dir={v().barDir} />
+                    </Show>
                     <ValueItem letter={translateAs("C", "legend")} value={price(v().close)} dir={v().barDir} />
                   </Show>
                 </Show>

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { inSourceOrder, moveItem, paneItems, splitItems, type TreeItem } from "../tree-order";
-import { legendButtonsMode } from "../IndicatorLegend";
 
 const ids = (items: TreeItem[]) => items.map((x) => `${x.kind[0]}:${x.id}`);
 
@@ -84,15 +83,5 @@ describe("inSourceOrder", () => {
   it("keeps the rows the saved order does not list after it, in their order", () => {
     expect(inSourceOrder(rows, ["ema", "vol"]).map((r) => r.id)).toEqual(["ema", "vol", "swap", "dwm", "mine"]);
     expect(inSourceOrder(rows, undefined)).toBe(rows);
-  });
-});
-
-describe("legendButtonsMode", () => {
-  it("drops buttons on narrow charts (reference widths)", () => {
-    expect(legendButtonsMode(undefined)).toBe("large");
-    expect(legendButtonsMode(222)).toBe("large");
-    expect(legendButtonsMode(221)).toBe("medium");
-    expect(legendButtonsMode(205)).toBe("medium");
-    expect(legendButtonsMode(204)).toBe("small");
   });
 });

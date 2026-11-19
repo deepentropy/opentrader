@@ -29,6 +29,7 @@ import type { StudyError } from "./indicators/indicator-layer";
 import { formatStudyValue } from "../../data/study-format";
 import { localNumber } from "../../i18n/format";
 import { applyOpacity, parseColor } from "lightweight-charts-drawing/core/color";
+import { legendButtonsMode, legendTitleParts } from "./legend-widths";
 
 type Props = {
   rows: IndicatorLegendRow[];
@@ -71,16 +72,10 @@ type Props = {
   bgColor?: string;
   /** Legend background fill opacity, 0..100 (0 / undefined = none). */
   bgOpacity?: number;
-  /** Width the legend may take (px): a narrow chart shows fewer buttons. */
+  /** Width the legend may take (px): a narrow chart shows fewer buttons and
+   *  no exchange after a compared symbol's name. */
   width?: number;
 };
-
-/** Buttons a study row shows for the legend's width (reference widths): all,
- *  without Settings / Source code (medium), the eye and More only (small). */
-export function legendButtonsMode(width: number | undefined): "large" | "medium" | "small" {
-  if (width === undefined) return "large";
-  return width < 205 ? "small" : width < 222 ? "medium" : "large";
-}
 
 /** Split a study title into its name and trailing "(inputs)" portion. */
 export function splitTitle(title: string): { name: string; inputs: string } {
@@ -274,7 +269,7 @@ export function IndicatorLegend(props: Props) {
                   title="Change symbol"
                   onClick={() => { props.onSelect?.(row.id); props.onTitleClick?.(row.id); }}
                 >
-                  {row.title}
+                  {legendTitleParts(props.width, false).exchange ? row.title : (row.compare?.name ?? row.title)}
                 </span>
               </Show>
               <Show when={!row.compare && (props.showTitles ?? true)}>
