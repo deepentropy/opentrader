@@ -3,9 +3,10 @@
  * row, one row per active indicator. Ported to SolidJS from the reference
  * mock.
  *
- * Each row (h:24) is:
+ * Each row (h:24) is one line:
  *   <title>   <v1> <v2> …        [eye settings delete more]
- * Action buttons revealed on hover. Eye, settings (gear), delete and more
+ * Action buttons revealed on hover, over the values right after the title;
+ * values that do not fit are cut with an ellipsis. Eye, settings (gear), delete and more
  * (the study menu, opened by ChartView) are wired.
  *
  * A click on the title selects the study (a compared symbol's title also
@@ -70,7 +71,16 @@ type Props = {
   bgColor?: string;
   /** Legend background fill opacity, 0..100 (0 / undefined = none). */
   bgOpacity?: number;
+  /** Width the legend may take (px): a narrow chart shows fewer buttons. */
+  width?: number;
 };
+
+/** Buttons a study row shows for the legend's width (reference widths): all,
+ *  without Settings / Source code (medium), the eye and More only (small). */
+export function legendButtonsMode(width: number | undefined): "large" | "medium" | "small" {
+  if (width === undefined) return "large";
+  return width < 205 ? "small" : width < 222 ? "medium" : "large";
+}
 
 /** Split a study title into its name and trailing "(inputs)" portion. */
 export function splitTitle(title: string): { name: string; inputs: string } {
@@ -242,7 +252,11 @@ export function IndicatorLegend(props: Props) {
   };
   return (<>
     <Show when={props.rows.length > 0}>
-      <div class="ot-ind-legend" classList={{ "is-collapsed": !!props.collapsed }} data-name="legend-sources">
+      <div
+        class="ot-ind-legend"
+        classList={{ "is-collapsed": !!props.collapsed, "is-medium": legendButtonsMode(props.width) === "medium", "is-small": legendButtonsMode(props.width) === "small" }}
+        data-name="legend-sources"
+      >
         <For each={props.collapsed ? [] : props.rows}>
           {(row) => (
             <div
