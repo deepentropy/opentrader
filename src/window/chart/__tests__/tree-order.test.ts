@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveItem, paneItems, splitItems, type TreeItem } from "../tree-order";
+import { inSourceOrder, moveItem, paneItems, splitItems, type TreeItem } from "../tree-order";
 
 const ids = (items: TreeItem[]) => items.map((x) => `${x.kind[0]}:${x.id}`);
 
@@ -71,5 +71,17 @@ describe("splitItems", () => {
     const s = splitItems(items);
     const again = paneItems(s.sources, s.drawings.map((id) => ({ id, over: s.over[id] ?? undefined })));
     expect(again).toEqual(items);
+  });
+});
+
+describe("inSourceOrder", () => {
+  const rows = [{ id: "vol" }, { id: "swap" }, { id: "dwm" }, { id: "ema" }, { id: "mine" }];
+  it("lists the legend rows in the Object tree's order", () => {
+    // #367: a study moved up in the Object tree moves up in the legend.
+    expect(inSourceOrder(rows, ["_series", "vol", "mine", "swap", "dwm", "ema"]).map((r) => r.id)).toEqual(["vol", "mine", "swap", "dwm", "ema"]);
+  });
+  it("keeps the rows the saved order does not list after it, in their order", () => {
+    expect(inSourceOrder(rows, ["ema", "vol"]).map((r) => r.id)).toEqual(["ema", "vol", "swap", "dwm", "mine"]);
+    expect(inSourceOrder(rows, undefined)).toBe(rows);
   });
 });

@@ -112,7 +112,7 @@ export type IndicatorLegendRow = {
   loading?: boolean;
   /** Set on a compared symbol's row: its value texts (in the line colour);
    *  the title is shown as is and its click changes the symbol. */
-  compare?: { texts: { text: string; color: string }[] };
+  compare?: { texts: { text: string; color: string }[]; /** The title without its exchange (narrow charts). */ name?: string };
 };
 
 /** What a controller needs from its chart: the bars, the main series and its scale, the other sources, and how the

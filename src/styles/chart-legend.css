@@ -252,25 +252,32 @@
   color: var(--color-cold-gray-400);
 }
 
-/* Per-plot values, each coloured by its plot's own colour (inline style). */
+/* Per-plot values, each coloured by its plot's own colour (inline style), on
+   one line: what does not fit is cut with an ellipsis (reference desktop
+   legend, `noWrap`). */
 .ot-ind-legend-values {
-  display: flex;
-  align-items: center;
-  column-gap: 6px;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 13px;
   font-weight: 400;
   line-height: 18px;
 }
-.ot-ind-legend-val {
-  white-space: nowrap;
+.ot-ind-legend-val:not(:last-child) {
+  padding-inline-end: 6px;
 }
 
 /* Values + hover toolbar share this relative box, so the toolbar floats over
-   the values instead of pushing them right. Anchored right after the title. */
+   the values instead of pushing them right. Anchored right after the title,
+   on its line: the row does not wrap, so the buttons never leave the title. */
 .ot-ind-legend-rest {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* Action buttons — a rounded pill revealed on row hover that OVERLAYS the
@@ -281,7 +288,7 @@
    the study title). */
 .ot-ind-legend-actions {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 50%;
   transform: translateY(-50%);
   z-index: 2;
@@ -625,13 +632,19 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
   text-overflow: ellipsis;
 }
 .ot-ind-legend-row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .ot-ind-legend-rest {
   max-width: 100%;
 }
-.ot-ind-legend-values {
-  flex-wrap: wrap;
+
+/* Narrow charts: fewer buttons (reference widths, from the legend's
+   available width). Medium (< 222 px): no Settings / Source code; small
+   (< 205 px): the eye and More only. */
+.ot-ind-legend.is-medium .ot-ind-legend-action[data-qa-id="legend-settings-action"],
+.ot-ind-legend.is-medium .ot-ind-legend-action[data-qa-id="legend-pine-action"],
+.ot-ind-legend.is-small .ot-ind-legend-action:not([data-qa-id="legend-show-hide-action"]):not([data-qa-id="legend-interval-show-hide-action"]):not([data-qa-id="legend-more-action"]) {
+  display: none;
 }
 
 /* Hidden study (eye) or study hidden on the interval: its crossed eye stays

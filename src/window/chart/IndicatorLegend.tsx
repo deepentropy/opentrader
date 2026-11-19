@@ -3,9 +3,10 @@
  * row, one row per active indicator. Ported to SolidJS from the reference
  * mock.
  *
- * Each row (h:24) is:
+ * Each row (h:24) is one line:
  *   <title>   <v1> <v2> …        [eye settings delete more]
- * Action buttons revealed on hover. Eye, settings (gear), delete and more
+ * Action buttons revealed on hover, over the values right after the title;
+ * values that do not fit are cut with an ellipsis. Eye, settings (gear), delete and more
  * (the study menu, opened by ChartView) are wired.
  *
  * A click on the title selects the study (a compared symbol's title also
@@ -28,6 +29,7 @@ import type { StudyError } from "./indicators/indicator-layer";
 import { formatStudyValue } from "../../data/study-format";
 import { localNumber } from "../../i18n/format";
 import { applyOpacity, parseColor } from "lightweight-charts-drawing/core/color";
+import { legendButtonsMode, legendTitleParts } from "./legend-widths";
 
 type Props = {
   rows: IndicatorLegendRow[];
@@ -70,6 +72,9 @@ type Props = {
   bgColor?: string;
   /** Legend background fill opacity, 0..100 (0 / undefined = none). */
   bgOpacity?: number;
+  /** Width the legend may take (px): a narrow chart shows fewer buttons and
+   *  no exchange after a compared symbol's name. */
+  width?: number;
 };
 
 /** Split a study title into its name and trailing "(inputs)" portion. */
@@ -242,7 +247,11 @@ export function IndicatorLegend(props: Props) {
   };
   return (<>
     <Show when={props.rows.length > 0}>
-      <div class="ot-ind-legend" classList={{ "is-collapsed": !!props.collapsed }} data-name="legend-sources">
+      <div
+        class="ot-ind-legend"
+        classList={{ "is-collapsed": !!props.collapsed, "is-medium": legendButtonsMode(props.width) === "medium", "is-small": legendButtonsMode(props.width) === "small" }}
+        data-name="legend-sources"
+      >
         <For each={props.collapsed ? [] : props.rows}>
           {(row) => (
             <div
@@ -260,7 +269,7 @@ export function IndicatorLegend(props: Props) {
                   title="Change symbol"
                   onClick={() => { props.onSelect?.(row.id); props.onTitleClick?.(row.id); }}
                 >
-                  {row.title}
+                  {legendTitleParts(props.width, false).exchange ? row.title : (row.compare?.name ?? row.title)}
                 </span>
               </Show>
               <Show when={!row.compare && (props.showTitles ?? true)}>

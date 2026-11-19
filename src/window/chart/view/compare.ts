@@ -446,7 +446,7 @@ export function createCompare(cx: ChartCx): CompareApi {
         precision: null,
         offInterval,
         eyeHidden: !!e.hidden,
-        compare: { texts },
+        compare: { texts, name: compareNames()[e.symbol] || splitSymbol(e.symbol).ticker },
       });
     }
     return rows;

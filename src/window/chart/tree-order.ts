@@ -59,3 +59,15 @@ export function splitItems(items: TreeItem[]): { sources: string[]; drawings: st
   }
   return { sources, drawings, over };
 }
+
+/** `rows` in the saved source order (front first), the ones it does not list
+ *  after them in their given order: the legend lists a pane's sources as the
+ *  Object tree does. */
+export function inSourceOrder<T extends { id: string }>(rows: T[], saved: string[] | undefined): T[] {
+  if (!saved?.length) return rows;
+  const rank = (id: string) => {
+    const k = saved.indexOf(id);
+    return k < 0 ? saved.length : k;
+  };
+  return rows.slice().sort((a, b) => rank(a.id) - rank(b.id));
+}

@@ -35,6 +35,7 @@ import { type ChartCx } from "./context";
 import { buildLegend } from "./helpers";
 import { indexOfTime } from "../time-search";
 import { emitAppEvent } from "../../../data/app-events";
+import { inSourceOrder } from "../tree-order";
 import type { JSX } from "solid-js";
 
 /** What createLegend adds to the chart context. */
@@ -61,10 +62,20 @@ export function createLegend(cx: ChartCx): LegendApi {
     const right = g && !g.left ? g.w : 0;
     return `calc(100% - ${8 + cx.legendLeft() + right + 8}px)`;
   };
-  /** Studies legend of one pane (the price pane's under the series row). */
+  /** The same width in px (read when the chart is resized or the scales
+   *  change width). */
+  const legendWidth = () => {
+    void cx.coordEpoch();
+    const g = cx.scaleGeom();
+    const right = g && !g.left ? g.w : 0;
+    return Math.max(0, cx.hostW - (8 + cx.legendLeft() + right + 8));
+  };
+  /** Studies legend of one pane (the price pane's under the series row), in
+   *  the Object tree's order (front first). */
   const studyLegend = (pane: () => number) => (
     <IndicatorLegend
-      rows={indLegend().filter((r) => r.pane === pane())}
+      rows={inSourceOrder(indLegend().filter((r) => r.pane === pane()), props.sourceOrder)}
+      width={legendWidth()}
       collapsed={!!props.indicatorsLegendCollapsed}
       onToggleCollapsed={cx.edits.toggleIndicatorsLegend}
       mainPane={pane() === (void cx.mainPaneEpoch(), cx.mainPane())}
@@ -225,6 +236,8 @@ export function createLegend(cx: ChartCx): LegendApi {
             onChangeSymbol={props.onChangeSymbol}
             onChangeInterval={props.onChangeInterval}
             onMore={cx.openSeriesMoreMenu}
+            width={legendWidth()}
+            multiChart={(props.layoutCount ?? 1) > 1}
             linkVisible={!!props.linkSyncVisible}
             linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
             onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
