@@ -7,6 +7,12 @@
  * one level (bid = ask = the last price) with no size: the size cells stay
  * empty, the best bid / ask meters full, and the totals read "-".
  *
+ * With a book (#374): a price step groups the levels and the orders on rows
+ * of several ticks (a level goes to the row at or above its price), and the
+ * "Show prices" settings hide the rows without size around the book and in
+ * the spread. The ladder then scrolls in rows: a row number maps to the price
+ * index it shows (`rowIndex`), skipping the hidden ones.
+ *
  * Colours: prices at or above the best ask read as asks (red), at or below
  * the best bid as bids (blue). Auto-centre: when the best ask comes within 3
  * rows of the top or the best bid within 3 rows of the bottom, the ladder
@@ -21,9 +27,16 @@ export const DOM_ROW_H = 20;
 /** Auto-centre delay (ms). */
 export const DOM_CENTER_DELAY = 2000;
 
-/** Price index of `price` on a `tick` grid. */
-export function priceIndex(price: number, tick: number): number {
-  return Math.round(price / tick);
+/** The price steps offered, in ticks (the first is the default). */
+export const DOM_STEPS = [1, 2, 5, 10, 20, 50, 100];
+
+/** Price index of `price` on a grid of `step` ticks: rounded to the tick, then
+ *  up to the step (away from 0). */
+export function priceIndex(price: number, tick: number, step = 1): number {
+  const i = Math.round(price / tick);
+  if (step === 1) return i;
+  const r = i / step;
+  return r < 0 ? Math.floor(r) : Math.ceil(r);
 }
 
 /** Price of index `i` (rounded to the tick's decimals). */
@@ -45,14 +58,17 @@ export type DomDepth = {
   max: number;
   bestBid: number;
   bestAsk: number;
+  /** The lowest bid and the highest ask (NaN without that side). */
+  worstBid: number;
+  worstAsk: number;
 };
 
-export function depthRows(book: DepthBook, tick: number): DomDepth {
+export function depthRows(book: DepthBook, tick: number, step = 1): DomDepth {
   const side = (levels: Map<number, number>) => {
     const out = new Map<number, number>();
     let total = 0;
     for (const [price, qty] of levels) {
-      const i = priceIndex(price, tick);
+      const i = priceIndex(price, tick, step);
       out.set(i, (out.get(i) ?? 0) + qty);
       total += qty;
     }
@@ -71,7 +87,79 @@ export function depthRows(book: DepthBook, tick: number): DomDepth {
     max,
     bestBid: b.out.size ? Math.max(...b.out.keys()) : NaN,
     bestAsk: a.out.size ? Math.min(...a.out.keys()) : NaN,
+    worstBid: b.out.size ? Math.min(...b.out.keys()) : NaN,
+    worstAsk: a.out.size ? Math.max(...a.out.keys()) : NaN,
   };
+}
+
+/** Rows shown of a stretch of the ladder: its price indexes, highest first. */
+export type DomZone = number[];
+/** The stretches of the ladder that show some of their rows only, top
+ *  first; the rows outside them all show. */
+export type DomRows = { zones: DomZone[]; spreadHidden: boolean };
+
+const desc = (xs: Iterable<number>) => [...new Set(xs)].filter(Number.isFinite).sort((a, b) => b - a);
+
+/** The rows the "Show prices" settings hide (#374), as the reference app
+ *  does. Without zero volume prices: inside each side of the book (best to
+ *  worst level) only the rows with size or orders show. Without the prices
+ *  between the best bid / ask: the spread's rows go (a crossed book keeps
+ *  them). Nothing is hidden before the book has two levels. */
+export function domRows(d: DomDepth | null, orderIndexes: Iterable<number>, prices: { zeroVolume: boolean; spread: boolean }): DomRows {
+  const none = { zones: [], spreadHidden: false };
+  if (!d || new Set([...d.bids.keys(), ...d.asks.keys()]).size < 2) return none;
+  const spread = prices.spread || !(d.bestBid < d.bestAsk);
+  if (prices.zeroVolume && spread) return none;
+  if (!spread && prices.zeroVolume) return { zones: [desc([d.bestAsk, d.bestBid])], spreadHidden: true };
+  const orders = desc(orderIndexes);
+  const askZone = desc([...d.asks.keys(), ...orders.filter((i) => i <= d.worstAsk && i >= d.bestAsk)]);
+  const bidZone = desc([...d.bids.keys(), ...orders.filter((i) => i <= d.bestBid && i >= d.worstBid)]);
+  if (spread) return { zones: [askZone, bidZone].filter((z) => z.length), spreadHidden: false };
+  return { zones: [desc([...askZone, ...bidZone])], spreadHidden: true };
+}
+
+/** The price index shown on row number `v` (row numbers go down the ladder
+ *  like prices; outside the zones a row is its price index, shifted by the
+ *  rows hidden above). */
+export function rowIndex(zones: DomZone[], v: number): number {
+  let hidden = 0;
+  for (const z of zones) {
+    if (!z.length) continue;
+    const r = z[0] - (v - hidden);
+    if (r < 0) return v - hidden;
+    if (r < z.length) return z[r];
+    hidden += z[0] - z[z.length - 1] - (z.length - 1);
+  }
+  return v - hidden;
+}
+
+/** The row number of price index `i` (a hidden price: the row of the next
+ *  shown price under it). */
+export function rowOf(zones: DomZone[], i: number): number {
+  if (!Number.isFinite(i)) return i;
+  let hidden = 0;
+  for (const z of zones) {
+    if (!z.length) continue;
+    if (i > z[0]) return i + hidden;
+    if (i >= z[z.length - 1]) {
+      const r = z.findIndex((x) => x <= i);
+      return z[0] + hidden - r;
+    }
+    hidden += z[0] - z[z.length - 1] - (z.length - 1);
+  }
+  return i + hidden;
+}
+
+/** Top row number once centred on the market: on the middle of the spread,
+ *  or on the best ask when the spread's rows are hidden. */
+export function centeredRow(m: DomMarket, rows: DomRows, height: number): number {
+  const at = rows.spreadHidden && Number.isFinite(m.ask) ? m.ask : centerIndex(m);
+  return rowOf(rows.zones, at) + Math.floor(height / 2);
+}
+
+/** The market as row numbers. */
+export function marketRows(m: DomMarket, zones: DomZone[]): DomMarket {
+  return { bid: rowOf(zones, m.bid), ask: rowOf(zones, m.ask), last: rowOf(zones, m.last) };
 }
 
 /** A size cell's meter, 0..1 of the cell: its quantity over the largest
@@ -98,8 +186,8 @@ export function centeredTop(m: DomMarket, height: number): number {
 }
 
 /** The market is within 3 rows of the top / bottom edge (and the ladder is
- *  not centred already): a re-centre is due. */
-export function needsCenter(top: number, height: number, m: DomMarket): boolean {
+ *  not centred already, on `target`): a re-centre is due. */
+export function needsCenter(top: number, height: number, m: DomMarket, target = centeredTop(m, height)): boolean {
   if (!Number.isFinite(top)) return true;
   const bottom = top - (height - 1);
   let low = Number.isFinite(m.bid) ? m.bid : Number.isFinite(m.ask) ? m.ask : m.last;
@@ -108,7 +196,7 @@ export function needsCenter(top: number, height: number, m: DomMarket): boolean 
     if (Number.isFinite(m.bid)) high = m.bid;
     else low = m.last;
   }
-  return (high + 3 > top || low - 3 < bottom) && top !== centeredTop(m, height);
+  return (high + 3 > top || low - 3 < bottom) && top !== target;
 }
 
 /** Price colour of a row: "ask" at or above the best ask, "bid" at or below
@@ -143,7 +231,7 @@ export type DomOrderMark = {
 const isBracket = (o: TradingOrder) => o.kind === "tp" || o.kind === "sl";
 
 /** The order marks per row index. */
-export function orderMarks(orders: TradingOrder[], tick: number): Map<number, DomOrderMark[]> {
+export function orderMarks(orders: TradingOrder[], tick: number, step = 1): Map<number, DomOrderMark[]> {
   const out = new Map<number, DomOrderMark[]>();
   const ids = new Set(orders.filter((o) => o.kind === "order").map((o) => o.id));
   const add = (i: number, m: DomOrderMark) => out.set(i, [...(out.get(i) ?? []), m]);
@@ -154,9 +242,9 @@ export function orderMarks(orders: TradingOrder[], tick: number): Map<number, Do
     const typeText =
       o.type === "market" ? "Market" : o.type === "limit" ? (isBracket(o) ? "TakeProfit" : "Limit") : o.type === "stop" ? (isBracket(o) ? "StopLoss" : "Stop") : "Stop Limit";
     if (o.stopPrice !== null && !(o.type === "stopLimit" && o.stopTriggered))
-      add(priceIndex(o.stopPrice, tick), { ...base, field: "stopPrice", type, typeText, inactive: pending });
+      add(priceIndex(o.stopPrice, tick, step), { ...base, field: "stopPrice", type, typeText, inactive: pending });
     if (o.limitPrice !== null)
-      add(priceIndex(o.limitPrice, tick), {
+      add(priceIndex(o.limitPrice, tick, step), {
         ...base,
         field: "limitPrice",
         type,

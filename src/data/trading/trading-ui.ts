@@ -114,6 +114,7 @@ const K = {
   tab: "ot:order-ticket:tab",
   mode: "ot:order-ticket:mode",
   domPrices: "ot:order-ticket:dom-prices",
+  domSteps: "ot:order-ticket:dom-steps",
 };
 
 /** DOM panel settings (⋯ menu of the DOM tab). */
@@ -122,6 +123,14 @@ export type DomPrices = { zeroVolume: boolean; spread: boolean };
 function parseDomPrices(raw: string): DomPrices {
   const v = JSON.parse(raw) as Partial<DomPrices> | null;
   return { zeroVolume: v?.zeroVolume !== false, spread: v?.spread !== false };
+}
+
+/** DOM price step per symbol, in ticks. */
+function parseDomSteps(raw: string): Record<string, number> {
+  const v = JSON.parse(raw) as Record<string, unknown> | null;
+  const out: Record<string, number> = {};
+  if (v && typeof v === "object") for (const [k, n] of Object.entries(v)) if (typeof n === "number" && Number.isInteger(n) && n > 0) out[k] = n;
+  return out;
 }
 
 function parsePresets(raw: string): OrderPreset[] {
@@ -211,6 +220,7 @@ export const tradingUi = createRoot(() => {
   const [ticketTab, setTicketTabRaw] = createSignal<"order" | "dom">(kv.getItem(K.tab) === "dom" ? "dom" : "order");
   const [domHover, setDomHover] = createSignal<{ price: number; buy: boolean } | null>(null);
   const [domPrices, setDomPrices] = persisted<DomPrices>(K.domPrices, { parse: parseDomPrices, default: { zeroVolume: true, spread: true }, sync: true });
+  const [domSteps, setDomSteps] = persisted<Record<string, number>>(K.domSteps, { parse: parseDomSteps, default: {}, sync: true });
   /** Docked at the right ("panel") or a floating dialog ("popup": "Undock
    *  order ticket"). */
   const [ticketMode, saveTicketMode] = persisted<"panel" | "popup">(K.mode, { parse: oneOf("panel", "popup"), format: String, default: "panel" });
@@ -405,6 +415,14 @@ export const tradingUi = createRoot(() => {
     setDomHover,
     domPrices,
     setDomPrices,
+    /** The DOM's price step of a symbol, in ticks (1: none). */
+    domStep: (symbol: string): number => domSteps()[symbol] ?? 1,
+    setDomStep(symbol: string, ticks: number) {
+      const next = { ...domSteps() };
+      if (ticks === 1) delete next[symbol];
+      else next[symbol] = ticks;
+      setDomSteps(next);
+    },
     /** "SL enables quantity in risk" (ticket ⋯ menu). */
     slEnablesRisk,
     setSlEnablesRisk,
