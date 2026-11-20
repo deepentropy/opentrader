@@ -17,17 +17,10 @@ import {
 import * as kv from "../../data/kv";
 import { Dialog } from "../../components/Dialog";
 import { translate, translateWith } from "../../i18n/translator";
+import { saveFile } from "../../data/save-file";
 
 const FORMAT_KEY = "ot:export-time-format";
 const FORMAT_LABEL: Record<ExportTimeFormat, string> = { iso: "ISO time", unix: "UNIX timestamp" };
-
-function download(name: string, text: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 export function DownloadChartDataDialog(props: { onClose: () => void }) {
   const charts = exportableCharts();
@@ -40,7 +33,7 @@ export function DownloadChartDataDialog(props: { onClose: () => void }) {
   const submit = () => {
     const c = chart();
     if (!c) return;
-    download(exportFileName(c.source), buildChartCsv(c.source, format()));
+    void saveFile(exportFileName(c.source), buildChartCsv(c.source, format()));
     props.onClose();
   };
 

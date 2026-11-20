@@ -10,6 +10,8 @@ import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { createAppTheme } from "../shell/app-theme";
 import { currentWindowLabel } from "../shell/window-bridge";
+import { DialogHost } from "../../components/Dialogs";
+import { SavedFileToast } from "../shell/SavedFileToast";
 import { ScreenerPanel } from "./ScreenerPanel";
 
 /** Event to the main window: a symbol picked in the screener window ({ ticker }). */
@@ -26,6 +28,9 @@ export function ScreenerWindow() {
         onSymbolPicked={(ticker) => void emitTo("main", SCREENER_PICK_EVENT, { ticker })}
         onCloseWindow={() => void getCurrentWebviewWindow().close()}
       />
+      {/* The screener's CSV exports: "File downloaded" or "Export failed". */}
+      <DialogHost />
+      <SavedFileToast />
     </div>
   );
 }

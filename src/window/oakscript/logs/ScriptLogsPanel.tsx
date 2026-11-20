@@ -28,6 +28,7 @@ import { STRATEGY_UPDATED_EVENT } from "../../chart/indicators/strategy-entries"
 import { setRevealRequest } from "../editor-state";
 import { logsTarget, readScriptLogs } from "./script-logs";
 import { filterLogs, startDateNow, startDateSeconds } from "./log-filter";
+import { saveFile } from "../../../data/save-file";
 
 const LEVELS: { level: LogLevel; label: string }[] = [
   { level: "info", label: "Info" },
@@ -117,12 +118,7 @@ export function ScriptLogsPanel(props: Props) {
 
   const download = () => {
     const text = shown().map((e) => `[${logTime(e.time, props.timeZone)}] ${e.level.toUpperCase()}: ${e.message}`).join("\n");
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title().replace(/[\\/:*?"<>|]/g, "_") || "script"} logs.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void saveFile(`${title().replace(/[\\/:*?"<>|]/g, "_") || "script"} logs.txt`, text, "text/plain");
   };
 
   return (

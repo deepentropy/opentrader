@@ -42,8 +42,8 @@ import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
 import { OutputRows } from "./StyleOutputRows";
 import { matchInputs, parseSettingsFile, settingsFile, settingsFileName } from "../../data/study-settings-file";
-import { downloadText } from "../screener/screener-csv";
 import { showNotice } from "../../components/Dialogs";
+import { saveFile } from "../../data/save-file";
 import type { StyleItem } from "./indicators/style-outputs";
 import type { PlotStyleOverride } from "./indicators/indicator-layer";
 
@@ -494,7 +494,7 @@ export function IndicatorSettingsDialog(props: Props) {
   /** The dialog's values as a settings file (strategy properties in full). */
   const exportSettings = () => {
     const file = settingsFile(props.title, current(), props.strategy ? ({ ...propDraft } as StrategyProperties) : undefined);
-    downloadText(settingsFileName(props.title), JSON.stringify(file, null, 2));
+    void saveFile(settingsFileName(props.title), JSON.stringify(file, null, 2), "application/json");
   };
   let importInput: HTMLInputElement | undefined;
   // Read here, in the dialog's scope: read from the file input's handler (no owner) or after the file's await, some

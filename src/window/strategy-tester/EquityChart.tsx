@@ -1,4 +1,5 @@
 import { dateText } from "../../i18n/format";
+import { saveFile } from "../../data/save-file";
 /*
  * Performance chart of the Metrics view (the reference app 3.4.1; design doc §3.3
  * and §14.9 - §14.15). A lightweight-charts instance: transparent over
@@ -412,11 +413,7 @@ export function EquityChart(props: Props) {
       }
       const d = new Date();
       const p2 = (n: number) => String(n).padStart(2, "0");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `Equity chart_${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}.png`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      void saveFile(`Equity chart_${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}.png`, blob);
     }, "image/png");
   };
 

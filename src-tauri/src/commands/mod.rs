@@ -1,5 +1,6 @@
 pub mod alerts;
 pub mod events;
+pub mod files;
 pub mod history;
 pub mod images;
 pub mod local_series;

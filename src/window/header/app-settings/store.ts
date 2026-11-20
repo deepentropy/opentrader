@@ -12,11 +12,18 @@ type AppSettings = {
   /** "Sync crosshair across windows": the crosshair goes to every other
    *  window, no link colour needed (data/tab-link-bus.ts, default on). */
   crosshairSync: boolean;
+  /** Settings > General > Downloads (#369): the folder exports are saved
+   *  into ("" = the system download folder), and "Always ask where to save
+   *  files" (the Save dialog each time instead). */
+  downloadFolder: string;
+  downloadAsk: boolean;
 };
 
 const SETTINGS_DEFAULTS: AppSettings = {
   // ON by default.
   crosshairSync: true,
+  downloadFolder: "",
+  downloadAsk: false,
 };
 
 function loadSettings(): AppSettings {
@@ -26,7 +33,11 @@ function loadSettings(): AppSettings {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         // Only the known fields (older blobs carry removed settings).
-        const merged: AppSettings = { crosshairSync: typeof parsed.crosshairSync === "boolean" ? parsed.crosshairSync : SETTINGS_DEFAULTS.crosshairSync };
+        const merged: AppSettings = {
+          crosshairSync: typeof parsed.crosshairSync === "boolean" ? parsed.crosshairSync : SETTINGS_DEFAULTS.crosshairSync,
+          downloadFolder: typeof parsed.downloadFolder === "string" ? parsed.downloadFolder : SETTINGS_DEFAULTS.downloadFolder,
+          downloadAsk: typeof parsed.downloadAsk === "boolean" ? parsed.downloadAsk : SETTINGS_DEFAULTS.downloadAsk,
+        };
         // One-time migration (_v 2): older builds auto-persisted the blob
         // with crosshairSync:false while the checkbox was INERT — a stored
         // false predating the gate cannot be a deliberate choice, and it

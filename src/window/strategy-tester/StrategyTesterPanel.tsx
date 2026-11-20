@@ -36,6 +36,7 @@ import { cachedSymbolSessions, symbolSessions } from "../../data/session";
 import { DEFAULT_SYMBOL, type BacktestReport } from "../../backtester/types";
 import { REPLAY_TABS, STRATEGY_TABS, reportSheets, reportXlsxFileName, type ReportTab } from "./xlsx-report";
 import { buildXlsx } from "./xlsx-writer";
+import { saveFile } from "../../data/save-file";
 
 /** Tab id of the Replay Trading tab (strategy tabs use their study ids). */
 const REPLAY_TAB = "replay-trading";
@@ -182,11 +183,7 @@ export function StrategyTesterPanel(props: Props) {
       tabs,
     );
     const blob = new Blob([buildXlsx(sheets)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = reportXlsxFileName(id === REPLAY_TAB ? "Replay Trading" : title(id), sym);
-    a.click();
-    URL.revokeObjectURL(a.href);
+    void saveFile(reportXlsxFileName(id === REPLAY_TAB ? "Replay Trading" : title(id), sym), blob);
   }
 
   const contentHeight = () => strategyTester.height() || DEFAULT_HEIGHT;

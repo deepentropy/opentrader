@@ -40,6 +40,7 @@ import {
   userIndicatorId,
   userScriptFullRunReason,
 } from "../chart/indicators/user-scripts";
+import { saveFile } from "../../data/save-file";
 import {
   dropUserStrategy,
   notifyUserStrategyCompiled,
@@ -413,12 +414,7 @@ export function OakScriptPanel(props: Props) {
 
   function exportScript(): void {
     const s = builtin() ?? currentScript();
-    const url = URL.createObjectURL(new Blob([s.source], { type: "text/javascript" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${s.name.replace(/[\\/:*?"<>|]/g, "_")}.js`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void saveFile(`${s.name.replace(/[\\/:*?"<>|]/g, "_")}.js`, s.source, "text/javascript");
   }
 
   function importScript(file: File): void {

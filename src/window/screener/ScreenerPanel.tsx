@@ -77,7 +77,8 @@ import { bareTicker, type ScriptColumn, type ScriptRow } from "../../data/script
 import { watchlistStore } from "../../data/watchlist-store";
 import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
-import { csvFileName, downloadText } from "./screener-csv";
+import { csvFileName } from "./screener-csv";
+import { saveFile } from "../../data/save-file";
 import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 import { translateWith } from "../../i18n/translator";
 
@@ -130,7 +131,7 @@ export function ScreenerPanel(props: Props) {
   let scriptNames: () => ReadonlyMap<string, string> = () => new Map();
   const downloadCsv = () => {
     trackScreener("screener_exported", { screener: "script", to: "csv" });
-    downloadText(csvFileName(scriptScreenStore.current()?.name ?? "Script screener"), scriptResultsCsv(scriptRows(), scriptColumns(), scriptNames()));
+    void saveFile(csvFileName(scriptScreenStore.current()?.name ?? "Script screener"), scriptResultsCsv(scriptRows(), scriptColumns(), scriptNames()));
   };
   /** Move the screener: the main window shows it in its new place (App opens its own window for "window"). From its
    *  own window: the main window is told (event), then the window closes. */

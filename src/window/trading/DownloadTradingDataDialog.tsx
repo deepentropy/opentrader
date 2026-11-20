@@ -7,8 +7,8 @@ import { createSignal } from "solid-js";
 import { Dialog } from "../../components/Dialog";
 import { SelectControl } from "../../components/form";
 import { translate } from "../../i18n/translator";
-import { downloadText } from "../screener/screener-csv";
 import { tradingCsvName } from "./account-table-model";
+import { saveFile } from "../../data/save-file";
 
 export type ExportTab = { id: string; title: () => string; csv: () => string };
 
@@ -16,7 +16,7 @@ export function DownloadTradingDataDialog(props: { broker: string; tabs: ExportT
   const [tab, setTab] = createSignal("all");
   const submit = () => {
     const chosen = tab() === "all" ? props.tabs : props.tabs.filter((t) => t.id === tab());
-    for (const t of chosen) downloadText(tradingCsvName(props.broker, t.title(), new Date()), t.csv());
+    for (const t of chosen) void saveFile(tradingCsvName(props.broker, t.title(), new Date()), t.csv());
     props.onClose();
   };
   return (

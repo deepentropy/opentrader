@@ -285,3 +285,36 @@
 html.theme-dark .ot-emoji-picker { background: #131313; }
 html.theme-dark .ot-emoji-tabs { border-bottom-color: #464646; }
 .ot-leading-emoji { margin-inline-end: 2px; }
+
+/* "File downloaded" toast (#369, SavedFileToast): bottom centre of the window, as the reference download toast. */
+.ot-saved-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--trd-toast-border);
+  border-radius: 8px;
+  background: var(--trd-toast-bg);
+  box-shadow: 0 2px 4px var(--trd-toast-shadow);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.ot-saved-toast-icon { display: flex; color: var(--trd-toast-success); }
+.ot-saved-toast-text { padding-inline-end: 4px; }
+.ot-saved-toast-btn {
+  margin-inline-start: 8px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-brand);
+  font: inherit;
+  cursor: pointer;
+}
+.ot-saved-toast-btn:hover { background: var(--color-container-fill-primary-neutral-normal); }

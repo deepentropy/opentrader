@@ -29,7 +29,8 @@ import { ScreenerSettingsDialog } from "./ScreenerSettingsDialog";
 import { screenerFields, screenerScan } from "../../data/screener-api";
 import { planScreen } from "../../data/screener-query";
 import { watchlistTickers } from "./FilterPills";
-import { MAX_ROWS, csvFileName, downloadText, screenCsv } from "./screener-csv";
+import { MAX_ROWS, csvFileName, screenCsv } from "./screener-csv";
+import { saveFile } from "../../data/save-file";
 
 /** `copyOf`: "Make a copy" of an Open screen row (`source`), not opened. */
 type NameDialog = { mode: "saveAs" | "copy" | "copyOf" | "rename" | "create"; initial: string; source?: Screen };
@@ -71,7 +72,7 @@ export function ScreenerTopbar(props: Props) {
     const known = new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
     const plan = planScreen(s, (f) => known.has(f), watchlistTickers(s.watchlistId));
     const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, MAX_ROWS], tickers: plan.tickers });
-    downloadText(csvFileName(s.title), screenCsv(res.rows, plan.columns, plan.fields));
+    void saveFile(csvFileName(s.title), screenCsv(res.rows, plan.columns, plan.fields));
   };
   const run = (fn: () => void) => {
     setMenuOpen(false);

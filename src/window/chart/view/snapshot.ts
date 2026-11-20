@@ -17,6 +17,7 @@ import {
   type LegendRun,
   type LegendValue,
 } from "../layout-snapshot";
+import { saveFile } from "../../../data/save-file";
 import { compareSource } from "../compare/compare-style";
 import { isIntradayInterval, splitSymbol } from "../../../data/datafeed";
 import { commands } from "../../../bindings";
@@ -266,12 +267,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
           /* fall through to download */
         }
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${ticker.replace(/[\/:*?"<>|]/g, "_")}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+      void saveFile(`${ticker.replace(/[\/:*?"<>|]/g, "_")}.png`, blob);
     }, "image/png");
   };
 

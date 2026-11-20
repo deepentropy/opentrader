@@ -52,18 +52,30 @@ export function exportableCharts(): { id: number; source: ChartExportSource }[] 
 
 export type ExportTimeFormat = "iso" | "unix";
 
+/** One formatter per zone: building one takes most of the time of a row, so
+ *  an ISO export of 100,000 bars froze the window for seconds (#369). */
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+function zoneFormat(timeZone: string): Intl.DateTimeFormat {
+  let f = zoneFormats.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    zoneFormats.set(timeZone, f);
+  }
+  return f;
+}
+
 /** Offset (seconds) of `timeZone` at `sec`. */
 function zoneOffset(timeZone: string, sec: number): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(sec * 1000));
+  const parts = zoneFormat(timeZone).formatToParts(new Date(sec * 1000));
   const v = (t: string) => Number(parts.find((p) => p.type === t)?.value);
   const wall = Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second")) / 1000;
   return wall - sec;

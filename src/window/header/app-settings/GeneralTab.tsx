@@ -1,8 +1,10 @@
 /*
- * Settings > General: crosshair sync, theme, downloads folder.
+ * Settings > General: crosshair sync, theme, downloads (folder, ask each time).
  */
-import { createSignal, For, onMount, Show } from "solid-js";
-import { downloadDir } from "@tauri-apps/api/path";
+import { createEffect, createSignal, For, Show } from "solid-js";
+import { commands } from "../../../bindings";
+import { downloadsFolder } from "../../../data/save-file";
+import { isTauri } from "../../shell/window-bridge";
 import { CheckField } from "../../../components/form";
 import type { ThemeSetting } from "../../shell/app-theme";
 import { Section } from "./parts";
@@ -73,24 +75,43 @@ export function ThemePicker(props: { setting: ThemeSetting; onChange: (s: ThemeS
 }
 
 export function GeneralTab(props: { themeSetting: ThemeSetting; onThemeChange: (s: ThemeSetting) => void }) {
-  const [downloadPath, setDownloadPath] = createSignal<string | null>(null);
-  onMount(() => {
-    if ("__TAURI_INTERNALS__" in window) void downloadDir().then(setDownloadPath).catch(() => setDownloadPath(null));
+  // The folder exports are saved into (#369, data/save-file.ts); the browser decides in the web version.
+  const [downloadPath, setDownloadPath] = createSignal("");
+  createEffect(() => {
+    void settings.downloadFolder;
+    if (isTauri()) void downloadsFolder().then((p) => setDownloadPath(p ?? ""));
   });
+  const changeFolder = async () => {
+    const r = await commands.downloadsFolderPick(downloadPath() || null);
+    if (r.status === "ok" && r.data) setSettings("downloadFolder", r.data);
+  };
   return (
     <>
       <Section label="CROSSHAIR">
         <CheckField variant="settings" label="Sync crosshair across windows" checked={settings.crosshairSync} onChange={() => setSettings("crosshairSync", !settings.crosshairSync)} />
       </Section>
       <Section label="THEME"><ThemePicker setting={props.themeSetting} onChange={props.onThemeChange} /></Section>
-      <Section label="DOWNLOADS">
-        <div class="app-settings-path-row">
-          {/* Files are saved to the system download folder. */}
-          <span class="app-settings-path" data-no-translate>{downloadPath() ?? ""}</span>
-          {/* Needs an OS folder picker (Tauri dialog plugin) — not wired here. */}
-          <button type="button" class="app-settings-btn" disabled title="Choosing a folder needs the OS file dialog, which isn't wired up yet"><span data-i18n-sense="action">Change</span></button>
-        </div>
-      </Section>
+      <Show when={isTauri()}>
+        <Section label="DOWNLOADS">
+          <div class="app-settings-path-row">
+            {/* Opens the folder; inactive while every file asks where to go. */}
+            <span
+              class={`app-settings-path${settings.downloadAsk ? " disabled" : ""}`}
+              role="link"
+              tabIndex={settings.downloadAsk ? -1 : 0}
+              data-no-translate
+              data-name="downloads-folder"
+              onClick={() => { if (!settings.downloadAsk && downloadPath()) void commands.openFolder(downloadPath()); }}
+            >
+              {downloadPath()}
+            </span>
+            <button type="button" class="app-settings-btn" data-name="downloads-change" disabled={settings.downloadAsk} onClick={() => void changeFolder()}>
+              <span data-i18n-sense="action">Change</span>
+            </button>
+          </div>
+          <CheckField variant="settings" label="Always ask where to save files" checked={settings.downloadAsk} onChange={() => setSettings("downloadAsk", !settings.downloadAsk)} />
+        </Section>
+      </Show>
     </>
   );
 }

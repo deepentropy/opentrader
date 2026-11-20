@@ -26,7 +26,8 @@ import { TABS } from "../../data/alerts-panel";
 import { alertStore, type AlertFire, type AlertRule } from "../../data/alert-store";
 import { ruleDrawingMissing } from "../../data/alert-condition";
 import { intervalLabel } from "../../data/datafeed";
-import { csvFileName, downloadText } from "../screener/screener-csv";
+import { csvFileName } from "../screener/screener-csv";
+import { saveFile } from "../../data/save-file";
 import { webhookStatus } from "../../data/webhook-status";
 import { AlertRulesList, AlertRulesToolbar, OptionsButton, RowLogo, isTechnical } from "./AlertRules";
 import { GLYPH, MenuAction, MenuSection, MenuToggle } from "./alerts-menu";
@@ -150,7 +151,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
                 icon={GLYPH.download()}
                 label="Download log as CSV"
                 disabled={visibleFires().length === 0}
-                onSelect={() => { downloadText(csvFileName("Alerts log"), logCsv(visibleFires())); setLogMenu(false); }}
+                onSelect={() => { void saveFile(csvFileName("Alerts log"), logCsv(visibleFires())); setLogMenu(false); }}
               />
               <MenuSection title="Filter events">
                 <MenuToggle label="Current symbol" checked={logFilters().symbol} onSelect={() => flipLog("symbol")} />
