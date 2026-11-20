@@ -2,8 +2,10 @@
  * Settings > Plugins: the plugins installed on this computer, from the catalog or from a file, and the Plugin API they
  * connect to (`opentrader_core::plugins::hub`, plugins/PROTOCOL.md).
  *
- * A plugin lives in `<app data>/plugins/<id>/` (its package unpacked); its state (enabled, token, settings, the files
- * its installation copied elsewhere) in `plugins.json` of the config folder. While at least one plugin is enabled the
+ * A plugin lives in `<app data>/plugins/<id>/` (its package unpacked) and keeps its own files in
+ * `<app data>/plugin-data/<id>/`; its state (enabled, token, settings, the files its installation copied elsewhere) in
+ * `plugins.json` of the config folder, its password settings in the system's credential store. While at least one
+ * plugin is enabled the
  * API listens on 127.0.0.1. An enabled `process` plugin is started here and started again when it stops; an `external`
  * one runs inside another application and finds the address and its token in the connection file written for it.
  */
@@ -13,7 +15,7 @@ mod package;
 
 use opentrader_core::files;
 use opentrader_core::plugins::hub::{Allowed, Hub, HubEvent};
-use opentrader_core::plugins::manifest::{self, Manifest, Runtime};
+use opentrader_core::plugins::manifest::{self, Manifest, Runtime, SettingKind};
 use opentrader_core::plugins::API_VERSION;
 use opentrader_core::sync::LockExt;
 use package::CatalogEntry;
@@ -78,6 +80,8 @@ pub struct PluginInfo {
     pub settings: BTreeMap<String, String>,
     pub copied: Vec<String>,
     pub symbol_map: BTreeMap<String, String>,
+    /// The password settings that have a value in the credential store (the values never leave the app's backend).
+    pub saved_secrets: Vec<String>,
     /// Runs on this computer.
     pub supported: bool,
 }
@@ -107,6 +111,29 @@ pub struct PackagePreview {
 #[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
 pub struct PluginsChanged;
 
+/// A plugin asks the user something, or shows a message until it sends `PluginPromptDone` (`plugin.prompt`).
+#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPrompt {
+    pub plugin: String,
+    /// The plugin's name, for the dialog.
+    pub plugin_name: String,
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    /// "text" or "password": the field of the answer; none for a message alone.
+    pub input: Option<String>,
+    /// A PNG picture, base64.
+    pub image: Option<String>,
+}
+
+/// The plugin closed its prompt (`plugin.promptDone`).
+#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
+pub struct PluginPromptDone {
+    pub plugin: String,
+    pub id: String,
+}
+
 pub struct Plugins {
     pub hub: Hub,
     pub data: data::PluginData,
@@ -124,6 +151,38 @@ pub struct Plugins {
 
 fn plugins_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_data_dir().map(|d| d.join("plugins")).map_err(|e| e.to_string())
+}
+
+/// The plugin's own files (`OPENTRADER_PLUGIN_DATA`), kept across updates and removed with the plugin.
+fn data_dir(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    app.path().app_data_dir().map(|d| d.join("plugin-data").join(id)).map_err(|e| e.to_string())
+}
+
+fn secret(app: &AppHandle, id: &str, key: &str) -> keyring::Result<keyring::Entry> {
+    keyring::Entry::new(&app.config().identifier, &format!("plugin:{id}:{key}"))
+}
+
+fn read_secret(app: &AppHandle, id: &str, key: &str) -> Option<String> {
+    match secret(app, id, key).and_then(|e| e.get_password()) {
+        Ok(v) => Some(v),
+        Err(keyring::Error::NoEntry) => None,
+        Err(e) => {
+            log(app, id, format!("Could not read the setting {key} from the credential store: {e}"));
+            None
+        }
+    }
+}
+
+fn forget_secret(app: &AppHandle, id: &str, key: &str) -> Result<(), String> {
+    match secret(app, id, key).and_then(|e| e.delete_credential()) {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("The credential store refused: {e}")),
+    }
+}
+
+/// The manifest's password settings.
+fn secret_keys(m: &Manifest) -> Vec<String> {
+    m.settings.iter().filter(|f| f.kind == SettingKind::Password).map(|f| f.key.clone()).collect()
 }
 
 fn read_config(app: &AppHandle) -> Config {
@@ -183,7 +242,9 @@ fn status(app: &AppHandle) -> PluginsStatus {
         .map(|m| {
             let c = config.plugins.get(&m.id).cloned().unwrap_or_default();
             let hello = state.hub.connected(&m.id);
+            let saved_secrets = secret_keys(&m).into_iter().filter(|k| read_secret(app, &m.id, k).is_some()).collect();
             PluginInfo {
+                saved_secrets,
                 verified: c.verified,
                 enabled: c.enabled,
                 connected: hello.is_some(),
@@ -233,6 +294,26 @@ pub fn init(app: &AppHandle) {
                     log(&handle, &plugin, "Disconnected");
                     changed(&handle);
                 }
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "plugin.prompt" => {
+                    let text = |k: &str| params.get(k).and_then(|v| v.as_str()).map(str::to_string);
+                    let Some(id) = text("id") else { continue };
+                    let plugin_name = installed_manifest(&handle, &plugin).map(|m| m.name).unwrap_or_else(|| plugin.clone());
+                    let _ = PluginPrompt {
+                        input: text("input").filter(|i| i == "text" || i == "password"),
+                        title: text("title").unwrap_or_default(),
+                        message: text("message").unwrap_or_default(),
+                        image: text("image"),
+                        plugin,
+                        plugin_name,
+                        id,
+                    }
+                    .emit(&handle);
+                }
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "plugin.promptDone" => {
+                    if let Some(id) = params.get("id").and_then(|v| v.as_str()) {
+                        let _ = PluginPromptDone { plugin, id: id.to_string() }.emit(&handle);
+                    }
+                }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "log" => {
                     let level = params.get("level").and_then(|v| v.as_str()).unwrap_or("info");
                     let message = params.get("message").and_then(|v| v.as_str()).unwrap_or_default();
@@ -258,6 +339,10 @@ fn configure(app: &AppHandle, id: &str) {
         .unwrap_or_default();
     let mut all = defaults;
     all.extend(settings);
+    for key in installed_manifest(app, id).map(|m| secret_keys(&m)).unwrap_or_default() {
+        let value = read_secret(app, id, &key).unwrap_or_default();
+        all.insert(key, value);
+    }
     let _ = state.hub.notify(id, "plugin.configure", serde_json::json!({ "settings": all }));
 }
 
@@ -353,6 +438,10 @@ fn stop_process(app: &AppHandle, id: &str) {
 /// stopped.
 fn start_process(app: &AppHandle, m: &Manifest, entry: &str, args: &[String], port: u16, token: &str) {
     let Ok(dir) = plugins_dir(app).map(|d| d.join(&m.id)) else { return };
+    let Ok(data) = data_dir(app, &m.id) else { return };
+    if let Err(e) = std::fs::create_dir_all(&data) {
+        log(app, &m.id, format!("Could not create {}: {e}", data.display()));
+    }
     let exe = dir.join(entry);
     let (tx, mut stop) = oneshot::channel::<()>();
     app.state::<Plugins>().processes.locked().insert(m.id.clone(), tx);
@@ -366,6 +455,7 @@ fn start_process(app: &AppHandle, m: &Manifest, entry: &str, args: &[String], po
                 .env("OPENTRADER_PLUGIN_ADDR", format!("127.0.0.1:{port}"))
                 .env("OPENTRADER_PLUGIN_ID", &id)
                 .env("OPENTRADER_PLUGIN_TOKEN", &token)
+                .env("OPENTRADER_PLUGIN_DATA", &data)
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
@@ -648,15 +738,42 @@ pub fn plugin_set_enabled(app: AppHandle, id: String, enabled: bool) -> Result<P
     Ok(status(&app))
 }
 
-/// The plugin's settings (its manifest's fields); a connected plugin gets them at once.
+/// The plugin's settings (its manifest's fields); a connected plugin gets them at once. A password setting goes to
+/// the credential store; left empty, the saved one is kept.
 #[tauri::command]
 #[specta::specta]
 pub fn plugin_set_settings(app: AppHandle, id: String, settings: BTreeMap<String, String>) -> Result<PluginsStatus, String> {
     let m = installed_manifest(&app, &id).ok_or_else(|| format!("{id} is not installed"))?;
-    let settings = settings.into_iter().filter(|(k, _)| m.settings.iter().any(|f| &f.key == k)).collect();
-    update_plugin(&app, &id, |p| p.settings = settings)?;
+    let secrets = secret_keys(&m);
+    let mut plain = BTreeMap::new();
+    for (k, v) in settings.into_iter().filter(|(k, _)| m.settings.iter().any(|f| &f.key == k)) {
+        if !secrets.contains(&k) {
+            plain.insert(k, v);
+        } else if !v.is_empty() {
+            secret(&app, &id, &k)
+                .and_then(|e| e.set_password(&v))
+                .map_err(|e| format!("The credential store refused the password: {e}"))?;
+        }
+    }
+    update_plugin(&app, &id, |p| p.settings = plain)?;
     configure(&app, &id);
     Ok(status(&app))
+}
+
+/// Forget a saved password setting.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_forget_secret(app: AppHandle, id: String, key: String) -> Result<PluginsStatus, String> {
+    forget_secret(&app, &id, &key)?;
+    configure(&app, &id);
+    Ok(status(&app))
+}
+
+/// The user's answer to a plugin's prompt; None: they cancelled.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_prompt_answer(app: AppHandle, plugin: String, id: String, value: Option<String>) {
+    let _ = app.state::<Plugins>().hub.notify(&plugin, "plugin.promptAnswer", serde_json::json!({ "id": id, "value": value }));
 }
 
 /// A new token: the plugin is disconnected and must connect with the new one (its connection file is rewritten).
@@ -686,6 +803,12 @@ pub async fn plugin_remove(app: AppHandle, id: String) -> Result<PluginsStatus, 
     }
     for f in removed.map(|p| p.copied).unwrap_or_default() {
         let _ = std::fs::remove_file(f);
+    }
+    for key in secret_keys(&m) {
+        let _ = forget_secret(&app, &id, &key);
+    }
+    if let Ok(data) = data_dir(&app, &id) {
+        let _ = std::fs::remove_dir_all(data);
     }
     let dir = plugins_dir(&app)?.join(&id);
     // The program may take a moment to let go of its files.

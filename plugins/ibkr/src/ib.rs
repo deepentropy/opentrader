@@ -1,36 +1,39 @@
 /*
- * The connection to the user's IB Gateway / TWS (socket API) and the broker requests of the app.
+ * The connection to the broker (`link`: the user's IB Gateway / TWS, or a direct login) and the broker requests of
+ * the app.
  *
- * While configured, the supervisor keeps one connection up, retrying with a growing delay when IB Gateway / TWS is
- * closed or refuses. Per connection:
+ * While configured, the supervisor keeps one connection up, retrying with a growing delay when the broker can't be
+ * reached or refuses. Per connection:
  *   • the order stream: orders, statuses, fills, commissions and order notices of this client id;
  *   • the account task: the selected account's values, portfolio rows and live P&L, and one P&L feed per position
  *     (its live last price and unrealized P&L);
- *   • the notice task: connection-level messages. The client itself retries a dropped socket for a few minutes and
- *     says when it is back; subscriptions are then made again and the order lists read again, since what happened
- *     during the gap is lost. When it gives up, the supervisor starts over;
+ *   • the notice task: connection-level messages. The socket API client retries a dropped socket for a few minutes
+ *     and says when it is back; subscriptions are then made again and the order lists read again, since what
+ *     happened during the gap is lost. A direct login reconnects to the broker's servers and keeps its subscriptions
+ *     itself. When either gives up, the supervisor starts over;
  *   • one market data feed per ticker the order ticket watches;
  *   • one order book feed per ticker the DOM watches.
  *
  * Requests that share an answer type (open / completed orders, executions) run one at a time behind `lists`.
  */
+use crate::direct;
+use crate::link::{Feed, Link, Notices};
 use crate::orders::{self, Leg, EXIT_GROUP};
+use crate::prompt::Prompts;
 use crate::rpc::Out;
 use crate::state::{OrdRow, PosRow, Store, Tables};
 use crate::symbols;
 use crate::wire::*;
-use futures_util::StreamExt;
-use ibapi::accounts::types::{AccountGroup, AccountId, ContractId};
-use ibapi::accounts::{AccountSummaryResult, AccountSummaryTags, AccountUpdate, PnL, PnLSingle};
+use ibapi::accounts::{AccountSummaryResult, AccountUpdate, PnL, PnLSingle};
 use ibapi::contracts::tick_types::TickType;
 use ibapi::contracts::{Contract, ContractDetails};
 use ibapi::market_data::realtime::{MarketDepths, TickTypes};
-use ibapi::market_data::{MarketDataType, SmartDepth};
-use ibapi::orders::{ExecutionFilter, ExecutionSide, Executions, Order as IbOrder, OrderStatusKind, OrderUpdate, Orders};
-use ibapi::subscriptions::{NoticeStream, Subscription, SubscriptionItem};
+use ibapi::orders::{ExecutionSide, Executions, Order as IbOrder, OrderStatusKind, OrderUpdate, Orders};
+use ibapi::subscriptions::SubscriptionItem;
 use ibapi::{Client, Error as IbError, Notice, NoticeCategory};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -38,7 +41,6 @@ use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const LIST_TIMEOUT: Duration = Duration::from_secs(10);
 const RETRY_MIN: Duration = Duration::from_secs(2);
 const RETRY_MAX: Duration = Duration::from_secs(30);
 /// How long a request waits for the broker to accept or refuse an order before answering anyway.
@@ -47,29 +49,64 @@ const QUOTE_EVERY: Duration = Duration::from_millis(250);
 /// Rows of each side of an order book: what IB gives by default.
 const DEPTH_ROWS: i32 = 10;
 
+/// How the plugin reaches the broker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Connection {
+    /// The socket API of IB Gateway / TWS at `host:port`.
+    Gateway { host: String, port: u16 },
+    /// The plugin logs in itself.
+    Direct(direct::Login),
+}
+
 /// The plugin's settings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
-    pub host: String,
-    pub port: u16,
+    pub connection: Connection,
     pub client_id: i32,
 }
 
 impl Config {
-    /// From `plugin.configure`'s text values; empty fields take the manifest's defaults.
-    pub fn from_settings(s: &HashMap<String, String>) -> Result<Config, String> {
+    /// From `plugin.configure`'s text values; empty fields take the manifest's defaults. `data` is the plugin's data
+    /// folder (where a direct login keeps its restart token).
+    pub fn from_settings(s: &HashMap<String, String>, data: Option<PathBuf>) -> Result<Config, String> {
         let get = |k: &str, default: &str| s.get(k).map(|v| v.trim()).filter(|v| !v.is_empty()).unwrap_or(default).to_string();
-        let port = get("port", "4002");
         let client_id = get("clientId", "17");
-        Ok(Config {
-            host: get("host", "127.0.0.1"),
-            port: port.parse().map_err(|_| format!("Port {port:?} is not a port number"))?,
-            client_id: client_id.parse().map_err(|_| format!("Client ID {client_id:?} is not a whole number"))?,
-        })
+        let client_id = client_id.parse().map_err(|_| format!("Client ID {client_id:?} is not a whole number"))?;
+        let connection = match get("connection", "gateway").as_str() {
+            "direct" => {
+                let username = get("username", "");
+                // The password is kept as typed: spaces may be part of it.
+                let password = s.get("password").cloned().unwrap_or_default();
+                if username.is_empty() || password.is_empty() {
+                    return Err("Direct login: enter your username and password in the plugin's settings".into());
+                }
+                let live = get("account", "paper") == "live";
+                Connection::Direct(direct::Login {
+                    restart_token: data.map(|d| direct::restart_token_file(&d, &username, live)),
+                    username,
+                    password,
+                    live,
+                    server: get("server", direct::DEFAULT_SERVER),
+                    typed_code: get("secondFactor", "phone") == "code",
+                })
+            }
+            _ => {
+                let port = get("port", "4002");
+                Connection::Gateway {
+                    host: get("host", "127.0.0.1"),
+                    port: port.parse().map_err(|_| format!("Port {port:?} is not a port number"))?,
+                }
+            }
+        };
+        Ok(Config { connection, client_id })
     }
 
-    pub fn address(&self) -> String {
-        format!("{}:{}", self.host, self.port)
+    /// What the plugin connects to, for the user's messages.
+    pub fn target(&self) -> String {
+        match &self.connection {
+            Connection::Gateway { host, port } => format!("IB Gateway / TWS at {host}:{port}"),
+            Connection::Direct(l) => format!("Interactive Brokers (direct {} login)", if l.live { "live" } else { "paper" }),
+        }
     }
 }
 
@@ -87,7 +124,9 @@ impl Drop for Tasks {
 
 /// A live connection.
 struct Conn {
-    client: Arc<Client>,
+    client: Link,
+    /// What it is connected to, for the user's messages.
+    target: String,
     generation: u64,
     client_id: i32,
     tasks: Mutex<Vec<JoinHandle<()>>>,
@@ -117,6 +156,8 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 pub struct Ibkr {
     pub store: Arc<Store>,
+    /// Questions to the user (a direct login's second factor).
+    pub prompts: Arc<Prompts>,
     config: watch::Sender<Option<Config>>,
     conn: Mutex<Option<Arc<Conn>>>,
     generation: AtomicU64,
@@ -137,6 +178,7 @@ pub struct Ibkr {
 impl Ibkr {
     pub fn new(out: Out) -> Arc<Self> {
         Arc::new(Self {
+            prompts: Arc::new(Prompts::new(out.clone())),
             store: Arc::new(Store::new(out)),
             config: watch::Sender::new(None),
             conn: Mutex::new(None),
@@ -165,8 +207,8 @@ impl Ibkr {
 
     fn current(&self) -> Result<Arc<Conn>, String> {
         lock(&self.conn).clone().ok_or_else(|| {
-            if self.config.borrow().is_some() {
-                "Not connected to IB Gateway / TWS".to_string()
+            if let Some(cfg) = self.config.borrow().as_ref() {
+                format!("Not connected to {}", cfg.target())
             } else {
                 "The plugin is not configured yet".to_string()
             }
@@ -210,7 +252,7 @@ impl Ibkr {
                             self.store.update(|t| {
                                 t.connected = false;
                                 t.clear_account();
-                                t.notice("error", format!("Lost the connection to IB Gateway / TWS at {}. Reconnecting.", cfg.address()));
+                                t.notice("error", format!("Lost the connection to {}. Reconnecting.", cfg.target()));
                             });
                         }
                         _ = rx.changed() => {
@@ -241,42 +283,50 @@ impl Ibkr {
 
     /// Connect and start the connection's tasks. The receiver resolves when the connection is gone for good.
     async fn connect(self: &Arc<Self>, cfg: &Config) -> Result<oneshot::Receiver<()>, String> {
-        let address = cfg.address();
-        let attempt = tokio::time::timeout(
-            CONNECT_TIMEOUT,
-            Client::builder().address(address.as_str()).client_id(cfg.client_id).connect_with_notice_stream(),
-        )
-        .await;
-        let (client, notices) = match attempt {
-            Ok(Ok(pair)) => pair,
-            Ok(Err(e)) => return Err(connect_error(&e, cfg)),
-            Err(_) => return Err(format!("No answer from IB Gateway / TWS at {address}. {}", ENABLE_API)),
+        let target = cfg.target();
+        let (client, notices) = match &cfg.connection {
+            Connection::Gateway { host, port } => {
+                let address = format!("{host}:{port}");
+                let attempt = tokio::time::timeout(
+                    CONNECT_TIMEOUT,
+                    Client::builder().address(address.as_str()).client_id(cfg.client_id).connect_with_notice_stream(),
+                )
+                .await;
+                match attempt {
+                    Ok(Ok((client, notices))) => (Link::Gateway(Arc::new(client)), Notices::Gateway(notices)),
+                    Ok(Err(e)) => return Err(connect_error(&e, cfg)),
+                    Err(_) => return Err(format!("No answer from {target}. {ENABLE_API}")),
+                }
+            }
+            Connection::Direct(login) => {
+                let (client, notices) = direct::connect(login, cfg.client_id, &self.prompts).await?;
+                (Link::Direct(client), Notices::Direct(notices))
+            }
         };
-        let client = Arc::new(client);
         let accounts = match client.managed_accounts().await {
             Ok(a) if !a.is_empty() => a,
             Ok(_) => {
                 client.disconnect().await;
-                return Err("IB Gateway / TWS lists no account".into());
+                return Err(format!("{target} lists no account"));
             }
             Err(e) => {
                 client.disconnect().await;
-                return Err(format!("IB Gateway / TWS did not list the accounts: {e}"));
+                return Err(format!("{target} did not list the accounts: {e}"));
             }
         };
-        // Real-time prices where the account has the market data, delayed elsewhere.
-        let _ = client.switch_market_data_type(MarketDataType::Delayed).await;
-        let order_stream = match client.order_update_stream().await {
+        client.prefer_delayed().await;
+        let order_stream = match client.order_updates().await {
             Ok(s) => s,
             Err(e) => {
                 client.disconnect().await;
-                return Err(format!("IB Gateway / TWS refused the order updates: {e}"));
+                return Err(format!("{target} refused the order updates: {e}"));
             }
         };
 
         let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let conn = Arc::new(Conn {
             client: client.clone(),
+            target: target.clone(),
             generation,
             client_id: cfg.client_id,
             tasks: Mutex::new(Vec::new()),
@@ -293,7 +343,7 @@ impl Ibkr {
             t.accounts = accounts.clone();
             t.account = account.clone();
             let kind = if account.as_deref().is_some_and(|a| a.starts_with('D')) { "paper" } else { "live" };
-            t.notice("info", format!("Connected to IB Gateway / TWS at {address} ({kind} account {})", account.clone().unwrap_or_default()));
+            t.notice("info", format!("Connected to {target} ({kind} account {})", account.clone().unwrap_or_default()));
             account
         });
 
@@ -340,14 +390,14 @@ impl Ibkr {
                 self.store.update(|t| {
                     t.connected = up;
                     if !up {
-                        t.notice("warn", "The connection to IB Gateway / TWS dropped. Retrying.");
+                        t.notice("warn", format!("The connection to {} dropped. Retrying.", conn.target));
                     }
                 });
             }
         }
     }
 
-    async fn run_notices(self: Arc<Self>, conn: Arc<Conn>, mut notices: NoticeStream, ended: oneshot::Sender<()>) {
+    async fn run_notices(self: Arc<Self>, conn: Arc<Conn>, mut notices: Notices, ended: oneshot::Sender<()>) {
         while let Some(n) = notices.next().await {
             if !self.is_current(conn.generation) {
                 return;
@@ -356,9 +406,9 @@ impl Ibkr {
                 // The socket is back: subscriptions are gone, the events of the gap are lost.
                 self.store.update(|t| {
                     t.connected = true;
-                    t.notice("info", "The connection to IB Gateway / TWS is back");
+                    t.notice("info", format!("The connection to {} is back", conn.target));
                 });
-                let _ = conn.client.switch_market_data_type(MarketDataType::Delayed).await;
+                conn.client.prefer_delayed().await;
                 if let Some(a) = self.store.read(|t| t.account.clone()) {
                     self.start_account(&conn, a);
                 }
@@ -401,14 +451,13 @@ impl Ibkr {
     }
 
     async fn run_account(self: Arc<Self>, conn: Arc<Conn>, account: String) {
-        let id = AccountId(account.clone());
-        let mut updates = match conn.client.account_updates(&id).await {
+        let mut updates = match conn.client.account_updates(&account).await {
             Ok(s) => s,
-            Err(e) => return self.account_error(&conn, e),
+            Err(e) => return self.account_error(&conn, &e),
         };
-        let mut pnl = conn.client.pnl(&id, None).await.ok();
+        let mut pnl = conn.client.pnl(&account).await;
         // The values the account updates leave out (SMA, Reg T equity, day trades left…).
-        let mut summary = conn.client.account_summary(&AccountGroup("All".into()), AccountSummaryTags::ALL).await.ok();
+        let mut summary = conn.client.account_summary().await;
         let mut feeds = Tasks::default();
         let mine = |t: &Tables| t.account.as_deref() == Some(account.as_str());
         loop {
@@ -461,7 +510,8 @@ impl Ibkr {
                     }
                     Some(Ok(SubscriptionItem::Data(_))) => {}
                     Some(Ok(SubscriptionItem::Notice(n))) => self.log_notice(&n),
-                    Some(Err(e)) => return self.account_error(&conn, e),
+                    Some(Err(e)) if e.is_connection_lost() => return,
+                    Some(Err(e)) => return self.account_error(&conn, &e.to_string()),
                     None => return,
                 },
                 item = next_of(&mut summary) => match item {
@@ -490,7 +540,7 @@ impl Ibkr {
     }
 
     async fn run_pnl_single(self: Arc<Self>, conn: Arc<Conn>, account: String, cid: i32) {
-        let Ok(mut sub) = conn.client.pnl_single(&AccountId(account.clone()), ContractId(cid), None).await else { return };
+        let Some(mut sub) = conn.client.pnl_single(&account, cid).await else { return };
         while let Some(item) = sub.next().await {
             match item {
                 Ok(SubscriptionItem::Data(PnLSingle { position, unrealized_pnl, realized_pnl, value, .. })) => {
@@ -513,8 +563,8 @@ impl Ibkr {
         }
     }
 
-    fn account_error(&self, conn: &Conn, e: IbError) {
-        if self.is_current(conn.generation) && !e.is_connection_lost() {
+    fn account_error(&self, conn: &Conn, e: &str) {
+        if self.is_current(conn.generation) {
             self.store.update(|t| t.notice("error", format!("Account updates stopped: {e}")));
         }
     }
@@ -547,12 +597,7 @@ impl Ibkr {
         let _guard = conn.lists.lock().await;
         for completed in [false, true] {
             let what = if completed { "completed orders" } else { "open orders" };
-            let sub = if completed { conn.client.completed_orders(false).await } else { conn.client.all_open_orders().await };
-            let items = match sub {
-                Ok(mut sub) => sub.collect_to_end_within(LIST_TIMEOUT).await,
-                Err(e) => Err(e),
-            };
-            match items {
+            match conn.client.orders(completed).await {
                 Ok(items) => {
                     println!("[info] {what}: {}", items.len());
                     for item in items {
@@ -568,12 +613,7 @@ impl Ibkr {
                 Err(e) => println!("[warn] reading the {what} failed: {e}"),
             }
         }
-        let filter = ExecutionFilter { last_n_days: 7, ..Default::default() };
-        let items = match conn.client.executions(filter).await {
-            Ok(mut sub) => sub.collect_to_end_within(LIST_TIMEOUT).await,
-            Err(e) => Err(e),
-        };
-        match items {
+        match conn.client.executions().await {
             Ok(items) => self.store.update(|t| {
                 for item in items {
                     match item {
@@ -586,7 +626,7 @@ impl Ibkr {
         }
     }
 
-    async fn run_orders(self: Arc<Self>, conn: Arc<Conn>, mut stream: Subscription<OrderUpdate>) {
+    async fn run_orders(self: Arc<Self>, conn: Arc<Conn>, mut stream: Feed<OrderUpdate>) {
         loop {
             while let Some(item) = stream.next().await {
                 match item {
@@ -619,7 +659,7 @@ impl Ibkr {
             }
             // The stream ended (it survives socket retries, so this is rare): ask again, then read the lists again.
             tokio::time::sleep(Duration::from_secs(2)).await;
-            match conn.client.order_update_stream().await {
+            match conn.client.order_updates().await {
                 Ok(s) => {
                     stream = s;
                     self.load_lists(&conn).await;
@@ -806,7 +846,7 @@ impl Ibkr {
 
     async fn submit_and_settle(&self, conn: &Conn, contract: &Contract, legs: &[IbOrder], keys: &[String]) -> Result<(), String> {
         for o in legs {
-            if let Err(e) = conn.client.submit_order(o.order_id, contract, o).await {
+            if let Err(e) = conn.client.submit_order(contract, o).await {
                 let msg = format!("The order was not sent: {e}");
                 self.store.update(|t| keys.iter().for_each(|k| t.reject(k, &msg)));
                 return Err(msg);
@@ -830,7 +870,12 @@ impl Ibkr {
         let ticket = orders::rounded(&ticket, self.tick_of(contract.contract_id));
         // A price under half a tick rounds to 0.
         orders::validate(&ticket)?;
-        let legs = orders::bracket(&ticket, &account, || conn.client.next_order_id());
+        let mut ids = Vec::new();
+        for _ in 0..orders::bracket_size(&ticket) {
+            ids.push(conn.client.next_order_id().await);
+        }
+        let mut ids = ids.into_iter();
+        let legs = orders::bracket(&ticket, &account, || ids.next().unwrap_or_default());
         self.send(&conn, &contract, &legs).await
     }
 
@@ -871,7 +916,7 @@ impl Ibkr {
             ..Default::default()
         };
         change(&mut o);
-        conn.client.submit_order(row.order_id, contract, &o).await.map_err(|e| format!("The change was not sent: {e}"))?;
+        conn.client.submit_order(contract, &o).await.map_err(|e| format!("The change was not sent: {e}"))?;
         let (qty, limit, stop) = (o.total_quantity, orders::positive(o.limit_price), orders::positive(o.aux_price));
         self.store.update(|t| {
             if let Some(r) = t.orders.get_mut(&row.key) {
@@ -886,19 +931,7 @@ impl Ibkr {
     }
 
     async fn cancel_row(&self, conn: &Conn, row: &OrdRow) -> Result<(), String> {
-        let mut sub = conn.client.cancel_order(row.order_id, "").await.map_err(|e| format!("The cancel was not sent: {e}"))?;
-        // The first answer tells whether the broker refused (the order filled meanwhile…); the rest of the story
-        // comes on the order stream.
-        let first = tokio::time::timeout(Duration::from_secs(4), sub.next()).await;
-        let refused = match first {
-            Ok(Some(Ok(SubscriptionItem::Notice(n)))) | Ok(Some(Err(IbError::Notice(n))))
-                if !matches!(n.category(), NoticeCategory::Cancellation | NoticeCategory::Warning) =>
-            {
-                Some(n.message)
-            }
-            _ => None,
-        };
-        tokio::spawn(async move { while tokio::time::timeout(Duration::from_secs(5), sub.next()).await.is_ok_and(|i| i.is_some()) {} });
+        let refused = conn.client.cancel_order(row.order_id).await.map_err(|e| format!("The cancel was not sent: {e}"))?;
         refused.map_or(Ok(()), Err)
     }
 
@@ -1010,7 +1043,7 @@ impl Ibkr {
         for (leg, price) in [(Leg::TakeProfit, want.0), (Leg::StopLoss, want.1)] {
             if let Some(price) = price {
                 let mut o = build(leg, price);
-                o.order_id = conn.client.next_order_id();
+                o.order_id = conn.client.next_order_id().await;
                 self.send(conn, contract, &[o]).await?;
             }
         }
@@ -1061,7 +1094,7 @@ impl Ibkr {
             duration: None,
         };
         let mut order = orders::build_order(&ticket, &account);
-        order.order_id = conn.client.next_order_id();
+        order.order_id = conn.client.next_order_id().await;
         self.send(&conn, &contract, &[order]).await?;
 
         let (tp, sl) = self.store.read(|t| {
@@ -1139,7 +1172,7 @@ impl Ibkr {
             Ok(c) => c,
             Err(e) => return println!("[warn] no quote for {ticker}: {e}"),
         };
-        let mut sub = match conn.client.market_data(&contract).subscribe().await {
+        let mut sub = match conn.client.quotes(&contract).await {
             Ok(s) => s,
             Err(e) => return println!("[warn] no quote for {ticker}: {e}"),
         };
@@ -1207,11 +1240,9 @@ impl Ibkr {
             Ok(c) => c,
             Err(e) => return refused(e),
         };
-        // A SMART-routed contract has its book from every venue (smart depth); others from their exchange.
-        let smart = if contract.exchange.as_str() == "SMART" { SmartDepth::Yes } else { SmartDepth::No };
-        let mut sub = match conn.client.market_depth(&contract, DEPTH_ROWS).smart_depth(smart).subscribe().await {
+        let mut sub = match conn.client.depth(&contract, DEPTH_ROWS).await {
             Ok(s) => s,
-            Err(e) => return refused(e.to_string()),
+            Err(e) => return refused(e),
         };
         let mut book = Book::default();
         let mut sent = tokio::time::Instant::now() - QUOTE_EVERY;
@@ -1243,7 +1274,10 @@ const ENABLE_API: &str = "Start IB Gateway or TWS, log in, and enable the API: C
 \"Enable ActiveX and Socket Clients\", set the socket port to the plugin's port and allow 127.0.0.1. Retrying.";
 
 fn connect_error(e: &IbError, cfg: &Config) -> String {
-    let address = cfg.address();
+    let address = match &cfg.connection {
+        Connection::Gateway { host, port } => format!("{host}:{port}"),
+        Connection::Direct(_) => String::new(),
+    };
     match e {
         IbError::Io(_) | IbError::ConnectionFailed | IbError::ConnectionReset => {
             format!("IB Gateway / TWS not reachable at {address}. {ENABLE_API}")
@@ -1257,8 +1291,8 @@ fn connect_error(e: &IbError, cfg: &Config) -> String {
     }
 }
 
-/// Next item of an optional stream; pending forever when there is none.
-async fn next_of<S: futures_util::Stream + Unpin>(sub: &mut Option<S>) -> Option<S::Item> {
+/// Next item of an optional feed; pending forever when there is none.
+async fn next_of<T>(sub: &mut Option<Feed<T>>) -> Option<crate::link::Item<T>> {
     match sub {
         Some(s) => s.next().await,
         None => std::future::pending().await,
@@ -1471,10 +1505,25 @@ mod tests {
     #[test]
     fn settings_read_with_defaults() {
         let s: HashMap<String, String> = [("port", "7497"), ("clientId", " 3 "), ("host", "")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-        let c = Config::from_settings(&s).unwrap();
-        assert_eq!(c, Config { host: "127.0.0.1".into(), port: 7497, client_id: 3 });
-        assert_eq!(Config::from_settings(&HashMap::new()).unwrap().address(), "127.0.0.1:4002");
+        let c = Config::from_settings(&s, None).unwrap();
+        assert_eq!(c, Config { connection: Connection::Gateway { host: "127.0.0.1".into(), port: 7497 }, client_id: 3 });
+        assert_eq!(Config::from_settings(&HashMap::new(), None).unwrap().target(), "IB Gateway / TWS at 127.0.0.1:4002");
         let bad: HashMap<String, String> = [("clientId".to_string(), "x".to_string())].into();
-        assert!(Config::from_settings(&bad).unwrap_err().contains("Client ID"));
+        assert!(Config::from_settings(&bad, None).unwrap_err().contains("Client ID"));
+    }
+
+    #[test]
+    fn direct_login_settings() {
+        let settings = |pairs: &[(&str, &str)]| -> HashMap<String, String> { pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
+        let missing = Config::from_settings(&settings(&[("connection", "direct"), ("username", "jo")]), None);
+        assert!(missing.unwrap_err().contains("password"));
+        let s = settings(&[("connection", "direct"), ("username", " jo "), ("password", " p w "), ("account", "live"), ("secondFactor", "code")]);
+        let c = Config::from_settings(&s, Some(PathBuf::from("data"))).unwrap();
+        let Connection::Direct(login) = &c.connection else { panic!("not a direct login") };
+        assert_eq!((login.username.as_str(), login.password.as_str(), login.live, login.typed_code), ("jo", " p w ", true, true));
+        assert_eq!(login.server, direct::DEFAULT_SERVER);
+        assert_eq!(login.restart_token.as_deref(), Some(direct::restart_token_file(std::path::Path::new("data"), "jo", true).as_path()));
+        // Neither the password nor the username is in what the plugin says.
+        assert_eq!(c.target(), "Interactive Brokers (direct live login)");
     }
 }

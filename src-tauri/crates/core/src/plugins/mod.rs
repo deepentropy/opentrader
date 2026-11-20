@@ -10,5 +10,6 @@ pub mod broker;
 pub mod hub;
 pub mod manifest;
 
-/// The Plugin API version this app speaks. 2: a data plugin may serve several exchanges (`exchanges`).
-pub const API_VERSION: u32 = 2;
+/// The Plugin API version this app speaks. 2: a data plugin may serve several exchanges (`exchanges`). 3: password
+/// settings, settings shown for another's value (`when`), prompts to the user (`plugin.prompt`) and a data folder.
+pub const API_VERSION: u32 = 3;

@@ -1,6 +1,7 @@
 /*
  * Prompt dialogs — `showRename` (a name field with the list of existing
- * names) and `showConfirm`: 480 px wide, #1F1F1F, r6, padding 40,
+ * names), `showConfirm`, `showNotice` and `showAsk` (a question with a
+ * field, from a plugin): 480 px wide, #1F1F1F, r6, padding 40,
  * title 20/600, centred in the window, no dimming behind.
  * Used by the drawing / chart / indicator template menus.
  *
@@ -59,10 +60,24 @@ export type NoticeOptions = {
   onClose?: () => void;
 };
 
+/** A question with an answer field, or a message alone (no `input`). The text
+ *  comes from elsewhere (a plugin) and is shown as given. */
+export type AskOptions = {
+  title: string;
+  text: string;
+  /** The answer's field; none: a message with a Close button. */
+  input?: "text" | "password" | null;
+  /** A picture above the field (data: URL). */
+  imageSrc?: string | null;
+  /** The answer, or null when the user cancelled or closed. */
+  onAnswer: (value: string | null) => void;
+};
+
 type Entry =
   | { id: number; kind: "confirm"; opts: ConfirmOptions }
   | { id: number; kind: "rename"; opts: RenameOptions }
-  | { id: number; kind: "notice"; opts: NoticeOptions };
+  | { id: number; kind: "notice"; opts: NoticeOptions }
+  | { id: number; kind: "ask"; opts: AskOptions };
 
 const [stack, setStack] = createSignal<Entry[]>([]);
 let nextId = 1;
@@ -83,6 +98,13 @@ export function showNotice(opts: NoticeOptions): () => void {
   return () => {
     if (stack().some((e) => e.id === id)) { close(id); opts.onClose?.(); }
   };
+}
+
+/** Opens a question; returns a function that closes it without an answer. */
+export function showAsk(opts: AskOptions): () => void {
+  const id = nextId++;
+  setStack((s) => [...s, { id, kind: "ask", opts }]);
+  return () => close(id);
 }
 
 /** Case-insensitive "contains" filter. */
@@ -229,6 +251,57 @@ function NoticeDialog(props: { entry: Extract<Entry, { kind: "notice" }> }) {
   );
 }
 
+function AskDialog(props: { entry: Extract<Entry, { kind: "ask" }> }) {
+  const o = props.entry.opts;
+  const [value, setValue] = createSignal("");
+  let input: HTMLInputElement | undefined;
+  const cancel = () => { close(props.entry.id); o.onAnswer(null); };
+  const submit = () => {
+    if (o.input && !value().trim()) return;
+    close(props.entry.id);
+    o.onAnswer(o.input ? value() : null);
+  };
+  useKeys(props.entry.id, cancel, submit);
+  onMount(() => input?.focus());
+  return (
+    <Frame title={o.title} label={o.title} onClose={cancel}>
+      <div class="ot-dlg-content">
+        <div class="ot-dlg-text" data-no-translate>{o.text}</div>
+        <Show when={o.imageSrc}>{(src) => <img class="ot-dlg-image" src={src()} alt="" />}</Show>
+        <Show when={o.input}>
+          {(kind) => (
+            <div class="ot-dlg-field">
+              <span class="ot-dlg-input-box">
+                <input
+                  ref={input}
+                  class="ot-dlg-input"
+                  type={kind()}
+                  value={value()}
+                  spellcheck={false}
+                  autocomplete="off"
+                  data-name="ask-input"
+                  onInput={(e) => setValue(e.currentTarget.value)}
+                />
+              </span>
+            </div>
+          )}
+        </Show>
+      </div>
+      <div class="ot-dlg-footer">
+        <Show
+          when={o.input}
+          fallback={<button type="button" class="ot-dlg-btn is-main is-neutral" data-name="submit-button" data-i18n-sense="action" onClick={cancel}>Close</button>}
+        >
+          <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>Cancel</button>
+          <button type="button" class="ot-dlg-btn is-main is-neutral" data-name="submit-button" aria-disabled={!value().trim()} disabled={!value().trim()} onClick={submit}>
+            OK
+          </button>
+        </Show>
+      </div>
+    </Frame>
+  );
+}
+
 /** Escape / Enter for the TOP dialog only. */
 function useKeys(id: number, onEscape: () => void, onEnter: () => void) {
   onMount(() => {
@@ -248,7 +321,15 @@ export function DialogHost() {
     <Portal mount={document.body}>
       <For each={stack()}>
         {(e) =>
-          e.kind === "confirm" ? <ConfirmDialog entry={e} /> : e.kind === "rename" ? <RenameDialog entry={e} /> : <NoticeDialog entry={e} />
+          e.kind === "confirm" ? (
+            <ConfirmDialog entry={e} />
+          ) : e.kind === "rename" ? (
+            <RenameDialog entry={e} />
+          ) : e.kind === "ask" ? (
+            <AskDialog entry={e} />
+          ) : (
+            <NoticeDialog entry={e} />
+          )
         }
       </For>
     </Portal>

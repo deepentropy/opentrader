@@ -1,16 +1,22 @@
 {
   "id": "ibkr",
   "name": "Interactive Brokers",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "OpenTrader",
-  "description": "Your Interactive Brokers account in OpenTrader through IB Gateway or TWS: balances, positions, orders and trading from the charts.",
-  "api": 1,
+  "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly: balances, positions, orders and trading from the charts.",
+  "api": 3,
   "provides": ["broker"],
   "runtime": { "type": "process", "entry": "opentrader-ibkr.exe", "args": [] },
   "settings": [
-    { "key": "host", "label": "Host", "type": "text", "default": "127.0.0.1",
+    { "key": "connection", "label": "Connection", "type": "select", "default": "gateway",
+      "options": [
+        { "value": "gateway", "label": "IB Gateway or TWS" },
+        { "value": "direct", "label": "Direct login" }
+      ],
+      "help": "Direct login: the plugin logs in to Interactive Brokers itself, no IB Gateway or TWS needed. The broker allows one session per username: TWS, IB Gateway or the mobile app logged in with the same username lose their market data meanwhile." },
+    { "key": "host", "label": "Host", "type": "text", "default": "127.0.0.1", "when": { "connection": ["gateway"] },
       "help": "The computer IB Gateway or TWS runs on. Keep 127.0.0.1 when it runs on this computer." },
-    { "key": "port", "label": "Port", "type": "select", "default": "4002",
+    { "key": "port", "label": "Port", "type": "select", "default": "4002", "when": { "connection": ["gateway"] },
       "options": [
         { "value": "4002", "label": "IB Gateway paper (4002)" },
         { "value": "4001", "label": "IB Gateway live (4001)" },
@@ -18,10 +24,27 @@
         { "value": "7496", "label": "TWS live (7496)" }
       ],
       "help": "The socket port set in the API settings of IB Gateway or TWS." },
+    { "key": "username", "label": "Username", "type": "text", "when": { "connection": ["direct"] } },
+    { "key": "password", "label": "Password", "type": "password", "when": { "connection": ["direct"] },
+      "help": "Kept in your computer's credential store." },
+    { "key": "account", "label": "Account", "type": "select", "default": "paper", "when": { "connection": ["direct"] },
+      "options": [
+        { "value": "paper", "label": "Paper trading" },
+        { "value": "live", "label": "Live" }
+      ],
+      "help": "Use the username of your paper trading account for Paper trading." },
+    { "key": "secondFactor", "label": "Login approval", "type": "select", "default": "phone", "when": { "connection": ["direct"], "account": ["live"] },
+      "options": [
+        { "value": "phone", "label": "IBKR Mobile on my phone" },
+        { "value": "code", "label": "A code I type" }
+      ],
+      "help": "How you confirm a live login: approve it in IBKR Mobile, or type the code OpenTrader asks for (security code card, authenticator, code sent by text). After a login, the plugin keeps a restart token in its data folder: the daily reconnection and the next starts need neither the password nor the approval for a few days." },
+    { "key": "server", "label": "Login server", "type": "text", "default": "cdc1.ibllc.com", "when": { "connection": ["direct"] },
+      "help": "Keep the default: the broker sends the login on to your account's server." },
     { "key": "clientId", "label": "Client ID", "type": "number", "default": "17",
-      "help": "Any number another API program connected to the same IB Gateway or TWS does not use." }
+      "help": "Any number another API program connected to the same account does not use. Orders keep it: change it and the orders placed before can no longer be changed from OpenTrader." }
   ],
-  "setup": "In IB Gateway or TWS, log in, then open Configure > Settings > API > Settings:\n1. Tick \"Enable ActiveX and Socket Clients\".\n2. Check that \"Socket port\" matches the Port setting of the plugin (4002 for IB Gateway paper, 4001 live; 7497 for TWS paper, 7496 live).\n3. Untick \"Read-Only API\" to trade from OpenTrader.\n4. Keep \"Allow connections from localhost only\" ticked, or add 127.0.0.1 to the trusted IPs.\nThe plugin connects within a few seconds and retries while IB Gateway or TWS is closed. Then choose Trade > Connect broker > Interactive Brokers.",
+  "setup": "IB Gateway or TWS: log in, then open Configure > Settings > API > Settings:\n1. Tick \"Enable ActiveX and Socket Clients\".\n2. Check that \"Socket port\" matches the Port setting of the plugin (4002 for IB Gateway paper, 4001 live; 7497 for TWS paper, 7496 live).\n3. Untick \"Read-Only API\" to trade from OpenTrader.\n4. Keep \"Allow connections from localhost only\" ticked, or add 127.0.0.1 to the trusted IPs.\nDirect login: choose it as the Connection, then enter your username and password.\nThe plugin connects within a few seconds and retries while it cannot. Then choose Trade > Connect broker > Interactive Brokers.",
   "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
   "platforms": ["windows"]
 }

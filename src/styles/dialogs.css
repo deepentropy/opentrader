@@ -67,6 +67,15 @@
   line-height: 24px;
 }
 .ot-dlg-text { overflow-wrap: anywhere; }
+/* A plugin's question: the text, its picture (a code card's indexes), the field. */
+.ot-dlg-text + .ot-dlg-field,
+.ot-dlg-image + .ot-dlg-field { margin-top: 16px; }
+.ot-dlg-image {
+  display: block;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 4px;
+}
 .ot-dlg-label {
   display: block;
   color: var(--color-text-secondary);

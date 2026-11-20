@@ -69,7 +69,7 @@ async fn hello_state_and_errors_without_ib() {
     assert_eq!(hello["method"], "hello");
     assert_eq!(hello["params"]["plugin"], "ibkr");
     assert_eq!(hello["params"]["token"], "secret");
-    assert_eq!(hello["params"]["api"], 1);
+    assert_eq!(hello["params"]["api"], opentrader_ibkr::API);
     assert_eq!(hello["params"]["version"], env!("CARGO_PKG_VERSION"));
 
     // A first state at once: not connected to the broker.

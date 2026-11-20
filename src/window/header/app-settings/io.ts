@@ -87,6 +87,8 @@ export const plugins = {
   installFile: (path: string): Promise<Result<PluginsStatus>> => commands.pluginInstallFile(path),
   setEnabled: (id: string, on: boolean): Promise<Result<PluginsStatus>> => commands.pluginSetEnabled(id, on),
   setSettings: (id: string, settings: Record<string, string>): Promise<Result<PluginsStatus>> => commands.pluginSetSettings(id, settings),
+  /** Forget a saved password setting. */
+  forgetSecret: (id: string, key: string): Promise<Result<PluginsStatus>> => commands.pluginForgetSecret(id, key),
   newToken: (id: string): Promise<Result<PluginsStatus>> => commands.pluginNewToken(id),
   remove: (id: string): Promise<Result<PluginsStatus>> => commands.pluginRemove(id),
   folderCandidates: (id: string, step: number): Promise<Result<string[]>> => commands.pluginFolderCandidates(id, step),

@@ -1,10 +1,13 @@
 /*
  * OpenTrader's Interactive Brokers plugin: a broker plugin (plugins/PROTOCOL.md) between the app and the user's IB
- * Gateway / TWS. The app starts it with its address and token in the environment; `run_session` says hello, then
+ * Gateway / TWS, or the broker's servers it logs in to itself (`direct`). The app starts it with its address and token in the environment; `run_session` says hello, then
  * answers the app's broker requests and pushes the account until the app closes the connection.
  */
+pub mod direct;
 pub mod ib;
+pub mod link;
 pub mod orders;
+pub mod prompt;
 pub mod rpc;
 pub mod state;
 pub mod symbols;
@@ -21,7 +24,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use wire::OrderTicket;
 
-pub const API: u32 = 1;
+pub const API: u32 = 3;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// One session with the app: Ok when the app closed the connection, Err with the reason when it refused the plugin
@@ -138,6 +141,13 @@ struct ConfigureParams {
 }
 
 #[derive(Deserialize)]
+struct PromptAnswerParams {
+    id: String,
+    #[serde(default)]
+    value: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct InstrumentParams {
     ticker: String,
 }
@@ -194,12 +204,20 @@ async fn request(ib: &Arc<Ibkr>, method: &str, p: Value) -> Result<Value, RpcErr
 
 fn notification(ib: &Arc<Ibkr>, method: &str, p: Value) {
     match method {
-        "plugin.configure" => match params::<ConfigureParams>(method, p).map_err(|e| e.message).and_then(|r| Config::from_settings(&r.settings)) {
-            Ok(cfg) => {
-                println!("[info] settings: {}:{} client ID {}", cfg.host, cfg.port, cfg.client_id);
-                ib.configure(cfg);
+        "plugin.configure" => {
+            // The plugin's data folder, which the app gives its plugins (a direct login's restart token).
+            let data = std::env::var_os("OPENTRADER_PLUGIN_DATA").filter(|d| !d.is_empty()).map(std::path::PathBuf::from);
+            match params::<ConfigureParams>(method, p).map_err(|e| e.message).and_then(|r| Config::from_settings(&r.settings, data)) {
+                Ok(cfg) => {
+                    println!("[info] settings: {}, client ID {}", cfg.target(), cfg.client_id);
+                    ib.configure(cfg);
+                }
+                Err(e) => ib.store.update(|t| t.notice("error", e)),
             }
-            Err(e) => ib.store.update(|t| t.notice("error", e)),
+        }
+        "plugin.promptAnswer" => match params::<PromptAnswerParams>(method, p) {
+            Ok(r) => ib.prompts.answer(&r.id, r.value),
+            Err(e) => println!("[warn] {}", e.message),
         },
         "broker.watchQuote" => match params::<WatchParams>(method, p) {
             Ok(r) => ib.watch_quotes(r.tickers),

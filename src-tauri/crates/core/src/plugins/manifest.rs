@@ -4,6 +4,7 @@
  * needs on this computer is described here, so the app keeps no code of its own for any one plugin.
  */
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
 pub const FILE: &str = "opentrader-plugin.json";
@@ -72,6 +73,8 @@ pub enum SettingKind {
     Number,
     Bool,
     Select,
+    /// Typed masked and kept in the system's credential store, not with the other settings (Plugin API 3).
+    Password,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -94,6 +97,10 @@ pub struct SettingField {
     pub options: Vec<SettingOption>,
     #[serde(default)]
     pub help: Option<String>,
+    /// Shown only while each named setting has one of the listed values (`{"connection": ["direct"]}`); always
+    /// shown when empty (Plugin API 3).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub when: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -213,6 +220,11 @@ impl Manifest {
             }
             if f.kind == SettingKind::Select && f.options.is_empty() {
                 return Err(format!("Setting {:?}: a choice without options", f.key));
+            }
+        }
+        for f in &self.settings {
+            if let Some(k) = f.when.keys().find(|k| !self.settings.iter().any(|o| &o.key == *k && o.key != f.key)) {
+                return Err(format!("Setting {:?}: shown for {k:?}, which is not another setting", f.key));
             }
         }
         Ok(())
@@ -357,6 +369,24 @@ mod tests {
         assert!(with("runtime", serde_json::json!({ "type": "external", "connectionFile": "C:/Windows/x.json" })).is_err());
         assert!(with("runtime", serde_json::json!({ "type": "external", "connectionFile": "{appData}/../x.json" })).is_err());
         assert!(with("runtime", serde_json::json!({ "type": "process", "entry": "bin/ibkr.exe" })).is_ok());
+    }
+
+    #[test]
+    fn passwords_and_conditions() {
+        let mut s = sample();
+        s["settings"] = serde_json::json!([
+            { "key": "connection", "label": "Connection", "type": "select", "default": "gateway",
+              "options": [{ "value": "gateway", "label": "Gateway" }, { "value": "direct", "label": "Direct" }] },
+            { "key": "password", "label": "Password", "type": "password", "when": { "connection": ["direct"] } }
+        ]);
+        let m = parse(s.clone()).unwrap();
+        assert_eq!(m.settings[1].kind, SettingKind::Password);
+        assert_eq!(m.settings[1].when["connection"], vec!["direct"]);
+        assert!(m.settings[0].when.is_empty());
+        s["settings"][1]["when"] = serde_json::json!({ "nope": ["x"] });
+        assert!(parse(s.clone()).unwrap_err().contains("not another setting"));
+        s["settings"][1]["when"] = serde_json::json!({ "password": ["x"] });
+        assert!(parse(s).is_err());
     }
 
     #[test]

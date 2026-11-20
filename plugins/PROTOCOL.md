@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **2**. Version 2 adds `exchanges` (a data plugin serving several exchanges); a version 1 plugin works unchanged.
+Plugin API version **3**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`) and prompts to the user (`plugin.prompt`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -49,18 +49,18 @@ A plugin package is a zip. It holds `opentrader-plugin.json` at its root, plus t
 | `exchanges` | A data plugin that serves several exchanges from one source, for example the market segments of one broker account: `["NSE","BSE","NFO","MCX"]`. Same rules as `exchange`, no repeats. The app then names the plugin's symbols whole in every message (see below). Plugin API 2. |
 | `runtime` | How the plugin runs (see below). |
 | `install` | Files to copy into a folder the user picks (see below). |
-| `settings` | Fields the user fills in under Settings > Plugins. `type` is `text`, `number`, `bool` (`"true"` / `"false"`) or `select`. Values travel as text. |
+| `settings` | Fields the user fills in under Settings > Plugins. `type` is `text`, `number`, `bool` (`"true"` / `"false"`), `select` or `password`. Values travel as text. A `password` is typed masked and kept in the system's credential store, not with the other settings; Settings never shows it again, only that one is saved (Plugin API 3). `"when": {"connection": ["direct"]}` shows a field only while each named setting has one of the listed values (Plugin API 3); a hidden field keeps its value and is still sent. |
 | `platforms` | `windows`, `macos` and/or `linux`. Leave it empty for all platforms. |
 
 ### Runtime
 
 There are two runtimes:
 
-- **`process`**: OpenTrader starts `entry` (a path inside the package) while the plugin is enabled, and starts it again if it stops. The plugin finds its connection details in its environment: `OPENTRADER_PLUGIN_ADDR` (`127.0.0.1:<port>`), `OPENTRADER_PLUGIN_ID` and `OPENTRADER_PLUGIN_TOKEN`. Its stdout and stderr go to the plugin's log in Settings.
+- **`process`**: OpenTrader starts `entry` (a path inside the package) while the plugin is enabled, and starts it again if it stops. The plugin finds its connection details in its environment: `OPENTRADER_PLUGIN_ADDR` (`127.0.0.1:<port>`), `OPENTRADER_PLUGIN_ID` and `OPENTRADER_PLUGIN_TOKEN`. `OPENTRADER_PLUGIN_DATA` is a folder for the plugin's own files (a login token, a cache): it is kept across updates and deleted when the plugin is removed (Plugin API 3). Its stdout and stderr go to the plugin's log in Settings.
 - **`external`**: the plugin runs inside another application, such as a trading terminal, and connects by itself. With `"connectionFile": "<template>"`, OpenTrader writes this file while the plugin is enabled and deletes it when the plugin is disabled:
 
   ```json
-  { "plugin": "example", "host": "127.0.0.1", "port": 47822, "token": "…", "api": 2 }
+  { "plugin": "example", "host": "127.0.0.1", "port": 47822, "token": "…", "api": 3 }
   ```
 
 Path templates start with `{appData}` (the roaming application data folder), `{localAppData}`, `{documents}` or `{home}`, followed by plain folder names. A connection file is a `.json` file.
@@ -100,7 +100,7 @@ The first message the plugin sends must be `hello`, within 10 seconds of connect
 If the plugin is installed and enabled, the token matches and the API version is supported, the app answers:
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"app":"OpenTrader","api":2}}
+{"jsonrpc":"2.0","id":1,"result":{"app":"OpenTrader","api":3}}
 ```
 
 Otherwise the answer is an error (code `-32001`, with a message to show the user), and the app closes the connection.
@@ -114,6 +114,19 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 | plugin → app | `ping` | request | Answers `{}`. Use it to keep the connection alive and check that it is up. |
 | plugin → app | `log` | notification | `{"level":"info"\|"warn"\|"error","message":"…"}`, shown in the plugin's log. |
 | app → plugin | `plugin.configure` | notification | `{"settings":{"key":"value",…}}`. Sent right after `hello`, before any other message, and whenever the user changes the settings. Fields the user left empty carry their manifest default. |
+| plugin → app | `plugin.prompt` | notification | A dialog for the user (Plugin API 3), see below. |
+| app → plugin | `plugin.promptAnswer` | notification | `{"id":"…","value":"…"}`: the user's answer to a prompt with an `input`; `value` is `null` when they cancelled. |
+| plugin → app | `plugin.promptDone` | notification | `{"id":"…"}`: closes the prompt (what it waited for happened). |
+
+### Prompts
+
+A plugin that needs the user, a login code for example, sends `plugin.prompt`:
+
+```json
+{"id":"p1","title":"Login code","message":"Type the code sent to your phone.","input":"text","image":null}
+```
+
+The app shows it as a dialog in its main window. `id` is the plugin's own. `input` is `"text"` or `"password"` for an answer field, or `null` for a message alone, with a Close button (a wait the user ends elsewhere, such as approving a login on a phone). `image` is an optional PNG, base64, shown above the field. The answer comes back in `plugin.promptAnswer`; a message alone gets none. The app closes a prompt on `plugin.promptDone`, and all of a plugin's prompts when it disconnects. The texts are shown as given: the app doesn't translate them.
 
 ## Data plugins (`datafeed`)
 

@@ -152,6 +152,11 @@ pub fn grouped_exit(leg: Leg, exit: Side, qty: f64, price: f64, account: &str, g
     IbOrder { oca_group: group.to_string(), oca_type: OcaType::ReduceWithBlock, ..exit_order(leg, exit, qty, price, account) }
 }
 
+/// The number of orders `bracket` makes of a ticket.
+pub fn bracket_size(t: &OrderTicket) -> usize {
+    1 + usize::from(t.take_profit.is_some()) + usize::from(t.stop_loss.is_some())
+}
+
 /// The orders of a ticket: the order itself, then its take profit and stop loss as child orders. The broker holds
 /// the children until the parent fills and cancels the other when one fills. Only the last one is transmitted, so
 /// the broker receives the bracket whole. `next_id` hands out order ids.

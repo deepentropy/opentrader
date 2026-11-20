@@ -360,18 +360,50 @@ function InstallStepRow(props: { plugin: PluginInfo; step: InstallStep; index: n
   );
 }
 
-/** The plugin's own settings form (its manifest's fields); saved and sent to the plugin with Apply. */
+/** The plugin's own settings form (its manifest's fields); saved and sent to the plugin with Apply. A password is never
+ *  read back: its field stays empty, says whether one is saved, and keeps it when left empty. */
 function PluginSettings(props: { plugin: PluginInfo; take: (what: string, p: Promise<Result<PluginsStatus>>) => Promise<boolean> }) {
   const m = () => props.plugin.manifest;
   const initial = () => {
     const v: Record<string, string> = {};
-    for (const f of m().settings ?? []) v[f.key] = props.plugin.settings[f.key] ?? f.default ?? "";
+    for (const f of m().settings ?? []) v[f.key] = f.type === "password" ? "" : props.plugin.settings[f.key] ?? f.default ?? "";
     return v;
   };
   const [values, setValues] = createSignal<Record<string, string>>(initial());
   const set = (k: string, v: string) => setValues((o) => ({ ...o, [k]: v }));
+  /** Shown while each setting it depends on has one of the listed values. */
+  const shown = (f: SettingField) => Object.entries(f.when ?? {}).every(([k, vs]) => (vs ?? []).includes(values()[k] ?? ""));
+  const saved = (f: SettingField) => props.plugin.savedSecrets.includes(f.key);
+  /** Saved passwords leave their fields: what is saved is not shown again. */
+  const apply = async () => {
+    if (!(await props.take(`settings:${m().id}`, plugins.setSettings(m().id, values())))) return;
+    for (const f of m().settings ?? []) if (f.type === "password") set(f.key, "");
+  };
   const field = (f: SettingField) => {
     switch (f.type) {
+      case "password":
+        return (
+          <>
+            <label class="app-settings-field">
+              <span class="app-settings-field-label" data-no-translate>{f.label}</span>
+              <input
+                class="app-settings-input"
+                type="password"
+                autocomplete="off"
+                placeholder={saved(f) ? translate("Saved") : ""}
+                value={values()[f.key]}
+                onInput={(e) => set(f.key, e.currentTarget.value)}
+              />
+            </label>
+            <Show when={saved(f)}>
+              <div class="app-settings-local-head">
+                <button type="button" class="app-settings-btn" data-name="plugin-forget-secret" onClick={() => void props.take(`forget:${m().id}`, plugins.forgetSecret(m().id, f.key))}>
+                  {translate("Forget")}
+                </button>
+              </div>
+            </Show>
+          </>
+        );
       case "bool":
         return <CheckField variant="settings" label={f.label} checked={values()[f.key] === "true"} onChange={(on) => set(f.key, on ? "true" : "false")} />;
       case "select":
@@ -406,16 +438,16 @@ function PluginSettings(props: { plugin: PluginInfo; take: (what: string, p: Pro
     <div class="app-settings-plugin-settings" data-name="plugin-settings" data-no-translate>
       <For each={m().settings ?? []}>
         {(f) => (
-          <>
+          <Show when={shown(f)}>
             {field(f)}
             <Show when={f.help}>
               <div class="app-settings-local-status">{f.help}</div>
             </Show>
-          </>
+          </Show>
         )}
       </For>
       <div class="app-settings-local-head">
-        <button type="button" class="app-settings-btn" data-name="plugin-settings-apply" onClick={() => void props.take(`settings:${m().id}`, plugins.setSettings(m().id, values()))}>
+        <button type="button" class="app-settings-btn" data-name="plugin-settings-apply" onClick={() => void apply()}>
           {translate("Apply")}
         </button>
       </div>

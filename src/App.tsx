@@ -24,6 +24,7 @@ import { TabPanel } from "./window/shell/TabPanel";
 import { TabPanelActions } from "./window/shell/TabPanelActions";
 import { KeyboardShortcutsPanel } from "./window/shell/KeyboardShortcutsPanel";
 import { ZoomToast } from "./window/shell/ZoomToast";
+import { startPluginPrompts } from "./window/shell/plugin-prompts";
 import { WindowControls } from "./window/shell/WindowControls";
 import { DEFAULT_PANELS, reconcilePanes } from "./window/shell/tabs";
 import { recordRecentSymbol } from "./data/recent-symbols";
@@ -450,6 +451,11 @@ function App() {
       void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
     });
     onCleanup(() => void stop.then((f) => f()));
+  });
+
+  // Plugins' questions to the user (a broker login's code): asked in the main window.
+  onMount(() => {
+    if (isTauri() && windowLabel === "main") onCleanup(startPluginPrompts());
   });
 
   // Synced folders of CSV files (#267): the main window keeps them in sync.
