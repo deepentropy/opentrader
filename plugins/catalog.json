@@ -3,7 +3,7 @@
     {
       "id": "mt5",
       "name": "MetaTrader 5",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "publisher": "OpenTrader",
       "description": "Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account and trading from the charts.",
       "provides": [
@@ -15,9 +15,9 @@
         "windows"
       ],
       "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/mt5",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.1.3/mt5-0.1.3.zip",
-      "sha256": "6aa9150749f88cc5ecc08a125764f1b8390f9b14b5c1a291aa0e2aa27671099c",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM29MZWViOUhHMDZKNHNQWkZGQUZJYXZ5a1oxZTRNcUNxSVUvQlFjNlhRa3dwRllmeVIzRnRFTVhMbVZmM0VTK0tzQXhrMjJQVWlFSk93azhoWW92d2dNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0OTAyNDcyCWZpbGU6bXQ1LTAuMS4zLnppcAptL2lZSzM2M2xXUjlxaFJ5RWZMR3pnamlNTjZzNnNCeEs2Zm1IdjM0cGMwU09WN0sxRlAxOEtJNGpxQWlVS0pjVE9LZktFbUZnZGl6VW5tV29YL0dBUT09Cg=="
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.1.4/mt5-0.1.4.zip",
+      "sha256": "0aede6752750ac12c767ba91bdf9f2720e04bcfac2b5875d9fbca0113befc177",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM210QjRSZW53WEVZNlp6Wno5OHU3TDlVZXVLU0pTYm00bTNneDVBZTErSkV0VVBLdmlneHdtazFGREUyNWNGWG90RE10TEQzS0NxYTk3aVFuc0FTTHd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MTY5NDA4CWZpbGU6bXQ1LTAuMS40LnppcApjQmpYN05ENmh1WGk4bUxxdDZ5eVZPWEV1K2M4cE9GV0VVRWpQSzgySkROdFZPZFBKQnR6KzJQMG5DM0d5Z0VTeHNTMWhKRHQ1aUhHV3p6TjRzd3VDdz09Cg=="
     },
     {
       "id": "ibkr",
