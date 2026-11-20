@@ -113,7 +113,7 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 |---|---|---|---|
 | plugin → app | `ping` | request | Answers `{}`. Use it to keep the connection alive and check that it is up. |
 | plugin → app | `log` | notification | `{"level":"info"\|"warn"\|"error","message":"…"}`, shown in the plugin's log. |
-| app → plugin | `plugin.configure` | notification | `{"settings":{"key":"value",…}}`. Sent right after `hello` and whenever the user changes the settings. Fields the user left empty carry their manifest default. |
+| app → plugin | `plugin.configure` | notification | `{"settings":{"key":"value",…}}`. Sent right after `hello`, before any other message, and whenever the user changes the settings. Fields the user left empty carry their manifest default. |
 
 ## Data plugins (`datafeed`)
 
@@ -185,7 +185,7 @@ With `from` (UNIX milliseconds), return instead the first `countBack` ticks whos
 
 ### `data.subscribe` (app → plugin, notification)
 
-`{"tickers":["EURUSD","XAUUSD"]}`: the whole set of tickers to stream from now on. It replaces the previous set, and an empty list stops streaming. The app sends it again after each `hello`.
+`{"tickers":["EURUSD","XAUUSD"]}`: the whole set of tickers to stream from now on. It replaces the previous set, and an empty list stops streaming. The app sends it again after each `hello`, after `plugin.configure`. It is not sent again until the set changes: keep the whole set, even tickers you cannot serve yet (settings or symbol list still loading), and start streaming them once you can.
 
 ### `data.quote` (plugin → app, notification)
 

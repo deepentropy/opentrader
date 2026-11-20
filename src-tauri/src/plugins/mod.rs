@@ -221,7 +221,12 @@ pub fn init(app: &AppHandle) {
             match events.recv().await {
                 Ok(HubEvent::Connected { plugin, hello }) => {
                     log(&handle, &plugin, format!("Connected (version {}, API {})", hello.version, hello.api));
+                    // The settings go first: a plugin may only know its symbols once it has them (#371: the
+                    // OpenAlgo plugin dropped a watchlist subscription that came before its exchanges). The
+                    // subscriptions follow from this same task, so they reach the plugin in this order.
                     configure(&handle, &plugin);
+                    data::connected(&handle, &plugin);
+                    broker::connected(&handle, &plugin);
                     changed(&handle);
                 }
                 Ok(HubEvent::Disconnected { plugin }) => {

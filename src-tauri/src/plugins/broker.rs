@@ -178,20 +178,22 @@ pub fn status(app: &AppHandle) -> BrokerStatus {
     }
 }
 
+/// A plugin connected (`plugins::init`, after its settings went out): the active broker's state is read again.
+pub fn connected(app: &AppHandle, plugin: &str) {
+    forget_symbols(app);
+    changed(app);
+    if active(app).as_deref() == Some(plugin) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { refresh_state(&app).await });
+    }
+}
+
 pub fn init(app: &AppHandle) {
     let mut events = app.state::<Plugins>().hub.subscribe();
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
             match events.recv().await {
-                Ok(HubEvent::Connected { plugin, .. }) => {
-                    forget_symbols(&handle);
-                    changed(&handle);
-                    if active(&handle).as_deref() == Some(&plugin) {
-                        let app = handle.clone();
-                        tauri::async_runtime::spawn(async move { refresh_state(&app).await });
-                    }
-                }
                 Ok(HubEvent::Disconnected { plugin }) => {
                     state(&handle).states.locked().remove(&plugin);
                     forget_symbols(&handle);
@@ -200,6 +202,8 @@ pub fn init(app: &AppHandle) {
                     }
                     changed(&handle);
                 }
+                // A connect is handled by `plugins::init`, in order after the settings (`connected`).
+                Ok(HubEvent::Connected { .. }) => {}
                 Ok(HubEvent::Notification { plugin, method, params }) => on_notification(&handle, &plugin, &method, params),
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(_) => break,

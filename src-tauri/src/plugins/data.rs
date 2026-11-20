@@ -212,14 +212,6 @@ pub fn init(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             match events.recv().await {
-                Ok(HubEvent::Connected { plugin, .. }) => {
-                    forget(&app, &plugin);
-                    // A plugin that connects again streams what is subscribed.
-                    state(&app).streaming.locked().remove(&plugin);
-                    state(&app).tick_streaming.locked().remove(&plugin);
-                    push_subscriptions(&app);
-                    push_tick_subscriptions(&app);
-                }
                 Ok(HubEvent::Disconnected { plugin }) => {
                     forget(&app, &plugin);
                     state(&app).streaming.locked().remove(&plugin);
@@ -233,6 +225,15 @@ pub fn init(app: &AppHandle) {
             }
         }
     });
+}
+
+/// A plugin connected (`plugins::init`, after its settings went out): it streams what is subscribed.
+pub fn connected(app: &AppHandle, plugin: &str) {
+    forget(app, plugin);
+    state(app).streaming.locked().remove(plugin);
+    state(app).tick_streaming.locked().remove(plugin);
+    push_subscriptions(app);
+    push_tick_subscriptions(app);
 }
 
 /// Drop the plugin's cached symbol infos (it connected again, maybe as a new version).
