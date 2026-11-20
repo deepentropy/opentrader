@@ -206,6 +206,7 @@ export function createLegend(cx: ChartCx): LegendApi {
             logoUrl={isEconomicSymbol(props.symbol) ? flagUrl(economicCountry(props.symbol!)) : undefined}
             values={legend()}
             formatPrice={cx.legendPriceFormat()}
+            textColor={appearance().scaleTextColor || currentTokens().scaleTextColor}
             titleMode={appearance().legendTitleMode}
             description={cx.legendDesc()}
             showLogo={appearance().legendLogo}
