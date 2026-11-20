@@ -29,7 +29,7 @@ import {
 } from "../chart/custom-intervals";
 import { AddCustomIntervalDialog } from "./AddCustomIntervalDialog";
 import { LAYOUT_SYNC_ITEMS, layoutSync, toggleLayoutSync } from "../chart/layout-sync";
-import { isSupportedResolution } from "../../data/datafeed";
+import { isChartableResolution } from "../../data/datafeed";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicator-favorites";
 import {
   APPLY_TEMPLATE_PREFIX,
@@ -194,7 +194,7 @@ export function HeaderMenu(props: Props) {
                   // renders greyed + non-selectable rather than silently
                   // loading daily bars. Mirrors getBars' validation.
                   const disabled = () =>
-                    !!row.disabled || (isIntervalRow() && (!isSupportedResolution(row.id) || props.intervalAvailable?.(row.id) === false)) ||
+                    !!row.disabled || (isIntervalRow() && (!isChartableResolution(row.id) || props.intervalAvailable?.(row.id) === false)) ||
                     (props.menuId === "candles" && props.chartTypeAvailable?.(row.id) === false);
                   // Custom interval rows carry a Remove button (also on a
                   // greyed row, so the row is not natively disabled).

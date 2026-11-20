@@ -52,8 +52,8 @@ import { screenerPanel, type ScreenerPlacement } from "./data/screener-store";
 import { SCREENER_PLACE_EVENT } from "./window/screener/ScreenerPanel";
 import { SCREENER_PICK_EVENT } from "./window/screener/ScreenerWindow";
 import { listen } from "@tauri-apps/api/event";
-import { CHART_TYPE_IDS, SINGLE_VALUE_TYPES, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
-import { isAdjusted, setAdjusted, isEconomicSymbol, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { CHART_TYPE_IDS, chartTypeAllowed, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
+import { isAdjusted, setAdjusted, isEconomicSymbol, tickCount, isChartableResolution, isFullSymbol, isIntradayInterval, isIntradayResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { displayTimeZone } from "./data/session";
 import { tradeJournal } from "./data/trade-journal";
 import { chartFrame } from "./data/trade-journal-calc";
@@ -263,7 +263,7 @@ function App() {
     // getBars rejects them too; this stops the remaining paths — keyboard
     // digit-entry, a stale persisted favourite — from ever applying an
     // unservable id.
-    if (!isSupportedResolution(v)) return;
+    if (!isChartableResolution(v)) return;
     undoablePaneChange("interval", "change resolution", () => {
       if (layoutSync().interval) patchSyncGroupPanes({ interval: v });
       else patchActivePane({ interval: v });
@@ -875,7 +875,7 @@ function App() {
         interval={interval()}
         chartType={chartType()}
         onChartTypeChange={setChartType}
-        chartTypeAvailable={(id) => !isEconomicSymbol(activeFullSymbol() ?? symbol()) || SINGLE_VALUE_TYPES.has(id)}
+        chartTypeAvailable={(id) => chartTypeAllowed(id, isEconomicSymbol(activeFullSymbol() ?? symbol()), tickCount(interval()))}
         layout={layout()}
         onIntervalChange={setInterval}
         intervalAvailable={(id) => symbolServesResolution(activeFullSymbol() ?? symbol(), id)}
@@ -1152,7 +1152,7 @@ function App() {
           anchor={anchorRect()!}
           selectedRowId={selectedRowForOpenMenu()}
           intervalAvailable={(id) => symbolServesResolution(activeFullSymbol() ?? symbol(), id)}
-          chartTypeAvailable={(id) => !isEconomicSymbol(activeFullSymbol() ?? symbol()) || SINGLE_VALUE_TYPES.has(id as ChartTypeId)}
+          chartTypeAvailable={(id) => chartTypeAllowed(id as ChartTypeId, isEconomicSymbol(activeFullSymbol() ?? symbol()), tickCount(interval()))}
           onSelect={onMenuSelect}
           onClose={closeMenu}
         />
@@ -1184,7 +1184,7 @@ function App() {
             initVal={d().initVal}
             selectOnInit={d().selectOnInit}
             current={interval()}
-            isSupported={isSupportedResolution}
+            isSupported={isChartableResolution}
             onApply={setInterval}
             onClose={() => setIntervalDialog(null)}
           />

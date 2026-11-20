@@ -7,7 +7,7 @@
  */
 import { createEffect } from "solid-js";
 import { LineSeries, type TickMarkType, type Time, type UTCTimestamp } from "lightweight-charts";
-import { isIntradayInterval, isIntradayResolution, isSecondResolution } from "../../../data/datafeed";
+import { isIntradayInterval, isIntradayResolution, isSecondResolution, isTickResolution } from "../../../data/datafeed";
 import { cachedSymbolSessions } from "../../../data/session";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "../session-breaks";
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "../session-backgrounds";
@@ -47,7 +47,7 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
     const id = props.interval ?? "1D";
     return {
       tz: props.timeZone ?? "UTC",
-      intraday: isSecondResolution(id) || isIntradayResolution(id),
+      intraday: isSecondResolution(id) || isIntradayResolution(id) || isTickResolution(id),
       exchange: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC",
     };
   };
@@ -146,7 +146,9 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
     const { chart } = cx;
     if (!chart) return;
     const id = props.interval ?? "1D";
-    const second = isSecondResolution(id);
+    // Tick bars show seconds on the axis and milliseconds on the crosshair (#376).
+    const ticks = isTickResolution(id);
+    const second = isSecondResolution(id) || ticks;
     const intraday = isIntradayResolution(id);
     const tz = props.timeZone ?? "UTC";
     // Scales → Date / Time format (per pane). Reading appearance() here re-runs
@@ -165,7 +167,7 @@ export function createTimeAxis(cx: ChartCx): TimeAxisApi {
       },
       localization: {
         timeFormatter: (t: Time) =>
-          formatAxisTime(cx.realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt, exchangeZone()),
+          formatAxisTime(cx.realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt, exchangeZone(), ticks),
       },
     });
     // Day rollover (and thus session-break placement) depends on the timezone,

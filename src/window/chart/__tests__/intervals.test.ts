@@ -173,3 +173,17 @@ describe("custom intervals", () => {
     expect(JSON.parse(store.get("ot:interval-menu-view-state")!)).toEqual({ ticks: true });
   });
 });
+
+describe("chart types on ticks (#376)", () => {
+  it("one-tick bars draw single-value types, tick bars no price-move type", async () => {
+    const { chartTypeAllowed, chartTypeInstead } = await import("../chart-types");
+    expect(chartTypeAllowed("candle", false, 1)).toBe(false);
+    expect(chartTypeAllowed("line", false, 1)).toBe(true);
+    expect(chartTypeInstead("candle", false, 1)).toBe("line");
+    expect(chartTypeAllowed("candle", false, 100)).toBe(true);
+    expect(chartTypeAllowed("renko", false, 100)).toBe(false);
+    expect(chartTypeInstead("kagi", false, 10)).toBe("candle");
+    expect(chartTypeAllowed("renko", false, null)).toBe(true);
+    expect(chartTypeInstead("candle", false, null)).toBeNull();
+  });
+});

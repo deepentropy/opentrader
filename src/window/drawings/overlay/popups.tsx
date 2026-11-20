@@ -3,6 +3,7 @@
  * drawing, the drawing context menu and the drawing Settings dialog.
  */
 import { createSignal, Show, type JSX } from "solid-js";
+import { isTickResolution } from "../../../data/datafeed";
 import type { Accessor } from "solid-js";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import type { Pt } from "lightweight-charts-drawing/core/_shared";
@@ -136,7 +137,8 @@ export function createPopups(cx: OverlayCx): PopupsApi {
               interval={props.interval}
               sync={syncOf(selectedDrawings(a().drawing))}
               onSync={props.onSync}
-              onAddAlert={(d) => {
+              // No alerts on a tick chart (the reference app, #376).
+              onAddAlert={isTickResolution(props.interval ?? "1D") ? undefined : (d) => {
                 // Same event the chart context menu uses; the drawing is the
                 // alert's level, so the alert follows it when it is moved.
                 emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol, drawingId: d.id });
@@ -151,7 +153,7 @@ export function createPopups(cx: OverlayCx): PopupsApi {
               group={selectedDrawings(m().drawing)}
               interval={props.interval}
               orderSteps={orderSteps(m().drawing)}
-              alert={drawingCanAlert(m().drawing.kind) ? { edit: rulesOfDrawing(alertStore.rules(), m().drawing.id).length > 0, name: drawingLabel(m().drawing) } : null}
+              alert={drawingCanAlert(m().drawing.kind) && !isTickResolution(props.interval ?? "1D") ? { edit: rulesOfDrawing(alertStore.rules(), m().drawing.id).length > 0, name: drawingLabel(m().drawing) } : null}
               onAlert={() => {
                 const rule = rulesOfDrawing(alertStore.rules(), m().drawing.id)[0];
                 emitAppEvent("chart-open-alert-dialog", rule ? { editId: rule.id } : { symbol: props.symbol, drawingId: m().drawing.id });

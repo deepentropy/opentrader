@@ -97,6 +97,26 @@ export const DEFAULT_CHART_TYPE: ChartTypeId = "candle";
  *  and no OHLC (an economic series). */
 export const SINGLE_VALUE_TYPES: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>(["area", "baseline", "line", "lineWithMarkers", "stepline", "column"]);
 
+/** Types built from price moves, not drawn on tick intervals (the reference app refuses them there, #376). */
+const NOT_ON_TICKS: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>(["renko", "pb", "kagi", "pnf"]);
+
+/** Whether a chart can draw `type`: a close-only symbol (an economic series)
+ *  and one-tick bars (`ticks` 1) only single-value types, tick bars none of
+ *  the price-move types. */
+export function chartTypeAllowed(type: ChartTypeId, closeOnly: boolean, ticks: number | null): boolean {
+  if (closeOnly || ticks === 1) return SINGLE_VALUE_TYPES.has(type);
+  return ticks === null || !NOT_ON_TICKS.has(type);
+}
+
+/** The type a chart on `type` takes instead, or null when it can draw it: the
+ *  last single-value type picked on a close-only symbol, a line on one-tick
+ *  bars (the reference app), candles on other tick bars. */
+export function chartTypeInstead(type: ChartTypeId, closeOnly: boolean, ticks: number | null): ChartTypeId | null {
+  if (chartTypeAllowed(type, closeOnly, ticks)) return null;
+  if (closeOnly) return lastSingleValueType();
+  return ticks === 1 ? "line" : "candle";
+}
+
 const LAST_SINGLE_VALUE_KEY = "ot:last-single-value-type";
 
 /** Single-value type last picked on a close-only symbol ("Line with markers" until one is). */

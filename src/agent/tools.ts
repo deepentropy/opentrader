@@ -5,7 +5,7 @@
 import { emitAppEvent } from "../data/app-events";
 import { diagnosticsText } from "../data/diagnostics";
 import { chartBars, chartComparesFor } from "../data/chart-state-registry";
-import { isSupportedResolution, supportedResolutions, toFullSymbol } from "../data/datafeed";
+import { isChartableResolution, supportedResolutions, toFullSymbol } from "../data/datafeed";
 import * as scripts from "../data/oakscript-store";
 import { strategyTester } from "../data/strategy-tester-store";
 import { exportableCharts } from "../window/chart/chart-export";
@@ -259,11 +259,11 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     {
       name: "set_interval",
       title: "Set interval",
-      description: 'Change the focused chart\'s interval. Ids: minutes as a number ("1", "5", "60", "240"), "1D", "1W", "1M", seconds as "1S".',
+      description: 'Change the focused chart\'s interval. Ids: minutes as a number ("1", "5", "60", "240"), "1D", "1W", "1M", seconds as "1S", ticks as "10T" (the symbols of a data plugin with ticks).',
       inputSchema: { type: "object", properties: { interval: { type: "string" } }, required: ["interval"] },
       run: async (args) => {
         const interval = str(args, "interval");
-        if (!isSupportedResolution(interval)) throw new AgentError(`Interval "${interval}" is not served. Served: ${supportedResolutions().join(", ")}.`);
+        if (!isChartableResolution(interval)) throw new AgentError(`Interval "${interval}" is not served. Served: ${supportedResolutions().join(", ")}.`);
         host.setInterval(interval);
         return { interval, ...(await loaded()) };
       },

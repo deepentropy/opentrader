@@ -51,12 +51,14 @@ export type ChartTimeFormat = {
 };
 
 /** Chart time label for an epoch-seconds bar time in `timeZone`. */
-export function formatChartTime(sec: number, timeZone: string, intraday: boolean, seconds: boolean, fmt: ChartTimeFormat = {}): string {
+export function formatChartTime(sec: number, timeZone: string, intraday: boolean, seconds: boolean, fmt: ChartTimeFormat = {}, millis = false): string {
   const p = partsOf(sec, timeZone);
   const key = dateFormatKey(fmt.dateFormat);
   const dayOfWeek = fmt.dayOfWeek !== false;
   const withDay = key === DEFAULT_KEY ? chartDateText(p, dayOfWeek) : dayOfWeek ? `${chartWeekday(p.wd)} ${formatDate(key, p)}` : formatDate(key, p);
   if (!intraday) return formatted(withDay);
+  // Tick bars: "14:30:05.123" (the reference app, whatever the hours format).
+  if (millis) return formatted(`${withDay}   ${p.hh}:${p.mi}:${p.ss}.${String(Math.floor(sec * 1000 + 0.01) % 1000).padStart(3, "0")}`);
   const time = fmt.timeFormat === "12-hours"
     ? new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hour12: true }).format(new Date(sec * 1000))
     : seconds ? `${p.hh}:${p.mi}:${p.ss}` : `${p.hh}:${p.mi}`;

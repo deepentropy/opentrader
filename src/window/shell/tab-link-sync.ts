@@ -12,7 +12,7 @@ import type { LinkChannel, LinkColor } from "./tab-linking";
 import type { AppTabs } from "./app-tabs";
 import { groupChannels, linkGroup, LINK_CHANNELS_DEFAULT, setGroupValue, setLinkGroup, toggleGroupChannel } from "../../data/link-groups";
 import { initLinkBus, onLinkChannelData, postIntervalLink, postSymbolLink, setActiveLink } from "../../data/tab-link-bus";
-import { isSupportedResolution } from "../../data/datafeed";
+import { isChartableResolution } from "../../data/datafeed";
 
 export function createTabLinkSync(t: Pick<AppTabs, "tabs" | "setTabs" | "activeTab" | "activeTabId">, windowLabel: string) {
   const { tabs, setTabs, activeTab, activeTabId } = t;
@@ -59,7 +59,7 @@ export function createTabLinkSync(t: Pick<AppTabs, "tabs" | "setTabs" | "activeT
       setLinkGroup(color, { channels: { ...LINK_CHANNELS_DEFAULT }, symbol: pane.symbol, interval: pane.interval });
     } else {
       if (group.channels.symbol && group.symbol) next = withLinkedValue(next, "symbol", group.symbol);
-      if (group.channels.interval && group.interval && isSupportedResolution(group.interval))
+      if (group.channels.interval && group.interval && isChartableResolution(group.interval))
         next = withLinkedValue(next, "interval", group.interval);
     }
     setTabs(tabs().map((x) => (x.id === id ? next : x)));

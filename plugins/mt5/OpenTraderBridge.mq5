@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.4"
+#define PLUGIN_VERSION "0.1.5"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -40,6 +40,9 @@ string   g_serverTime = "auto";
 string   g_tickers[];              // data.subscribe
 long     g_lastTick[];             // their last tick time (ms)
 string   g_watch[];                // broker.watchQuote
+string   g_tickWatch[];            // data.watchTicks: the tickers a tick chart shows
+long     g_tickFrom[];             // their last tick sent (server ms)
+int      g_tickSame[];             // how many ticks of that millisecond were sent
 string   g_depth[];                // broker.watchDepth: the order books subscribed (MarketBookAdd)
 bool     g_depthDirty[];           // their book changed since it was sent
 ulong    g_lastDepth = 0;
@@ -240,6 +243,9 @@ void Disconnect(void)
    ArrayResize(g_tickers, 0);
    ArrayResize(g_lastTick, 0);
    ArrayResize(g_watch, 0);
+   ArrayResize(g_tickWatch, 0);
+   ArrayResize(g_tickFrom, 0);
+   ArrayResize(g_tickSame, 0);
    for(int i = 0; i < ArraySize(g_depth); i++)
       MarketBookRelease(g_depth[i]);
    ArrayResize(g_depth, 0);
@@ -447,6 +453,17 @@ void OnNotification(const string method, CJ *params)
         }
       return;
      }
+   if(method == "data.watchTicks")
+     {
+      CJ *list = params != NULL ? params.Get("tickers") : NULL;
+      string tickers[];
+      int n = list != NULL ? list.Size() : 0;
+      ArrayResize(tickers, n);
+      for(int i = 0; i < n; i++)
+         tickers[i] = list.At(i).str;
+      WatchTicks(tickers);
+      return;
+     }
    if(method == "broker.watchDepth")
      {
       CJ *list = params != NULL ? params.Get("tickers") : NULL;
@@ -492,6 +509,8 @@ string Handle(const string method, CJ *p, string &error)
       return DataSymbolInfo(p, error);
    if(method == "data.bars")
       return DataBars(p, error);
+   if(method == "data.ticks")
+      return DataTicks(p, error);
    if(method == "broker.resolveSymbol")
       return BrokerResolve(p);
    if(method == "broker.getState")
@@ -672,7 +691,7 @@ string DataSymbolInfo(CJ *p, string &error)
           ",\"barOrigin\":" + JQ(Hhmm(-shift / 60)) +
           ",\"pricescale\":" + IntegerToString(pricescale) +
           ",\"minmov\":" + IntegerToString(minmov) +
-          ",\"intervals\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"10\",\"12\",\"15\",\"20\",\"30\",\"60\",\"120\",\"180\",\"240\",\"360\",\"480\",\"720\",\"1D\"]}";
+          ",\"intervals\":[\"1T\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"10\",\"12\",\"15\",\"20\",\"30\",\"60\",\"120\",\"180\",\"240\",\"360\",\"480\",\"720\",\"1D\"]}";
   }
 
 ENUM_TIMEFRAMES Timeframe(const string res)
@@ -765,6 +784,155 @@ string DataBars(CJ *p, string &error)
      }
    out.Add("]}");
    return out.Text();
+  }
+
+//+------------------------------------------------------------------+
+//| Ticks (tick charts)                                               |
+//+------------------------------------------------------------------+
+#define MAX_TICKS 100000
+
+//--- Charted on trades (exchange symbols) or on the bid: the ticks of the same kind.
+bool TradeTicks(const string t)
+  {
+   return (ENUM_SYMBOL_CHART_MODE)SymbolInfoInteger(t, SYMBOL_CHART_MODE) == SYMBOL_CHART_MODE_LAST;
+  }
+
+//--- A tick as data.ticks / data.tick send it ("" when it is not one of the chart's: an ask-only change, no trade).
+string TickJson(const MqlTick &k, const bool trades, const int digits)
+  {
+   double price = trades ? k.last : k.bid;
+   if(price <= 0 || (trades ? (k.flags & TICK_FLAG_LAST) == 0 : (k.flags & TICK_FLAG_BID) == 0))
+      return "";
+   double volume = trades ? (k.volume_real > 0 ? k.volume_real : (double)k.volume) : 1;
+   long utc = ToUtc((datetime)(k.time_msc / 1000)) * 1000 + k.time_msc % 1000;
+   return "[" + IntegerToString(utc) + "," + JN(price, digits) + "," + JN(volume, 4) + "]";
+  }
+
+//--- data.ticks: the newest `countBack` ticks before `to` (UTC ms), oldest first. The window back from `to` widens
+//--- until it holds enough of them or reaches 30 days.
+string DataTicks(CJ *p, string &error)
+  {
+   string t = JStr(p, "ticker");
+   if(!SymbolSelect(t, true))
+     {
+      error = "Unknown symbol " + t;
+      return "";
+     }
+   long to = (long)JNum(p, "to");
+   int count = (int)MathMin(MAX_TICKS, MathMax(1, JNum(p, "countBack", 1000)));
+   long toSrv = (long)ToServer(to / 1000) * 1000 + to % 1000;
+   bool trades = TradeTicks(t);
+   uint flags = trades ? COPY_TICKS_TRADE : COPY_TICKS_INFO;
+   int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
+   MqlTick ticks[];
+   string rows[];
+   long span = 600000;
+   while(true)
+     {
+      int got = -1;
+      // The terminal may still be loading the history: asked again for a few seconds.
+      for(int attempt = 0; attempt < 25; attempt++)
+        {
+         got = CopyTicksRange(t, ticks, flags, (ulong)MathMax(1, toSrv - span), (ulong)(toSrv - 1));
+         if(got >= 0)
+            break;
+         Sleep(200);
+        }
+      if(got < 0)
+        {
+         error = "Ticks not available yet for " + t + " (error " + IntegerToString(GetLastError()) + ")";
+         return "";
+        }
+      ArrayResize(rows, 0);
+      for(int i = 0; i < got; i++)
+        {
+         string row = TickJson(ticks[i], trades, digits);
+         if(row == "")
+            continue;
+         int n = ArraySize(rows);
+         ArrayResize(rows, n + 1);
+         rows[n] = row;
+        }
+      if(ArraySize(rows) >= count || span >= (long)30 * 86400000)
+         break;
+      span *= 4;
+     }
+   CText out;
+   out.Add("{\"ticks\":[");
+   int first = MathMax(0, ArraySize(rows) - count);
+   for(int i = first; i < ArraySize(rows); i++)
+      out.Add((i > first ? "," : "") + rows[i]);
+   out.Add("]}");
+   return out.Text();
+  }
+
+//--- data.watchTicks: the tickers whose new ticks go out as data.tick, from now on.
+void WatchTicks(const string &tickers[])
+  {
+   string next[];
+   long from[];
+   int same[];
+   int n = ArraySize(tickers);
+   ArrayResize(next, n);
+   ArrayResize(from, n);
+   ArrayResize(same, n);
+   for(int i = 0; i < n; i++)
+     {
+      next[i] = tickers[i];
+      int k = IndexOf(g_tickWatch, tickers[i]);
+      if(k >= 0)
+        {
+         from[i] = g_tickFrom[k];
+         same[i] = g_tickSame[k];
+         continue;
+        }
+      SymbolSelect(tickers[i], true);
+      MqlTick last;
+      from[i] = SymbolInfoTick(tickers[i], last) ? last.time_msc + 1 : (long)TimeTradeServer() * 1000;
+      same[i] = 0;
+     }
+   ArrayCopy(g_tickWatch, next);
+   ArrayResize(g_tickWatch, n);
+   ArrayCopy(g_tickFrom, from);
+   ArrayResize(g_tickFrom, n);
+   ArrayCopy(g_tickSame, same);
+   ArrayResize(g_tickSame, n);
+  }
+
+//--- The new ticks of the watched tickers: the ones after the last sent (the ticks of its millisecond already sent
+//--- are skipped).
+void StreamTicks(void)
+  {
+   for(int i = 0; i < ArraySize(g_tickWatch); i++)
+     {
+      string t = g_tickWatch[i];
+      bool trades = TradeTicks(t);
+      MqlTick ticks[];
+      int got = CopyTicks(t, ticks, trades ? COPY_TICKS_TRADE : COPY_TICKS_INFO, (ulong)g_tickFrom[i], 5000);
+      if(got <= 0)
+         continue;
+      int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
+      int skip = 0;
+      while(skip < got && skip < g_tickSame[i] && ticks[skip].time_msc == g_tickFrom[i])
+         skip++;
+      if(skip >= got)
+         continue;
+      string rows = "";
+      for(int k = skip; k < got; k++)
+        {
+         string row = TickJson(ticks[k], trades, digits);
+         if(row != "")
+            rows += (rows == "" ? "" : ",") + row;
+        }
+      long lastMsc = ticks[got - 1].time_msc;
+      int sameNow = 0;
+      for(int k = got - 1; k >= 0 && ticks[k].time_msc == lastMsc; k--)
+         sameNow++;
+      g_tickSame[i] = lastMsc == g_tickFrom[i] ? g_tickSame[i] + got - skip : sameNow;
+      g_tickFrom[i] = lastMsc;
+      if(rows != "")
+         Notify("data.tick", "{\"ticker\":" + JQ(t) + ",\"ticks\":[" + rows + "]}");
+     }
   }
 
 string BarJson(const MqlRates &r, const bool daily, const int digits)
@@ -1428,6 +1596,7 @@ void OnTimer(void)
    if(!g_ready)
       return;
    StreamQuotes();
+   StreamTicks();
    StreamDepth();
    // The account: at once after a trade, else every second (P&L).
    ulong now = GetTickCount64();

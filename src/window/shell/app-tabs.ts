@@ -39,8 +39,8 @@ import {
   takeDetachPayload,
 } from "./window-bridge";
 import { bindLayoutSync, rememberCrosshair, type LayoutSyncKey } from "../chart/layout-sync";
-import { isEconomicSymbol, isFullSymbol, toFullSymbol } from "../../data/datafeed";
-import { SINGLE_VALUE_TYPES, lastSingleValueType } from "../chart/chart-types";
+import { isEconomicSymbol, isFullSymbol, tickCount, toFullSymbol } from "../../data/datafeed";
+import { chartTypeAllowed, chartTypeInstead } from "../chart/chart-types";
 import { migrateDrawingKey } from "../drawings/persistence";
 import { setSelectedDrawingId } from "../drawings/drawing-selection";
 import { embedConfig } from "../../embed/config";
@@ -138,24 +138,27 @@ export function createAppTabs(windowLabel: string) {
   };
   bindLayoutSync(layoutSync, toggleLayoutSync);
 
-  // A close-only symbol (an economic series) draws a single-value type: a
-  // pane on another type takes the last single-value type picked on such a
-  // symbol, and gets its own type back with the next symbol that has OHLC bars
-  // (the reference app's style recovery).
+  // A close-only symbol (an economic series) and one-tick bars draw a
+  // single-value type, tick bars no price-move type (#376): a pane on another
+  // type takes one it can draw, and gets its own type back with the next
+  // symbol or interval that draws it (the reference app's style recovery).
   function followCloseOnlyTypes() {
     createEffect(() => {
       for (const t of tabs()) {
         let changed = false;
         const panes = t.panes.map((p) => {
-          if (isEconomicSymbol(p.symbol)) {
-            if (SINGLE_VALUE_TYPES.has(p.chartType)) return p;
+          const closeOnly = isEconomicSymbol(p.symbol);
+          const ticks = tickCount(p.interval);
+          // The type it had before, once the chart draws it again (1T → 10T: candles back).
+          if (p.styleToRecover && chartTypeAllowed(p.styleToRecover, closeOnly, ticks)) {
             changed = true;
-            return { ...p, chartType: lastSingleValueType(), styleToRecover: p.styleToRecover ?? p.chartType };
+            const { styleToRecover, ...rest } = p;
+            return { ...rest, chartType: styleToRecover };
           }
-          if (!p.styleToRecover) return p;
+          const instead = chartTypeInstead(p.chartType, closeOnly, ticks);
+          if (!instead) return p;
           changed = true;
-          const { styleToRecover, ...rest } = p;
-          return { ...rest, chartType: styleToRecover };
+          return { ...p, chartType: instead, styleToRecover: p.styleToRecover ?? p.chartType };
         });
         if (changed) untrack(() => patchTab(t.id, { panes }));
       }

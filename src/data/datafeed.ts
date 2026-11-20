@@ -41,6 +41,7 @@ import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type Sessio
 import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
 import { isLocalSymbol, localBarsBefore, localDailyBars, localIntradayBars, localSeriesMeta, localServesResolution } from "./local-series";
 import { builtFromServed, finestServed, servedMinuteSizes } from "./interval";
+import { tickBarMs, tickBars, tickCount, ticksPerPage, type TickRow } from "./tick-bars";
 import { translateWith } from "../i18n/translator";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
@@ -64,6 +65,7 @@ export { getLatestNews, getTickerInfo, getTickerSnapshot } from "./datafeed-rest
 export type { NewsItem, TickerInfo, Snapshot } from "./datafeed-rest";
 export type { SymbolSearchResult } from "../bindings";
 export { isLocalSymbol } from "./local-series";
+export { isTickResolution, tickCount } from "./tick-bars";
 
 // ── Resolution map ────────────────────────────────────────────────────────
 // The canonical routing table: an interval id → which source serves it and
@@ -233,10 +235,28 @@ export function economicCountry(symbol: string): string {
   return /^ECONOMICS:([A-Z]{2})_[A-Z0-9]+$/i.exec(symbol.trim())?.[1].toUpperCase() ?? "US";
 }
 
-/** Text of an interval `symbol` has no bars on: the ones under its finest bars
- *  (an imported series' file, a data plugin's finest served interval), under D
- *  for an economic series. */
-export function unsupportedIntervalMessage(symbol: string | null | undefined): string {
+/** Whether `resolution` is an interval the app can chart for some symbol: a
+ *  served one, or ticks (a data plugin's symbols, #376). */
+export function isChartableResolution(resolution: string): boolean {
+  return isSupportedResolution(resolution) || tickCount(resolution) !== null;
+}
+
+/** Whether a symbol's data plugin serves ticks ("1T" among its intervals);
+ *  true while its session is not known yet, so a restored tick chart keeps its
+ *  interval. */
+function servesTicks(symbol: string | null | undefined): boolean {
+  if (!symbol || isLocalSymbol(symbol) || isEconomicSymbol(symbol)) return false;
+  const sessions = cachedSymbolSessions(symbol);
+  if (!sessions) return true;
+  return sessions.intervals.some((i) => i.trim().toUpperCase() === "1T");
+}
+
+/** Text of an interval `symbol` has no bars on: tick intervals for a symbol
+ *  without ticks; else the ones under its finest bars (an imported series'
+ *  file, a data plugin's finest served interval), under D for an economic
+ *  series. */
+export function unsupportedIntervalMessage(symbol: string | null | undefined, resolution?: string): string {
+  if (resolution && tickCount(resolution) !== null) return translateWith("Tick-based intervals are not available for {0}.", splitSymbol(symbol ?? "").ticker);
   const finest = isLocalSymbol(symbol) ? (localSeriesMeta(symbol)?.base ?? "1D") : (finestServed(pluginIntervals(symbol) ?? []) ?? "D");
   return translateWith("Intervals less than {0} are not supported for this symbol. Please change the interval to any available one.", finest);
 }
@@ -246,6 +266,7 @@ export function unsupportedIntervalMessage(symbol: string | null | undefined): s
 export function symbolServesResolution(symbol: string | null | undefined, resolution: string): boolean {
   // An imported series: the intervals its file's bars build (../local-series).
   if (isLocalSymbol(symbol)) return localServesResolution(symbol!, resolution);
+  if (tickCount(resolution) !== null) return servesTicks(symbol);
   if (!isSupportedResolution(resolution)) return false;
   if (isEconomicSymbol(symbol)) return dailyFamily(resolution) !== null;
   // A data plugin's symbol (served until its session is known, so a restored chart keeps its interval).
@@ -648,6 +669,8 @@ export function getBars(
 
 async function getBarsOnce(symbol: string, resolution: string, session: SessionId): Promise<BarsResult> {
   if (isLocalSymbol(symbol)) return localBars(symbol, resolution);
+  const ticks = tickCount(resolution);
+  if (ticks !== null) return { bars: await tickHistory(symbol, ticks, null, session), daily: null, aggregate: null };
   // Guard the catch-all daily branch below: an unservable resolution (tick,
   // range, too large a multiplier) must error here rather than silently
   // resolve to daily bars. The picker gates on the same set, so this is a
@@ -736,6 +759,8 @@ export async function getBarsBefore(
 ): Promise<Candle[]> {
   // An economic series is loaded whole.
   if (isEconomicSymbol(symbol)) return [];
+  const ticks = tickCount(resolution);
+  if (ticks !== null) return tickHistory(symbol, ticks, tickBarMs(beforeSec), session);
   if (isLocalSymbol(symbol)) return localBarsBefore(symbol, resolution, beforeSec, spanDays ?? dailyConfig(resolution).days);
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
@@ -758,6 +783,20 @@ export async function getBarsBefore(
     return sessionBars(rows, sessions, spec, intra.mins, base);
   }
   return getDailyHistoryBefore(symbol, beforeSec, spanDays ?? dailyConfig(resolution).days, adjusted);
+}
+
+/** Bars of `n` ticks of a data plugin's symbol: one page of whole bars before
+ *  `beforeMs` (none: up to now), in the chosen session. None for a symbol
+ *  without ticks. */
+async function tickHistory(symbol: string, n: number, beforeMs: number | null, session: SessionId): Promise<Candle[]> {
+  if (!servesTicks(symbol)) return [];
+  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, beforeMs, ticksPerPage(n)), symbolSessions(symbol)]);
+  if (res.status === "error") throw new Error(res.error);
+  const spec = sessions.spec(session);
+  const ticks = res.data as TickRow[];
+  const bars = tickBars(ticks.filter((t) => spec.contains(Math.floor(t.timeMs / 1000))), n);
+  // A page before a loaded bar stays before it.
+  return beforeMs === null ? bars : bars.filter((b) => tickBarMs(b.time as number) < beforeMs);
 }
 
 /** Seconds live tail: bars strictly newer than `sinceSec` for a second-family

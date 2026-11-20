@@ -7,7 +7,7 @@
  * poll vs WebSocket) and emits these events.
  */
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { commands, events, type Candle } from "../bindings";
+import { commands, events, type Candle, type PluginTicks } from "../bindings";
 import type * as gen from "../bindings";
 import { unwrap, type Finite } from "./datafeed-rest";
 import { isLocalSymbol } from "./local-series";
@@ -50,6 +50,17 @@ export function onChartAggregate(fn: (ev: ChartAggregate) => void): Promise<Unli
 
 export function onSecondAggregate(fn: (ev: SecondAggregate) => void): Promise<UnlistenFn> {
   return events.secondAggregate.listen((e) => fn(e.payload as SecondAggregate));
+}
+
+/** The live ticks of the data plugins' symbols on a tick chart (#376). */
+export function onPluginTicks(fn: (ev: PluginTicks) => void): Promise<UnlistenFn> {
+  return events.pluginTicks.listen((e) => fn(e.payload));
+}
+
+/** A pane shows `symbol` on a tick interval (null: no tick chart): its data plugin streams its ticks. */
+export async function setTickSubscription(symbol: string | null, pane: string): Promise<void> {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
+  await commands.pluginWatchTicks(pane, isLocalSymbol(symbol) ? null : symbol);
 }
 
 export function onTradeTick(fn: (ev: TradeTick) => void): Promise<UnlistenFn> {

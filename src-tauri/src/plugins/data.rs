@@ -145,6 +145,10 @@ pub struct PluginData {
     pages: Mutex<HashMap<PageKey, (Instant, Arc<Vec<Candle>>)>>,
     /// Each symbol's last quote time (UNIX seconds, the feed's clock).
     quoted: Mutex<HashMap<String, f64>>,
+    /// Chart pane → the plugin symbol it shows on a tick interval (#376).
+    tick_charts: Mutex<HashMap<String, String>>,
+    /// The tickers each plugin was last asked to stream ticks of.
+    tick_streaming: Mutex<HashMap<String, BTreeSet<String>>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -212,13 +216,17 @@ pub fn init(app: &AppHandle) {
                     forget(&app, &plugin);
                     // A plugin that connects again streams what is subscribed.
                     state(&app).streaming.locked().remove(&plugin);
+                    state(&app).tick_streaming.locked().remove(&plugin);
                     push_subscriptions(&app);
+                    push_tick_subscriptions(&app);
                 }
                 Ok(HubEvent::Disconnected { plugin }) => {
                     forget(&app, &plugin);
                     state(&app).streaming.locked().remove(&plugin);
+                    state(&app).tick_streaming.locked().remove(&plugin);
                 }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.quote" => on_quote(&app, &plugin, params),
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "data.tick" => on_ticks(&app, &plugin, params),
                 Ok(_) => {}
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(_) => break,
@@ -701,7 +709,12 @@ pub fn drop_owner(app: &AppHandle, owner: &str) {
         subs.charts.retain(|k, _| k != owner && !k.starts_with(&prefix));
         subs.watchlists.remove(owner);
     }
+    {
+        let prefix = format!("{owner}:");
+        state(app).tick_charts.locked().retain(|k, _| k != owner && !k.starts_with(&prefix));
+    }
     push_subscriptions(app);
+    push_tick_subscriptions(app);
 }
 
 /// Tell each plugin the whole set of its tickers to stream, when it changed (`data.subscribe`).
@@ -796,8 +809,135 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     }
 }
 
+// ── Ticks (#376) ─────────────────────────────────────────────────────────────
+
+/// Ticks asked at most in one request.
+const MAX_TICKS: u32 = 100_000;
+
+/// One trade or quote of a symbol: tick charts build their bars from these.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Tick {
+    /// UNIX milliseconds.
+    pub time_ms: f64,
+    pub price: f64,
+    pub volume: f64,
+}
+
+/// The live ticks of a charted plugin symbol (`data.tick`), in the order they came.
+#[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginTicks {
+    pub symbol: String,
+    pub ticks: Vec<Tick>,
+}
+
+/// `[[timeMs, price, volume], …]` as a plugin sends them: valid rows only, oldest first. Rows out of order are sorted;
+/// ticks of the same millisecond keep their order.
+fn parse_ticks(v: &Value) -> Vec<Tick> {
+    let mut ticks: Vec<Tick> = v
+        .as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|r| {
+                    let a = r.as_array()?;
+                    let n = |i: usize| a.get(i).and_then(Value::as_f64);
+                    let t = Tick { time_ms: n(0)?, price: n(1)?, volume: n(2).unwrap_or(0.0) };
+                    (t.time_ms.is_finite() && t.price.is_finite() && t.price > 0.0 && t.volume.is_finite()).then_some(t)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    ticks.sort_by(|a, b| a.time_ms.total_cmp(&b.time_ms));
+    ticks
+}
+
+/// Whether a plugin symbol has ticks: its plugin lists "1T" in its intervals.
+fn serves_ticks(i: &Info) -> bool {
+    i.intervals.iter().any(|s| s.trim().eq_ignore_ascii_case("1T"))
+}
+
+/// The newest `count` ticks of a plugin symbol before `before_ms` (none: up to now), oldest first. Empty when the
+/// symbol is not a plugin's or its plugin has no ticks.
+#[tauri::command]
+#[specta::specta]
+pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>, count: u32) -> Result<Vec<Tick>, String> {
+    let Some(r) = route(&app, &symbol) else { return Ok(Vec::new()) };
+    let i = info(&app, &r).await?;
+    if !serves_ticks(&i) {
+        return Ok(Vec::new());
+    }
+    let to = before_ms.unwrap_or_else(|| (now() * 1000.0).ceil() + 1.0);
+    let params = json!({ "ticker": r.ticker, "to": to.floor(), "countBack": count.clamp(1, MAX_TICKS) });
+    let v = ask(&app, &r, "data.ticks", params, BARS_TIMEOUT).await?;
+    let mut ticks = parse_ticks(v.get("ticks").unwrap_or(&Value::Null));
+    ticks.retain(|t| t.time_ms < to);
+    Ok(ticks)
+}
+
+/// A chart pane shows `symbol` on a tick interval (None: no tick chart): its plugin streams its ticks (`data.tick`).
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_watch_ticks(app: AppHandle, window: tauri::Window, pane: String, symbol: Option<String>) {
+    let owner = opentrader_core::commands::chart_owner(window.label(), &pane);
+    let routed = symbol.as_deref().and_then(|s| route(&app, s));
+    {
+        let mut charts = state(&app).tick_charts.locked();
+        match routed {
+            Some(r) => charts.insert(owner, r.symbol),
+            None => charts.remove(&owner),
+        };
+    }
+    push_tick_subscriptions(&app);
+}
+
+/// Tell each plugin the whole set of its tickers whose ticks a chart shows, when it changed (`data.watchTicks`).
+fn push_tick_subscriptions(app: &AppHandle) {
+    let s = state(app);
+    let wanted: Vec<String> = s.tick_charts.locked().values().cloned().collect();
+    let mut per_plugin: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for p in s.exchanges.locked().values() {
+        per_plugin.entry(p.clone()).or_default();
+    }
+    for sym in wanted {
+        if let Some(r) = route(app, &sym) {
+            per_plugin.entry(r.plugin).or_default().insert(r.ticker);
+        }
+    }
+    let hub = app.state::<Plugins>().hub.clone();
+    for (plugin, tickers) in per_plugin {
+        if hub.connected(&plugin).is_none() || s.tick_streaming.locked().get(&plugin) == Some(&tickers) {
+            continue;
+        }
+        if hub.notify(&plugin, "data.watchTicks", json!({ "tickers": tickers })).is_ok() {
+            s.tick_streaming.locked().insert(plugin, tickers);
+        }
+    }
+}
+
+/// A plugin's live ticks for the charts of a tick interval.
+fn on_ticks(app: &AppHandle, plugin: &str, params: Value) {
+    let Some(ticker) = params.get("ticker").and_then(Value::as_str) else { return };
+    let symbol = {
+        let s = state(app);
+        symbol_of(&s.exchanges.locked(), &s.whole.locked(), plugin, ticker)
+    };
+    let Some(symbol) = symbol else { return };
+    let ticks = parse_ticks(params.get("ticks").unwrap_or(&Value::Null));
+    if !ticks.is_empty() {
+        let _ = PluginTicks { symbol, ticks }.emit(app);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn parses_ticks_in_time_order() {
+        let v = serde_json::json!([[2000.0, 1.5, 1.0], [1000.0, 1.4], [1500.0, -1.0, 1.0], ["x", 1.0, 1.0], [1000.0, 1.45, 2.0]]);
+        let t = super::parse_ticks(&v);
+        assert_eq!(t.iter().map(|t| (t.time_ms, t.price, t.volume)).collect::<Vec<_>>(), vec![(1000.0, 1.4, 0.0), (1000.0, 1.45, 2.0), (2000.0, 1.5, 1.0)]);
+    }
+
     use super::*;
 
     #[test]

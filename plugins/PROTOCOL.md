@@ -152,7 +152,7 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `barOrigin` | Optional, `"HHMM"` in `timezone`. Send it when your intraday bars start on a clock grid that ignores the session opens, as a broker terminal's do: 5-minute bars at 01:00, 01:05… when trading opens at 01:01, 4-hour bars at 00:00, 04:00… of the server's day. Give the time of day the grid starts from (the server's midnight: `"1700"` in New York for a New York close server). The app then shows your bars as they are, builds the other sizes on that grid, and puts live minutes, alerts, the countdown and scripts' `time(tf)` on it too. Without it, bars start at the session opens (see `intervals`). |
 | `pricescale`, `minmov` | One tick is `minmov / pricescale`. For example, 100000 and 1 give 0.00001. |
 | `pointValue` | Optional, 1 when left out. The money one unit of quantity makes when the price moves by 1, in `currency`. A future counted in contracts gives its multiplier: 65 for an NSE NIFTY future, 50 for an E-mini S&P. Symbol info shows it, and scripts (`syminfo.pointvalue`), the strategy tester and Bar Replay trading compute profits with it. |
-| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Intraday bars start on the clock grid of their size in the symbol's time zone (a `"60"` bar starts on the hour). Other minute or second sizes are built by the app from a served size that divides them. Bars that start at the session open (09:30, 10:30…) are built from a served size that divides the time from midnight to the open; with none (only `"60"` for a 09:30 open), the bars keep the served grid (09:00, 10:00…) and the one the open falls in is stamped at the open. Weeks and months are built from days. The interval picker offers only these; another interval shows that it is not supported. |
+| `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Intraday bars start on the clock grid of their size in the symbol's time zone (a `"60"` bar starts on the hour). Other minute or second sizes are built by the app from a served size that divides them. Bars that start at the session open (09:30, 10:30…) are built from a served size that divides the time from midnight to the open; with none (only `"60"` for a 09:30 open), the bars keep the served grid (09:00, 10:00…) and the one the open falls in is stamped at the open. Weeks and months are built from days. Add `"1T"` when you serve ticks (`data.ticks`): the app then offers tick charts (1T, 10T, 100T, 1000T and custom tick counts), each bar the next N ticks. The interval picker offers only these; another interval shows that it is not supported. |
 | `history` | Optional. How far back your source serves each family of bars, in calendar days: `{"second":3,"minute":30,"day":365}`, any of the three. The app then asks for nothing older (scrolling back stops there) and never more bars than fit in what it asks. Weeks and months follow `day`. Without it, the app asks as far back as the chart goes (30 years of days) and you answer what you have. |
 
 **Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment.
@@ -164,6 +164,22 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 Return the bars whose start is in `[from, to]`, oldest first. When there are more than `countBack`, return the newest `countBack` of them. You may return fewer, the newest ones: the app then asks for the older ones before the oldest bar you returned when the chart needs them. Return an empty list when there are none: the app reads that as the start of the history.
 
 The app keeps a symbol's recent bars a while, so the chart, the Details panel and the quote of one symbol share one request; after that, it asks only for the bars from the last one it has. When your source is busy (rate limited), answer with the error code `-32005`: the app asks again later, waiting longer each time (1 s, then up to 15 s).
+
+### `data.ticks` (app → plugin, request)
+
+For a plugin that lists `"1T"` in `intervals`: the ticks of tick charts.
+
+`{"ticker":"EURUSD","to":1730600123456,"countBack":20000}` → `{"ticks":[[1730600100015,1.08113,1],[1730600100230,1.08115,1],…]}`
+
+A tick is `[time, price, volume]`: `time` in UNIX milliseconds, `price` the trade price (the bid when the source has no trades), `volume` the traded quantity (the tick count, 1, when the source has none). Return the newest `countBack` ticks whose time is before `to`, oldest first. Return fewer when the history ends there, an empty list when there are none. The app asks for older ticks, before the oldest you returned, when the chart scrolls back.
+
+### `data.tick` (plugin → app, notification)
+
+`{"ticker":"EURUSD","ticks":[[1730600123500,1.08116,1],[1730600123512,1.08117,1]]}`: every new tick of the tickers of `data.watchTicks`, in order. Group the ticks of a moment in one message, a few messages per second at most, and send them besides `data.quote`. A tick chart counts each tick it gets: a tick left out makes its bars longer.
+
+### `data.watchTicks` (app → plugin, notification)
+
+`{"tickers":["EURUSD"]}`: the whole set of tickers a tick chart shows, whose `data.tick` the app wants. An empty list stops them. The app sends it again after each `hello`.
 
 ### `data.subscribe` (app → plugin, notification)
 

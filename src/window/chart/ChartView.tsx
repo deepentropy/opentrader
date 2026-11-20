@@ -38,7 +38,8 @@ import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import {
   getBars,
   intervalLabel,
-  isSupportedResolution,
+  isChartableResolution,
+  isTickResolution,
   symbolServesResolution,
   splitSymbol,
   unsupportedIntervalMessage,
@@ -823,14 +824,25 @@ export function ChartView(props: ChartViewProps) {
       <EventCard />
       {/* An interval the symbol has no bars on (an economic series below D, an imported series or a data plugin's
           symbol below its finest bars or not built from them). */}
-      <Show when={isSupportedResolution(props.interval ?? "1D") && !symbolServesResolution(props.symbol, props.interval ?? "1D")}>
+      <Show when={isChartableResolution(props.interval ?? "1D") && !symbolServesResolution(props.symbol, props.interval ?? "1D")}>
         <div class="ot-interval-unsupported">
           <div class="ot-interval-unsupported__card">
             <svg class="ot-interval-unsupported__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
               <path fill="currentColor" fill-rule="evenodd" d={INTERVAL_UNSUPPORTED_ICON} />
             </svg>
-            <strong class="ot-interval-unsupported__title">Interval is not supported</strong>
-            <div class="ot-interval-unsupported__text">{unsupportedIntervalMessage(props.symbol)}</div>
+            {/* Ticks: only a data plugin's symbols with ticks have them (#376). */}
+            <Show
+              when={isTickResolution(props.interval ?? "1D")}
+              fallback={
+                <>
+                  <strong class="ot-interval-unsupported__title">Interval is not supported</strong>
+                  <div class="ot-interval-unsupported__text">{unsupportedIntervalMessage(props.symbol)}</div>
+                </>
+              }
+            >
+              <strong class="ot-interval-unsupported__title">Tick-based intervals are not available for this symbol</strong>
+              <div class="ot-interval-unsupported__text">Pick another type of interval for your analysis.</div>
+            </Show>
             {/* A data plugin may serve no days. */}
             <Show when={symbolServesResolution(props.symbol, "1D")}>
               <button type="button" class="ot-interval-unsupported__button" onClick={() => props.onSetInterval?.("1D")}>

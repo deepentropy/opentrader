@@ -672,7 +672,7 @@ export function AlertDialog(props: Props) {
   /** The Interval row: a condition that reads an interval, unless a drawing
    *  gives the level. Without it the alert keeps the chart's interval. */
   const intervalRow = () => conditionHasIntervalRow(condition());
-  const ruleResolution = () => (intervalRow() ? fields.resolution : (seed()?.resolution ?? props.interval));
+  const ruleResolution = () => (intervalRow() ? fields.resolution : (seed()?.resolution ?? chartInterval ?? "1"));
   const preview = createMemo(() =>
     multi()
       ? defaultAlertMessage({ symbol: symbol(), ...conds()[0], and: conds().slice(1) })

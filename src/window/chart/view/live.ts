@@ -1,7 +1,7 @@
 /*
  * Live bars of a chart view: the symbol's live slot, the merge of live bars
  * into the loaded series, the repaint (deferred while the tab is hidden), the
- * footprint sub-bars and the seconds REST refresh.
+ * footprint sub-bars, the seconds REST refresh and the ticks of tick charts.
  */
 import { createEffect, onCleanup, onMount } from "solid-js";
 import { type UTCTimestamp } from "lightweight-charts";
@@ -14,8 +14,11 @@ import {
   isSecondResolution,
   setLiveSymbol,
   subscribeBars,
+  tickCount,
   type LiveBar,
 } from "../../../data/datafeed";
+import { onPluginTicks, setTickSubscription } from "../../../data/datafeed-live";
+import { nextTickBarTime } from "../../../data/tick-bars";
 import { cachedSymbolSessions } from "../../../data/session";
 import { setDataForType, type OHLC } from "../chart-types";
 import { toOHLC } from "./helpers";
@@ -305,6 +308,57 @@ export function createLive(cx: ChartCx): LiveApi {
     });
   });
 
+  // ── Tick charts (#376) ─────────────────────────────────────────────
+  // The pane's data plugin streams the symbol's ticks while it shows a tick
+  // interval. A tick goes into the last bar until that bar holds N ticks, then
+  // starts the next bar. A bar loaded with the history is a whole one: the
+  // next tick starts a new bar.
+  createEffect(() => {
+    const sym = props.symbol ?? null;
+    const ticks = tickCount(props.interval ?? "1D") !== null;
+    setTickSubscription(ticks ? sym : null, String(paneId)).catch((e) => console.warn("[chart] setTickSubscription failed:", e));
+  });
+  /** The live bar this pane is filling with ticks, and how many it holds. */
+  let tickBar: { time: number; count: number } | null = null;
+  let unlistenTicks: UnlistenFn | null = null;
+  onMount(() => {
+    onPluginTicks((e) => {
+      const n = tickCount(props.interval ?? "1D");
+      const sym = props.symbol;
+      if (n === null || !sym || e.symbol.toUpperCase() !== sym.toUpperCase()) return;
+      let painted: { next: OHLC; appended: boolean } | null = null;
+      let appended = false;
+      for (const t of e.ticks) {
+        const all = cx.allBars;
+        const last = all[all.length - 1];
+        // No bars yet (loading): the history has these ticks.
+        if (!last || t.timeMs === null || t.price === null) continue;
+        const lastTime = last.time as number;
+        const volume = t.volume ?? 0;
+        const one = { open: t.price, high: t.price, low: t.price, close: t.price };
+        let r: { next: OHLC; appended: boolean } | null;
+        if (tickBar && tickBar.time === lastTime && tickBar.count < n) {
+          r = applyLiveBar({ time: lastTime, ...one, volume, volumeIsIncrement: true }, false);
+          if (r) tickBar.count++;
+        } else {
+          // A tick older than the last bar is in the history already.
+          if (t.timeMs / 1000 < lastTime) continue;
+          const time = nextTickBarTime(t.timeMs, lastTime);
+          r = applyLiveBar({ time, ...one, volume }, false);
+          if (r) tickBar = { time, count: 1 };
+        }
+        if (r) {
+          painted = r;
+          appended ||= r.appended;
+        }
+      }
+      if (painted) paintLiveOrDefer(painted.next, appended);
+    }).then((u) => {
+      if (aggregateDisposed) { u(); return; }
+      unlistenTicks = u;
+    });
+  });
+
   // Volume footprint sub-bars: fetch the 1-minute window when the type is
   // active on an intraday frame (5 trading days — the datafeed's 1m lookback;
   // older bars render as plain candles). Cleared when the type/symbol moves on.
@@ -435,8 +489,10 @@ export function createLive(cx: ChartCx): LiveApi {
   onCleanup(() => {
     aggregateDisposed = true;
     unlistenAggregate?.();
+    unlistenTicks?.();
     // Clear only THIS pane's slot — sibling panes keep their live symbols.
     setLiveSymbol(null, String(paneId)).catch(() => {});
+    setTickSubscription(null, String(paneId)).catch(() => {});
   });
 
   return {

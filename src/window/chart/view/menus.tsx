@@ -14,7 +14,7 @@ import { isRtl } from "../../../components/reading-direction";
 import { clipboardSource, hasClipboardContent, pasteAllAsNew } from "../../drawings/clipboard";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { chartTemplates } from "../../header/chart-templates";
-import { isIntradayInterval, splitSymbol } from "../../../data/datafeed";
+import { isIntradayInterval, isTickResolution, splitSymbol } from "../../../data/datafeed";
 import { isTransformType } from "../chart-types";
 import { splitTitle } from "../IndicatorLegend";
 import { hasAlertFunction, studyConditions } from "../../../data/alert-study-conditions";
@@ -49,6 +49,8 @@ type ChartMenuCtx = {
   study?: string | null;
   /** The alert row's label when it is the study's (studyAlertRow rules). */
   alertLabel?: string;
+  /** A tick chart: no alert row (the reference app, #376). */
+  noAlerts?: boolean;
   drawingCount: number;
   indicatorCount: number;
   cursorLockByTime: boolean;
@@ -90,7 +92,9 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     { kind: "item", id: "copy-price", label: translateWith("Copy price {0}", p), onSelect: a.copyPrice },
     { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !ctx.canPaste, onSelect: a.paste },
     { kind: "separator" },
-    { kind: "item", id: "alert", label: ctx.alertLabel ?? translateWith("Add alert on {0} at {1}…", ctx.study ?? sym, p), shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
+    ...(ctx.noAlerts ? [] : [
+      { kind: "item", id: "alert", label: ctx.alertLabel ?? translateWith("Add alert on {0} at {1}…", ctx.study ?? sym, p), shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert } as CtxNode,
+    ]),
     ...(ctx.study ? [] : [
       { kind: "item", id: "buy", label: translateWith("Buy 1 {0} @ {1} limit", sym, p), shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
       { kind: "item", id: "sell", label: translateWith("Sell 1 {0} @ {1} stop", sym, p), icon: CtxIcons.sell, onSelect: a.sell },
@@ -429,7 +433,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** "Add alert on <study>…" row of the study menu; `price` = at the pointer (right click), else its last value. */
   function studyAlertRow(id: string, price?: number | null): Extract<CtxNode, { kind: "item" }> | null {
     const row = (cx.controller?.getLegend() ?? []).find((r) => r.id === id);
-    if (!row || !studyAlertable(id, row)) return null;
+    if (!row || !studyAlertable(id, row) || isTickResolution(props.interval ?? "1D")) return null;
     const entry = getIndicatorEntry(id);
     const fmt = cx.controller?.studySeries(id)?.priceFormatter();
     let value = price ?? null;
@@ -449,8 +453,8 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** The "+" menu's alert rows for pane `paneIdx` at `y` (pixels from the pane top), main series first. */
   function plusAlertRows(paneIdx: number, y: number): CtxNode[] {
     const out: CtxNode[] = [];
-    // Bar Replay shows past bars: no alert rows (the reference app).
-    if (cx.replayActive) return out;
+    // Bar Replay shows past bars, a tick chart takes no alerts: no alert rows (the reference app).
+    if (cx.replayActive || isTickResolution(props.interval ?? "1D")) return out;
     const side = currentTokens().scalesPlacement;
     const mainIdx = cx.mainPane();
     const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;
@@ -499,7 +503,7 @@ export function createMenus(cx: ChartCx): MenusApi {
    *  click on its line), else its last value. */
   function compareAlertRow(id: string, price?: number | null): CtxNode | null {
     const c = cx.compareSources().find((x) => x.id === id);
-    if (!c) return null;
+    if (!c || isTickResolution(props.interval ?? "1D")) return null;
     const v = price ?? c.last;
     const value = v == null ? null : roundedPrice(v, c.format);
     return {
@@ -733,6 +737,7 @@ export function createMenus(cx: ChartCx): MenusApi {
         price: localNumber(priceStr),
         study: studyTitle,
         alertLabel: studyId && rawPrice != null ? studyAlertRow(studyId, rawPrice)?.label : undefined,
+        noAlerts: isTickResolution(props.interval ?? "1D"),
         drawingCount: ds.length,
         indicatorCount: (props.indicators ?? []).length,
         cursorLockByTime: crosshairLockTime() !== null,

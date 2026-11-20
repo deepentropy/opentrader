@@ -74,8 +74,9 @@ export function formatAxisTime(
   seconds: boolean,
   fmt: AxisFmt = {},
   exchangeZone = "UTC",
+  millis = false,
 ): string {
-  return formatChartTime(time as number, barTimeZone(timeZone, intraday, time as number, exchangeZone), intraday, seconds, fmt);
+  return formatChartTime(time as number, barTimeZone(timeZone, intraday, time as number, exchangeZone), intraday, seconds, fmt, millis);
 }
 
 /** Time-axis tick label in the chosen IANA timezone (tick-mark text). */
