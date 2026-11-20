@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.6"
+#define PLUGIN_VERSION "0.1.7"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -552,6 +552,9 @@ string KindOf(const string symbol)
    string path = Upper(SymbolInfoString(symbol, SYMBOL_PATH));
    if(StringFind(path, "CRYPTO") >= 0)
       return "crypto";
+   // Funds trade as exchange stocks: their folder tells them apart (MetaQuotes-Demo: "NASDAQ\ETF\XAUG").
+   if(StringFind(path, "ETF") >= 0 || StringFind(path, "FUND") >= 0)
+      return "fund";
    ENUM_SYMBOL_CALC_MODE mode = (ENUM_SYMBOL_CALC_MODE)SymbolInfoInteger(symbol, SYMBOL_TRADE_CALC_MODE);
    switch(mode)
      {

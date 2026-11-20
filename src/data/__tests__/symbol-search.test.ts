@@ -7,7 +7,7 @@ vi.mock("../providers", async () => {
   return { searchResultToRow: m.searchResultToRow, typeFilters: () => m.typeFilters, defaultExchange: () => m.defaultExchange };
 });
 
-import { SYMBOLS, filterSymbols, liveResultsToRows } from "../symbol-search";
+import { SYMBOLS, filterSymbols, liveResultsToRows, splitExchangeQuery } from "../symbol-search";
 
 const res = (ticker: string, over: Partial<SymbolSearchResult> = {}): SymbolSearchResult => ({
   ticker,
@@ -82,5 +82,24 @@ describe("liveResultsToRows", () => {
     expect(liveResultsToRows(many, "all", "a")).toHaveLength(50);
     expect(liveResultsToRows([res("SPY", { type: "etf" }), res("SPYG")], "funds", "spy").map((r) => r.ticker)).toEqual(["SPY"]);
     expect(liveResultsToRows([], "all", "x")).toEqual([]);
+  });
+});
+
+describe("a query typed with its exchange", () => {
+  it("splits NASDAQ:AAPL into the exchange and the text", () => {
+    expect(splitExchangeQuery("nasdaq:aapl")).toEqual({ exchange: "NASDAQ", text: "aapl" });
+    expect(splitExchangeQuery(" MT5: ")).toEqual({ exchange: "MT5", text: "" });
+    expect(splitExchangeQuery("AAPL")).toEqual({ exchange: null, text: "AAPL" });
+  });
+
+  it("keeps the rows of that exchange, ranked on the text", () => {
+    const rows = liveResultsToRows(
+      [res("AAPL", { exchange: "XNAS" }), res("AAPL", { exchange: "XNYS" }), res("AAPLW", { exchange: "XNAS" }), res("AAPL", { exchange: "MT5" })],
+      "all",
+      "NASDAQ:AAPL",
+    );
+    expect(rows.map((r) => r.symbolName)).toEqual(["NASDAQ:AAPL", "NASDAQ:AAPLW"]);
+    expect(rows[0].titleHighlight).toEqual([0, 4]);
+    expect(liveResultsToRows([res("XAUUSD", { exchange: "MT5" }), res("XAUG", { exchange: "XNAS" })], "all", "MT5:XAU").map((r) => r.symbolName)).toEqual(["MT5:XAUUSD"]);
   });
 });

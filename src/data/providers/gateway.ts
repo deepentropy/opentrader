@@ -103,6 +103,8 @@ const TYPE_LABELS: Record<string, string> = {
   stock: "stock", adr: "dr", etf: "etf", etn: "etn", etv: "etf", fund: "fund",
   preferred: "preferred", warrant: "warrant", right: "right", unit: "unit",
   structured: "structured", bond: "bond", index: "index", economic: "economic",
+  // A data plugin's symbol types (plugins/PROTOCOL.md data.search).
+  forex: "forex", crypto: "crypto", futures: "futures", cfd: "cfd", commodity: "commodity",
 };
 
 /** Market → category-tab id. The "stocks" market is a catch-all that also
@@ -110,6 +112,8 @@ const TYPE_LABELS: Record<string, string> = {
  *  security type (otherwise ETFs leak into the Stocks tab). */
 const MARKET_CATEGORY: Record<string, SymbolCategoryId> = {
   stocks: "stocks", otc: "stocks", crypto: "crypto", fx: "forex", indices: "indices", economy: "economy",
+  // A data plugin's futures, CFDs and commodities (src-tauri plugins/data.rs market_of).
+  futures: "futures",
 };
 
 /** Security type → category-tab override (takes priority over the market

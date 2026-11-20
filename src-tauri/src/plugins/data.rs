@@ -660,7 +660,8 @@ fn found_rows(
                 market: Some(market_of(&f.kind).to_string()),
                 locale: None,
                 exchange: Some(exchange.to_string()),
-                r#type: None,
+                // The plugin's own type: the row's label (cfd, forex, fund…).
+                r#type: Some(f.kind.clone()).filter(|k| !k.is_empty()),
             })
         })
         .take(50)

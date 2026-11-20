@@ -10,6 +10,7 @@ import {
   SYMBOLS,
   filterSymbols,
   liveResultsToRows,
+  splitExchangeQuery,
   type FilteredRow,
   type SymbolRow,
   type SymbolCategoryId,
@@ -230,7 +231,10 @@ export function createSymbolSearch(props: SymbolSearchProps) {
     // waits for a typing pause only when it has to ask the gateway instead).
     setSearching(true);
     const my = ++reqSeq;
-    searchSymbols(q, type)
+    // "NASDAQ:AAPL": the text is looked up and the rows of that exchange kept (liveResultsToRows). A bare exchange
+    // ("MT5:") is asked as it is: a data plugin then lists its symbols.
+    const { exchange, text } = splitExchangeQuery(q);
+    searchSymbols(exchange && text ? text : q, type)
       .then((data) => {
         if (reqSeq === my) setLiveRaw(data); // else a newer keystroke superseded this
       })

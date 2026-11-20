@@ -228,14 +228,27 @@ function wordStartIndex(text: string, q: string): number {
   return -1;
 }
 
+/** A query typed with its exchange ("NASDAQ:AAPL", "MT5:XAU"): the exchange and the text after it. The reference
+ *  app then lists the matches of the text on that exchange. A plain query has no exchange. */
+export function splitExchangeQuery(query: string): { exchange: string | null; text: string } {
+  const m = /^([A-Za-z0-9_.!-]+):(.*)$/.exec(query.trim());
+  return m ? { exchange: m[1].toUpperCase(), text: m[2].trim() } : { exchange: null, text: query.trim() };
+}
+
+/** Whether a row is listed on `exchange` (as shown, or as its full symbol starts). */
+function onExchange(r: SymbolRow, exchange: string): boolean {
+  return r.exchange.toUpperCase() === exchange || r.symbolName.toUpperCase().startsWith(`${exchange}:`);
+}
+
 export function liveResultsToRows(
   results: SymbolSearchResult[],
   category: SymbolCategoryId,
   query: string,
 ): FilteredRow[] {
-  const q = query.trim().toUpperCase();
-  const rows = results.map(searchResultToRow);
-  const base = category === "all" ? rows : rows.filter((r) => r.category === category);
+  const { exchange, text } = splitExchangeQuery(query);
+  const q = text.toUpperCase();
+  const listed = results.map(searchResultToRow).filter((r) => !exchange || onExchange(r, exchange));
+  const base = category === "all" ? listed : listed.filter((r) => r.category === category);
   const mapped: FilteredRow[] = base.map((r) => {
     const tIdx = r.ticker.toUpperCase().indexOf(q);
     const dIdx = wordStartIndex(r.description.toUpperCase(), q);
