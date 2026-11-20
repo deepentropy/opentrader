@@ -173,6 +173,8 @@ For a plugin that lists `"1T"` in `intervals`: the ticks of tick charts.
 
 A tick is `[time, price, volume]`: `time` in UNIX milliseconds, `price` the trade price (the bid when the source has no trades), `volume` the traded quantity (the tick count, 1, when the source has none). Return the newest `countBack` ticks whose time is before `to`, oldest first. Return fewer when the history ends there, an empty list when there are none. The app asks for older ticks, before the oldest you returned, when the chart scrolls back.
 
+With `from` (UNIX milliseconds), return instead the first `countBack` ticks whose time is at or after `from` (and before `to`), oldest first: Bar Replay reads the ticks after its replay time this way. Fewer than `countBack` means there are no more ticks yet.
+
 ### `data.tick` (plugin → app, notification)
 
 `{"ticker":"EURUSD","ticks":[[1730600123500,1.08116,1],[1730600123512,1.08117,1]]}`: every new tick of the tickers of `data.watchTicks`, in order. Group the ticks of a moment in one message, a few messages per second at most, and send them besides `data.quote`. A tick chart counts each tick it gets: a tick left out makes its bars longer.

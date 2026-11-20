@@ -857,21 +857,29 @@ fn serves_ticks(i: &Info) -> bool {
     i.intervals.iter().any(|s| s.trim().eq_ignore_ascii_case("1T"))
 }
 
-/// The newest `count` ticks of a plugin symbol before `before_ms` (none: up to now), oldest first. Empty when the
-/// symbol is not a plugin's or its plugin has no ticks.
+/// The newest `count` ticks of a plugin symbol before `before_ms` (none: up to now), oldest first; with `from_ms`, the
+/// first `count` ticks from then on (Bar Replay, #377). Empty when the symbol is not a plugin's or its plugin has no
+/// ticks.
 #[tauri::command]
 #[specta::specta]
-pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>, count: u32) -> Result<Vec<Tick>, String> {
+pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>, from_ms: Option<f64>, count: u32) -> Result<Vec<Tick>, String> {
     let Some(r) = route(&app, &symbol) else { return Ok(Vec::new()) };
     let i = info(&app, &r).await?;
     if !serves_ticks(&i) {
         return Ok(Vec::new());
     }
     let to = before_ms.unwrap_or_else(|| (now() * 1000.0).ceil() + 1.0);
-    let params = json!({ "ticker": r.ticker, "to": to.floor(), "countBack": count.clamp(1, MAX_TICKS) });
+    let count = count.clamp(1, MAX_TICKS);
+    let mut params = json!({ "ticker": r.ticker, "to": to.floor(), "countBack": count });
+    if let Some(from) = from_ms {
+        params["from"] = json!(from.floor());
+    }
     let v = ask(&app, &r, "data.ticks", params, BARS_TIMEOUT).await?;
     let mut ticks = parse_ticks(v.get("ticks").unwrap_or(&Value::Null));
-    ticks.retain(|t| t.time_ms < to);
+    ticks.retain(|t| t.time_ms < to && from_ms.is_none_or(|f| t.time_ms >= f.floor()));
+    if from_ms.is_some() {
+        ticks.truncate(count as usize);
+    }
     Ok(ticks)
 }
 

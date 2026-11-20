@@ -105,6 +105,9 @@ function baseOf(chart: string): string {
 export function updateIntervals(intervals: string[], available: (id: string) => boolean = () => true): string[] {
   if (intervals.length === 0) return [];
   const main = intervals[0];
+  // Tick charts step tick by tick, their only update interval (the reference app, #377); with charts on
+  // time-based intervals, there is none (they do not take ticks).
+  if (intervals.some(isTickInterval)) return intervals.every(isTickInterval) ? ["1T"].filter(available) : [];
   const base = baseOf(main);
   const baseSec = seconds(base);
   const divides = (id: string) => {
@@ -122,6 +125,11 @@ export function updateIntervals(intervals: string[], available: (id: string) => 
   });
   all.sort((a, b) => seconds(a) - seconds(b));
   return all.filter(available);
+}
+
+/** A tick interval ("10T"). */
+function isTickInterval(id: string): boolean {
+  return /^[1-9]\d*T$/.test(id.trim());
 }
 
 /** The Auto update interval: the coarsest one offered (normally the chart

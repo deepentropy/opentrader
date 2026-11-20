@@ -790,13 +790,37 @@ export async function getBarsBefore(
  *  without ticks. */
 async function tickHistory(symbol: string, n: number, beforeMs: number | null, session: SessionId): Promise<Candle[]> {
   if (!servesTicks(symbol)) return [];
-  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, beforeMs, ticksPerPage(n)), symbolSessions(symbol)]);
+  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, beforeMs, null, ticksPerPage(n)), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
   const spec = sessions.spec(session);
   const ticks = res.data as TickRow[];
   const bars = tickBars(ticks.filter((t) => spec.contains(Math.floor(t.timeMs / 1000))), n);
   // A page before a loaded bar stays before it.
   return beforeMs === null ? bars : bars.filter((b) => tickBarMs(b.time as number) < beforeMs);
+}
+
+/** A page of ticks read forward: those in the chosen session, whether the
+ *  source may have newer ones (it answered a full page), and the time of its
+ *  last tick with how many ticks it had then (the next page starts there and
+ *  skips them). */
+export type TickPage = { ticks: TickRow[]; more: boolean; lastMs: number | null; atLast: number };
+
+/** The first `count` ticks of a data plugin's symbol from `fromMs` on, the
+ *  first `skip` of that millisecond left out (read already: the last page
+ *  ended there), for Bar Replay on a tick chart (#377). */
+export async function getTicksFrom(symbol: string, fromMs: number, count: number, session: SessionId = "ETH", skip = 0): Promise<TickPage> {
+  if (!servesTicks(symbol)) return { ticks: [], more: false, lastMs: null, atLast: 0 };
+  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, null, fromMs, count), symbolSessions(symbol)]);
+  if (res.status === "error") throw new Error(res.error);
+  const spec = sessions.spec(session);
+  const all = res.data as TickRow[];
+  let k = 0;
+  while (k < skip && k < all.length && all[k].timeMs === fromMs) k++;
+  const lastMs = all.length ? all[all.length - 1].timeMs : null;
+  let atLast = 0;
+  for (let i = all.length - 1; i >= 0 && all[i].timeMs === lastMs; i--) atLast++;
+  const ticks = all.slice(k).filter((t) => spec.contains(Math.floor(t.timeMs / 1000)));
+  return { ticks, more: all.length >= count, lastMs, atLast };
 }
 
 /** Seconds live tail: bars strictly newer than `sinceSec` for a second-family

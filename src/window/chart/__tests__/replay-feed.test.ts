@@ -157,3 +157,13 @@ describe("update intervals", () => {
     expect(clampDelay(99999)).toBe(10000);
   });
 });
+
+describe("update intervals of tick charts (#377)", () => {
+  it("tick charts step tick by tick; mixed with time-based charts, none", async () => {
+    const { updateIntervals } = await import("../../../data/replay");
+    expect(updateIntervals(["10T"])).toEqual(["1T"]);
+    expect(updateIntervals(["100T", "1T"])).toEqual(["1T"]);
+    expect(updateIntervals(["10T", "5"])).toEqual([]);
+    expect(updateIntervals(["10T"], () => false)).toEqual([]);
+  });
+});

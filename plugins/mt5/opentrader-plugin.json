@@ -1,7 +1,7 @@
 {
   "id": "mt5",
   "name": "MetaTrader 5",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "OpenTrader",
   "description": "Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account and trading from the charts.",
   "api": 1,

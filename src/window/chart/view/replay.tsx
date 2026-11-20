@@ -21,7 +21,23 @@ import {
   setReplayActivePane,
   type ReplayUnavailable,
 } from "../../../data/replay";
-import { DAILY_ARCHIVE_START, getBars, getBarsBefore, isEconomicSymbol, isLocalSymbol, isIntradayResolution, isSecondResolution, isSupportedResolution } from "../../../data/datafeed";
+import {
+  DAILY_ARCHIVE_START,
+  getBars,
+  getBarsBefore,
+  getTicksFrom,
+  isChartableResolution,
+  isEconomicSymbol,
+  isLocalSymbol,
+  isIntradayResolution,
+  isSecondResolution,
+  isTickResolution,
+  symbolServesResolution,
+  tickCount,
+} from "../../../data/datafeed";
+import { tickBarMs } from "../../../data/tick-bars";
+import { TickReplayFeed } from "../tick-replay-feed";
+import { lastAtOrBefore } from "../time-search";
 import { utcToWall, wallTimeToUtc } from "../day-key";
 import { cachedSymbolSessions } from "../../../data/session";
 import { providerCapabilities } from "../../../data/providers/capabilities";
@@ -83,6 +99,8 @@ function windowDays(iv: string): number {
 
 /** Load ahead while fewer sub-bars than this are queued. */
 const LOW_WATER = 120;
+/** Ticks read per request in a tick chart's replay. */
+const TICK_PAGE = 5000;
 
 /** The scissors glyph of the selection line (24 x 24). */
 const SCISSORS =
@@ -94,7 +112,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
   const { paneId, props } = cx;
   // The replay of the pane's tab (each tab has its own).
   const rs = replayOfTab(props.tabId ?? "");
-  let feed: ReplayFeed | null = null;
+  let feed: ReplayFeed | TickReplayFeed | null = null;
   let active = false;
   /** Bumped by every start / stop: async loads of an older one are dropped. */
   let gen = 0;
@@ -110,10 +128,14 @@ export function createReplay(cx: ChartCx): ReplayApi {
   const [firstDaily, setFirstDaily] = createSignal<number | null>(null);
 
   const interval = () => props.interval ?? "1D";
+  /** Bars at a time of day (seconds, minutes, ticks), not dates. */
+  const timeBased = () => isIntradayResolution(interval()) || isSecondResolution(interval()) || isTickResolution(interval());
 
   const unavailable = (): ReplayUnavailable => {
     if (UNSUPPORTED.has(props.chartType ?? "candle")) return "chartType";
-    if (!isSupportedResolution(interval())) return "interval";
+    if (!isChartableResolution(interval())) return "interval";
+    // Ticks: only a data plugin's symbols with ticks have them (#377).
+    if (isTickResolution(interval()) && !symbolServesResolution(props.symbol, interval())) return "interval";
     if (isEconomicSymbol(cx.fullSymbol())) return "symbol";
     return null;
   };
@@ -177,6 +199,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
     if (loading) return loading;
     const f = feed;
     const g = gen;
+    if (f instanceof TickReplayFeed) return loadTicks(f);
     const need = f?.needs() ?? null;
     if (!f || need === null) return Promise.resolve();
     const sym = props.symbol ?? "";
@@ -220,6 +243,62 @@ export function createReplay(cx: ChartCx): ReplayApi {
     return loading;
   };
 
+  /** The next page of ticks after the replay time (a tick chart). */
+  const loadTicks = (f: TickReplayFeed): Promise<void> => {
+    if (loading) return loading;
+    const g = gen;
+    loading = getTicksFrom(props.symbol ?? "", f.fromMs, TICK_PAGE, props.session ?? "RTH", f.skip)
+      .then((p) => {
+        if (g !== gen || f !== feed) return;
+        f.pushPage(p.ticks, p.more, p.lastMs, p.atLast);
+      })
+      .catch(() => {
+        // A failed request: the next step tries again.
+      })
+      .finally(() => {
+        loading = null;
+      });
+    return loading;
+  };
+
+  /** Cut a tick chart at `point`: the bars up to it (a page before it when it is
+   *  before the loaded ones), then its ticks one update at a time (#377). */
+  const startTicks = async (point: number, n: number, g: number): Promise<boolean> => {
+    const raw = cx.raw;
+    let bars: OHLC[];
+    let fromMs: number;
+    if (raw.length > 0 && (raw[0].time as number) <= point) {
+      const k = lastAtOrBefore(raw, point);
+      bars = raw.slice(0, k + 1);
+      // The ticks after the chosen bar: from the first tick of the next one.
+      const next = raw[k + 1];
+      fromMs = next ? tickBarMs(next.time as number) : Date.now();
+    } else {
+      const rows = await getBarsBefore(props.symbol ?? "", interval(), point, props.session ?? "RTH").catch(() => null);
+      if (g !== gen) return false;
+      if (!rows) {
+        active = false;
+        return false;
+      }
+      bars = toOHLC(rows);
+      fromMs = tickBarMs(point);
+      cx.historyExhausted = false;
+    }
+    const f = new TickReplayFeed(bars, n, fromMs);
+    feed = f;
+    cx.raw = f.shown;
+    repaint();
+    cx.chart?.timeScale().scrollToPosition(Math.max(cx.currentTokens().rightOffset, 0), false);
+    await loadTicks(f);
+    if (g !== gen || f !== feed) return false;
+    // Nothing before the replay time nor after it: nothing to replay.
+    if (f.shown.length === 0 && f.queueLength === 0) {
+      active = false;
+      return false;
+    }
+    return true;
+  };
+
   /** Cut the chart at `point`. */
   const start = async (point: number, upd: string): Promise<boolean> => {
     if (!cx.chart || !cx.series || unavailable() !== null) return false;
@@ -243,6 +322,8 @@ export function createReplay(cx: ChartCx): ReplayApi {
     active = true;
     update = upd;
     const iv = interval();
+    const ticks = tickCount(iv);
+    if (ticks !== null) return startTicks(point, ticks, g);
     const daily = cx.rawDaily.length > 0;
     // An intraday time outside the loaded bars (before them, or after a
     // window that does not reach today): a window of bars around it (older
@@ -375,14 +456,14 @@ export function createReplay(cx: ChartCx): ReplayApi {
     uid: () => props.chartUid,
     symbol: () => props.symbol ?? "",
     session: () => props.session ?? "RTH",
-    dateOnly: () => !isIntradayResolution(interval()) && !isSecondResolution(interval()),
+    dateOnly: () => !timeBased(),
     wallToTime: (d, minutes) =>
-      !isIntradayResolution(interval()) && !isSecondResolution(interval())
+      !timeBased()
         ? Date.UTC(d.y, d.m, d.d) / 1000
         : wallTimeToUtc(props.timeZone ?? "UTC", d.y, d.m, d.d, Math.floor(minutes / 60), minutes % 60),
     inSession: (sec) => cachedSymbolSessions(props.symbol ?? "")?.spec(props.session ?? "RTH").contains(sec) ?? true,
     timeToWall: (sec) =>
-      !isIntradayResolution(interval()) && !isSecondResolution(interval())
+      !timeBased()
         ? { ...utcToWall("UTC", sec + 43200), minutes: 0 }
         : utcToWall(props.timeZone ?? "UTC", sec),
   });

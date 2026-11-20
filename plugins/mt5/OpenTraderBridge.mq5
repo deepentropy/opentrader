@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.5"
+#define PLUGIN_VERSION "0.1.6"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -826,6 +826,63 @@ string DataTicks(CJ *p, string &error)
    int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
    MqlTick ticks[];
    string rows[];
+   // With `from`: the first ticks from then on (Bar Replay reads forward).
+   if(p != NULL && p.Get("from") != NULL)
+     {
+      long from = (long)JNum(p, "from");
+      long cur = (long)ToServer(from / 1000) * 1000 + from % 1000;
+      // The ticks of the chart's kind only (an ask-only change is left out): pages are read until `count` of them,
+      // or the end of the ticks. A short answer means there are no more yet.
+      int skip = 0;
+      int n = 0;
+      CText fwd;
+      fwd.Add("{\"ticks\":[");
+      while(n < count)
+        {
+         int want = (int)MathMin(MAX_TICKS, 2 * (count - n) + 16);
+         int got = -1;
+         for(int attempt = 0; attempt < 25; attempt++)
+           {
+            got = CopyTicks(t, ticks, flags, (ulong)MathMax(1, cur), want);
+            if(got >= 0)
+               break;
+            Sleep(200);
+           }
+         if(got < 0)
+           {
+            error = "Ticks not available yet for " + t + " (error " + IntegerToString(GetLastError()) + ")";
+            return "";
+           }
+         int k = 0;
+         while(k < got && k < skip && ticks[k].time_msc == cur)
+            k++;
+         bool end = got < want;
+         for(; k < got && n < count; k++)
+           {
+            if(ticks[k].time_msc >= toSrv)
+              {
+               end = true;
+               break;
+              }
+            string row = TickJson(ticks[k], trades, digits);
+            if(row == "")
+               continue;
+            fwd.Add((n > 0 ? "," : "") + row);
+            n++;
+           }
+         if(end || got == 0)
+            break;
+         // The next page from the last tick read, the ticks of its millisecond read already skipped.
+         long last = ticks[got - 1].time_msc;
+         int same = 0;
+         for(int j = got - 1; j >= 0 && ticks[j].time_msc == last; j--)
+            same++;
+         skip = last == cur ? got : same;
+         cur = last;
+        }
+      fwd.Add("]}");
+      return fwd.Text();
+     }
    long span = 600000;
    while(true)
      {
