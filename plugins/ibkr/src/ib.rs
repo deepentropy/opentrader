@@ -9,7 +9,8 @@
  *   • the notice task: connection-level messages. The client itself retries a dropped socket for a few minutes and
  *     says when it is back; subscriptions are then made again and the order lists read again, since what happened
  *     during the gap is lost. When it gives up, the supervisor starts over;
- *   • one market data feed per ticker the order ticket watches.
+ *   • one market data feed per ticker the order ticket watches;
+ *   • one order book feed per ticker the DOM watches.
  *
  * Requests that share an answer type (open / completed orders, executions) run one at a time behind `lists`.
  */
@@ -23,8 +24,8 @@ use ibapi::accounts::types::{AccountGroup, AccountId, ContractId};
 use ibapi::accounts::{AccountSummaryResult, AccountSummaryTags, AccountUpdate, PnL, PnLSingle};
 use ibapi::contracts::tick_types::TickType;
 use ibapi::contracts::{Contract, ContractDetails};
-use ibapi::market_data::realtime::TickTypes;
-use ibapi::market_data::MarketDataType;
+use ibapi::market_data::realtime::{MarketDepths, TickTypes};
+use ibapi::market_data::{MarketDataType, SmartDepth};
 use ibapi::orders::{ExecutionFilter, ExecutionSide, Executions, Order as IbOrder, OrderStatusKind, OrderUpdate, Orders};
 use ibapi::subscriptions::{NoticeStream, Subscription, SubscriptionItem};
 use ibapi::{Client, Error as IbError, Notice, NoticeCategory};
@@ -43,6 +44,8 @@ const RETRY_MAX: Duration = Duration::from_secs(30);
 /// How long a request waits for the broker to accept or refuse an order before answering anyway.
 const SETTLE: Duration = Duration::from_secs(8);
 const QUOTE_EVERY: Duration = Duration::from_millis(250);
+/// Rows of each side of an order book: what IB gives by default.
+const DEPTH_ROWS: i32 = 10;
 
 /// The plugin's settings.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +93,7 @@ struct Conn {
     tasks: Mutex<Vec<JoinHandle<()>>>,
     account_task: Mutex<Option<JoinHandle<()>>>,
     quotes: Mutex<HashMap<String, JoinHandle<()>>>,
+    depths: Mutex<HashMap<String, JoinHandle<()>>>,
     lists: tokio::sync::Mutex<()>,
 }
 
@@ -101,7 +105,7 @@ impl Conn {
         if let Some(t) = lock(&self.account_task).take() {
             t.abort();
         }
-        for (_, t) in lock(&self.quotes).drain() {
+        for (_, t) in lock(&self.quotes).drain().chain(lock(&self.depths).drain()) {
             t.abort();
         }
     }
@@ -126,6 +130,8 @@ pub struct Ibkr {
     sizes: Mutex<HashMap<i32, (Option<f64>, Option<f64>)>>,
     /// The tickers whose quotes the app wants.
     watched: Mutex<Vec<String>>,
+    /// The tickers whose order book the app wants.
+    watched_depth: Mutex<Vec<String>>,
 }
 
 impl Ibkr {
@@ -140,6 +146,7 @@ impl Ibkr {
             ticks: Mutex::new(HashMap::new()),
             sizes: Mutex::new(HashMap::new()),
             watched: Mutex::new(Vec::new()),
+            watched_depth: Mutex::new(Vec::new()),
         })
     }
 
@@ -275,6 +282,7 @@ impl Ibkr {
             tasks: Mutex::new(Vec::new()),
             account_task: Mutex::new(None),
             quotes: Mutex::new(HashMap::new()),
+            depths: Mutex::new(HashMap::new()),
             lists: tokio::sync::Mutex::new(()),
         });
         *lock(&self.conn) = Some(conn.clone());
@@ -307,6 +315,7 @@ impl Ibkr {
         let c = conn.clone();
         tokio::spawn(async move { me.load_lists(&c).await });
         self.sync_quotes(&conn);
+        self.sync_depths(&conn);
         Ok(ended)
     }
 
@@ -353,10 +362,11 @@ impl Ibkr {
                 if let Some(a) = self.store.read(|t| t.account.clone()) {
                     self.start_account(&conn, a);
                 }
-                for (_, t) in lock(&conn.quotes).drain() {
+                for (_, t) in lock(&conn.quotes).drain().chain(lock(&conn.depths).drain()) {
                     t.abort();
                 }
                 self.sync_quotes(&conn);
+                self.sync_depths(&conn);
                 self.load_lists(&conn).await;
                 continue;
             }
@@ -1154,6 +1164,81 @@ impl Ibkr {
     }
 }
 
+impl Ibkr {
+    // ── DOM order books ────────────────────────────────────────────────────
+
+    /// `broker.watchDepth`: the whole set of tickers to send `broker.depth` for.
+    pub fn watch_depth(self: &Arc<Self>, tickers: Vec<String>) {
+        *lock(&self.watched_depth) = tickers;
+        if let Ok(conn) = self.current() {
+            self.sync_depths(&conn);
+        }
+    }
+
+    fn sync_depths(self: &Arc<Self>, conn: &Arc<Conn>) {
+        let wanted: HashSet<String> = lock(&self.watched_depth).iter().cloned().collect();
+        let mut feeds = lock(&conn.depths);
+        // A finished feed (refused, halted) is asked again only when the DOM watches its ticker anew.
+        feeds.retain(|t, h| {
+            let keep = wanted.contains(t);
+            if !keep {
+                h.abort();
+            }
+            keep
+        });
+        for ticker in wanted {
+            if feeds.contains_key(&ticker) {
+                continue;
+            }
+            let me = self.clone();
+            let c = conn.clone();
+            let t = ticker.clone();
+            feeds.insert(ticker, tokio::spawn(async move { me.run_depth(c, t).await }));
+        }
+    }
+
+    /// The order book of a ticker: IB's rows applied as they come, sent whole at most every `QUOTE_EVERY`.
+    async fn run_depth(self: Arc<Self>, conn: Arc<Conn>, ticker: String) {
+        let refused = |e: String| {
+            println!("[warn] no order book for {ticker}: {e}");
+            self.store.update(|t| t.notice("warn", format!("No order book for {ticker}: {e}")));
+        };
+        let contract = match self.contract_for(&conn, &ticker).await {
+            Ok(c) => c,
+            Err(e) => return refused(e),
+        };
+        // A SMART-routed contract has its book from every venue (smart depth); others from their exchange.
+        let smart = if contract.exchange.as_str() == "SMART" { SmartDepth::Yes } else { SmartDepth::No };
+        let mut sub = match conn.client.market_depth(&contract, DEPTH_ROWS).smart_depth(smart).subscribe().await {
+            Ok(s) => s,
+            Err(e) => return refused(e.to_string()),
+        };
+        let mut book = Book::default();
+        let mut sent = tokio::time::Instant::now() - QUOTE_EVERY;
+        let mut pending = false;
+        loop {
+            tokio::select! {
+                item = sub.next() => match item {
+                    Some(Ok(SubscriptionItem::Data(row))) => pending |= book.apply(&row),
+                    Some(Ok(SubscriptionItem::Notice(_))) => {}
+                    Some(Err(e)) => {
+                        // The book stopped (halted): the DOM must not show it as current.
+                        self.out().notify("broker.depth", json!({ "ticker": ticker, "snapshot": true, "bids": [], "asks": [] }));
+                        return refused(e.to_string());
+                    }
+                    None => return,
+                },
+                _ = tokio::time::sleep_until(sent + QUOTE_EVERY), if pending => {
+                    let (bids, asks) = book.levels();
+                    self.out().notify("broker.depth", json!({ "ticker": ticker, "snapshot": true, "bids": bids, "asks": asks }));
+                    pending = false;
+                    sent = tokio::time::Instant::now();
+                }
+            }
+        }
+    }
+}
+
 const ENABLE_API: &str = "Start IB Gateway or TWS, log in, and enable the API: Configure > Settings > API > Settings, tick \
 \"Enable ActiveX and Socket Clients\", set the socket port to the plugin's port and allow 127.0.0.1. Retrying.";
 
@@ -1307,9 +1392,81 @@ impl Quote {
     }
 }
 
+/// An order book as IB updates it: rows by position on each side (0 the best), inserted, updated and deleted.
+#[derive(Default)]
+struct Book {
+    bids: Vec<(f64, f64)>,
+    asks: Vec<(f64, f64)>,
+}
+
+impl Book {
+    /// Fold a row in; true when the book changed.
+    fn apply(&mut self, m: &MarketDepths) -> bool {
+        let (position, operation, side, price, size) = match m {
+            MarketDepths::MarketDepth(d) => (d.position, d.operation, d.side, d.price, d.size),
+            MarketDepths::MarketDepthL2(d) => (d.position, d.operation, d.side, d.price, d.size),
+            MarketDepths::Reset => {
+                self.bids.clear();
+                self.asks.clear();
+                return true;
+            }
+        };
+        let rows = if side == 1 { &mut self.bids } else { &mut self.asks };
+        let at = position.max(0) as usize;
+        match operation {
+            0 => rows.insert(at.min(rows.len()), (price, size)),
+            1 if at < rows.len() => rows[at] = (price, size),
+            1 => rows.push((price, size)),
+            2 if at < rows.len() => {
+                rows.remove(at);
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// Each side's levels, best first: rows at one price add up (smart depth lists each venue on its own row).
+    fn levels(&self) -> (Vec<serde_json::Value>, Vec<serde_json::Value>) {
+        fn side(rows: &[(f64, f64)], best_high: bool) -> Vec<serde_json::Value> {
+            let mut by_price: Vec<(f64, f64)> = Vec::new();
+            for &(price, size) in rows {
+                if !(price > 0.0 && size > 0.0 && price.is_finite() && size.is_finite()) {
+                    continue;
+                }
+                match by_price.iter_mut().find(|(p, _)| *p == price) {
+                    Some(l) => l.1 += size,
+                    None => by_price.push((price, size)),
+                }
+            }
+            by_price.sort_by(|a, b| if best_high { b.0.total_cmp(&a.0) } else { a.0.total_cmp(&b.0) });
+            by_price.into_iter().map(|(price, qty)| json!({ "price": price, "qty": qty })).collect()
+        }
+        (side(&self.bids, true), side(&self.asks, false))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ibapi::market_data::realtime::{MarketDepth, MarketDepthL2};
+
+    #[test]
+    fn book_applies_ib_rows_and_adds_up_venues() {
+        let row = |position, operation, side, price, size| MarketDepths::MarketDepth(MarketDepth { position, operation, side, price, size });
+        let mut b = Book::default();
+        for r in [row(0, 0, 1, 1.0974, 2.0e6), row(1, 0, 1, 1.0973, 3.0e6), row(0, 0, 0, 1.0975, 1.0e6), row(0, 1, 1, 1.0974, 2.5e6)] {
+            assert!(b.apply(&r));
+        }
+        let venue = MarketDepthL2 { position: 2, market_maker: "MEMX".into(), operation: 0, side: 1, price: 1.0973, size: 1.0e6, smart_depth: true };
+        assert!(b.apply(&MarketDepths::MarketDepthL2(venue)));
+        let (bids, asks) = b.levels();
+        assert_eq!(bids, vec![json!({ "price": 1.0974, "qty": 2.5e6 }), json!({ "price": 1.0973, "qty": 4.0e6 })]);
+        assert_eq!(asks, vec![json!({ "price": 1.0975, "qty": 1.0e6 })]);
+        assert!(b.apply(&row(0, 2, 1, 0.0, 0.0)));
+        assert_eq!(b.levels().0.len(), 1);
+        assert!(b.apply(&MarketDepths::Reset));
+        assert!(b.levels().0.is_empty() && b.levels().1.is_empty());
+    }
 
     #[test]
     fn settings_read_with_defaults() {

@@ -316,6 +316,7 @@ class Plugin:
         self.send_lock = threading.Lock()
         self.tickers = set()  # data.subscribe
         self.watched = set()  # broker.watchQuote
+        self.watched_depth = set()  # broker.watchDepth
         self.alive = False
 
     # ── JSON-RPC ──
@@ -400,13 +401,15 @@ class Plugin:
             self.tickers = set(p.get("tickers", []))
         elif method == "broker.watchQuote":
             self.watched = set(p.get("tickers", []))
+        elif method == "broker.watchDepth":
+            self.watched_depth = set(p.get("tickers", []))
 
     # ── streaming: live prices, the ticket's bid / ask, orders reaching their price ──
     def stream(self):
         while self.alive:
             try:
                 with self.source.lock:
-                    quotes = [self.source.quote(t) for t in self.tickers | self.watched if t in self.source.SYMBOLS]
+                    quotes = [self.source.quote(t) for t in self.tickers | self.watched | self.watched_depth if t in self.source.SYMBOLS]
                     events = self.source.on_tick()
                 for q in quotes:
                     if q["ticker"] in self.tickers:
@@ -414,6 +417,13 @@ class Plugin:
                     if q["ticker"] in self.watched:
                         tick = 1 / self.source.SYMBOLS[q["ticker"]][3]
                         self.notify("broker.quote", {"ticker": q["ticker"], "bid": q["price"], "ask": round(q["price"] + 2 * tick, 10), "last": None})
+                    if q["ticker"] in self.watched_depth:
+                        # A made-up order book of 5 levels a side around the bid / ask (a real source sends its own).
+                        tick = 1 / self.source.SYMBOLS[q["ticker"]][3]
+                        level = lambda price, n: {"price": round(price, 10), "qty": 100 * (1 + (int(price / tick) * 7 + n) % 9)}
+                        self.notify("broker.depth", {"ticker": q["ticker"], "snapshot": True,
+                                                     "bids": [level(q["price"] - n * tick, n) for n in range(5)],
+                                                     "asks": [level(q["price"] + (2 + n) * tick, n) for n in range(5)]})
                 self.events(events)
                 if self.source.positions:
                     self.push_state()  # the open P&L moves with the price

@@ -13,6 +13,8 @@
  * click centres; the wheel scrolls a row per 100 px. Off-centre, the ladder
  * re-centres on the market after 2 s (the pie on the switch); dynamic mode
  * keeps it centred. Hovering a size cell draws the price on the chart.
+ * A broker that sends its order book fills the size cells, their meters and
+ * the totals (#372): the book is asked of it while the tab is open.
  * Order types, moves and modifications are the broker's (#320).
  */
 import { Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
@@ -23,7 +25,7 @@ import { setTicketQty, ticketQty, tradingUi } from "../../data/trading/trading-u
 import type { OrderType, Side, TradingOrder } from "../../data/trading/types";
 import { ChartContextMenu } from "../chart/ChartContextMenu";
 import { confirmCancelOrder, confirmClosePosition } from "./confirm";
-import { fmtPrice, fmtQty, tickDecimals, tickerOf } from "./format";
+import { fmtPrice, fmtQty, fmtSize, tickDecimals, tickerOf } from "./format";
 import { moveOrder } from "./order-actions";
 import { canMove } from "../../data/trading/capabilities";
 import {
@@ -33,8 +35,10 @@ import {
   clickOrderType,
   contextItems,
   countText,
+  depthRows,
   indexPrice,
   labelActive,
+  meterShare,
   needsCenter,
   orderMarks,
   priceIndex,
@@ -83,7 +87,22 @@ export function DomPanel() {
   const tick = () => q()?.minTick ?? 0.01;
   const dec = () => Math.max(2, tickDecimals(tick()) ?? 2);
   const ix = (p: number | null | undefined) => (p == null || !Number.isFinite(p) ? NaN : priceIndex(p, tick()));
-  const market = createMemo<DomMarket>(() => ({ bid: ix(q()?.bid), ask: ix(q()?.ask), last: ix(q()?.last) }), { bid: NaN, ask: NaN, last: NaN }, {
+  // The broker's order book while the tab is open; its best levels are the bid and ask.
+  onCleanup(broker.watchDepth());
+  const depth = createMemo(() => {
+    const book = broker.depth();
+    return book ? depthRows(book, tick()) : null;
+  });
+  const sizeDecimals = () => tickDecimals(broker.instrument().qtyStep) ?? 0;
+  const market = createMemo<DomMarket>(
+    () => {
+      const d = depth();
+      const bid = d && Number.isFinite(d.bestBid) ? d.bestBid : ix(q()?.bid);
+      const ask = d && Number.isFinite(d.bestAsk) ? d.bestAsk : ix(q()?.ask);
+      return { bid, ask, last: ix(q()?.last) };
+    },
+    { bid: NaN, ask: NaN, last: NaN },
+    {
     equals: (a, b) => Object.is(a.bid, b.bid) && Object.is(a.ask, b.ask) && Object.is(a.last, b.last),
   });
   const orders = (): TradingOrder[] => {
@@ -323,8 +342,11 @@ export function DomPanel() {
   const buyCount = createMemo(() => countText(sideCounts(orders(), "buy")));
   const sellCount = createMemo(() => countText(sideCounts(orders(), "sell")));
   const hasOrders = () => orders().length > 0;
-  /** The replay broker quotes no size: the totals read "-". */
-  const TOTAL = "-";
+  /** The book's totals; "-" without a book (the replay broker quotes no size). */
+  const total = (s: "bid" | "ask") => {
+    const d = depth();
+    return d ? fmtSize(s === "bid" ? d.totalBid : d.totalAsk, sizeDecimals()) : "-";
+  };
 
   const [plMode, setPlMode] = createSignal<"money" | "ticks" | "percent">("money");
   const plText = () => {
@@ -358,6 +380,10 @@ export function DomPanel() {
     const price = () => indexPrice(i(), tick(), dec());
     const side = () => priceSide(i(), market());
     const full = (s: "buy" | "sell") => (s === "buy" ? i() === market().bid : i() === market().ask);
+    const size = (s: Side) => {
+      const d = depth();
+      return d ? (s === "buy" ? d.bids : d.asks).get(i()) : undefined;
+    };
     const rowMarks = () => {
       const list = [...(marks().get(i()) ?? [])];
       const g = ghost();
@@ -386,7 +412,12 @@ export function DomPanel() {
           tradingUi.setDomHover(null);
         }}
       >
-        <span class="trd-dom-meter" classList={{ "is-full": full(s), "is-active": flashed() === `${s}${i()}` }} />
+        <span
+          class="trd-dom-meter"
+          classList={{ "is-full": !depth() && full(s), "is-active": flashed() === `${s}${i()}` }}
+          style={depth() ? { width: `${meterShare(size(s), depth()!.max) * 100}%` } : undefined}
+        />
+        <Show when={size(s)}>{(n) => <span class="trd-dom-size ot-value">{fmtSize(n(), sizeDecimals())}</span>}</Show>
       </span>
     );
     /** Hover label of a size cell, at the outer edge ("Limit" / "Stop"). */
@@ -489,7 +520,7 @@ export function DomPanel() {
             </Show>
           </div>
           <div class="trd-dom-centering">
-            <span class="trd-dom-total is-bid" title="Total buy quantity">{TOTAL}</span>
+            <span class="trd-dom-total is-bid" title="Total buy quantity">{total("bid")}</span>
             <span class="trd-dom-switch">
               <svg class="trd-dom-timer" viewBox="-1 -1 2 2" width="2" height="2" aria-hidden="true">
                 <path d={piePath(progress())} />
@@ -508,7 +539,7 @@ export function DomPanel() {
                 </button>
               </Tooltip>
             </span>
-            <span class="trd-dom-total is-ask" title="Total sell quantity">{TOTAL}</span>
+            <span class="trd-dom-total is-ask" title="Total sell quantity">{total("ask")}</span>
           </div>
           <div class="trd-dom-cancel is-sell">
             <Tooltip text="Cancel all sell orders" side="top">

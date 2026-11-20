@@ -82,6 +82,31 @@ pub struct BrokerQuote {
     pub last: Option<f64>,
 }
 
+/// One price level of an order book: the quantity resting at that price, in units.
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
+pub struct DepthLevel {
+    pub price: f64,
+    pub qty: f64,
+}
+
+/// The order book of a ticker the DOM shows (`broker.depth`): the whole book (`snapshot`), or the levels that changed,
+/// a quantity of 0 removing its level.
+#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct BrokerDepth {
+    pub ticker: String,
+    #[serde(default = "whole_book")]
+    pub snapshot: bool,
+    #[serde(default)]
+    pub bids: Vec<DepthLevel>,
+    #[serde(default)]
+    pub asks: Vec<DepthLevel>,
+}
+
+fn whole_book() -> bool {
+    true
+}
+
 #[derive(Default)]
 pub struct PluginBroker {
     states: Mutex<HashMap<String, BrokerState>>,
@@ -224,6 +249,12 @@ fn on_notification(app: &AppHandle, plugin: &str, method: &str, params: Value) {
                 let _ = q.emit(app);
             }
         }
+        "broker.depth" if active(app).as_deref() == Some(plugin) => match serde_json::from_value::<BrokerDepth>(params) {
+            Ok(d) => {
+                let _ = d.emit(app);
+            }
+            Err(e) => super::log(app, plugin, format!("[error] broker.depth: {e}")),
+        },
         _ => {}
     }
 }
@@ -433,6 +464,14 @@ pub async fn broker_set_position_brackets(app: AppHandle, position_id: String, t
 pub fn broker_watch_quotes(app: AppHandle, tickers: Vec<String>) -> Result<(), String> {
     let id = connected_broker(&app)?;
     app.state::<Plugins>().hub.notify(&id, "broker.watchQuote", json!({ "tickers": tickers })).map_err(|e| e.to_string())
+}
+
+/// The tickers whose order book the DOM shows (the whole set; empty: none).
+#[tauri::command]
+#[specta::specta]
+pub fn broker_watch_depth(app: AppHandle, tickers: Vec<String>) -> Result<(), String> {
+    let id = connected_broker(&app)?;
+    app.state::<Plugins>().hub.notify(&id, "broker.watchDepth", json!({ "tickers": tickers })).map_err(|e| e.to_string())
 }
 
 /// The user's chart symbol → broker ticker mapping of a broker plugin (Settings > Plugins).

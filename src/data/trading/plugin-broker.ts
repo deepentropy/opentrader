@@ -17,6 +17,7 @@ import { strategyTester } from "../strategy-tester-store";
 import { translate } from "../../i18n/translator";
 import { ticketDurationPref, ticketFieldPrefs } from "./trading-ui";
 import { ANY_INSTRUMENT, capabilitiesOf, instrumentOf, pickDuration, type Instrument, type TradingCapabilities } from "./capabilities";
+import { applyDepth, type DepthBook } from "./depth-book";
 import { qtyMessage } from "./qty-message";
 import type { Tradability } from "./replay-broker";
 import { ORDER_LABEL, type OrderRequest, type Side, type TradingEvent, type TradingExecution, type TradingOrder, type TradingPosition, type TradingQuote } from "./types";
@@ -44,6 +45,12 @@ export const pluginBroker = createRoot(() => {
   const tickers = new Map<string, string | null | "pending">();
   const bidAsk = new Map<string, { bid: number | null; ask: number | null; last: number | null }>();
   const lastPrice = new Map<string, number>();
+  /** Broker ticker → its order book (`broker.depth`), while the DOM shows it. */
+  const books = new Map<string, DepthBook>();
+  /** Order book updates: read by the DOM only, so a busy book doesn't recompute the rest of the trading UI. */
+  const [bookVersion, setBookVersion] = createSignal(0);
+  /** The DOM tabs open: the focused chart's book is asked while there is one. */
+  const [depthViews, setDepthViews] = createSignal(0);
   const metas = new Map<string, { description: string; iconUrl: string | null; stock: boolean } | "loading">();
   /** Broker ticker → how it trades (`broker_instrument`); "pending" while asked. */
   const instruments = new Map<string, Instrument | "pending">();
@@ -58,6 +65,7 @@ export const pluginBroker = createRoot(() => {
     if (!prev || prev.active !== s.active || prev.pluginConnected !== s.pluginConnected) {
       tickers.clear();
       bidAsk.clear();
+      books.clear();
       instruments.clear();
       noPointValue.clear();
     }
@@ -83,6 +91,12 @@ export const pluginBroker = createRoot(() => {
       const q = e.payload;
       bidAsk.set(q.ticker, { bid: q.bid ?? null, ask: q.ask ?? null, last: q.last ?? null });
       bump();
+    });
+    void events.brokerDepth.listen((e) => {
+      const d = e.payload;
+      if (!watchedDepth.includes(d.ticker)) return;
+      books.set(d.ticker, applyDepth(books.get(d.ticker), d));
+      setBookVersion((v) => v + 1);
     });
     void onTradeTick((t) => {
       lastPrice.set(t.symbol.toUpperCase(), t.price);
@@ -356,6 +370,21 @@ export const pluginBroker = createRoot(() => {
     if (HAS_TAURI && status()?.pluginConnected) void commands.brokerWatchQuotes(t ? [t] : []);
   });
 
+  // The order book of the focused chart's ticker (`broker.depth`), while a DOM tab shows it. A book no longer watched
+  // is dropped: it would be stale when watched again.
+  let watchedDepth: string[] = [];
+  let depthKey = "";
+  createEffect(() => {
+    const t = connected() && depthViews() > 0 ? tickerOf(activeSymbol()) : null;
+    const next = `${status()?.active}|${status()?.pluginConnected}|${t ?? ""}`;
+    if (next === depthKey) return;
+    depthKey = next;
+    watchedDepth = t ? [t] : [];
+    for (const k of [...books.keys()]) if (k !== t) books.delete(k);
+    setBookVersion((v) => v + 1);
+    if (HAS_TAURI && status()?.pluginConnected) void commands.brokerWatchDepth(watchedDepth);
+  });
+
   const api = {
     version,
     status,
@@ -417,6 +446,22 @@ export const pluginBroker = createRoot(() => {
       const last = q?.last ?? lastPrice.get(sym.toUpperCase()) ?? q?.bid ?? null;
       if (last === null && !q) return null;
       return { symbol: sym, bid: q?.bid ?? last, ask: q?.ask ?? last, last: last ?? q?.bid ?? q?.ask ?? null, minTick: cachedSymbolSessions(sym)?.mintick ?? 0.01 };
+    },
+    /** The focused chart's order book, null while the broker sent none. */
+    depth: (): DepthBook | null => {
+      bookVersion();
+      const t = tickerOf(activeSymbol());
+      return (t && books.get(t)) || null;
+    },
+    /** A DOM tab shows the order book: asked of the plugin until the returned function is called. */
+    watchDepth(): () => void {
+      setDepthViews((n) => n + 1);
+      let done = false;
+      return () => {
+        if (done) return;
+        done = true;
+        setDepthViews((n) => n - 1);
+      };
     },
     currency: (_paneId?: number | null): string => {
       version();

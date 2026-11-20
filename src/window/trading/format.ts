@@ -24,6 +24,35 @@ export function fmtQty(v: number | null | undefined): string {
   return localNumber(Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8))));
 }
 
+const DIMENSIONS = [
+  { digits: 3, letter: "K" },
+  { digits: 6, letter: "M" },
+  { digits: 9, letter: "B" },
+  { digits: 12, letter: "T" },
+];
+const dimensionOf = (intDigits: number) => DIMENSIONS.find((d) => d.digits >= intDigits - 3) ?? DIMENSIONS[DIMENSIONS.length - 1];
+const trimmed = (v: number, decimals: number) => String(Number(v.toFixed(decimals)));
+
+/** A size of the order book (the DOM's size cells and totals): up to three
+ *  integer digits as it is, with the quantity step's `decimals`; larger with
+ *  K / M / B / T and at most 2 decimals ("2.48 M", "1 K"). */
+export function fmtSize(v: number | null | undefined, decimals = 0): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const sign = v < 0 ? "−" : "";
+  let a = Math.abs(v);
+  if (a < 1) a = Number(a.toFixed(decimals));
+  let digits = a > 0 ? Math.floor(Math.log10(a)) + 1 : 1;
+  if (digits <= 3) {
+    a = Number(a.toFixed(decimals));
+    digits = a > 0 ? Math.floor(Math.log10(a)) + 1 : 1;
+  }
+  if (digits <= 3) return localNumber(sign + trimmed(a, decimals));
+  let d = dimensionOf(digits);
+  a = Number((a / 10 ** d.digits).toFixed(2)) * 10 ** d.digits;
+  d = dimensionOf(Math.floor(Math.log10(a)) + 1);
+  return localNumber(`${sign}${trimmed(a / 10 ** d.digits, 2)} ${d.letter}`);
+}
+
 /** Signed P&L: "+12.34" / "−12.34" (true minus). */
 export function fmtPnl(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";

@@ -40,6 +40,10 @@ export const broker = {
   iconUrl: (symbol: string) => brokerOf().iconUrl(symbol),
   isStock: (symbol: string) => brokerOf().isStock(symbol),
   quote: () => brokerOf().quote(),
+  /** The focused chart's order book: the connected broker's (`broker.depth`); none in replay, which quotes one price. */
+  depth: () => (brokerOf() === pluginBroker ? pluginBroker.depth() : null),
+  /** A DOM tab shows the order book (until the returned function is called). */
+  watchDepth: () => pluginBroker.watchDepth(),
   currency: (paneId?: number | null) => brokerOf(paneId).currency(paneId ?? undefined),
   /** The account's cash: the replay account's capital and net profit, or the broker's balance. */
   balance: () => brokerOf().balance(),

@@ -274,6 +274,18 @@ An order notification, shown as a toast:
 
 `{"ticker":"EURUSD","bid":1.08110,"ask":1.08118,"last":null}`: the order ticket's bid and ask, for the tickers of `broker.watchQuote`.
 
+### `broker.depth` (plugin → app, notification)
+
+The order book of the tickers of `broker.watchDepth`, shown in the DOM tab: the quantity at each bid and ask price, the totals of each side, and the best bid and ask.
+
+```json
+{"ticker":"EURUSD","snapshot":true,
+ "bids":[{"price":1.09738,"qty":2475000},{"price":1.09737,"qty":3000000}],
+ "asks":[{"price":1.0974,"qty":4000000},{"price":1.09741,"qty":4500000}]}
+```
+
+With `snapshot: true` (or left out) the levels are the whole book. With `snapshot: false` they are the levels that changed since the last message; a `qty` of 0 removes its level. Quantities are in units, like orders. Send at most a few per second. A plugin without an order book sends nothing: the DOM's sizes stay empty and its totals read "-". When the book stops (the exchange halted it), send an empty snapshot.
+
 ### Requests (app → plugin)
 
 | Method | Params | Result |
@@ -288,7 +300,10 @@ An order notification, shown as a toast:
 | `broker.closePosition` | `{"positionId":"8812","qty":null}` | `{}`. `qty` null closes the whole position. |
 | `broker.setPositionBrackets` | `{"positionId":"8812","takeProfit":1.09,"stopLoss":null}` | `{}`. A null removes that bracket. |
 
-There is also one notification, `broker.watchQuote` (app → plugin): `{"tickers":["EURUSD"]}`, the whole set of tickers whose `broker.quote` the app wants. An empty list stops them.
+There are also two notifications (app → plugin), each with the whole set of tickers the app wants; an empty list stops them:
+
+- `broker.watchQuote`: `{"tickers":["EURUSD"]}`, the tickers whose `broker.quote` the order ticket shows;
+- `broker.watchDepth`: `{"tickers":["EURUSD"]}`, the tickers whose `broker.depth` the DOM tab shows, while it is open.
 
 Answer a request once the broker has accepted or refused it. Report what happens afterwards (fills, cancellations) through `broker.state` and `broker.event`.
 

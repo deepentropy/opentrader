@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TicketDraft } from "../../../data/trading/trading-ui";
-import { fmtPnl, fmtPrice, parsePositive, tickDecimals } from "../format";
+import { fmtPnl, fmtPrice, fmtSize, parsePositive, tickDecimals } from "../format";
 import {
   buildTicket,
   describeTicket,
@@ -266,5 +266,19 @@ describe("trading formats", () => {
     // Nothing for other order types, or a limit typed as an offset from the stop.
     expect(followStop(draft(), { limitPrice: "99" }, quote, c)).toEqual({});
     expect(followStop({ ...sl, limitMode: "offset", limitOffset: "2" }, { stopPrice: "101" }, quote, c)).toEqual({});
+  });
+});
+
+describe("fmtSize (order book sizes, #372)", () => {
+  it("keeps three integer digits, then K / M / B with at most 2 decimals", () => {
+    expect(fmtSize(320)).toBe("320");
+    expect(fmtSize(1234)).toBe("1.23 K");
+    expect(fmtSize(2_475_000)).toBe("2.48 M");
+    expect(fmtSize(4_000_000)).toBe("4 M");
+    expect(fmtSize(999_999)).toBe("1 M");
+    expect(fmtSize(12_500_000_000)).toBe("12.5 B");
+    expect(fmtSize(0.25, 2)).toBe("0.25");
+    expect(fmtSize(12.5, 0)).toBe("13");
+    expect(fmtSize(NaN)).toBe("—");
   });
 });

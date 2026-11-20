@@ -4,7 +4,9 @@ import {
   centeredTop,
   contextItems,
   countText,
+  depthRows,
   labelActive,
+  meterShare,
   needsCenter,
   orderMarks,
   priceIndex,
@@ -100,5 +102,31 @@ describe("DOM ladder", () => {
     expect(wheelRows(0, 100)).toEqual({ rows: -1, rest: 0 });
     expect(wheelRows(0, 50).rows + 0).toBe(0);
     expect(wheelRows(-0.5, 60).rows).toBe(-1);
+  });
+});
+
+describe("order book rows (#372)", () => {
+  it("puts the levels on the tick grid with totals, the largest level and the best bid / ask", () => {
+    const d = depthRows(
+      {
+        bids: new Map([[100.0, 300], [99.99, 50], [99.991, 25]]),
+        asks: new Map([[100.02, 120], [100.05, 40]]),
+      },
+      0.01,
+    );
+    expect([...d.bids]).toEqual([[10000, 300], [9999, 75]]);
+    expect(d.totalBid).toBe(375);
+    expect(d.totalAsk).toBe(160);
+    expect(d.max).toBe(300);
+    expect(d.bestBid).toBe(10000);
+    expect(d.bestAsk).toBe(10002);
+    expect(meterShare(120, d.max)).toBeCloseTo(0.4);
+    expect(meterShare(undefined, d.max)).toBe(0);
+  });
+
+  it("a side without levels has no best price", () => {
+    const d = depthRows({ bids: new Map(), asks: new Map([[5, 1]]) }, 1);
+    expect(d.bestBid).toBeNaN();
+    expect(d.totalBid).toBe(0);
   });
 });

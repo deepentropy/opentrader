@@ -205,6 +205,10 @@ fn notification(ib: &Arc<Ibkr>, method: &str, p: Value) {
             Ok(r) => ib.watch_quotes(r.tickers),
             Err(e) => println!("[warn] {}", e.message),
         },
+        "broker.watchDepth" => match params::<WatchParams>(method, p) {
+            Ok(r) => ib.watch_depth(r.tickers),
+            Err(e) => println!("[warn] {}", e.message),
+        },
         _ => {}
     }
 }

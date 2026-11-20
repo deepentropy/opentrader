@@ -5,6 +5,7 @@ Connects OpenTrader to your Interactive Brokers account through IB Gateway or TW
 - **Account**: balance, equity, margin, P&L and the other account values; positions with their live P&L; open and recent orders; the last week's executions with commissions.
 - **Trading**: market, limit, stop and stop-limit orders with take profit and stop loss; modify, cancel; close a position in whole or in part; add, move or remove a position's take profit and stop loss.
 - **Order ticket prices**: bid, ask and last of the ticket's symbol (delayed when the account has no market data subscription for it).
+- **Order book**: the DOM tab's bid and ask sizes, up to 10 levels a side. Stocks get IB's smart depth: the venues the account has depth permissions for, added up by price. Without permissions IB sends no book and the DOM shows no sizes; the account manager's notifications say why.
 
 The login stays in IB Gateway or TWS; OpenTrader keeps no password. The plugin provides no chart data.
 
