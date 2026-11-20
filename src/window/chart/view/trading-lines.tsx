@@ -26,7 +26,7 @@
  * the last replayed price, the spread between). One-click trading is
  * app-wide (trading-prefs.ts).
  */
-import { For, Show, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import type { Time } from "lightweight-charts";
 import { Icon } from "../../../components/Icon";
 import { Tooltip } from "../../../components/Tooltip";
@@ -51,10 +51,13 @@ import {
   fmtPl,
   fmtPrice,
   fmtQty,
+  hasLimitLine,
   orderChipText,
+  orderLines,
   orderLinePrice,
   orderMenuTitle,
   orderTypeText,
+  type OrderLine,
   plText,
   plTone,
   positionQtyText,
@@ -139,6 +142,43 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   /** A line being dragged: its order id and price. */
   const [drag, setDrag] = createSignal<{ id: string; price: number } | null>(null);
 
+  /** Lines dropped at a new price the broker has not confirmed yet (#370), by line key: the line stays where it
+   *  was dropped while its order still shows the price it had (`from`). A broker plugin answers after a round trip;
+   *  a rejection, or no change within PENDING_MS, puts the line back at the order's price. */
+  const [pending, setPending] = createSignal<ReadonlyMap<string, { price: number; from: number | null }>>(new Map());
+  const PENDING_MS = 10_000;
+  const dropPending = (key: string | null) =>
+    setPending((m) => {
+      if (key === null) return m.size ? new Map() : m;
+      if (!m.has(key)) return m;
+      const next = new Map(m);
+      next.delete(key);
+      return next;
+    });
+  const addPending = (key: string, price: number, from: number | null) => {
+    const entry = { price, from };
+    setPending((m) => new Map(m).set(key, entry));
+    setTimeout(() => {
+      if (pending().get(key) === entry) dropPending(key);
+    }, PENDING_MS);
+  };
+  /** The price an order's line shows from the broker: `limit`, its stop-limit's limit line. */
+  const brokerPrice = (o: TradingOrder, limit: boolean) => (limit ? o.limitPrice : orderLinePrice(o));
+  // Confirmed (the order's price changed) or gone: the line shows the broker's price again.
+  createEffect(() => {
+    const m = pending();
+    if (!m.size) return;
+    const list = orders();
+    for (const [key, p] of m) {
+      const limit = key.endsWith("#limit");
+      const o = list.find((x) => x.id === (limit ? key.slice(0, -"#limit".length) : key));
+      if (!o || brokerPrice(o, limit) !== p.from) dropPending(key);
+    }
+  });
+  onCleanup(broker.onEvent((e) => {
+    if (e.kind === "rejected") dropPending(null);
+  }));
+
   function TradingLinesLayer(props: { epoch: number }) {
     const geom = createMemo<Geom | null>(() => {
       void props.epoch;
@@ -173,37 +213,23 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
 
     const byId = createMemo(() => new Map(orders().map((o) => [o.id, o])));
 
-    /** A line of an order: its main line (the stop of a stop-limit until the
-     *  stop is reached) or the limit line of a stop-limit. Key "<id>" or
-     *  "<id>#limit". */
-    type Line = { key: string; id: string; limit: boolean };
-
-    /** Drawing order (reference app: the last placed on top): the position's
-     *  brackets, then each order followed by its own brackets. */
-    const lines = createMemo<Line[]>(() => {
-      const list = orders();
-      const seq = (o: TradingOrder) => Number(o.kind === "order" ? o.id : o.parentId) || 0;
-      const rank = (o: TradingOrder) => (o.parentId === "position" ? -1 : seq(o));
-      const out: Line[] = [];
-      for (const { o } of list
-        .map((o, i) => ({ o, i }))
-        .sort((a, b) => rank(a.o) - rank(b.o) || (a.o.kind === "order" ? -1 : 0) - (b.o.kind === "order" ? -1 : 0) || a.i - b.i)) {
-        out.push({ key: o.id, id: o.id, limit: false });
-        if (hasLimitLine(o)) out.push({ key: `${o.id}#limit`, id: o.id, limit: true });
-      }
-      return out;
+    type Line = OrderLine;
+    /** Each line keeps its object (its row) from one broker update to the
+     *  next: a plugin updates on every quote, and a row rendered again would
+     *  lose the drag going on in it (#370). */
+    const lines = createMemo<Line[]>((prev) => orderLines(orders(), new Map(prev.map((l) => [l.key, l]))), [], {
+      equals: (a, b) => a.length === b.length && a.every((l, i) => l === b[i]),
     });
 
-    /** A stop-limit order waiting for its stop shows its limit price on a
-     *  dotted line of its own (reference app). */
-    const hasLimitLine = (o: TradingOrder) => o.kind === "order" && o.type === "stopLimit" && !o.stopTriggered && o.limitPrice !== null;
-
-    /** The price of a line (the dragged price while it is dragged). */
+    /** The price of a line (the dragged price while it is dragged, the dropped
+     *  one until the broker confirms it). */
     const linePrice = (o: TradingOrder, limit = false): number | null => {
       const d = drag();
       const key = limit ? `${o.id}#limit` : o.id;
       if (d && d.id === key) return d.price;
-      return limit ? o.limitPrice : orderLinePrice(o);
+      const at = brokerPrice(o, limit);
+      const p = pending().get(key);
+      return p && p.from === at ? p.price : at;
     };
 
     /** Price of the dragged line from a pointer y (client). */
@@ -214,30 +240,38 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       return p === null ? null : snapToTick(p, tick());
     };
 
-    const commit = (o: TradingOrder, price: number, limit: boolean) => moveOrder(o, price, limit, paneId);
+    /** Send a dropped line's price; the line stays there until the broker answers. */
+    const commit = (o: TradingOrder, key: string, price: number, limit: boolean) => {
+      addPending(key, price, brokerPrice(o, limit));
+      moveOrder(o, price, limit, paneId);
+    };
 
     /** Follow a press: `onMove` with the price under the pointer once it moved,
-     *  `onUp(moved)` on release. */
+     *  `onUp(moved)` on release. Listened on the window: a chip rendered again
+     *  during the drag (#370) loses the capture, and its release would be lost. */
     const track = (e: PointerEvent, g: Geom, onMove: (price: number) => void, onUp: (moved: boolean) => void) => {
       const el = e.currentTarget as HTMLElement;
       try { el.setPointerCapture(e.pointerId); } catch { /* synthetic event */ }
+      const id = e.pointerId;
       const y0 = e.clientY;
       let moved = false;
       const move = (ev: PointerEvent) => {
+        if (ev.pointerId !== id) return;
         if (!moved && Math.abs(ev.clientY - y0) < 3) return;
         moved = true;
         const p = priceAt(ev.clientY, g);
         if (p !== null) onMove(p);
       };
-      const up = () => {
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        el.removeEventListener("pointercancel", up);
+      const up = (ev: PointerEvent) => {
+        if (ev.pointerId !== id) return;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
         onUp(moved);
       };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
     };
 
     /** Press on an order / bracket chip: a drag moves the price, a click
@@ -255,10 +289,13 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       track(e, g, (price) => setDrag({ id: key, price }), (moved) => {
         const d = drag();
         setDrag(null);
+        // The order as it is now: it may have been filled or changed during the drag.
+        const now = byId().get(o.id);
+        if (!now) return;
         if (moved) {
-          if (d && d.price !== start) commit(o, d.price, limit);
-        } else if (o.kind === "order") {
-          tradingUi.editOrder(o, paneId);
+          if (d && d.price !== start) commit(now, key, d.price, limit);
+        } else if (now.kind === "order") {
+          tradingUi.editOrder(now, paneId);
         }
       });
     };
@@ -554,27 +591,41 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       const p = project();
       return p ? p[k] : null;
     };
-    /** Press on a project chip: a drag moves its price in the ticket. */
-    const onProjectDown = (e: PointerEvent, k: ProjectLine) => {
+    /** Press on a project chip: a drag moves its price, the ticket following
+     *  the line as it moves (#370). Its quantity and type parts too: `click`
+     *  runs when they are only clicked (a market order's price stays). */
+    const onProjectDown = (e: PointerEvent, k: ProjectLine, click?: (el: HTMLElement) => void) => {
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
+      const el = e.currentTarget as HTMLElement;
       const g = geom();
       const p = project();
-      if (!g || !p || (k === "main" && p.type === "market")) return;
-      const start = projectPrice(k);
-      track(e, g, (price) => setDrag({ id: `project#${k}`, price }), (moved) => {
-        const d = drag();
+      if (!g || !p) return;
+      const fixed = k === "main" && p.type === "market";
+      const send = (price: number) => {
+        if (k === "main") p.actions.setPrice(p.mainField, price);
+        else if (k === "limit") p.actions.setPrice("limitPrice", price);
+        else p.actions.setExit(k, price);
+      };
+      let last = projectPrice(k);
+      track(e, g, (price) => {
+        if (fixed) return;
+        setDrag({ id: `project#${k}`, price });
+        if (price !== last) send(price);
+        last = price;
+      }, (moved) => {
         setDrag(null);
-        if (!moved || !d || d.price === start) return;
-        if (k === "main") p.actions.setPrice(p.mainField, d.price);
-        else if (k === "limit") p.actions.setPrice("limitPrice", d.price);
-        else p.actions.setExit(k, d.price);
+        if (!moved) click?.(el);
       });
     };
     const [typeMenu, setTypeMenu] = createSignal<HTMLElement | null>(null);
     const [qtyCalc, setQtyCalc] = createSignal<HTMLElement | null>(null);
     const [projectMenu, setProjectMenu] = createSignal<HTMLElement | null>(null);
+    // The quantity and type parts open on a click; a press that moves drags the line (onProjectDown), and a
+    // keyboard press (detail 0) has no pointer press before it.
+    const toggleQtyCalc = (el: HTMLElement) => setQtyCalc(qtyCalc() ? null : el);
+    const toggleTypeMenu = (el: HTMLElement) => setTypeMenu(typeMenu() ? null : el);
     /** Types the project order can switch to: Market only with "Project
      *  order for market orders". */
     const projectTypes = (): TradingOrder["type"][] => caps().orderTypes.filter((t) => t !== "market" || ta().projectMarket);
@@ -623,13 +674,13 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               }}
             >
               <Tooltip text="Change order quantity" side="top">
-                <button type="button" class="ot-trd-chip__part is-qty" onPointerDown={stop} onMouseDown={stop} onClick={(e) => setQtyCalc(qtyCalc() ? null : (e.currentTarget as HTMLElement))}>
+                <button type="button" class="ot-trd-chip__part is-qty" onPointerDown={(e) => onProjectDown(e, "main", toggleQtyCalc)} onMouseDown={stop} onClick={(e) => e.detail === 0 && toggleQtyCalc(e.currentTarget)}>
                   <Icon name="replay-status" size={14} />
                   {pr().qty !== null ? fmtQty(pr().qty!) : "\u2014"}
                 </button>
               </Tooltip>
               <Tooltip text="Change order type" side="top">
-                <button type="button" class="ot-trd-chip__part is-text" onPointerDown={stop} onMouseDown={stop} onClick={(e) => setTypeMenu(typeMenu() ? null : (e.currentTarget as HTMLElement))}>
+                <button type="button" class="ot-trd-chip__part is-text" onPointerDown={(e) => onProjectDown(e, "main", toggleTypeMenu)} onMouseDown={stop} onClick={(e) => e.detail === 0 && toggleTypeMenu(e.currentTarget)}>
                   {orderTypeText(pr().type)}
                 </button>
               </Tooltip>
