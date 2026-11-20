@@ -98,6 +98,7 @@ import { pluginBroker } from "./data/trading/plugin-broker";
 import { events } from "./bindings";
 import { refreshPluginSessions } from "./data/session/symbol-sessions";
 import { forgetUnknownSymbols } from "./data/unknown-symbols";
+import { wakeRetries } from "./data/connection";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
@@ -438,11 +439,13 @@ function App() {
   onMount(() => { if (isTauri() && windowLabel === "main") openFirstStartOnboarding(); });
 
   // A data plugin that connects again may describe its symbols otherwise (an update: #340's bar grid): each window
-  // reads their sessions again and reloads its charts when one changed.
+  // reads their sessions again and reloads its charts when one changed. The requests waiting for a plugin that was
+  // not connected yet (restored charts and watchlists at start, #371) are asked again at once.
   onMount(() => {
     if (!isTauri()) return;
     const stop = events.pluginsChanged.listen(() => {
       forgetUnknownSymbols();
+      wakeRetries();
       void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
     });
     onCleanup(() => void stop.then((f) => f()));

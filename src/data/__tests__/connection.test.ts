@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isTransientError, retryTransient } from "../connection";
+import { isTransientError, retryTransient, wakeRetries } from "../connection";
 
 describe("isTransientError", () => {
   it("retries what a later try can get past", () => {
@@ -8,6 +8,8 @@ describe("isTransientError", () => {
     expect(isTransientError("bars: upstream (UPSTREAM_TIMEOUT)")).toBe(true);
     expect(isTransientError("bars: bad gateway (HTTP 503)")).toBe(true);
     expect(isTransientError("bars: oops (INTERNAL, ref x1)")).toBe(true);
+    // A data plugin still starting with the app (#371).
+    expect(isTransientError("The plugin feed is not connected (PLUGIN_OFFLINE)")).toBe(true);
   });
   it("does not retry final failures", () => {
     expect(isTransientError("bars: unknown ticker (NOT_FOUND)")).toBe(false);
@@ -71,5 +73,23 @@ describe("retryTransient", () => {
     // Woken by the other request well before its own 8 s wait ends.
     await expect(slow).resolves.toBe("a");
     expect(slowCalls).toBe(5);
+  });
+
+  it("a plugin that connects wakes the requests waiting for it (#371)", async () => {
+    vi.useFakeTimers();
+    let connected = false;
+    let calls = 0;
+    const bars = retryTransient(async () => {
+      calls++;
+      if (!connected) throw new Error("The plugin feed is not connected (PLUGIN_OFFLINE)");
+      return "bars";
+    });
+    await vi.advanceTimersByTimeAsync(1000 + 2000 + 4000);
+    expect(calls).toBe(4);
+    connected = true;
+    wakeRetries();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(bars).resolves.toBe("bars");
+    expect(calls).toBe(5);
   });
 });

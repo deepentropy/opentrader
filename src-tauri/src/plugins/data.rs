@@ -242,10 +242,12 @@ fn unknown_symbol(symbol: &str) -> String {
     format!("{symbol}: unknown symbol (NOT_FOUND)")
 }
 
-/// A plugin's error as the window reads it: a busy source is a failure of the moment, asked again (data/connection.ts).
+/// A plugin's error as the window reads it: a busy source, or a plugin not connected yet (its program still starting
+/// with the app, #371), is a failure of the moment, asked again (data/connection.ts).
 fn error_text(e: PluginError) -> String {
     match e {
         PluginError::Rpc { code: BUSY, message } => format!("{message} (RATE_LIMITED)"),
+        e @ PluginError::NotConnected(_) => format!("{e} (PLUGIN_OFFLINE)"),
         e => e.to_string(),
     }
 }
@@ -932,6 +934,12 @@ mod tests {
     fn a_busy_source_is_asked_again() {
         assert_eq!(error_text(PluginError::Rpc { code: BUSY, message: "Too many requests".into() }), "Too many requests (RATE_LIMITED)");
         assert_eq!(error_text(PluginError::Rpc { code: -32000, message: "No data".into() }), "No data");
+    }
+
+    #[test]
+    fn a_plugin_not_connected_yet_is_asked_again() {
+        assert_eq!(error_text(PluginError::NotConnected("feed".into())), "The plugin feed is not connected (PLUGIN_OFFLINE)");
+        assert_eq!(error_text(PluginError::Timeout), "The plugin did not answer in time");
     }
 
     #[test]
