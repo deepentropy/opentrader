@@ -106,8 +106,8 @@ export function updateIntervals(intervals: string[], available: (id: string) => 
   if (intervals.length === 0) return [];
   const main = intervals[0];
   // Tick charts step tick by tick, their only update interval (the reference app, #377); with charts on
-  // time-based intervals, there is none (they do not take ticks).
-  if (intervals.some(isTickInterval)) return intervals.every(isTickInterval) ? ["1T"].filter(available) : [];
+  // seconds, minutes or hours too, those take ticks as well (#378); with daily charts, nothing is common.
+  if (intervals.some(isTickInterval)) return intervals.every(takesTicks) ? ["1T"].filter(available) : [];
   const base = baseOf(main);
   const baseSec = seconds(base);
   const divides = (id: string) => {
@@ -124,12 +124,21 @@ export function updateIntervals(intervals: string[], available: (id: string) => 
     return Number.isFinite(s) && s <= baseSec && divides(id);
   });
   all.sort((a, b) => seconds(a) - seconds(b));
-  return all.filter(available);
+  const offered = all.filter(available);
+  // Ticks first on second, minute and hour charts (the reference app, #378), where every symbol has them.
+  return intervals.every(takesTicks) && available("1T") ? ["1T", ...offered] : offered;
 }
 
 /** A tick interval ("10T"). */
 function isTickInterval(id: string): boolean {
   return /^[1-9]\d*T$/.test(id.trim());
+}
+
+/** A chart that can step tick by tick: on ticks, seconds, minutes or hours. */
+function takesTicks(id: string): boolean {
+  if (isTickInterval(id)) return true;
+  const unit = unitOf(id);
+  return unit === "second" || unit === "minute" || unit === "hour";
 }
 
 /** The Auto update interval: the coarsest one offered (normally the chart
@@ -452,7 +461,8 @@ export function replayUpdateIntervals(): string[] {
   const depth = (id: string) => Math.max(...ps.map((p) => p.depthOf(id)));
   return updateIntervals(
     ps.map((p) => p.interval()),
-    (id) => pt === null || depth(id) <= pt,
+    // Before a point is picked: what the symbols have at all (ticks: a data plugin's symbols with ticks).
+    (id) => (pt === null ? depth(id) < Infinity : depth(id) <= pt),
   );
 }
 

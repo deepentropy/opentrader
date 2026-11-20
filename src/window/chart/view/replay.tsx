@@ -35,7 +35,7 @@ import {
   symbolServesResolution,
   tickCount,
 } from "../../../data/datafeed";
-import { tickBarMs } from "../../../data/tick-bars";
+import { tickBarMs, tickBars, type TickRow } from "../../../data/tick-bars";
 import { TickReplayFeed } from "../tick-replay-feed";
 import { lastAtOrBefore } from "../time-search";
 import { utcToWall, wallTimeToUtc } from "../day-key";
@@ -145,6 +145,9 @@ export function createReplay(cx: ChartCx): ReplayApi {
     // An imported series: its file is the whole depth.
     if (isLocalSymbol(cx.fullSymbol())) return 0;
     const floor = providerCapabilities()?.entitlements?.historyFloor;
+    // An interval the symbol has no bars on is never reached: seconds of a data plugin that serves none, ticks of a
+    // symbol without them (#378).
+    if (!symbolServesResolution(props.symbol, id)) return Infinity;
     if (/^\d+[DWM]$/.test(id)) return isoDay(DAILY_ARCHIVE_START);
     if (/S$/.test(id)) return isoDay(floor?.second);
     return isoDay(floor?.minute);
@@ -185,6 +188,8 @@ export function createReplay(cx: ChartCx): ReplayApi {
 
   /** Bars per update are shorter than the chart's. */
   const isSub = (upd: string) => {
+    // Ticks build the bars of a second / minute / hour chart (#378).
+    if (isTickResolution(upd)) return !isTickResolution(interval());
     const sec = (id: string) => {
       const m = /^(\d+)([SDWM])$/.exec(id);
       if (m) return Number(m[1]) * ({ S: 1, D: 86400, W: 7 * 86400, M: 30 * 86400 } as Record<string, number>)[m[2]];
@@ -224,6 +229,18 @@ export function createReplay(cx: ChartCx): ReplayApi {
         });
       return loading;
     }
+    if (isTickResolution(update)) {
+      loading = readTickSubs(f.queuedUntil ?? -Infinity)
+        .then((r) => {
+          if (g !== gen || f !== feed || !r) return;
+          f.push(r.subs);
+          if (!r.more) f.subDone = true;
+        })
+        .finally(() => {
+          loading = null;
+        });
+      return loading;
+    }
     const days = chunkDays(update);
     const from = nextFrom;
     const before = from + days * 86400;
@@ -241,6 +258,21 @@ export function createReplay(cx: ChartCx): ReplayApi {
         loading = null;
       });
     return loading;
+  };
+
+  // ── Tick updates of a second / minute / hour chart (#378) ──────────────
+  /** The next ticks to read: from this millisecond, the first `tickSkip` of it read already. */
+  let tickFrom = 0;
+  let tickSkip = 0;
+  /** A page of ticks from `tickFrom`, as 1-tick sub-bars after `after` (a tick per update). */
+  const readTickSubs = async (after: number): Promise<{ subs: OHLC[]; more: boolean } | null> => {
+    const p = await getTicksFrom(props.symbol ?? "", tickFrom, TICK_PAGE, props.session ?? "RTH", tickSkip).catch(() => null);
+    if (!p) return null;
+    if (p.lastMs !== null) {
+      tickSkip = p.lastMs === tickFrom ? tickSkip + p.atLast : p.atLast;
+      tickFrom = p.lastMs;
+    }
+    return { subs: toOHLC(tickBars(p.ticks as TickRow[], 1, after)), more: p.more };
   };
 
   /** The next page of ticks after the replay time (a tick chart). */
@@ -363,6 +395,14 @@ export function createReplay(cx: ChartCx): ReplayApi {
         // Daily sub-bars of a weekly / monthly chart: all loaded already.
         f.seed(toOHLC(cx.rawDaily), point);
         f.subDone = true;
+      } else if (from !== null && isTickResolution(upd)) {
+        // Ticks from the start of the bar the replay time falls in.
+        tickFrom = Math.floor(from * 1000);
+        tickSkip = 0;
+        const r = await readTickSubs(-Infinity);
+        if (g !== gen || f !== feed) return false;
+        f.seed(r?.subs ?? [], point);
+        if (r && !r.more) f.subDone = true;
       } else if (from !== null) {
         nextFrom = from;
         const days = chunkDays(upd);

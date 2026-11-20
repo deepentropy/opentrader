@@ -4,6 +4,9 @@ import { ReplayFeed } from "../replay-feed";
 import type { OHLC } from "../chart-types";
 import { autoUpdateInterval, clampDelay, fallbackUpdateInterval, updateIntervals } from "../../../data/replay";
 
+/** Symbols without ticks (the app's own data). */
+const noTicks = (id: string) => id !== "1T";
+
 const bar = (time: number, o: number, h: number, l: number, c: number, v = 10): OHLC => ({ time: time as Time, open: o, high: h, low: l, close: c, volume: v });
 
 const D = 86400;
@@ -129,16 +132,16 @@ describe("ReplayFeed on sub-bars", () => {
 
 describe("update intervals", () => {
   it("follows the chart interval", () => {
-    expect(updateIntervals(["1"])).toEqual(["1S", "1"]);
-    expect(updateIntervals(["5"])).toEqual(["1S", "1", "5"]);
-    expect(updateIntervals(["60"])).toEqual(["1S", "1", "3", "5", "10", "15", "30", "60"]);
-    expect(updateIntervals(["1D"])).toEqual(["60", "120", "180", "240", "1D"]);
-    expect(updateIntervals(["1W"])).toEqual(["1D"]);
-    expect(updateIntervals(["1M"])).toEqual(["1D"]);
-    expect(updateIntervals(["10S"])).toEqual(["1S", "5S", "10S"]);
+    expect(updateIntervals(["1"], noTicks)).toEqual(["1S", "1"]);
+    expect(updateIntervals(["5"], noTicks)).toEqual(["1S", "1", "5"]);
+    expect(updateIntervals(["60"], noTicks)).toEqual(["1S", "1", "3", "5", "10", "15", "30", "60"]);
+    expect(updateIntervals(["1D"], noTicks)).toEqual(["60", "120", "180", "240", "1D"]);
+    expect(updateIntervals(["1W"], noTicks)).toEqual(["1D"]);
+    expect(updateIntervals(["1M"], noTicks)).toEqual(["1D"]);
+    expect(updateIntervals(["10S"], noTicks)).toEqual(["1S", "5S", "10S"]);
   });
   it("divides every chart of the replay", () => {
-    expect(updateIntervals(["15", "5"])).toEqual(["1S", "1", "5"]);
+    expect(updateIntervals(["15", "5"], noTicks)).toEqual(["1S", "1", "5"]);
   });
   it("drops the intervals without data at the replay point", () => {
     expect(updateIntervals(["1D"], (id) => id === "1D")).toEqual(["1D"]);
@@ -159,11 +162,23 @@ describe("update intervals", () => {
 });
 
 describe("update intervals of tick charts (#377)", () => {
-  it("tick charts step tick by tick; mixed with time-based charts, none", async () => {
+  it("tick charts step tick by tick, with second / minute / hour charts too; with daily charts, none", async () => {
     const { updateIntervals } = await import("../../../data/replay");
     expect(updateIntervals(["10T"])).toEqual(["1T"]);
     expect(updateIntervals(["100T", "1T"])).toEqual(["1T"]);
-    expect(updateIntervals(["10T", "5"])).toEqual([]);
+    expect(updateIntervals(["10T", "5"])).toEqual(["1T"]);
+    expect(updateIntervals(["10T", "1D"])).toEqual([]);
     expect(updateIntervals(["10T"], () => false)).toEqual([]);
+  });
+});
+
+describe("tick updates of time-based charts (#378)", () => {
+  it("ticks come first on second, minute and hour charts whose symbols have them", async () => {
+    const { updateIntervals } = await import("../../../data/replay");
+    expect(updateIntervals(["5"])).toEqual(["1T", "1S", "1", "5"]);
+    expect(updateIntervals(["10S"])).toEqual(["1T", "1S", "5S", "10S"]);
+    expect(updateIntervals(["240"])[0]).toBe("1T");
+    expect(updateIntervals(["1D"])).toEqual(["60", "120", "180", "240", "1D"]);
+    expect(updateIntervals(["5", "1D"])[0]).not.toBe("1T");
   });
 });
