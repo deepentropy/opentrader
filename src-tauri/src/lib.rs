@@ -135,6 +135,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::plugin_copy_files,
             plugins::plugin_logs,
             plugins::plugin_forget_secret,
+            plugins::plugin_set_capability,
             plugins::plugin_prompt_answer,
             plugins::broker::broker_status,
             plugins::broker::broker_set_active,

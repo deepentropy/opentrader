@@ -255,6 +255,22 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
         checked={p().enabled}
         onChange={(on) => void props.take(`enable:${m().id}`, plugins.setEnabled(m().id, on))}
       />
+      <Show when={m().provides.length > 1}>
+        {/* A plugin that offers both: chart data and trading each on or off (one stays on). */}
+        <div class="app-settings-plugin-uses" data-name="plugin-uses">
+          <For each={m().provides}>
+            {(c) => (
+              <CheckField
+                variant="settings"
+                label={c === "broker" ? translate("Trading") : translate("Chart data")}
+                disabled={!p().supported || (!(p().off ?? []).includes(c) && m().provides.filter((x) => !(p().off ?? []).includes(x)).length === 1)}
+                checked={!(p().off ?? []).includes(c)}
+                onChange={(on) => void props.take(`uses:${m().id}`, plugins.setCapability(m().id, c, on))}
+              />
+            )}
+          </For>
+        </div>
+      </Show>
       <For each={m().install ?? []}>{(step, i) => <InstallStepRow plugin={p()} step={step} index={i()} take={props.take} />}</For>
       <Show when={m().setup}>
         <div class="app-settings-plugin-setup" data-no-translate>{m().setup}</div>

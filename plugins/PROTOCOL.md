@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **3**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`) and prompts to the user (`plugin.prompt`). A plugin of an earlier version works unchanged.
+Plugin API version **3**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -113,7 +113,7 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 |---|---|---|---|
 | plugin → app | `ping` | request | Answers `{}`. Use it to keep the connection alive and check that it is up. |
 | plugin → app | `log` | notification | `{"level":"info"\|"warn"\|"error","message":"…"}`, shown in the plugin's log. |
-| app → plugin | `plugin.configure` | notification | `{"settings":{"key":"value",…}}`. Sent right after `hello`, before any other message, and whenever the user changes the settings. Fields the user left empty carry their manifest default. |
+| app → plugin | `plugin.configure` | notification | `{"settings":{"key":"value",…},"provides":["broker"]}`. Sent right after `hello`, before any other message, and whenever the user changes the settings. Fields the user left empty carry their manifest default. `provides` (Plugin API 3) is what the plugin is used for: a plugin that provides both can have its chart data or its trading turned off in Settings, and is then neither asked nor heard on those methods. Skip the work of what is off (a data login, quote streams). |
 | plugin → app | `plugin.prompt` | notification | A dialog for the user (Plugin API 3), see below. |
 | app → plugin | `plugin.promptAnswer` | notification | `{"id":"…","value":"…"}`: the user's answer to a prompt with an `input`; `value` is `null` when they cancelled. |
 | plugin → app | `plugin.promptDone` | notification | `{"id":"…"}`: closes the prompt (what it waited for happened). |

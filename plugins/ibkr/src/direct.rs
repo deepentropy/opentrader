@@ -7,12 +7,12 @@
  * the list being read, to the order updates (order ids and new fills) or to the connection's notices. Requests are
  * sent from blocking threads: ibx may hold one for its pacing.
  */
-use crate::link::{Item, EXECUTION_DAYS, LIST_TIMEOUT};
+use crate::link::{BarTime, HistBar, HistError, HistQuery, Item, Match, EXECUTION_DAYS, HISTORY_TIMEOUT, LIST_TIMEOUT};
 use crate::prompt::{Prompt, Prompts};
 use ibapi::accounts::{AccountPortfolioValue, AccountSummary, AccountSummaryResult, AccountUpdate, AccountValue, PnL, PnLSingle};
 use ibapi::contracts::tick_types::TickType;
 use ibapi::contracts::{Contract, ContractDetails};
-use ibapi::market_data::realtime::{MarketDepth, MarketDepthL2, MarketDepths, TickPrice, TickTypes};
+use ibapi::market_data::realtime::{MarketDepth, MarketDepthL2, MarketDepths, TickPrice, TickSize, TickTypes};
 use ibapi::orders::{
     Action, CommissionReport, Execution, ExecutionData, ExecutionSide, Executions, Order, OrderData, OrderState, OrderStatus,
     OrderStatusKind, OrderUpdate, Orders, TimeInForce,
@@ -173,6 +173,8 @@ struct Routes {
     executions: HashMap<i64, Reading<Executions>>,
     /// Order id → the cancel waiting for the broker's first answer.
     cancels: HashMap<i64, oneshot::Sender<Notice>>,
+    history: HashMap<i64, Reading<HistBar, Result<Vec<HistBar>, HistError>>>,
+    matches: HashMap<i64, oneshot::Sender<Vec<Match>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -407,6 +409,50 @@ impl Direct {
         })
     }
 
+    pub async fn history(&self, contract: &Contract, q: HistQuery) -> Result<Vec<HistBar>, HistError> {
+        let id = self.request_id();
+        let (tx, rx) = oneshot::channel();
+        lock(&self.routes).history.insert(id, (Vec::new(), tx));
+        let contract = to_contract(contract);
+        let end = chrono::DateTime::from_timestamp(q.end, 0).unwrap_or_default().format("%Y%m%d-%H:%M:%S").to_string();
+        let (n, unit) = q.duration();
+        let what = if q.midpoint { "MIDPOINT" } else { "TRADES" };
+        let sent = self
+            .call(move |c| c.req_historical_data(id, &contract, &end, &format!("{n} {unit}"), q.size.name(), what, false, 2, false))
+            .await;
+        if let Err(e) | Ok(Err(e)) = sent {
+            lock(&self.routes).history.remove(&id);
+            return Err(HistError::Failed(e));
+        }
+        match tokio::time::timeout(HISTORY_TIMEOUT, rx).await {
+            Ok(Ok(answer)) => answer,
+            _ => {
+                lock(&self.routes).history.remove(&id);
+                let client = self.client.clone();
+                std::thread::spawn(move || drop(client.cancel_historical_data(id)));
+                Err(HistError::Busy("The broker did not answer in time".into()))
+            }
+        }
+    }
+
+    pub async fn matching_symbols(&self, pattern: &str) -> Result<Vec<Match>, String> {
+        let id = self.request_id();
+        let (tx, rx) = oneshot::channel();
+        lock(&self.routes).matches.insert(id, tx);
+        let pattern = pattern.to_string();
+        if let Err(e) = self.call(move |c| c.req_matching_symbols(id, &pattern)).await.and_then(|r| r) {
+            lock(&self.routes).matches.remove(&id);
+            return Err(e);
+        }
+        match tokio::time::timeout(LIST_TIMEOUT, rx).await {
+            Ok(Ok(list)) => Ok(list),
+            _ => {
+                lock(&self.routes).matches.remove(&id);
+                Err("The symbol search got no answer in time".into())
+            }
+        }
+    }
+
     pub async fn quotes(&self, contract: &Contract) -> Result<Feed<TickTypes>, String> {
         let id = self.request_id();
         let (tx, rx) = mpsc::unbounded_channel();
@@ -502,6 +548,13 @@ impl Wrapper for Router {
         let mut r = self.routes();
         if let Some((_, tx)) = r.details.remove(&req_id) {
             let _ = tx.send(Err(IbError::Notice(n)));
+        } else if !keeps_running(&n) && r.history.contains_key(&req_id) {
+            if let Some((_, tx)) = r.history.remove(&req_id) {
+                let _ = tx.send(Err(HistError::of_notice(n.code, &n.message)));
+            }
+        } else if let Some(tx) = r.matches.remove(&req_id) {
+            println!("[warn] symbol search: {} (code {})", n.message, n.code);
+            let _ = tx.send(Vec::new());
         } else if let Some((list, tx)) = r.executions.remove(&req_id) {
             let _ = tx.send(list);
         } else if error_code == MARKET_DEPTH_RESET && r.depth.contains_key(&req_id) {
@@ -531,6 +584,49 @@ impl Wrapper for Router {
     fn tick_price(&mut self, req_id: i64, tick_type: i32, price: f64, _attrib: &x::TickAttrib) {
         let tick = TickTypes::Price(TickPrice { tick_type: TickType::from(tick_type), price, ..Default::default() });
         data(&self.routes().quotes, req_id, tick);
+    }
+
+    fn tick_size(&mut self, req_id: i64, tick_type: i32, size: f64) {
+        data(&self.routes().quotes, req_id, TickTypes::Size(TickSize { tick_type: TickType::from(tick_type), size }));
+    }
+
+    fn historical_data(&mut self, req_id: i64, bar: &x::BarData) {
+        let time = if bar.date.len() == 8 && !bar.date.contains(' ') {
+            chrono::NaiveDate::parse_from_str(&bar.date, "%Y%m%d").ok().map(BarTime::Day)
+        } else {
+            bar.date.split_whitespace().next().and_then(|t| t.parse::<i64>().ok()).map(BarTime::At)
+        };
+        let Some(time) = time else { return };
+        if let Some((list, _)) = self.routes().history.get_mut(&req_id) {
+            list.push(HistBar { time, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume as f64 });
+        }
+    }
+
+    fn historical_data_end(&mut self, req_id: i64, _start: &str, _end: &str) {
+        if let Some((list, tx)) = self.routes().history.remove(&req_id) {
+            let _ = tx.send(Ok(list));
+        }
+    }
+
+    fn symbol_samples(&mut self, req_id: i64, descriptions: &[x::ContractDescription]) {
+        if let Some(tx) = self.routes().matches.remove(&req_id) {
+            let list = descriptions
+                .iter()
+                .map(|d| Match {
+                    contract: from_contract(&x::Contract {
+                        con_id: d.con_id,
+                        symbol: d.symbol.clone(),
+                        sec_type: d.sec_type.clone(),
+                        currency: d.currency.clone(),
+                        primary_exchange: d.primary_exchange.clone(),
+                        ..Default::default()
+                    }),
+                    description: d.description.clone(),
+                    derivatives: d.derivative_sec_types.clone(),
+                })
+                .collect();
+            let _ = tx.send(list);
+        }
     }
 
     fn update_mkt_depth(&mut self, req_id: i64, position: i32, operation: i32, side: i32, price: f64, size: f64) {
@@ -789,12 +885,19 @@ fn from_details(d: &x::ContractDetails) -> ContractDetails {
         min_tick: d.min_tick,
         long_name: d.long_name.clone(),
         time_zone_id: d.time_zone_id.clone(),
+        trading_hours: hours(&d.trading_hours),
+        liquid_hours: hours(&d.liquid_hours),
         stock_type: d.stock_type.clone(),
         min_size: set(d.min_size),
         size_increment: set(d.size_increment),
         suggested_size_increment: set(d.suggested_size_increment),
         ..Default::default()
     }
+}
+
+/// "20261120:0930-20261120:1600;20261121:CLOSED" as the socket API client splits it.
+fn hours(s: &str) -> Vec<String> {
+    s.split(';').map(str::trim).filter(|p| !p.is_empty()).map(String::from).collect()
 }
 
 pub fn to_order(o: &Order) -> x::Order {

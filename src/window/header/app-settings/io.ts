@@ -3,7 +3,7 @@
  * logs what it does not.
  */
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { commands, events, type AgentServerStatus, type CatalogEntry, type PackagePreview, type PluginsStatus, type ProxySettings } from "../../../bindings";
+import { commands, events, type AgentServerStatus, type Capability, type CatalogEntry, type PackagePreview, type PluginsStatus, type ProxySettings } from "../../../bindings";
 
 /** Opens a link in the system browser. */
 export function openLink(url: string, what: string): void {
@@ -87,6 +87,8 @@ export const plugins = {
   installFile: (path: string): Promise<Result<PluginsStatus>> => commands.pluginInstallFile(path),
   setEnabled: (id: string, on: boolean): Promise<Result<PluginsStatus>> => commands.pluginSetEnabled(id, on),
   setSettings: (id: string, settings: Record<string, string>): Promise<Result<PluginsStatus>> => commands.pluginSetSettings(id, settings),
+  /** Chart data or trading of a plugin that provides both, on or off. */
+  setCapability: (id: string, capability: Capability, on: boolean): Promise<Result<PluginsStatus>> => commands.pluginSetCapability(id, capability, on),
   /** Forget a saved password setting. */
   forgetSecret: (id: string, key: string): Promise<Result<PluginsStatus>> => commands.pluginForgetSecret(id, key),
   newToken: (id: string): Promise<Result<PluginsStatus>> => commands.pluginNewToken(id),

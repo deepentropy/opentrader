@@ -7,8 +7,7 @@ Connects OpenTrader to your Interactive Brokers account, through IB Gateway or T
 - **Order ticket prices**: bid, ask and last of the ticket's symbol (delayed when the account has no market data subscription for it).
 - **Order book**: the DOM tab's bid and ask sizes, up to 10 levels a side. Stocks get IB's smart depth: the venues the account has depth permissions for, added up by price. Without permissions IB sends no book and the DOM shows no sizes; the account manager's notifications say why.
 
-Through IB Gateway or TWS, the login stays there and OpenTrader keeps no password. With a direct login, the password is kept in your computer's credential store. The plugin provides no chart data.
-
+Through IB Gateway or TWS, the login stays there and OpenTrader keeps no password. With a direct login, the password is kept in your computer's credential store. 
 ## Install
 
 1. In OpenTrader, open **Settings > Plugins** and install **Interactive Brokers** from the catalog.
@@ -35,6 +34,20 @@ The broker allows one session per username: while the plugin is logged in, TWS, 
 The plugin shows **Connected** in Settings within a few seconds. While IB Gateway or TWS is closed it retries on its own and says why in the account manager's notifications.
 
 To trade, choose **Trade > Connect broker… > Interactive Brokers**, then **Trade > Turn trading on**. Orders to a live account are confirmed first; paper accounts (ids starting with D) show DEMO.
+
+## Chart data
+
+The plugin also serves `IBKR:` chart symbols with the broker's own data:
+
+- **US stocks and funds**: `IBKR:AAPL`, share classes with a dot (`IBKR:BRK.B`).
+- **Forex**: `IBKR:EURUSD` (midpoint bars, no volume).
+- **Futures**: the contract's code, `IBKR:ESZ6`. Typing the root (`ES`) in the symbol search lists the next expiries first.
+
+Bars are 1, 5, 15, 30 and 60 minutes and days, extended hours included; the app builds the other sizes. One request goes at a time: the broker holds a burst of history requests for several seconds each, so scrolling far back on minute charts is slower than on other symbols. Minute history goes back a year, daily history as far as the broker has it. Quotes are real time where the account has the market data, delayed elsewhere. A symbol is looked up once, then kept in the plugin's data folder.
+
+Chart data and trading can each be turned off in Settings > Plugins (under **Enabled**), for example to trade through the plugin and keep the charts on other data, or the other way round. Both use the same login.
+
+Not served yet: other countries' stocks, options, indexes, tick charts.
 
 ## Notes
 

@@ -15,7 +15,7 @@ mod package;
 
 use opentrader_core::files;
 use opentrader_core::plugins::hub::{Allowed, Hub, HubEvent};
-use opentrader_core::plugins::manifest::{self, Manifest, Runtime, SettingKind};
+use opentrader_core::plugins::manifest::{self, Capability, Manifest, Runtime, SettingKind};
 use opentrader_core::plugins::API_VERSION;
 use opentrader_core::sync::LockExt;
 use package::CatalogEntry;
@@ -62,6 +62,8 @@ struct PluginConfig {
     verified: bool,
     /// A broker plugin's tickers for chart symbols, set by the user ("NASDAQ:AAPL" → "AAPL.US").
     symbol_map: BTreeMap<String, String>,
+    /// What the plugin provides that the user turned off (chart data or trading of a plugin that offers both).
+    off: Vec<Capability>,
 }
 
 /// One installed plugin, as Settings shows it.
@@ -82,6 +84,8 @@ pub struct PluginInfo {
     pub symbol_map: BTreeMap<String, String>,
     /// The password settings that have a value in the credential store (the values never leave the app's backend).
     pub saved_secrets: Vec<String>,
+    /// What the user turned off of what the manifest provides.
+    pub off: Vec<Capability>,
     /// Runs on this computer.
     pub supported: bool,
 }
@@ -218,6 +222,17 @@ pub fn installed_manifest(app: &AppHandle, id: &str) -> Option<Manifest> {
     installed(app).into_iter().find(|m| m.id == id)
 }
 
+/// What the plugin provides and the user left on.
+fn in_use(m: &Manifest, off: &[Capability]) -> Vec<Capability> {
+    m.provides.iter().copied().filter(|c| !off.contains(c)).collect()
+}
+
+/// The plugin provides `c` and the user left it on.
+pub fn uses(app: &AppHandle, m: &Manifest, c: Capability) -> bool {
+    let off = app.state::<Plugins>().config.locked().plugins.get(&m.id).map(|p| p.off.clone()).unwrap_or_default();
+    in_use(m, &off).contains(&c)
+}
+
 fn log(app: &AppHandle, id: &str, line: impl Into<String>) {
     let state = app.state::<Plugins>();
     let mut logs = state.logs.locked();
@@ -245,6 +260,7 @@ fn status(app: &AppHandle) -> PluginsStatus {
             let saved_secrets = secret_keys(&m).into_iter().filter(|k| read_secret(app, &m.id, k).is_some()).collect();
             PluginInfo {
                 saved_secrets,
+                off: c.off.clone(),
                 verified: c.verified,
                 enabled: c.enabled,
                 connected: hello.is_some(),
@@ -330,10 +346,10 @@ pub fn init(app: &AppHandle) {
     apply(app);
 }
 
-/// Send the plugin its settings (`plugin.configure`).
+/// Send the plugin its settings and what it is used for (`plugin.configure`).
 fn configure(app: &AppHandle, id: &str) {
     let state = app.state::<Plugins>();
-    let settings = state.config.locked().plugins.get(id).map(|c| c.settings.clone()).unwrap_or_default();
+    let (settings, off) = state.config.locked().plugins.get(id).map(|c| (c.settings.clone(), c.off.clone())).unwrap_or_default();
     let defaults: BTreeMap<String, String> = installed_manifest(app, id)
         .map(|m| m.settings.into_iter().filter_map(|f| f.default.map(|d| (f.key, d))).collect())
         .unwrap_or_default();
@@ -343,7 +359,8 @@ fn configure(app: &AppHandle, id: &str) {
         let value = read_secret(app, id, &key).unwrap_or_default();
         all.insert(key, value);
     }
-    let _ = state.hub.notify(id, "plugin.configure", serde_json::json!({ "settings": all }));
+    let provides = installed_manifest(app, id).map(|m| in_use(&m, &off)).unwrap_or_default();
+    let _ = state.hub.notify(id, "plugin.configure", serde_json::json!({ "settings": all, "provides": provides }));
 }
 
 /// Make the running state follow the config: the plugins allowed in, the API listening or not, the connection files,
@@ -357,7 +374,8 @@ fn apply(app: &AppHandle) {
         .filter(|m| m.supported_here() && config.plugins.get(&m.id).is_some_and(|c| c.enabled && !c.token.is_empty()))
         .collect();
     // The exchanges of the enabled data plugins: their symbols go to them (`data::route`).
-    let feeds: Vec<&&Manifest> = enabled.iter().filter(|m| m.provides(manifest::Capability::Datafeed)).collect();
+    let off = |id: &str| config.plugins.get(id).map(|p| p.off.clone()).unwrap_or_default();
+    let feeds: Vec<&&Manifest> = enabled.iter().filter(|m| in_use(m, &off(&m.id)).contains(&Capability::Datafeed)).collect();
     data::set_exchanges(
         app,
         feeds.iter().flat_map(|m| m.data_exchanges().into_iter().map(|e| (e, m.id.clone()))).collect(),
@@ -366,7 +384,7 @@ fn apply(app: &AppHandle) {
     state.hub.set_allowed(
         enabled
             .iter()
-            .map(|m| Allowed { id: m.id.clone(), token: config.plugins[&m.id].token.clone(), provides: m.provides.clone() })
+            .map(|m| Allowed { id: m.id.clone(), token: config.plugins[&m.id].token.clone(), provides: in_use(m, &off(&m.id)) })
             .collect(),
     );
     if enabled.is_empty() {
@@ -570,7 +588,16 @@ fn install(app: &AppHandle, bytes: &[u8], verified: bool) -> Result<Manifest, St
     let dir = plugins_dir(app)?.join(&m.id);
     // A running program holds its files: stop it while they are replaced.
     stop_process(app, &m.id);
-    package::unpack(bytes, &dir)?;
+    // The program takes a moment to exit and let go of its files: an update tried at once found them in use.
+    let mut unpacked = package::unpack(bytes, &dir);
+    for _ in 0..20 {
+        if unpacked.is_ok() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        unpacked = package::unpack(bytes, &dir);
+    }
+    unpacked?;
     let state = app.state::<Plugins>();
     // An update refreshes the files its installation copied elsewhere (same names, same folders).
     let copied = state.config.locked().plugins.get(&m.id).map(|p| p.copied.clone()).unwrap_or_default();
@@ -757,6 +784,32 @@ pub fn plugin_set_settings(app: AppHandle, id: String, settings: BTreeMap<String
     }
     update_plugin(&app, &id, |p| p.settings = plain)?;
     configure(&app, &id);
+    Ok(status(&app))
+}
+
+/// Turn chart data or trading of a plugin that provides both on or off. One stays on: disable the plugin instead.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_set_capability(app: AppHandle, id: String, capability: Capability, on: bool) -> Result<PluginsStatus, String> {
+    let m = installed_manifest(&app, &id).ok_or_else(|| format!("{id} is not installed"))?;
+    let state = app.state::<Plugins>();
+    let mut off = state.config.locked().plugins.get(&id).map(|p| p.off.clone()).unwrap_or_default();
+    off.retain(|c| *c != capability);
+    if !on {
+        off.push(capability);
+    }
+    if in_use(&m, &off).is_empty() {
+        return Err("Keep chart data or trading on, or disable the plugin".into());
+    }
+    update_plugin(&app, &id, |p| p.off = off)?;
+    log(&app, &id, format!("{capability:?} {}", if on { "on" } else { "off" }));
+    apply(&app);
+    // As on connection: the settings first, then what the app subscribes to (only to what is on).
+    configure(&app, &id);
+    if on {
+        data::connected(&app, &id);
+        broker::connected(&app, &id);
+    }
     Ok(status(&app))
 }
 

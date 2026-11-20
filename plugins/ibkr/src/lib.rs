@@ -3,6 +3,7 @@
  * Gateway / TWS, or the broker's servers it logs in to itself (`direct`). The app starts it with its address and token in the environment; `run_session` says hello, then
  * answers the app's broker requests and pushes the account until the app closes the connection.
  */
+pub mod datafeed;
 pub mod direct;
 pub mod ib;
 pub mod link;
@@ -25,6 +26,8 @@ use tokio::net::TcpStream;
 use wire::OrderTicket;
 
 pub const API: u32 = 3;
+/// The exchange of the plugin's chart symbols (`IBKR:AAPL`), as in the manifest.
+pub const EXCHANGE: &str = "IBKR";
 const HELLO_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// One session with the app: Ok when the app closed the connection, Err with the reason when it refused the plugin
@@ -141,6 +144,28 @@ struct ConfigureParams {
 }
 
 #[derive(Deserialize)]
+struct SearchParams {
+    query: String,
+}
+
+#[derive(Deserialize)]
+struct TickerParams {
+    ticker: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BarsParams {
+    ticker: String,
+    resolution: String,
+    // Numbers: the app may send them with a fraction (1794528000.0).
+    from: f64,
+    to: f64,
+    #[serde(default)]
+    count_back: Option<f64>,
+}
+
+#[derive(Deserialize)]
 struct PromptAnswerParams {
     id: String,
     #[serde(default)]
@@ -163,6 +188,19 @@ async fn request(ib: &Arc<Ibkr>, method: &str, p: Value) -> Result<Value, RpcErr
             let r: ResolveParams = params(method, p)?;
             let ticker = r.ticker.unwrap_or_else(|| r.symbol.split_once(':').map_or(r.symbol.as_str(), |(_, t)| t).to_string());
             Ok(json!({ "ticker": ib.resolve_symbol(&r.symbol, &ticker).await? }))
+        }
+        "data.search" => {
+            let r: SearchParams = params(method, p)?;
+            ib.data.search(&ib.data_link()?, &r.query).await
+        }
+        "data.symbolInfo" => {
+            let r: TickerParams = params(method, p)?;
+            ib.data.symbol_info(&ib.data_link()?, &r.ticker).await
+        }
+        "data.bars" => {
+            let r: BarsParams = params(method, p)?;
+            let count_back = r.count_back.filter(|c| c.is_finite() && *c >= 1.0).map_or(5000, |c| c as usize);
+            ib.data.bars(&ib.data_link()?, &r.ticker, &r.resolution, r.from as i64, r.to as i64, count_back).await
         }
         "broker.getState" => Ok(ib.store.read(|t| serde_json::to_value(t.snapshot()).unwrap_or_default())),
         "broker.instrument" => {
@@ -219,6 +257,10 @@ fn notification(ib: &Arc<Ibkr>, method: &str, p: Value) {
             Ok(r) => ib.prompts.answer(&r.id, r.value),
             Err(e) => println!("[warn] {}", e.message),
         },
+        "data.subscribe" => match params::<WatchParams>(method, p) {
+            Ok(r) => ib.stream(r.tickers),
+            Err(e) => println!("[warn] {}", e.message),
+        },
         "broker.watchQuote" => match params::<WatchParams>(method, p) {
             Ok(r) => ib.watch_quotes(r.tickers),
             Err(e) => println!("[warn] {}", e.message),
@@ -234,6 +276,12 @@ fn notification(ib: &Arc<Ibkr>, method: &str, p: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bars_params_take_fractions() {
+        let r: BarsParams = params("data.bars", json!({ "ticker": "AAPL", "resolution": "5", "from": 1794528000.0, "to": 1795212000, "countBack": 300.0 })).unwrap();
+        assert_eq!((r.from as i64, r.to as i64, r.count_back), (1_794_528_000, 1_795_212_000, Some(300.0)));
+    }
 
     #[test]
     fn modify_params_carry_the_ticket() {

@@ -12,10 +12,12 @@
  *     happened during the gap is lost. A direct login reconnects to the broker's servers and keeps its subscriptions
  *     itself. When either gives up, the supervisor starts over;
  *   • one market data feed per ticker the order ticket watches;
- *   • one order book feed per ticker the DOM watches.
+ *   • one order book feed per ticker the DOM watches;
+ *   • one market data feed per chart symbol the app streams (`datafeed`: `data.quote`).
  *
  * Requests that share an answer type (open / completed orders, executions) run one at a time behind `lists`.
  */
+use crate::datafeed::{DataFeed, Live};
 use crate::direct;
 use crate::link::{Feed, Link, Notices};
 use crate::orders::{self, Leg, EXIT_GROUP};
@@ -133,6 +135,8 @@ struct Conn {
     account_task: Mutex<Option<JoinHandle<()>>>,
     quotes: Mutex<HashMap<String, JoinHandle<()>>>,
     depths: Mutex<HashMap<String, JoinHandle<()>>>,
+    /// The chart symbols' quotes (`data.subscribe`).
+    streams: Mutex<HashMap<String, JoinHandle<()>>>,
     lists: tokio::sync::Mutex<()>,
 }
 
@@ -144,7 +148,7 @@ impl Conn {
         if let Some(t) = lock(&self.account_task).take() {
             t.abort();
         }
-        for (_, t) in lock(&self.quotes).drain().chain(lock(&self.depths).drain()) {
+        for (_, t) in lock(&self.quotes).drain().chain(lock(&self.depths).drain()).chain(lock(&self.streams).drain()) {
             t.abort();
         }
     }
@@ -158,6 +162,10 @@ pub struct Ibkr {
     pub store: Arc<Store>,
     /// Questions to the user (a direct login's second factor).
     pub prompts: Arc<Prompts>,
+    /// Chart data: symbols, bars.
+    pub data: DataFeed,
+    /// The chart symbols whose quotes the app wants.
+    streamed: Mutex<Vec<String>>,
     config: watch::Sender<Option<Config>>,
     conn: Mutex<Option<Arc<Conn>>>,
     generation: AtomicU64,
@@ -179,6 +187,8 @@ impl Ibkr {
     pub fn new(out: Out) -> Arc<Self> {
         Arc::new(Self {
             prompts: Arc::new(Prompts::new(out.clone())),
+            data: DataFeed::new(std::env::var_os("OPENTRADER_PLUGIN_DATA").filter(|d| !d.is_empty()).map(PathBuf::from)),
+            streamed: Mutex::new(Vec::new()),
             store: Arc::new(Store::new(out)),
             config: watch::Sender::new(None),
             conn: Mutex::new(None),
@@ -213,6 +223,11 @@ impl Ibkr {
                 "The plugin is not configured yet".to_string()
             }
         })
+    }
+
+    /// The connection for a chart data request. Not connected yet: busy, so the app asks again a little later.
+    pub fn data_link(&self) -> Result<Link, crate::rpc::RpcError> {
+        self.current().map(|c| c.client.clone()).map_err(|e| crate::rpc::RpcError::new(crate::datafeed::BUSY, e))
     }
 
     fn is_current(&self, generation: u64) -> bool {
@@ -333,6 +348,7 @@ impl Ibkr {
             account_task: Mutex::new(None),
             quotes: Mutex::new(HashMap::new()),
             depths: Mutex::new(HashMap::new()),
+            streams: Mutex::new(HashMap::new()),
             lists: tokio::sync::Mutex::new(()),
         });
         *lock(&self.conn) = Some(conn.clone());
@@ -366,6 +382,7 @@ impl Ibkr {
         tokio::spawn(async move { me.load_lists(&c).await });
         self.sync_quotes(&conn);
         self.sync_depths(&conn);
+        self.sync_streams(&conn);
         Ok(ended)
     }
 
@@ -412,11 +429,12 @@ impl Ibkr {
                 if let Some(a) = self.store.read(|t| t.account.clone()) {
                     self.start_account(&conn, a);
                 }
-                for (_, t) in lock(&conn.quotes).drain().chain(lock(&conn.depths).drain()) {
+                for (_, t) in lock(&conn.quotes).drain().chain(lock(&conn.depths).drain()).chain(lock(&conn.streams).drain()) {
                     t.abort();
                 }
                 self.sync_quotes(&conn);
                 self.sync_depths(&conn);
+                self.sync_streams(&conn);
                 self.load_lists(&conn).await;
                 continue;
             }
@@ -747,6 +765,12 @@ impl Ibkr {
     pub async fn resolve_symbol(&self, symbol: &str, ticker: &str) -> Result<Option<String>, String> {
         let conn = self.current()?;
         let exchange = symbols::exchange_of(symbol);
+        // The plugin's own chart symbols: the contract their data comes from.
+        if exchange.is_some_and(|e| e.eq_ignore_ascii_case(crate::EXCHANGE)) {
+            let s = self.data.resolve(&conn.client, ticker).await.map_err(|e| e.message)?;
+            let c = self.contract_by_id(&conn, s.contract.contract_id).await?;
+            return Ok(Some(symbols::ticker_of(&c)));
+        }
         let wanted = exchange.map(symbols::broker_exchanges).unwrap_or(&[]);
         if exchange.is_some() && wanted.is_empty() {
             return Ok(None);
@@ -1198,6 +1222,70 @@ impl Ibkr {
 }
 
 impl Ibkr {
+    // ── Chart quotes (datafeed) ────────────────────────────────────────────
+
+    /// `data.subscribe`: the whole set of chart tickers to send `data.quote` for.
+    pub fn stream(self: &Arc<Self>, tickers: Vec<String>) {
+        *lock(&self.streamed) = tickers;
+        if let Ok(conn) = self.current() {
+            self.sync_streams(&conn);
+        }
+    }
+
+    fn sync_streams(self: &Arc<Self>, conn: &Arc<Conn>) {
+        let wanted: HashSet<String> = lock(&self.streamed).iter().cloned().collect();
+        let mut feeds = lock(&conn.streams);
+        feeds.retain(|t, h| {
+            let keep = wanted.contains(t);
+            if !keep {
+                h.abort();
+            }
+            keep
+        });
+        for ticker in wanted {
+            if feeds.contains_key(&ticker) {
+                continue;
+            }
+            let me = self.clone();
+            let c = conn.clone();
+            let t = ticker.clone();
+            feeds.insert(ticker, tokio::spawn(async move { me.run_stream(c, t).await }));
+        }
+    }
+
+    /// A chart symbol's quote: its ticks folded into the price, the forming minute and the day, sent at most every
+    /// `QUOTE_EVERY`.
+    async fn run_stream(self: Arc<Self>, conn: Arc<Conn>, ticker: String) {
+        let s = match self.data.resolve(&conn.client, &ticker).await {
+            Ok(s) => s,
+            Err(e) => return println!("[warn] no quote for {}:{ticker}: {}", crate::EXCHANGE, e.message),
+        };
+        let mut sub = match conn.client.quotes(&s.contract).await {
+            Ok(f) => f,
+            Err(e) => return println!("[warn] no quote for {}:{ticker}: {e}", crate::EXCHANGE),
+        };
+        let mut live = Live::new(s.tz, s.kind == crate::datafeed::Kind::Forex);
+        let mut sent = tokio::time::Instant::now() - QUOTE_EVERY;
+        let mut pending = false;
+        loop {
+            tokio::select! {
+                item = sub.next() => match item {
+                    Some(Ok(SubscriptionItem::Data(tick))) => pending |= live.apply(&tick, chrono::Utc::now().timestamp()),
+                    Some(Ok(SubscriptionItem::Notice(_))) => {}
+                    Some(Err(e)) => return println!("[warn] quote of {}:{ticker} stopped: {e}", crate::EXCHANGE),
+                    None => return,
+                },
+                _ = tokio::time::sleep_until(sent + QUOTE_EVERY), if pending => {
+                    if let Some(q) = live.quote(&ticker, chrono::Utc::now().timestamp()) {
+                        self.out().notify("data.quote", q);
+                    }
+                    pending = false;
+                    sent = tokio::time::Instant::now();
+                }
+            }
+        }
+    }
+
     // ── DOM order books ────────────────────────────────────────────────────
 
     /// `broker.watchDepth`: the whole set of tickers to send `broker.depth` for.

@@ -1,11 +1,12 @@
 {
   "id": "ibkr",
   "name": "Interactive Brokers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "OpenTrader",
-  "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly: balances, positions, orders and trading from the charts.",
+  "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly: balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
   "api": 3,
-  "provides": ["broker"],
+  "provides": ["datafeed", "broker"],
+  "exchange": "IBKR",
   "runtime": { "type": "process", "entry": "opentrader-ibkr.exe", "args": [] },
   "settings": [
     { "key": "connection", "label": "Connection", "type": "select", "default": "gateway",

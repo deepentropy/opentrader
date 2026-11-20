@@ -12,7 +12,8 @@ use ibapi::accounts::types::{AccountGroup, AccountId, ContractId};
 use ibapi::accounts::{AccountSummaryResult, AccountSummaryTags, AccountUpdate, PnL, PnLSingle};
 use ibapi::contracts::{Contract, ContractDetails};
 use ibapi::market_data::realtime::{MarketDepths, TickTypes};
-use ibapi::market_data::{MarketDataType, SmartDepth};
+use ibapi::market_data::historical::{BarSize, BarTimestamp, Duration as IbDuration, WhatToShow};
+use ibapi::market_data::{MarketDataType, SmartDepth, TradingHours};
 use ibapi::orders::{ExecutionFilter, Executions, Order, OrderUpdate, Orders};
 use ibapi::subscriptions::{NoticeStream, SubscriptionItem};
 use ibapi::{Client, Error as IbError, Notice, NoticeCategory};
@@ -27,6 +28,119 @@ pub type Item<T> = Result<SubscriptionItem<T>, IbError>;
 pub const LIST_TIMEOUT: Duration = Duration::from_secs(10);
 /// The days of executions read at connection.
 pub const EXECUTION_DAYS: i32 = 7;
+/// How long a historical request may wait: the broker holds a burst of them for seconds each.
+pub const HISTORY_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// A bar of the past: intraday at its start (UNIX seconds), daily on its trading day.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BarTime {
+    At(i64),
+    Day(chrono::NaiveDate),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HistBar {
+    pub time: BarTime,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+}
+
+/// The bar sizes the plugin serves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistSize {
+    Min1,
+    Min5,
+    Min15,
+    Min30,
+    Hour1,
+    Day1,
+}
+
+impl HistSize {
+    /// The broker's name of the size.
+    pub fn name(self) -> &'static str {
+        match self {
+            HistSize::Min1 => "1 min",
+            HistSize::Min5 => "5 mins",
+            HistSize::Min15 => "15 mins",
+            HistSize::Min30 => "30 mins",
+            HistSize::Hour1 => "1 hour",
+            HistSize::Day1 => "1 day",
+        }
+    }
+
+    fn gateway(self) -> BarSize {
+        match self {
+            HistSize::Min1 => BarSize::Min,
+            HistSize::Min5 => BarSize::Min5,
+            HistSize::Min15 => BarSize::Min15,
+            HistSize::Min30 => BarSize::Min30,
+            HistSize::Hour1 => BarSize::Hour,
+            HistSize::Day1 => BarSize::Day,
+        }
+    }
+}
+
+/// One historical request: `days` of bars ending at `end` (UNIX seconds), extended hours. `midpoint` for what has no
+/// trades (forex).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HistQuery {
+    pub size: HistSize,
+    pub end: i64,
+    pub days: u32,
+    pub midpoint: bool,
+}
+
+impl HistQuery {
+    /// The duration as the broker takes it: days up to a year, whole years beyond.
+    pub fn duration(&self) -> (u32, char) {
+        if self.days <= 365 {
+            (self.days.max(1), 'D')
+        } else {
+            (self.days.div_ceil(365), 'Y')
+        }
+    }
+}
+
+/// Why a historical request has no bars.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HistError {
+    /// Pacing: ask again later.
+    Busy(String),
+    /// Nothing there (before the history starts).
+    NoData,
+    /// The contract is unknown.
+    Unknown,
+    Failed(String),
+}
+
+impl HistError {
+    /// From the broker's notice of a historical request.
+    pub fn of_notice(code: i32, message: &str) -> HistError {
+        let m = message.to_ascii_lowercase();
+        if m.contains("pacing") {
+            HistError::Busy(message.to_string())
+        } else if code == 162 && (m.contains("no data") || m.contains("returned no")) {
+            HistError::NoData
+        } else if code == 200 {
+            HistError::Unknown
+        } else {
+            HistError::Failed(format!("{message} (code {code})"))
+        }
+    }
+}
+
+/// A symbol search's match.
+#[derive(Debug, Clone)]
+pub struct Match {
+    pub contract: Contract,
+    pub description: String,
+    /// "FUT", "OPT"… of this underlying.
+    pub derivatives: Vec<String>,
+}
 
 pub enum Feed<T> {
     /// A socket API subscription, boxed: its type can't be named in generic code.
@@ -221,6 +335,61 @@ impl Link {
                 c.market_depth(contract, rows).smart_depth(s).subscribe().await.map(Feed::gateway).map_err(|e| e.to_string())
             }
             Link::Direct(d) => d.depth(contract, rows, smart).await.map(Feed::Direct),
+        }
+    }
+}
+
+impl Link {
+    /// Bars of the past, oldest first.
+    pub async fn history(&self, contract: &Contract, q: HistQuery) -> Result<Vec<HistBar>, HistError> {
+        match self {
+            Link::Gateway(c) => {
+                let end = time::OffsetDateTime::from_unix_timestamp(q.end).map_err(|e| HistError::Failed(e.to_string()))?;
+                let (n, unit) = q.duration();
+                let n = n as i32;
+                let duration = if unit == 'Y' { IbDuration::years(n) } else { IbDuration::days(n) };
+                let what = if q.midpoint { WhatToShow::MidPoint } else { WhatToShow::Trades };
+                let fetch = c.historical_data(contract, q.size.gateway()).what_to_show(what).trading_hours(TradingHours::Extended).duration(duration).ending(end).fetch();
+                match tokio::time::timeout(HISTORY_TIMEOUT, fetch).await {
+                    Err(_) => Err(HistError::Busy("The broker did not answer in time".into())),
+                    Ok(Err(IbError::Notice(n))) => Err(HistError::of_notice(n.code, &n.message)),
+                    Ok(Err(e)) => Err(HistError::Failed(e.to_string())),
+                    Ok(Ok(h)) => Ok(h
+                        .bars
+                        .iter()
+                        .map(|b| HistBar {
+                            time: match b.date {
+                                BarTimestamp::DateTime(t) => BarTime::At(t.unix_timestamp()),
+                                BarTimestamp::Date(d) => BarTime::Day(
+                                    chrono::NaiveDate::from_ymd_opt(d.year(), u8::from(d.month()) as u32, d.day() as u32).unwrap_or_default(),
+                                ),
+                            },
+                            open: b.open,
+                            high: b.high,
+                            low: b.low,
+                            close: b.close,
+                            volume: b.volume,
+                        })
+                        .collect()),
+                }
+            }
+            Link::Direct(d) => d.history(contract, q).await,
+        }
+    }
+
+    /// The contracts whose symbol or name starts like `pattern`.
+    pub async fn matching_symbols(&self, pattern: &str) -> Result<Vec<Match>, String> {
+        match self {
+            Link::Gateway(c) => c
+                .matching_symbols(pattern)
+                .await
+                .map(|list| {
+                    list.into_iter()
+                        .map(|d| Match { description: d.contract.description.clone(), contract: d.contract, derivatives: d.derivative_security_types })
+                        .collect()
+                })
+                .map_err(|e| e.to_string()),
+            Link::Direct(d) => d.matching_symbols(pattern).await,
         }
     }
 }

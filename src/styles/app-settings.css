@@ -631,6 +631,8 @@
 .app-settings-plugin-dot.is-on { background: var(--color-minty-green-400); opacity: 1; }
 .app-settings-plugin-setup { white-space: pre-wrap; font-size: 12px; line-height: 16px; color: var(--color-content-secondary-neutral); }
 .app-settings-plugin-step { display: flex; flex-direction: column; gap: 6px; }
+/* Chart data / Trading of a plugin that provides both, under Enabled. */
+.app-settings-plugin-uses { display: flex; gap: 16px; padding-inline-start: 24px; }
 .app-settings-plugin-folder { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .app-settings-plugin-folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .app-settings-plugin-settings { display: flex; flex-direction: column; gap: 8px; }

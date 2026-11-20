@@ -155,7 +155,7 @@ pub fn status(app: &AppHandle) -> BrokerStatus {
     let brokers: Vec<BrokerPlugin> = enabled
         .iter()
         .filter_map(|id| installed_manifest(app, id))
-        .filter(|m| m.provides(Capability::Broker) && m.supported_here())
+        .filter(|m| super::uses(app, m, Capability::Broker) && m.supported_here())
         .map(|m| BrokerPlugin { connected: plugins.hub.connected(&m.id).is_some(), id: m.id, name: m.name })
         .collect();
     let active = active(app).filter(|id| brokers.iter().any(|b| &b.id == id));
@@ -168,8 +168,8 @@ pub fn status(app: &AppHandle) -> BrokerStatus {
         version: s.version.load(Ordering::Relaxed),
         plugin_connected: active.as_deref().is_some_and(|id| plugins.hub.connected(id).is_some()),
         active_name: manifest.as_ref().map(|m| m.name.clone()),
-        data_exchange: manifest.as_ref().filter(|m| m.provides(Capability::Datafeed) && !m.whole_symbols()).and_then(|m| m.exchange.clone()),
-        data_exchanges: manifest.filter(|m| m.provides(Capability::Datafeed) && m.whole_symbols()).map(|m| m.exchanges).unwrap_or_default(),
+        data_exchange: manifest.as_ref().filter(|m| super::uses(app, m, Capability::Datafeed) && !m.whole_symbols()).and_then(|m| m.exchange.clone()),
+        data_exchanges: manifest.filter(|m| super::uses(app, m, Capability::Datafeed) && m.whole_symbols()).map(|m| m.exchanges).unwrap_or_default(),
         trading_enabled,
         state: account,
         notices,
@@ -330,8 +330,8 @@ pub fn broker_status(app: AppHandle) -> BrokerStatus {
 pub fn broker_set_active(app: AppHandle, id: Option<String>) -> Result<BrokerStatus, String> {
     if let Some(id) = &id {
         let m = installed_manifest(&app, id).ok_or_else(|| format!("{id} is not installed"))?;
-        if !m.provides(Capability::Broker) {
-            return Err(format!("{} is not a broker plugin", m.name));
+        if !super::uses(&app, &m, Capability::Broker) {
+            return Err(format!("{} is not a broker plugin, or its trading is turned off", m.name));
         }
     }
     let plugins = app.state::<Plugins>();
