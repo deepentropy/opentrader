@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.3"
+#define PLUGIN_VERSION "0.1.4"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -40,6 +40,9 @@ string   g_serverTime = "auto";
 string   g_tickers[];              // data.subscribe
 long     g_lastTick[];             // their last tick time (ms)
 string   g_watch[];                // broker.watchQuote
+string   g_depth[];                // broker.watchDepth: the order books subscribed (MarketBookAdd)
+bool     g_depthDirty[];           // their book changed since it was sent
+ulong    g_lastDepth = 0;
 bool     g_stateDirty = true;
 ulong    g_placed[];               // pending orders already announced (their next update is a modification)
 ulong    g_lastState = 0;
@@ -237,6 +240,10 @@ void Disconnect(void)
    ArrayResize(g_tickers, 0);
    ArrayResize(g_lastTick, 0);
    ArrayResize(g_watch, 0);
+   for(int i = 0; i < ArraySize(g_depth); i++)
+      MarketBookRelease(g_depth[i]);
+   ArrayResize(g_depth, 0);
+   ArrayResize(g_depthDirty, 0);
   }
 
 bool SendLine(const string line)
@@ -438,6 +445,17 @@ void OnNotification(const string method, CJ *params)
          g_serverTime = clock;
          Log("info", "Server clock: " + Clock());
         }
+      return;
+     }
+   if(method == "broker.watchDepth")
+     {
+      CJ *list = params != NULL ? params.Get("tickers") : NULL;
+      string tickers[];
+      int n = list != NULL ? list.Size() : 0;
+      ArrayResize(tickers, n);
+      for(int i = 0; i < n; i++)
+         tickers[i] = list.At(i).str;
+      WatchDepth(tickers);
       return;
      }
    if(method == "data.subscribe" || method == "broker.watchQuote")
@@ -784,6 +802,113 @@ void StreamQuotes(void)
       Notify("broker.quote", "{\"ticker\":" + JQ(g_watch[i]) + ",\"bid\":" + JP(tick.bid, digits) + ",\"ask\":" + JP(tick.ask, digits) +
              ",\"last\":" + JP(tick.last, digits) + "}");
      }
+  }
+
+//+------------------------------------------------------------------+
+//| Order books (the DOM tab)                                         |
+//+------------------------------------------------------------------+
+int IndexOf(const string &list[], const string s)
+  {
+   for(int i = 0; i < ArraySize(list); i++)
+      if(list[i] == s)
+         return i;
+   return -1;
+  }
+
+//--- broker.watchDepth: the whole set of tickers whose book the app wants. A server without a book for a symbol sends no
+//--- book event: nothing goes out and the DOM shows no sizes.
+void WatchDepth(const string &tickers[])
+  {
+   for(int i = 0; i < ArraySize(g_depth); i++)
+      if(IndexOf(tickers, g_depth[i]) < 0)
+         MarketBookRelease(g_depth[i]);
+   string kept[];
+   for(int i = 0; i < ArraySize(tickers); i++)
+     {
+      string t = tickers[i];
+      if(IndexOf(g_depth, t) < 0)
+        {
+         SymbolSelect(t, true);
+         if(!MarketBookAdd(t))
+           {
+            Log("warn", "No order book for " + t + " (error " + IntegerToString(GetLastError()) + ")");
+            continue;
+           }
+        }
+      int n = ArraySize(kept);
+      ArrayResize(kept, n + 1);
+      kept[n] = t;
+     }
+   ArrayCopy(g_depth, kept);
+   ArrayResize(g_depth, ArraySize(kept));
+   // Each book goes out whole once, then on its changes.
+   ArrayResize(g_depthDirty, ArraySize(g_depth));
+   ArrayInitialize(g_depthDirty, true);
+  }
+
+//--- What one unit of a book volume is in the plugin's units. Exchange instruments count their book in lots (contracts);
+//--- the others (forex, CFDs) already in units: the terminal shows them either way, and MetaQuotes-Demo's EURUSD book
+//--- reads 100 000 to 5 000 000, which are units (as lots they would be up to 5 million lots a level).
+double BookUnit(const string t)
+  {
+   switch((ENUM_SYMBOL_CALC_MODE)SymbolInfoInteger(t, SYMBOL_TRADE_CALC_MODE))
+     {
+      case SYMBOL_CALC_MODE_EXCH_STOCKS:
+      case SYMBOL_CALC_MODE_EXCH_STOCKS_MOEX:
+      case SYMBOL_CALC_MODE_EXCH_FUTURES:
+      case SYMBOL_CALC_MODE_EXCH_FUTURES_FORTS:
+      case SYMBOL_CALC_MODE_EXCH_BONDS:
+      case SYMBOL_CALC_MODE_EXCH_BONDS_MOEX:
+         return ContractSize(t);
+      default:
+         return 1;
+     }
+  }
+
+//--- The whole book of a ticker as broker.depth: levels in units, market-price rows left out.
+string BookJson(const string t)
+  {
+   MqlBookInfo book[];
+   string bids = "", asks = "";
+   if(MarketBookGet(t, book))
+     {
+      int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
+      double contract = BookUnit(t);
+      for(int i = 0; i < ArraySize(book); i++)
+        {
+         double lots = book[i].volume_real > 0 ? book[i].volume_real : (double)book[i].volume;
+         if(book[i].price <= 0 || lots <= 0)
+            continue;
+         string level = "{\"price\":" + JN(book[i].price, digits) + ",\"qty\":" + JN(lots * contract, 4) + "}";
+         if(book[i].type == BOOK_TYPE_BUY || book[i].type == BOOK_TYPE_BUY_MARKET)
+            bids += (bids == "" ? "" : ",") + level;
+         else
+            asks += (asks == "" ? "" : ",") + level;
+        }
+     }
+   return "{\"ticker\":" + JQ(t) + ",\"snapshot\":true,\"bids\":[" + bids + "],\"asks\":[" + asks + "]}";
+  }
+
+//--- The books that changed, at most 4 times a second.
+void StreamDepth(void)
+  {
+   ulong now = GetTickCount64();
+   if(now - g_lastDepth < 250)
+      return;
+   g_lastDepth = now;
+   for(int i = 0; i < ArraySize(g_depth); i++)
+      if(g_depthDirty[i])
+        {
+         g_depthDirty[i] = false;
+         Notify("broker.depth", BookJson(g_depth[i]));
+        }
+  }
+
+void OnBookEvent(const string &symbol)
+  {
+   int i = IndexOf(g_depth, symbol);
+   if(i >= 0)
+      g_depthDirty[i] = true;
   }
 
 //+------------------------------------------------------------------+
@@ -1303,6 +1428,7 @@ void OnTimer(void)
    if(!g_ready)
       return;
    StreamQuotes();
+   StreamDepth();
    // The account: at once after a trade, else every second (P&L).
    ulong now = GetTickCount64();
    if(g_stateDirty || now - g_lastState >= 1000)

@@ -4,6 +4,7 @@ Connects OpenTrader to a MetaTrader 5 terminal on the same computer.
 
 - **Data**: the broker's symbols as `MT5:<symbol>` (search, charts, scripts, watchlists, alerts), their bars from 1 minute to 1 day, and live prices.
 - **Trading**: the terminal's account (balance, equity, margin), positions, orders and deals. You can send market, limit, stop and stop-limit orders with take profit and stop loss, modify, cancel and close them.
+- **Order book**: the DOM tab's bid and ask sizes, for the symbols whose server sends a Depth of Market (many forex and CFD servers send none: the DOM then shows no sizes). Sizes are in units: exchange instruments' lots times the contract size, other instruments' volumes as the server gives them.
 
 The login stays in the terminal; OpenTrader keeps no password.
 
