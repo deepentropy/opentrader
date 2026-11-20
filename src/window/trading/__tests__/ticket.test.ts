@@ -10,6 +10,7 @@ import {
   exitTicks,
   exitTypeDisabled,
   exitValueIn,
+  followStop,
   fmtTypeValue,
   marketHint,
   parseSigned,
@@ -231,5 +232,39 @@ describe("trading formats", () => {
     expect(fmtPnl(-3)).toBe("−3.00");
     expect(parsePositive("1,250.5")).toBe(1250.5);
     expect(parsePositive("-1")).toBeNull();
+  });
+
+  it("refuses an order price the tick or the market refuses (#370)", () => {
+    const prices = { tick: 0.05, rules: { stopOrdersBothSides: false, stopLimitOrdersBothSides: false, strictLimitPrice: false } };
+    expect(buildTicket(draft({ limitPrice: "100.03" }), quote, undefined, prices)).toBe("The price must be a multiple of 0.05");
+    // A buy stop below the ask would trigger at once.
+    expect(buildTicket(draft({ orderType: "stop", stopPrice: "99.5" }), quote, undefined, prices)).toBe("This price is not valid for this order type");
+    expect(typeof buildTicket(draft({ orderType: "stop", stopPrice: "100.5" }), quote, undefined, prices)).toBe("object");
+    // A marketable limit is sent; without `prices` nothing is checked.
+    expect(typeof buildTicket(draft({ limitPrice: "100.5" }), quote, undefined, prices)).toBe("object");
+    expect(typeof buildTicket(draft({ orderType: "stop", stopPrice: "99.5" }), quote)).toBe("object");
+  });
+
+  it("keeps a stop limit's limit at its distance from the stop (#370)", () => {
+    const c = { tick: 0.05, decimals: 2, balance: null };
+    const sl = draft({ orderType: "stopLimit", stopPrice: "100.00", limitPrice: "100.05" });
+    // A new stop limit: one tick beyond the stop (above to buy, below to sell).
+    expect(followStop(draft({ orderType: "limit" }), { orderType: "stopLimit", stopPrice: "101.00" }, quote, c)).toEqual({ stopLimitGap: 1, limitPrice: "101.05" });
+    expect(followStop(draft({ side: "sell", orderType: "stop", stopPrice: "99.00" }), { orderType: "stopLimit" }, quote, c)).toEqual({ stopLimitGap: -1, limitPrice: "98.95" });
+    // The stop moves: the limit follows.
+    expect(followStop(sl, { stopPrice: "102.00" }, quote, c)).toEqual({ stopLimitGap: 1, limitPrice: "102.05" });
+    // The user sets another distance: kept from then on.
+    expect(followStop(sl, { limitPrice: "100.25" }, quote, c)).toEqual({ stopLimitGap: 5 });
+    const wide = { ...sl, limitPrice: "100.25", stopLimitGap: 5 };
+    expect(followStop(wide, { stopPrice: "101.00" }, quote, c)).toEqual({ stopLimitGap: 5, limitPrice: "101.25" });
+    // A stop being retyped is empty for a moment: the distance is kept for the next value.
+    const typing = { ...wide, stopPrice: "" };
+    expect(followStop(wide, { stopPrice: "" }, quote, c)).toEqual({ stopLimitGap: 5 });
+    expect(followStop(typing, { stopPrice: "10" }, quote, c)).toEqual({ stopLimitGap: 5, limitPrice: "10.25" });
+    // The other side: the limit goes to the other side of the stop.
+    expect(followStop(sl, { side: "sell" }, quote, c)).toEqual({ stopLimitGap: -1, limitPrice: "99.95" });
+    // Nothing for other order types, or a limit typed as an offset from the stop.
+    expect(followStop(draft(), { limitPrice: "99" }, quote, c)).toEqual({});
+    expect(followStop({ ...sl, limitMode: "offset", limitOffset: "2" }, { stopPrice: "101" }, quote, c)).toEqual({});
   });
 });

@@ -24,6 +24,8 @@ export function focusPane(paneId: number) {
   else strategyTester.setActiveChartId(String(paneId));
 }
 
+const refusals = new Set<(e: TradingEvent) => void>();
+
 /** The current broker, read through: every call goes to `brokerOf` its chart. */
 export const broker = {
   version: () => replayBroker.version() + pluginBroker.version(),
@@ -53,9 +55,15 @@ export const broker = {
   onEvent(fn: (e: TradingEvent) => void): () => void {
     const offReplay = replayBroker.onEvent(fn);
     const offPlugin = pluginBroker.onEvent(fn);
+    refusals.add(fn);
     return () => {
       offReplay();
       offPlugin();
+      refusals.delete(fn);
     };
+  },
+  /** An order the app refused before sending it (a dragged line at a price not valid, #370): the rejection toast. */
+  refuse(e: Omit<TradingEvent, "kind">) {
+    for (const fn of refusals) fn({ ...e, kind: "rejected" });
   },
 };

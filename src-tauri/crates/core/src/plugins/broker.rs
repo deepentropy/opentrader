@@ -100,6 +100,14 @@ pub struct BrokerCapabilities {
     pub ticket_fields: Vec<TicketField>,
     /// How long an order stays working (time in force): the order ticket's selector. None: the plugin's own.
     pub durations: Vec<OrderDuration>,
+    /// A stop order may sit on either side of the market (a buy stop below the ask). Without it the app refuses one
+    /// on the wrong side: it would trigger at once.
+    pub stop_orders_both_sides: bool,
+    /// The same for the stop price of a stop limit order.
+    pub stop_limit_orders_both_sides: bool,
+    /// A limit order may not cross the market (a buy limit above the ask). Without it such an order is sent, as a
+    /// marketable limit, unless its price is more than half the market price away.
+    pub strict_limit_price: bool,
 }
 
 impl Default for BrokerCapabilities {
@@ -112,6 +120,9 @@ impl Default for BrokerCapabilities {
             modify_orders: true,
             ticket_fields: Vec::new(),
             durations: Vec::new(),
+            stop_orders_both_sides: false,
+            stop_limit_orders_both_sides: false,
+            strict_limit_price: false,
         }
     }
 }

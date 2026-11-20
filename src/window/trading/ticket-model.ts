@@ -12,6 +12,7 @@ import type { OrderType } from "../../data/trading/types";
 import { replayStartSeq } from "../../data/replay";
 import { parsePositive, tickDecimals } from "./format";
 import {
+  followStop,
   QTY_TYPES,
   VALUE_QTY_TYPES,
   buildTicket,
@@ -132,7 +133,7 @@ export function createTicketModel() {
   });
 
   const patch = (p: Partial<TicketDraft>) => {
-    tradingUi.patchDraft(p);
+    tradingUi.patchDraft({ ...p, ...followStop(d(), p, q(), ctx()) });
     setErrorText(null);
   };
   const fx = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v.toFixed(dec()) : "");
@@ -150,7 +151,8 @@ export function createTicketModel() {
     const px = ref != null ? ref.toFixed(dec()) : "";
     patch({
       orderType: t,
-      limitPrice: (t === "limit" || t === "stopLimit") && !x.limitPrice ? px : x.limitPrice,
+      // A stop limit's limit is set from its stop (followStop).
+      ...(t === "stopLimit" ? {} : { limitPrice: t === "limit" && !x.limitPrice ? px : x.limitPrice }),
       stopPrice: (t === "stop" || t === "stopLimit") && !x.stopPrice ? px : x.stopPrice,
     });
   };
@@ -331,7 +333,7 @@ export function createTicketModel() {
       tradingUi.setSent(false);
       return;
     }
-    const t = buildTicket(r(), q(), inst());
+    const t = buildTicket(r(), q(), inst(), { tick: tick(), rules: caps() });
     if (typeof t === "string") {
       setErrorText(t);
       return;

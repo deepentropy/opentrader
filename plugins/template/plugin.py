@@ -272,6 +272,8 @@ class Source:
             # [{"id": "product", "label": "Product", "options": [{"value": "MIS", "label": "Intraday"},
             #   {"value": "CNC", "label": "Delivery"}], "default": "MIS"}]
             # durations: the times in force the order ticket offers; leave it empty to keep your broker's own.
+            # stopOrdersBothSides / stopLimitOrdersBothSides / strictLimitPrice (false when left out): see the
+            # protocol's price rules if your broker takes stops on either side of the market or refuses crossing limits.
             "capabilities": {"orderTypes": ["market", "limit", "stop"], "brackets": True, "positionBrackets": True,
                              "partialClose": True, "modifyOrders": True, "ticketFields": [],
                              "durations": [{"id": "day", "label": "Day"},

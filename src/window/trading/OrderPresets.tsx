@@ -335,7 +335,7 @@ export function placePresetOrder(p: OrderPreset, side: Side, symbol: string) {
   const balance = broker.balance();
   const instrument = broker.instrument();
   // A quantity the broker doesn't take is refused by the broker with its lots, not taken for a preset to reset.
-  const t = buildTicket(resolveDraft(d, q, { tick, decimals: dec, balance, pointValue: instrument.pointValue, instrument }), q);
+  const t = buildTicket(resolveDraft(d, q, { tick, decimals: dec, balance, pointValue: instrument.pointValue, instrument }), q, undefined, { tick, rules: broker.capabilities() });
   if (typeof t !== "string") {
     if (takesOrder(broker.capabilities(), t)) broker.place(t);
     else tradingUi.openOrderTicket({ side, presetId: p.id });

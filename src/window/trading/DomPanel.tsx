@@ -286,7 +286,7 @@ export function DomPanel() {
         tradingUi.openOrderDialog({ side: mk.order.side, order: mk.order, paneId: id });
         return;
       }
-      if (g && g.index !== from && id !== null) moveOrder(mk.order, indexPrice(g.index, tick(), dec()), mk.field === "limitPrice" && mk.order.type === "stopLimit", id);
+      if (g && g.index !== from && id !== null) moveOrder(mk.order, indexPrice(g.index, tick(), dec()), mk.field === "limitPrice" && mk.order.type === "stopLimit", id, tick());
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);

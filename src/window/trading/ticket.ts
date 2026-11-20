@@ -10,6 +10,7 @@ import { localNumber } from "../../i18n/format";
 import { translate } from "../../i18n/translator";
 import { ANY_INSTRUMENT, wholeLots, type Instrument } from "../../data/trading/capabilities";
 import { qtyMessage } from "../../data/trading/qty-message";
+import { orderPriceError, type PriceRules } from "../../data/trading/price-rules";
 
 /** Default exit distances in ticks (take profit / stop loss). */
 export const TP_TICKS = 75;
@@ -237,6 +238,36 @@ export function resolveDraft(d: TicketDraft, q: Quote | null, c: TicketCtx): Tic
   return r;
 }
 
+/** A stop limit's limit following its stop (#370): what to add to patch `p` of draft `d` so that the limit keeps
+ *  its distance from the stop in ticks (`stopLimitGap`; one tick beyond the stop at first). A limit typed as an
+ *  offset from the stop follows it already. */
+export function followStop(d: TicketDraft, p: Partial<TicketDraft>, q: Quote | null, c: TicketCtx): Partial<TicketDraft> {
+  const next = { ...d, ...p };
+  if (next.orderType !== "stopLimit" || fieldTypes(next).limitMode === "offset" || !(c.tick > 0)) return {};
+  const ticks = (x: TicketDraft): number | null => {
+    const r = resolveDraft(x, q, c);
+    const stop = parsePositive(r.stopPrice);
+    const limit = parsePositive(r.limitPrice);
+    return stop != null && limit != null ? Math.round((limit - stop) / c.tick) : null;
+  };
+  const limitSet = "limitPrice" in p || "limitOffset" in p || "limitMode" in p;
+  const stopSet = "stopPrice" in p || "stopOffset" in p || "stopMode" in p || "side" in p;
+  // The user moved the limit: the distance they chose is kept from now on.
+  if (limitSet) {
+    const gap = ticks(next);
+    return gap != null ? { stopLimitGap: gap } : {};
+  }
+  if (!stopSet && p.orderType === undefined) return {};
+  const sign = next.side === "buy" ? 1 : -1;
+  // The distance it had (a stop being retyped is empty for a moment: the one kept), else one tick beyond the stop.
+  const kept = d.orderType === "stopLimit" ? ticks(d) ?? d.stopLimitGap : undefined;
+  // The other side: the limit goes to the other side of the stop.
+  const gap = kept == null ? sign : next.side !== d.side ? -kept : kept;
+  const stop = parsePositive(resolveDraft(next, q, c).stopPrice);
+  if (stop == null) return { stopLimitGap: gap };
+  return { stopLimitGap: gap, limitPrice: (stop + gap * c.tick).toFixed(c.decimals) };
+}
+
 /** Value of a quantity type for a resolved draft (units, the order's value in money / % balance, or the money / %
  *  balance at risk; null without a stop loss). */
 export function qtyValueIn(type: QtyType, r: TicketDraft, q: Quote | null, c: TicketCtx): number | null {
@@ -294,8 +325,9 @@ export function riskReward(d: TicketDraft, q: Quote | null): number | null {
   return Math.abs(tp - e) / Math.abs(e - sl);
 }
 
-/** The order to send, or the message of what is missing / wrong (a quantity the instrument doesn't take too). */
-export function buildTicket(d: TicketDraft, q: Quote | null, instrument: Instrument = ANY_INSTRUMENT): OrderRequest | string {
+/** The order to send, or the message of what is missing / wrong (a quantity the instrument doesn't take too; with
+ *  `prices`, an order price the tick or the market refuses, #370). */
+export function buildTicket(d: TicketDraft, q: Quote | null, instrument: Instrument = ANY_INSTRUMENT, prices?: { tick: number; rules: PriceRules }): OrderRequest | string {
   const qty = parsePositive(d.qty);
   if (qty == null) return translate("Enter a quantity");
   const lots = qtyMessage(qty, instrument);
@@ -306,6 +338,13 @@ export function buildTicket(d: TicketDraft, q: Quote | null, instrument: Instrum
   const stop = needsStop ? parsePositive(d.stopPrice) : null;
   if (needsLimit && limit == null) return translate("Enter a limit price");
   if (needsStop && stop == null) return translate("Enter a stop price");
+  if (prices) {
+    const market = quotePrice(q, d.side);
+    const check = (field: "limit" | "stop", price: number | null) =>
+      price == null ? null : orderPriceError({ type: d.orderType, side: d.side, field, price }, market, prices.tick, prices.rules);
+    const bad = check("stop", stop) ?? check("limit", limit);
+    if (bad) return bad;
+  }
   const tp = d.tpOn ? parsePositive(d.takeProfit) : null;
   const sl = d.slOn ? parsePositive(d.stopLoss) : null;
   if (d.tpOn && tp == null) return translate("Enter a take profit price");

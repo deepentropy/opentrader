@@ -33,7 +33,11 @@ describe("capabilitiesOf", () => {
       positionBrackets: true,
       partialClose: true,
       modifyOrders: false,
+      stopOrdersBothSides: false,
+      stopLimitOrdersBothSides: false,
+      strictLimitPrice: false,
     });
+    expect(capabilitiesOf({ stopOrdersBothSides: true, strictLimitPrice: true })).toMatchObject({ stopOrdersBothSides: true, stopLimitOrdersBothSides: false, strictLimitPrice: true });
   });
 
   it("lists the order types in the ticket's order", () => {

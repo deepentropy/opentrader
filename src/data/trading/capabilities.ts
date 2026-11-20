@@ -16,6 +16,11 @@ export type TradingCapabilities = {
   partialClose: boolean;
   /** Modify a working order's price or quantity. */
   modifyOrders: boolean;
+  /** Order price rules (#370, see price-rules.ts): a stop / the stop of a stop limit may sit on either side of the
+   *  market; a limit may not cross it. */
+  stopOrdersBothSides: boolean;
+  stopLimitOrdersBothSides: boolean;
+  strictLimitPrice: boolean;
 };
 
 export const ORDER_TYPES: OrderType[] = ["market", "limit", "stop", "stopLimit"];
@@ -26,9 +31,13 @@ export const ALL_CAPABILITIES: TradingCapabilities = {
   positionBrackets: true,
   partialClose: true,
   modifyOrders: true,
+  stopOrdersBothSides: false,
+  stopLimitOrdersBothSides: false,
+  strictLimitPrice: false,
 };
 
-/** A plugin's capabilities; a field it leaves out is supported (as the app reads `broker.state`). */
+/** A plugin's capabilities; a feature it leaves out is supported (as the app reads `broker.state`), a price rule it
+ *  leaves out applies. */
 export function capabilitiesOf(c: BrokerCapabilities | null | undefined): TradingCapabilities {
   if (!c) return ALL_CAPABILITIES;
   const listed = c.orderTypes ? ORDER_TYPES.filter((t) => c.orderTypes!.includes(t)) : ORDER_TYPES;
@@ -39,6 +48,10 @@ export function capabilitiesOf(c: BrokerCapabilities | null | undefined): Tradin
     positionBrackets: c.positionBrackets ?? true,
     partialClose: c.partialClose ?? true,
     modifyOrders: c.modifyOrders ?? true,
+    // Price rules: a broker that says nothing has the usual ones.
+    stopOrdersBothSides: c.stopOrdersBothSides ?? false,
+    stopLimitOrdersBothSides: c.stopLimitOrdersBothSides ?? false,
+    strictLimitPrice: c.strictLimitPrice ?? false,
   };
 }
 

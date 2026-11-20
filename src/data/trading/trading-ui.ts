@@ -8,6 +8,7 @@ import { createRoot, createSignal } from "solid-js";
 import * as kv from "../kv";
 import { oneOf, persisted } from "../persisted";
 import { broker } from "./broker";
+import { stopLimitPrice } from "./price-rules";
 import type { OrderType, Side, TradingOrder, TradingPosition } from "./types";
 
 /** What the order ticket edits. Prices are strings while typed. */
@@ -53,6 +54,9 @@ export type TicketDraft = {
   fields?: Record<string, string>;
   /** The time in force picked (a broker duration id). */
   duration?: string;
+  /** Stop limit: the limit's distance from the stop in ticks, kept when the stop moves (#370; one tick beyond it at
+   *  first, then what the user set). */
+  stopLimitGap?: number;
 };
 
 /** What the open order ticket offers the chart's project order line. */
@@ -228,14 +232,17 @@ export const tradingUi = createRoot(() => {
     }
     // No chart price: limit and stop prices start at the market price.
     const q = broker.quote();
-    const mkt = q?.last != null ? q.last.toFixed(Math.max(2, decimalsOf(q.minTick))) : "";
+    const dec = Math.max(2, decimalsOf(q?.minTick ?? 0.01));
+    const mkt = q?.last != null ? q.last.toFixed(dec) : "";
     const base = px || mkt;
+    // A stop limit's limit starts one tick beyond its stop.
+    const limit = orderType === "stopLimit" && base ? stopLimitPrice(Number(base), side, q?.minTick ?? 0.01).toFixed(dec) : base;
     return {
       symbol,
       side,
       orderType,
       qty: p.qty,
-      limitPrice: orderType === "limit" || orderType === "stopLimit" ? base : "",
+      limitPrice: orderType === "limit" || orderType === "stopLimit" ? limit : "",
       stopPrice: orderType === "stop" || orderType === "stopLimit" ? base : "",
       tpOn: false,
       takeProfit: "",

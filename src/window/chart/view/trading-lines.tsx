@@ -240,10 +240,10 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       return p === null ? null : snapToTick(p, tick());
     };
 
-    /** Send a dropped line's price; the line stays there until the broker answers. */
+    /** Send a dropped line's price; the line stays there until the broker
+     *  answers. A price not valid for the order goes back at once (#370). */
     const commit = (o: TradingOrder, key: string, price: number, limit: boolean) => {
-      addPending(key, price, brokerPrice(o, limit));
-      moveOrder(o, price, limit, paneId);
+      if (moveOrder(o, price, limit, paneId, tick())) addPending(key, price, brokerPrice(o, limit));
     };
 
     /** Follow a press: `onMove` with the price under the pointer once it moved,
