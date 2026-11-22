@@ -6,6 +6,7 @@
  * generated commands don't do: routing imported series to ./local-series,
  * retrying a lost connection and sharing one request between callers.
  */
+import { createSignal } from "solid-js";
 import * as gen from "../bindings";
 import { commands, type Candle, type History, type TickerInfo } from "../bindings";
 import { retryTransient } from "./connection";
@@ -96,26 +97,42 @@ const INFO_TTL_MS = 60 * 60_000;
  *  connection shares one retry loop, and the answer serves every caller for
  *  INFO_TTL_MS. So does "unknown symbol" (a watchlist of uploaded junk would
  *  ask at every look, #355); another failure is not kept. */
-const infoCache = new Map<string, { at: number; p: Promise<TickerInfo> }>();
+const infoCache = new Map<string, { at: number; done: boolean; p: Promise<TickerInfo> }>();
+
+/** Bumped when the kept answers are forgotten (see forgetTickerInfo). */
+const [infoEpoch, setInfoEpoch] = createSignal(0);
+export const tickerInfoEpoch = infoEpoch;
 
 /** Reference data of `symbol`; a server that cannot be reached is tried again
- *  until it answers (see ./connection). */
+ *  until it answers (see ./connection). An effect that asks runs again when the
+ *  answers are forgotten. */
 export function getTickerInfo(symbol: string): Promise<TickerInfo> {
+  infoEpoch();
   if (isLocalSymbol(symbol)) return localTickerInfo(symbol);
   const hit = infoCache.get(symbol);
   if (hit && Date.now() - hit.at < INFO_TTL_MS) return hit.p;
   const p = retryTransient(() => unwrap(commands.getTickerInfo(symbol)));
-  const entry = { at: Date.now(), p };
+  const entry = { at: Date.now(), done: false, p };
   infoCache.set(symbol, entry);
   p.then(
-    () => { entry.at = Date.now(); },
+    () => { entry.at = Date.now(); entry.done = true; },
     (e) => {
+      entry.done = true;
       if (isNotFoundError(e)) entry.at = Date.now();
       else if (infoCache.get(symbol) === entry) infoCache.delete(symbol);
       noteSymbolError(symbol, e);
     },
   );
   return p;
+}
+
+/** Forget the answers kept (the data plugins changed, #371): a plugin that was
+ *  starting or waiting for its settings answered "unknown symbol" or a bare
+ *  row, which the plugin now serves in full. A request still waiting is kept:
+ *  it gets the new answer. */
+export function forgetTickerInfo(): void {
+  for (const [symbol, entry] of infoCache) if (entry.done) infoCache.delete(symbol);
+  setInfoEpoch((n) => n + 1);
 }
 
 /** Latest quote of `symbol`; a server that cannot be reached is tried again

@@ -54,7 +54,7 @@ import { SCREENER_PLACE_EVENT } from "./window/screener/ScreenerPanel";
 import { SCREENER_PICK_EVENT } from "./window/screener/ScreenerWindow";
 import { listen } from "@tauri-apps/api/event";
 import { CHART_TYPE_IDS, chartTypeAllowed, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
-import { isAdjusted, setAdjusted, isEconomicSymbol, tickCount, isChartableResolution, isFullSymbol, isIntradayInterval, isIntradayResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { forgetTickerInfo, isAdjusted, setAdjusted, isEconomicSymbol, tickCount, isChartableResolution, isFullSymbol, isIntradayInterval, isIntradayResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { displayTimeZone } from "./data/session";
 import { tradeJournal } from "./data/trade-journal";
 import { chartFrame } from "./data/trade-journal-calc";
@@ -447,6 +447,7 @@ function App() {
     if (!isTauri()) return;
     const stop = events.pluginsChanged.listen(() => {
       forgetUnknownSymbols();
+      forgetTickerInfo();
       wakeRetries();
       void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
     });

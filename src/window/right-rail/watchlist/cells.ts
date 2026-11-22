@@ -7,7 +7,7 @@
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { type Row, type WlColumnKey } from "../../../data/watchlist";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../../data/quotes";
-import { getTickerInfo } from "../../../data/datafeed";
+import { getTickerInfo, tickerInfoEpoch } from "../../../data/datafeed";
 import { relativeVolumeOf, useRelativeVolumes } from "../../../data/watchlist-metrics";
 import { fmtChange, fmtPercent, fmtVolume, formatLast, isNegative, marketState } from "./format";
 import { localNumber } from "../../../i18n/format";
@@ -52,11 +52,16 @@ export function createCells(cx: WatchlistCx): CellsApi {
   const [names, setNames] = createSignal<Record<string, string>>({});
   const needNames = () => !settings().tableView || settings().symbolDisplay === "description";
   const nameFor = (r: Row) => names()[r.ticker] || "";
+  // A name not found is asked again once the ticker info is forgotten (a data plugin connected, #371).
+  let askedEpoch = untrack(tickerInfoEpoch);
   createEffect(() => {
     if (!needNames()) return; // tracks settings + the active list's rows
     const rows = allRows();
+    const epoch = tickerInfoEpoch();
+    const again = epoch !== askedEpoch;
+    askedEpoch = epoch;
     const cached = untrack(names);
-    const pending = rows.filter((r) => cached[r.ticker] === undefined);
+    const pending = rows.filter((r) => cached[r.ticker] === undefined || (again && !cached[r.ticker]));
     if (pending.length === 0) return;
     let cancelled = false;
     Promise.all(
