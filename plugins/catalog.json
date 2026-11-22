@@ -22,20 +22,21 @@
     {
       "id": "ibkr",
       "name": "Interactive Brokers",
-      "version": "0.1.4",
+      "version": "0.3.1",
       "publisher": "OpenTrader",
-      "description": "Your Interactive Brokers account in OpenTrader through IB Gateway or TWS: balances, positions, orders and trading from the charts.",
+      "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly (beta): balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
       "provides": [
+        "datafeed",
         "broker"
       ],
-      "api": 1,
+      "api": 3,
       "platforms": [
         "windows"
       ],
       "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.1.4/ibkr-0.1.4.zip",
-      "sha256": "0d2d4cf2ad4975f4a18643b7ba6632fb9d02184455a4b4039c472d2c4a33f157",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3VMYU42Y0grQzgzT2VpbFRlTFM3azU1YmlySWJ1NlRDNTA0ZHFDeVdWOG9IUlRDb2F6M1o4OW9yYkpCTmdHYXlNU1RndkR4cFI4Zmc5NXJqdEJHQVEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MTY4NTA3CWZpbGU6aWJrci0wLjEuNC56aXAKT282YnN4Nm9VNVpadmhVM0l6MjBNd3JnVVdDSUlzcGw0N0FtUmhNSUYzNTkvMzZXZElTamk5eHhLQ1pLWnY0cDVIRzBQL1IwUjJTVkRDai9yNjd6QXc9PQo="
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.3.1/ibkr-0.3.1.zip",
+      "sha256": "f5cc377bbe17995a769a1a7868f856effda0cabdc98b0d0c4e4183cf822460ee",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3M0RkNWdlRXS2xwYnRPejYzcFljNDIxK2VISHg0TW9lSHFMQWRKUXJONGsyaHBQTkNPaXhUbnR5MDBRdEdSNnpSQkFQMGk3QXBRVkRwOFVRL0tuWUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Mzc2MTQ5CWZpbGU6aWJrci0wLjMuMS56aXAKVld4Z3Z0RmNYcjhvUmJJL2NuS1pqa0VIQzhEWlB6dFp0MXpaYjJjY2NxSkVOYWtrRlRaaHVyQXY3OWZHRjVPbm8wMmVneEs4NmJ6ZnRaVG1rV3E4QVE9PQo="
     }
   ]
 }
