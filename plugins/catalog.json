@@ -22,7 +22,7 @@
     {
       "id": "ibkr",
       "name": "Interactive Brokers",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "publisher": "OpenTrader",
       "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly (beta): balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
       "provides": [
@@ -34,9 +34,9 @@
         "windows"
       ],
       "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.3.1/ibkr-0.3.1.zip",
-      "sha256": "f5cc377bbe17995a769a1a7868f856effda0cabdc98b0d0c4e4183cf822460ee",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3M0RkNWdlRXS2xwYnRPejYzcFljNDIxK2VISHg0TW9lSHFMQWRKUXJONGsyaHBQTkNPaXhUbnR5MDBRdEdSNnpSQkFQMGk3QXBRVkRwOFVRL0tuWUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Mzc2MTQ5CWZpbGU6aWJrci0wLjMuMS56aXAKVld4Z3Z0RmNYcjhvUmJJL2NuS1pqa0VIQzhEWlB6dFp0MXpaYjJjY2NxSkVOYWtrRlRaaHVyQXY3OWZHRjVPbm8wMmVneEs4NmJ6ZnRaVG1rV3E4QVE9PQo="
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.3.2/ibkr-0.3.2.zip",
+      "sha256": "b462ad3130e59d28104541994c8d5315858725d319395de510a369e3126128e2",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2tUMzJkL0E2WjdSY3V2dUdmOFpzaThuUVJvMXJkQ1drcFJmY3JVMFpJWFJnUVh0NTduT1lvanByTHAwSWl0U1JubHYyMk5JVDhrYnZJMzY1Q2RRZ0FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Mzc2ODk4CWZpbGU6aWJrci0wLjMuMi56aXAKWUhHZEszL04rU3l0UHZGZW01ZzFnUlhBSnl3NmE5c2Y3MHZrWUNhYUtaWXQ5TnpZa1pLbFg5MjVTUDc4K285LzhQNzQ3S2hLTTFWUlV1YU5PdlptQVE9PQo="
     }
   ]
 }
