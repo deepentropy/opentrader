@@ -166,15 +166,21 @@ if (symbolFlags.needsMigration()) {
   symbolFlags.seedFlags(pairs);
 }
 
+/** The shown list another window saved, while this one shows `mine` (#387): written back as read, so the two
+ *  windows don't save their own lists over each other's in turn. Dropped when this window shows another list. */
+let external: { mine: string; theirs: string } | null = null;
+
 // Autosave: a root-scoped effect serialises the store on every change.
 createRoot(() => {
   createEffect(() => {
+    const shown = state.activeId;
+    if (external && external.mine !== shown) external = null;
     try {
       kv.setItem(
         STORAGE_KEY,
         JSON.stringify({
           lists: state.lists.map((l) => ({ ...l, sort: "default" })),
-          activeId: state.activeId,
+          activeId: external?.theirs ?? shown,
           alerts: state.alerts,
           alertMeta: state.alertMeta,
           v: SHAPE_VERSION,
@@ -236,11 +242,15 @@ createRoot(() => {
 });
 
 // Live cross-window sync: when another window edits any list, re-load the whole
-// shape (setState merges lists/activeId/alerts; the autosave effect above then
+// shape (setState merges lists/alerts; the autosave effect above then
 // re-serialises to an identical string, which kv.setItem dedups to a no-op).
 kv.onExternalChange(STORAGE_KEY, () => {
   beforeSort.clear();
-  setState(load());
+  const next = load();
+  // The shown list is the tab's (#387): another window showing another list keeps this one's, unless it was deleted.
+  const mine = next.lists.some((l) => l.id === state.activeId) ? state.activeId : next.activeId;
+  external = { mine, theirs: next.activeId };
+  setState({ ...next, activeId: mine });
 });
 
 // ── Colour lists ("Red list", "Blue list", …) ────────────────────────────

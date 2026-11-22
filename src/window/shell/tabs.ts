@@ -243,6 +243,8 @@ export type TabChart = {
   replaySession?: SavedReplay;
   /** The panels the tab shows (see app-dialogs `showPanels`). Absent = a new tab's. */
   panels?: TabPanels;
+  /** Id of the watchlist the tab shows. Absent = a new tab's: the one shown when it opened. */
+  watchlist?: string;
 };
 
 /** The panels of a tab: the right panel's page (null = closed), the screener (right or bottom panel), the OakScript
@@ -497,7 +499,8 @@ export function migrateTab(raw: any): TabChart {
   const layoutSizes = reviveLayoutSizes(raw?.layoutSizes);
   const replaySession = reviveReplaySession(raw?.replaySession);
   const panels = revivePanels(raw?.panels);
-  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession, panels };
+  const watchlist = typeof raw?.watchlist === "string" ? raw.watchlist : undefined;
+  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession, panels, watchlist };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:

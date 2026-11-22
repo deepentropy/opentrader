@@ -26,6 +26,7 @@ import { KeyboardShortcutsPanel } from "./window/shell/KeyboardShortcutsPanel";
 import { ZoomToast } from "./window/shell/ZoomToast";
 import { startPluginPrompts } from "./window/shell/plugin-prompts";
 import { startPluginListSync } from "./data/plugin-watchlists";
+import { watchlistStore } from "./data/watchlist-store";
 import { WindowControls } from "./window/shell/WindowControls";
 import { DEFAULT_PANELS, reconcilePanes } from "./window/shell/tabs";
 import { recordRecentSymbol } from "./data/recent-symbols";
@@ -216,6 +217,22 @@ function App() {
     });
   });
   createEffect(on(activeTabId, (id) => showPanels(tabById().get(id)?.panels ?? DEFAULT_PANELS), { defer: true }));
+
+  // The shown watchlist is per tab too (the reference app, #387): kept in the active tab, a tab switch shows the next
+  // tab's. A new tab, or one saved before, keeps the list shown when it opens.
+  const startList = activeTab().watchlist;
+  if (startList) watchlistStore.setActive(startList);
+  createEffect(() => {
+    const id = watchlistStore.activeId();
+    untrack(() => {
+      const t = activeTab();
+      if (id && t.watchlist !== id) appTabs.patchTab(t.id, { watchlist: id });
+    });
+  });
+  createEffect(on(activeTabId, (id) => {
+    const list = tabById().get(id)?.watchlist;
+    if (list) watchlistStore.setActive(list);
+  }, { defer: true }));
 
   // Reap localStorage for closed detached/new windows: non-main windows clear
   // themselves on close; the main window sweeps orphans at launch.
