@@ -55,6 +55,7 @@ Everything the app asks goes through `Source`. Keep the return shapes; change wh
 | `bars(ticker, resolution, from, to, count_back)` | history | `[time, open, high, low, close, volume]` oldest first, `time` = the bar's start in UNIX seconds; at most the newest `count_back`; an empty list means no more history |
 | `quote(ticker)` | every second, for the symbols on screen | the last price, `prevClose`, and the forming `minute` and `day` bars |
 | `watchlists()` | once connected (optional) | ready-made lists of your symbols, `{id, name, symbols, sections}`; send `data.watchlists` again when they change |
+| `events(ticker)` | the chart's dividend, split and earnings markers (optional) | `{type, date, …}` per event, dates `YYYY-MM-DD`; a bonus issue is a split; send `data.eventsChanged` when they change |
 
 Serve the intervals your source has: the app builds the others (5 minutes from 1 minute, weeks from days…). A daily
 bar starts at its trading day's midnight in the symbol's time zone.

@@ -220,6 +220,20 @@ pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashS
 pub fn clear_recent(app: &AppHandle) {
     state(app).recent.locked().clear();
     state(app).pages.locked().clear();
+    super::events::clear(app);
+}
+
+/// The exchanges a data plugin serves.
+pub fn exchanges_of(app: &AppHandle, plugin: &str) -> Vec<String> {
+    let mut out: Vec<String> = state(app).exchanges.locked().iter().filter(|(_, p)| *p == plugin).map(|(e, _)| e.clone()).collect();
+    out.sort();
+    out
+}
+
+/// The symbol of a ticker a plugin names in a message.
+pub fn symbol_of_plugin(app: &AppHandle, plugin: &str, ticker: &str) -> Option<String> {
+    let s = state(app);
+    symbol_of(&s.exchanges.locked(), &s.whole.locked(), plugin, ticker)
 }
 
 pub fn init(app: &AppHandle) {
@@ -230,12 +244,14 @@ pub fn init(app: &AppHandle) {
             match events.recv().await {
                 Ok(HubEvent::Disconnected { plugin }) => {
                     forget(&app, &plugin);
+                    super::events::forget(&app, &plugin, None);
                     state(&app).streaming.locked().remove(&plugin);
                     state(&app).tick_streaming.locked().remove(&plugin);
                 }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.quote" => on_quote(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.tick" => on_ticks(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.watchlists" => on_watchlists(&app, &plugin, params),
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "data.eventsChanged" => super::events::on_changed(&app, &plugin, params),
                 Ok(_) => {}
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(_) => break,
@@ -247,6 +263,7 @@ pub fn init(app: &AppHandle) {
 /// A plugin connected (`plugins::init`, after its settings went out): it streams what is subscribed.
 pub fn connected(app: &AppHandle, plugin: &str) {
     forget(app, plugin);
+    super::events::forget(app, plugin, None);
     state(app).streaming.locked().remove(plugin);
     state(app).tick_streaming.locked().remove(plugin);
     push_subscriptions(app);
@@ -270,7 +287,7 @@ fn unknown_symbol(symbol: &str) -> String {
 
 /// A plugin's error as the window reads it: a busy source, or a plugin not connected yet (its program still starting
 /// with the app, #371), is a failure of the moment, asked again (data/connection.ts).
-fn error_text(e: PluginError) -> String {
+pub(super) fn error_text(e: PluginError) -> String {
     match e {
         PluginError::Rpc { code: BUSY, message } => format!("{message} (RATE_LIMITED)"),
         e @ PluginError::NotConnected(_) => format!("{e} (PLUGIN_OFFLINE)"),

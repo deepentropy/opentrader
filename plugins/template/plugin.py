@@ -90,6 +90,21 @@ class Source:
             ]},
         ]
 
+    def events(self, ticker):
+        """The dividends, splits and earnings the chart marks (optional, Plugin API 5): dates are calendar days in the
+        symbol's time zone. A bonus issue is a split (1:1 bonus = from 1 to 2). Send `data.eventsChanged` when they
+        change. Return [] for a symbol without any."""
+        if self._info(ticker)[1] != "stock":
+            return []
+        day = lambda days_ago: time.strftime("%Y-%m-%d", time.gmtime(time.time() - days_ago * 86400))
+        return [
+            {"type": "split", "date": day(400), "from": 1, "to": 2},
+            *({"type": "dividend", "date": day(d), "amount": 0.25, "payDate": day(d - 14)} for d in (320, 230, 140, 50)),
+            *({"type": "earnings", "date": day(d), "fiscalPeriod": f"Q{q}", "fiscalYear": int(day(d - 30)[:4]),
+               "periodEnd": day(d + 25), "session": "amc", "eps": 1.2 + q / 10, "revenue": 3.1e9, "currency": "USD"}
+              for q, d in ((1, 290), (2, 200), (3, 110), (4, 20))),
+        ]
+
     def search(self, query):
         q = query.upper()
         return [
@@ -367,6 +382,8 @@ class Plugin:
                 return s.symbol_info(p["ticker"])
             if method == "data.bars":
                 return {"bars": s.bars(p["ticker"], p["resolution"], int(p["from"]), int(p["to"]), int(p.get("countBack", 2000)))}
+            if method == "data.events":
+                return {"events": s.events(p["ticker"])}
             if method == "broker.getState":
                 return s.state()
             if method == "broker.instrument":

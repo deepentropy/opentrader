@@ -18,6 +18,7 @@ import { aggregateUnitFor, getEvents, type ChartEvent } from "../../../data/data
 import { formatChartTime } from "../time-format";
 import { volumeFormat } from "../../../data/volume-format";
 import { EVENT_STYLES } from "../event-markers";
+import { eventsRevision } from "../../../data/plugin-events";
 import { type ChartCx } from "./context";
 
 /** What createEvents adds to the chart context. */
@@ -73,10 +74,17 @@ export function createEvents(cx: ChartCx): EventsApi {
   const { appearance, eventMarkers, props } = cx;
   const [eventCard, setEventCard] = createSignal<number | null>(null);
 
-  // Markers, fetched once per symbol (independent of the interval).
+  // Markers, fetched once per symbol (independent of the interval), and again when its data plugin changes them.
   const [events] = createResource(
-    () => props.symbol ?? "",
-    (sym) => (sym ? getEvents(sym).catch(() => []) : Promise.resolve([] as ChartEvent[])),
+    // A text key: another symbol's change leaves it equal, so this chart doesn't ask again.
+    () => {
+      const symbol = props.symbol ?? "";
+      return symbol ? `${eventsRevision(symbol)}|${symbol}` : "";
+    },
+    (key) => {
+      const symbol = key.slice(key.indexOf("|") + 1);
+      return symbol ? getEvents(symbol).catch(() => []) : Promise.resolve([] as ChartEvent[]);
+    },
   );
   createEffect(() => {
     const a = appearance();

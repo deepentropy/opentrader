@@ -39,6 +39,7 @@ import {
 } from "../../../data/datafeed";
 import { cachedSymbolSessions } from "../../../data/session";
 import { getFundamentals, type Fundamentals } from "../../../data/fundamentals";
+import { onPluginEventsChanged } from "../../../data/plugin-events";
 import { scriptBars } from "../../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../../backtester/types";
 import { scriptChartContext, symbolDetails } from "./script-chart";
@@ -171,7 +172,16 @@ export class OtherSymbolBars {
   constructor(
     private readonly notify: (keys: Set<string>, live: boolean) => void,
     private readonly slot: string,
-  ) {}
+  ) {
+    // A data plugin changed some symbols' events: the studies reading them get the new ones.
+    this.stopEventChanges = onPluginEventsChanged((affects) => {
+      for (const [key, list] of this.eventLists) {
+        const symbol = key.slice(0, key.lastIndexOf("|"));
+        if (list && affects(symbol)) this.loadEvents(key, symbol);
+      }
+    });
+  }
+  private readonly stopEventChanges: () => void;
 
   /** Accessor key of a request, for the studies' usage sets. */
   key(symbol: string, timeframe: string, chartInterval: string): string {
@@ -229,15 +239,20 @@ export class OtherSymbolBars {
     const key = this.eventsKey(symbol);
     if (!this.eventLists.has(key)) {
       this.eventLists.set(key, null);
-      getEvents(symbol.trim().toUpperCase())
-        .catch(() => [] as ChartEvent[])
-        .then((list) => {
-          if (this.disposed || !this.eventLists.has(key)) return;
-          this.eventLists.set(key, list);
-          this.changed(new Set([key]), false);
-        });
+      this.loadEvents(key, symbol.trim().toUpperCase());
     }
     return this.eventLists.get(key) ?? undefined;
+  }
+
+  /** Read a symbol's events; the studies reading them calculate again when they arrive. */
+  private loadEvents(key: string, symbol: string): void {
+    getEvents(symbol)
+      .catch(() => [] as ChartEvent[])
+      .then((list) => {
+        if (this.disposed || !this.eventLists.has(key)) return;
+        this.eventLists.set(key, list);
+        this.changed(new Set([key]), false);
+      });
   }
 
   /** Accessor key of a symbol's fundamentals. */
@@ -311,6 +326,7 @@ export class OtherSymbolBars {
 
   dispose(): void {
     this.disposed = true;
+    this.stopEventChanges();
     this.clear();
   }
 

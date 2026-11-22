@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **4**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). A plugin of an earlier version works unchanged.
+Plugin API version **5**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -240,6 +240,43 @@ Send the whole set once you know it (after `plugin.configure`, or once logged in
 Symbols are whole (`NSE:RELIANCE`); a one-exchange plugin may give bare tickers. A symbol of an exchange the plugin does not serve is dropped, and so is a symbol already in the list. A list holds at most 1000 symbols and sections, a set 100 lists.
 
 The Watchlists dialog (Open list…) shows the lists under the plugin's name. A list the user opens appears in the watchlist panel, read-only: the app brings it up to date from each set you send, and removes it when a set no longer holds it. The user changes a copy of it ("Make a copy").
+
+### `data.events` (app → plugin, request)
+
+The dividends, splits and earnings of a symbol (Plugin API 5). The chart marks them along its bottom when Chart settings > Events shows them, opens a card on a click, and scripts read them. The app asks once per symbol, and again after an hour.
+
+```json
+{"ticker":"RELIANCE"}
+```
+
+Answer:
+
+```json
+{"events":[
+  {"type":"dividend","date":"2024-08-19","amount":10,"payDate":"2024-09-06"},
+  {"type":"split","date":"2024-10-28","from":1,"to":2},
+  {"type":"earnings","date":"2025-01-16","fiscalPeriod":"Q3","fiscalYear":2025,"periodEnd":"2024-12-31",
+   "session":"amc","eps":13.7,"revenue":2.4e12,"currency":"INR"}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `type` | `dividend`, `split` or `earnings`. An event of another type is ignored. |
+| `date` | `YYYY-MM-DD`, the calendar day in the symbol's time zone: the ex-dividend date, the split's ex-date, the earnings release. The marker sits on that day's bar. |
+| `amount`, `payDate` | Dividend: the cash amount per share (required) and the payment date. |
+| `from`, `to` | Split: the shares before and after (required, above 0). A 4-for-1 split is `1` → `4`, a 1-for-10 reverse split `10` → `1`. A **bonus issue** is a split: a 1:1 bonus is `1` → `2`. Any other event that adjusts the price history (a rights issue) may be sent as the split of its adjustment factor, for example `1000` → `1009`. |
+| `fiscalPeriod`, `fiscalYear` | Earnings: the period (`Q1`…`Q4`, `H1`, `FY`) and its fiscal year, shown as the marker's caption (`Q3 '25`). |
+| `periodEnd` | Earnings: the last day of the period (`YYYY-MM-DD`). |
+| `session` | Earnings: `bmo` (before the market opens) or `amc` (after it closes), when known. |
+| `eps`, `revenue`, `currency` | Earnings: the reported diluted EPS and revenue, and their currency. |
+
+Every field but `type` and `date` is optional unless marked required; an event missing a required field is dropped. Send at most 5000 events per symbol, in any order. Bars are not adjusted by the app: send them as your source adjusts them.
+
+Answer `-32601` (method not found) if you have no events: the app asks no more until the plugin connects again. `-32004` for an unknown symbol, or `{"events":[]}`, means none.
+
+### `data.eventsChanged` (plugin → app, notification)
+
+Some symbols' events changed (a new dividend announced, an event cancelled): `{"tickers":["RELIANCE"]}`, with the tickers as the app asks them. Without `tickers`, all of the plugin's symbols changed. The app drops what it kept and asks `data.events` again for the charts that show them.
 
 ## Broker plugins (`broker`)
 

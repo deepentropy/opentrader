@@ -11,6 +11,7 @@
  */
 pub mod broker;
 pub mod data;
+pub mod events;
 mod package;
 
 use opentrader_core::files;
@@ -141,6 +142,7 @@ pub struct PluginPromptDone {
 pub struct Plugins {
     pub hub: Hub,
     pub data: data::PluginData,
+    pub events: events::PluginEvents,
     pub broker: broker::PluginBroker,
     config: Mutex<Config>,
     error: Mutex<Option<String>>,
@@ -282,6 +284,7 @@ pub fn init(app: &AppHandle) {
     app.manage(Plugins {
         hub: Hub::new(),
         data: Default::default(),
+        events: Default::default(),
         broker: Default::default(),
         config: Mutex::new(read_config(app)),
         error: Mutex::new(None),

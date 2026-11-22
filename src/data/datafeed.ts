@@ -17,7 +17,7 @@
  * Time is UNIX seconds everywhere (lightweight-charts UTCTimestamp), matching
  * the backend `Candle.time`.
  */
-import { commands, type Candle, type EconomicCountry, type SymbolSearchResult } from "../bindings";
+import { commands, type Candle, type EconomicCountry, type SymbolEvent, type SymbolSearchResult } from "../bindings";
 import {
   getSecondHistory,
   getSecondHistoryTail,
@@ -435,10 +435,42 @@ export type ChartEvent = {
   currency?: string;
 };
 
+/** "Q2 '25" of an earnings release's fiscal period and year ("" without them). */
+function fiscalLabel(period: string | null | undefined, year: number | null | undefined): string {
+  return period && year ? `${period} '${String(year).slice(-2)}` : "";
+}
+
+/** The events of a data plugin's symbol, as its plugin sends them (#382). */
+export function pluginChartEvents(list: SymbolEvent[], onDay: (utcMidnight: number) => number): ChartEvent[] {
+  const out: ChartEvent[] = [];
+  for (const e of list) {
+    if (e.date == null) continue;
+    const time = onDay(e.date);
+    if (e.kind === "dividend") {
+      out.push({ time, kind: "dividend", label: (e.amount ?? 0).toFixed(2), amount: e.amount ?? 0, payDate: e.payDate == null ? null : onDay(e.payDate) });
+    } else if (e.kind === "split") {
+      out.push({ time, kind: "split", label: `${e.to ?? 1}:${e.from ?? 1}`, from: e.from, to: e.to });
+    } else if (e.kind === "earnings") {
+      out.push({
+        time,
+        kind: "earnings",
+        label: fiscalLabel(e.fiscalPeriod, e.fiscalYear),
+        periodEnd: e.periodEnd ?? undefined,
+        session: e.session === "bmo" || e.session === "amc" ? e.session : null,
+        eps: e.eps ?? null,
+        revenue: e.revenue ?? null,
+        currency: e.currency ?? undefined,
+      });
+    }
+  }
+  return out.sort((a, b) => a.time - b.time);
+}
+
 /** Dividend + split + earnings markers for `symbol`, time-ascending.
  *  Best-effort: a failing endpoint contributes nothing rather than throwing
  *  (events are decorative), except a server that cannot be reached, which is
- *  tried again until it answers. */
+ *  tried again until it answers. A data plugin's symbol has its plugin's
+ *  events. */
 export async function getEvents(symbol: string): Promise<ChartEvent[]> {
   const settled = <T>(call: () => Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>) =>
     retryTransient(async () => {
@@ -446,21 +478,26 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
       if (r.status === "error" && isTransientError(r.error)) throw new Error(r.error);
       return r;
     });
-  const company = hasFundamentals(symbol);
-  const [divs, splits, fundamentals, sessions] = await Promise.all([
-    company ? settled(() => commands.getDividends(symbol)) : null,
-    company ? settled(() => commands.getSplits(symbol)) : null,
-    company ? getFundamentals(symbol) : null,
-    retryTransient(() => symbolSessions(symbol)),
-  ]);
+  const sessions = await retryTransient(() => symbolSessions(symbol));
   // Event dates arrive as 00:00 UTC of the calendar date; place them on that
   // date's daily-bar stamp (local midnight in the exchange zone).
   const onDay = (utcMidnight: number) => localToUtc(sessions.timeZone, Math.floor(utcMidnight / 86400), 0);
+  // A data plugin's symbol (it lists the intervals it serves).
+  if (sessions.intervals.length) {
+    const r = await settled(() => commands.pluginEvents(symbol));
+    return r.status === "ok" ? pluginChartEvents(r.data, onDay) : [];
+  }
+  const company = hasFundamentals(symbol);
+  const [divs, splits, fundamentals] = await Promise.all([
+    company ? settled(() => commands.getDividends(symbol)) : null,
+    company ? settled(() => commands.getSplits(symbol)) : null,
+    company ? getFundamentals(symbol) : null,
+  ]);
   const out: ChartEvent[] = [];
   if (divs?.status === "ok") {
     for (const d of divs.data) {
       if (d.date != null) {
-        out.push({ time: onDay(d.date), kind: "dividend", label: (d.amount ?? 0).toFixed(2), amount: d.amount ?? 0, payDate: d.payDate ?? null });
+        out.push({ time: onDay(d.date), kind: "dividend", label: (d.amount ?? 0).toFixed(2), amount: d.amount ?? 0, payDate: d.payDate == null ? null : onDay(d.payDate) });
       }
     }
   }
@@ -476,7 +513,7 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
     out.push({
       time: onDay(day),
       kind: "earnings",
-      label: e.fp && e.fy ? `${e.fp} '${String(e.fy).slice(-2)}` : "",
+      label: fiscalLabel(e.fp, e.fy),
       periodEnd: end,
       session: e.time === "bmo" || e.time === "amc" ? e.time : null,
       eps: e.eps ?? null,
