@@ -687,13 +687,17 @@ fn found_rows(
 }
 
 /// The search tab of a symbol type.
+/// The search tab of a plugin's symbol type (the frontend's market buckets). A type the protocol doesn't list is no
+/// stock: shown under All only (#385). No type at all, as plugins sent before types: a stock.
 fn market_of(kind: &str) -> &'static str {
     match kind {
+        "" | "stock" | "fund" | "bond" => "stocks",
         "forex" => "fx",
         "crypto" => "crypto",
         "index" => "indices",
         "futures" | "cfd" | "commodity" => "futures",
-        _ => "stocks",
+        "option" => "options",
+        _ => "other",
     }
 }
 
@@ -1122,6 +1126,16 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn a_symbol_type_picks_its_search_tab() {
+        assert_eq!(market_of("option"), "options");
+        assert_eq!(market_of("cfd"), "futures");
+        assert_eq!(market_of("fund"), "stocks");
+        assert_eq!(market_of(""), "stocks");
+        // Not a stock: listed under All only (#385).
+        assert_eq!(market_of("sgb"), "other");
+    }
 
     #[test]
     fn bar_origin_is_a_time_of_day() {

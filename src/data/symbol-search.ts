@@ -12,7 +12,9 @@ export type SymbolType =
 
 export type SymbolCategoryId =
   | 'all' | 'stocks' | 'funds' | 'futures' | 'forex'
-  | 'crypto' | 'indices' | 'bonds' | 'economy' | 'options' | 'local';
+  | 'crypto' | 'indices' | 'bonds' | 'economy' | 'options' | 'local'
+  /** A data plugin's symbol of a type no tab shows: listed under All only. */
+  | 'other';
 
 export type SymbolRow = {
   /** "NASDAQ:INTC" — full symbol passed to the chart. */

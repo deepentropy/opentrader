@@ -104,7 +104,7 @@ const TYPE_LABELS: Record<string, string> = {
   preferred: "preferred", warrant: "warrant", right: "right", unit: "unit",
   structured: "structured", bond: "bond", index: "index", economic: "economic",
   // A data plugin's symbol types (plugins/PROTOCOL.md data.search).
-  forex: "forex", crypto: "crypto", futures: "futures", cfd: "cfd", commodity: "commodity",
+  forex: "forex", crypto: "crypto", futures: "futures", cfd: "cfd", commodity: "commodity", option: "option",
 };
 
 /** Market → category-tab id. The "stocks" market is a catch-all that also
@@ -112,8 +112,9 @@ const TYPE_LABELS: Record<string, string> = {
  *  security type (otherwise ETFs leak into the Stocks tab). */
 const MARKET_CATEGORY: Record<string, SymbolCategoryId> = {
   stocks: "stocks", otc: "stocks", crypto: "crypto", fx: "forex", indices: "indices", economy: "economy",
-  // A data plugin's futures, CFDs and commodities (src-tauri plugins/data.rs market_of).
-  futures: "futures",
+  // A data plugin's futures, CFDs, commodities and options (src-tauri plugins/data.rs market_of); its other types
+  // ("other") are listed under All only.
+  futures: "futures", options: "options", other: "other",
 };
 
 /** Security type → category-tab override (takes priority over the market
@@ -145,7 +146,7 @@ export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
   const market = r.market ?? "stocks";
   const marketType =
     (r.type && TYPE_LABELS[r.type]) ||
-    (market === "crypto" ? "crypto" : market === "fx" ? "forex" : market === "indices" ? "index" : "stock");
+    (market === "other" ? (r.type ?? "") : market === "crypto" ? "crypto" : market === "fx" ? "forex" : market === "indices" ? "index" : "stock");
   return {
     symbolName: code ? `${code}:${r.ticker}` : r.ticker,
     ticker: r.ticker,

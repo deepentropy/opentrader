@@ -103,3 +103,20 @@ describe("a query typed with its exchange", () => {
     expect(liveResultsToRows([res("XAUUSD", { exchange: "MT5" }), res("XAUG", { exchange: "XNAS" })], "all", "MT5:XAU").map((r) => r.symbolName)).toEqual(["MT5:XAUUSD"]);
   });
 });
+
+describe("a data plugin's symbol types (#385)", () => {
+  const plugin = (ticker: string, type: string, market: string) => res(ticker, { exchange: "KITE", type, market });
+
+  it("lists an option under Options, not Stocks", () => {
+    const rows = [plugin("NIFTY25DEC26000CE", "option", "options"), plugin("TCS", "stock", "stocks")];
+    expect(liveResultsToRows(rows, "options", "").map((r) => r.ticker)).toEqual(["NIFTY25DEC26000CE"]);
+    expect(liveResultsToRows(rows, "stocks", "").map((r) => r.ticker)).toEqual(["TCS"]);
+    expect(liveResultsToRows(rows, "options", "")[0].marketType).toBe("option");
+  });
+
+  it("lists a type no tab shows under All only, with its own label", () => {
+    const rows = [plugin("GOLDBEES-SGB", "sgb", "other")];
+    expect(liveResultsToRows(rows, "stocks", "")).toEqual([]);
+    expect(liveResultsToRows(rows, "all", "").map((r) => [r.ticker, r.marketType])).toEqual([["GOLDBEES-SGB", "sgb"]]);
+  });
+});

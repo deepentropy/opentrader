@@ -82,6 +82,9 @@ const GROUPS: Record<string, string[]> = {
     "crypto",
     "options",
     "warrant",
+    "cfd",
+    "commodity",
+    "option",
     "stock|market",
     "dr|market",
     "etf|market",
@@ -98,6 +101,9 @@ const GROUPS: Record<string, string[]> = {
     "forex|market",
     "crypto|market",
     "options|market",
+    "cfd|market",
+    "commodity|market",
+    "option|market",
   ],
   // "Money" is also the profit and loss shown as an amount (chart settings), "Trade" the header's trading button: the
   // categories have their own sense.

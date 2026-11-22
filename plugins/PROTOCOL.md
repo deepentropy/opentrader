@@ -144,7 +144,7 @@ Bars are `[time, open, high, low, close, volume]` arrays. `time` is the bar's st
 
 The query never holds the exchange: the app asks each plugin once and keeps the rows of the exchange the user typed (`NSE:REL`).
 
-Return at most 50 matches; an empty query may return the most used symbols. `type` is one of `stock`, `fund`, `index`, `forex`, `crypto`, `futures`, `cfd`, `bond`. It picks the search tab the row appears under.
+Return at most 50 matches; an empty query may return the most used symbols. `type` is one of `stock`, `fund`, `index`, `forex`, `crypto`, `futures`, `cfd`, `bond`, `option`. It picks the search tab the row appears under; another type is listed under All only, with the type as its label.
 
 ### `data.symbolInfo` (app → plugin, request)
 
