@@ -1,6 +1,6 @@
 # Interactive Brokers plugin
 
-Connects OpenTrader to your Interactive Brokers account, through IB Gateway or TWS running on your computer, or by logging in to Interactive Brokers directly with no other program (direct login).
+Connects OpenTrader to your Interactive Brokers account, through IB Gateway or TWS running on your computer, or by logging in to Interactive Brokers directly with no other program (direct login, beta).
 
 - **Account**: balance, equity, margin, P&L and the other account values; positions with their live P&L; open and recent orders; the last week's executions with commissions.
 - **Trading**: market, limit, stop and stop-limit orders with take profit and stop loss; modify, cancel; close a position in whole or in part; add, move or remove a position's take profit and stop loss.
@@ -18,7 +18,9 @@ Through IB Gateway or TWS, the login stays there and OpenTrader keeps no passwor
    - untick **Read-Only API** to trade from OpenTrader;
    - keep **Allow connections from localhost only** ticked, or add `127.0.0.1` to the trusted IPs.
 
-### Direct login
+### Direct login (beta)
+
+The direct login runs on the [ibx](https://github.com/deepentropy/ibx) engine, which is still in beta: if a login, a quote or an order does not behave as through IB Gateway or TWS, switch back to IB Gateway or TWS and open an issue.
 
 1. In the plugin's settings, set **Connection** to **Direct login**.
 2. Enter your **Username** and **Password**, and pick the **Account**: **Paper trading** (with your paper trading username) or **Live**.

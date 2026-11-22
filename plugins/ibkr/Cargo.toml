@@ -1,6 +1,6 @@
 [package]
 name = "opentrader-ibkr"
-version = "0.3.0"
+version = "0.3.1"
 description = "OpenTrader broker plugin for Interactive Brokers (IB Gateway / TWS socket API, or a direct login)"
 edition = "2021"
 publish = false
