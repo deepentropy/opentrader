@@ -363,9 +363,12 @@ const DECLARATION_BAR: Bar = { time: 0, open: 0, high: 0, low: 0, close: 0, volu
  * Chart context of a declaration run (zero bars): what a script declares (title, inputs, plots, strategy()
  * properties) does not depend on the symbol, but the session functions (timeframe.change, time(tf, session)...)
  * need a session and a time zone to be called at all, and the symbol values (syminfo.mintick...) must be known to be
- * read. No bar is read, so the always-open session in UTC and the default symbol stand in for any symbol.
+ * read. No bar is read, so the always-open session in UTC and the default symbol stand in for any symbol. Its ticker
+ * stands in too: a script that asks a series of its own symbol (`request.security(syminfo.tickerid + "_OI", …)`,
+ * #383) reads it at its top level.
  */
 export const DECLARATION_CHART: ChartContext = {
+  tickerid: 'DECLARATION:SYMBOL',
   timeframe: '1D',
   timezone: 'Etc/UTC',
   sessionType: 'regular',

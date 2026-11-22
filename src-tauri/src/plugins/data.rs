@@ -82,6 +82,76 @@ pub struct Info {
     /// How far back, in calendar days, the source serves each family of bars: the app asks nothing older.
     #[serde(default)]
     pub history: HistoryDepth,
+    /// The symbol's extra series (#383): `<SYMBOL>_<NAME>` symbols served by the plugin, as the open interest of a
+    /// future is `<SYMBOL>_OI`. Their own info is this one's.
+    #[serde(default)]
+    pub series: Vec<SeriesDecl>,
+    /// Values of the instrument shown with it (#383): circuit limits, price bands. `[{"name":…, "value":…}]`.
+    #[serde(default)]
+    pub fields: Vec<Value>,
+}
+
+/// An extra series of a symbol (`series` of `data.symbolInfo`): its name alone (`"OI"`), or with what differs from
+/// the symbol's own info.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+pub enum SeriesDecl {
+    Name(String),
+    Full {
+        name: String,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        intervals: Option<Vec<String>>,
+        #[serde(default)]
+        pricescale: Option<u32>,
+    },
+}
+
+impl SeriesDecl {
+    fn name(&self) -> &str {
+        match self {
+            SeriesDecl::Name(n) | SeriesDecl::Full { name: n, .. } => n.trim(),
+        }
+    }
+}
+
+/// The description of a series named alone: open interest is the one the reference names.
+fn series_description(name: &str) -> String {
+    if name.eq_ignore_ascii_case("OI") { "Open Interest".into() } else { name.to_string() }
+}
+
+/// The base symbol and the series name of `<SYMBOL>_<NAME>` (a name of letters and digits).
+fn split_series(r: &Route) -> Option<(Route, String)> {
+    let (base_ticker, name) = r.ticker.rsplit_once('_')?;
+    let (base_symbol, _) = r.symbol.rsplit_once('_')?;
+    let ok = !base_ticker.is_empty() && !base_ticker.ends_with(':') && (1..=32).contains(&name.len()) && name.bytes().all(|b| b.is_ascii_alphanumeric());
+    ok.then(|| (Route { plugin: r.plugin.clone(), symbol: base_symbol.to_string(), ticker: base_ticker.to_string() }, name.to_string()))
+}
+
+/// The info of `base`'s series `name` when `base` lists it: the same sessions, time zone, currency and tick (the
+/// reference's open interest symbols keep their future's), the series' own description, intervals and scale.
+fn series_info(base: &Info, base_ticker: &str, name: &str) -> Option<Info> {
+    let decl = base.series.iter().find(|s| s.name().eq_ignore_ascii_case(name))?;
+    let bare = base_ticker.rsplit_once(':').map_or(base_ticker, |(_, t)| t);
+    let (description, intervals, pricescale) = match decl {
+        SeriesDecl::Name(n) => (series_description(n.trim()), None, None),
+        SeriesDecl::Full { name, description, intervals, pricescale } => (
+            description.clone().filter(|d| !d.trim().is_empty()).unwrap_or_else(|| series_description(name.trim())),
+            intervals.clone().filter(|i| !i.is_empty()),
+            pricescale.filter(|p| *p > 0),
+        ),
+    };
+    Some(Info {
+        description: format!("{bare} {description}"),
+        intervals: intervals.unwrap_or_else(|| base.intervals.iter().filter(|i| !i.eq_ignore_ascii_case("1T")).cloned().collect()),
+        pricescale: pricescale.unwrap_or(base.pricescale),
+        minmov: if pricescale.is_some() { 1 } else { base.minmov },
+        point_value: None,
+        series: Vec::new(),
+        fields: Vec::new(),
+        ..base.clone()
+    })
 }
 
 /// Calendar days of history per family of bars (`history` of `data.symbolInfo`); none = as far as the asks go.
@@ -278,6 +348,7 @@ fn forget(app: &AppHandle, plugin: &str) {
     s.unknown.locked().retain(|sym| !exchanges.iter().any(|e| sym.starts_with(e)));
     s.recent.locked().retain(|(sym, _, _), _| !exchanges.iter().any(|e| sym.starts_with(e)));
     s.pages.locked().retain(|(sym, ..), _| !exchanges.iter().any(|e| sym.starts_with(e)));
+    super::fields::forget(app, &exchanges);
 }
 
 /// The error of a symbol its plugin doesn't know: final, like the gateway's (the window doesn't retry it).
@@ -306,6 +377,16 @@ pub async fn info(app: &AppHandle, r: &Route) -> Result<Arc<Info>, String> {
     }
     if state(app).unknown.locked().contains(&r.symbol) {
         return Err(unknown_symbol(&r.symbol));
+    }
+    // An extra series its symbol lists (`NFO:NIFTY26NOVFUT_OI`): its info is the symbol's, the plugin serves its bars.
+    if let Some((base, name)) = split_series(r) {
+        if let Ok(b) = Box::pin(info(app, &base)).await {
+            if let Some(i) = series_info(&b, &base.ticker, &name) {
+                let i = Arc::new(i);
+                state(app).infos.locked().insert(r.symbol.clone(), i.clone());
+                return Ok(i);
+            }
+        }
     }
     let hub = app.state::<Plugins>().hub.clone();
     let v = match hub.request(&r.plugin, "data.symbolInfo", json!({ "ticker": r.ticker }), INFO_TIMEOUT).await {
@@ -789,7 +870,9 @@ fn push_subscriptions(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 struct Quote {
     ticker: String,
-    price: f64,
+    /// None in a quote of fields alone (#383).
+    #[serde(default)]
+    price: Option<f64>,
     #[serde(default)]
     prev_close: Option<f64>,
     /// The forming minute bar, [time, open, high, low, close, volume].
@@ -801,6 +884,9 @@ struct Quote {
     /// UNIX seconds of the quote.
     #[serde(default)]
     time: Option<f64>,
+    /// Instrument values that changed (#383): `[{"name":…, "value":…}]`.
+    #[serde(default)]
+    fields: Vec<Value>,
 }
 
 fn candle(a: [f64; 6]) -> Candle {
@@ -810,14 +896,15 @@ fn candle(a: [f64; 6]) -> Candle {
 /// A plugin's live quote becomes the events the chart, the watchlist and the alerts read.
 fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     let Ok(q) = serde_json::from_value::<Quote>(params) else { return };
-    if !q.price.is_finite() {
-        return;
-    }
     let symbol = {
         let s = state(app);
         symbol_of(&s.exchanges.locked(), &s.whole.locked(), plugin, &q.ticker)
     };
     let Some(symbol) = symbol else { return };
+    if !q.fields.is_empty() {
+        super::fields::on_quote(app, &symbol, &q.fields);
+    }
+    let Some(price) = q.price.filter(|p| p.is_finite()) else { return };
     let minute = q.minute.map(candle);
     let time = q.time.unwrap_or_else(now);
     state(app).quoted.locked().insert(symbol.clone(), time);
@@ -829,13 +916,13 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     let prev = q.prev_close.filter(|p| *p != 0.0);
     let _ = TradeTick {
         symbol: symbol.clone(),
-        price: q.price,
-        change: prev.map(|p| q.price - p),
-        change_percent: prev.map(|p| (q.price - p) / p * 100.0),
+        price: price,
+        change: prev.map(|p| price - p),
+        change_percent: prev.map(|p| (price - p) / p * 100.0),
         ext_change_percent: None,
         volume: q.day.map(|d| d[5]),
         source: Some("live".into()),
-        trade_price: Some(q.price),
+        trade_price: Some(price),
         trade_time: minute.as_ref().map(|m| m.time),
         trade_high: minute.as_ref().map(|m| m.high),
         trade_low: minute.as_ref().map(|m| m.low),
@@ -845,7 +932,7 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     .emit(app);
     // The desktop alert engine reads the quotes the host gets.
     if let Some(host) = app.try_state::<HostRef>() {
-        host.on_quote(&symbol, q.price, minute.as_ref());
+        host.on_quote(&symbol, price, minute.as_ref());
     }
 }
 
@@ -1152,6 +1239,32 @@ mod tests {
         assert_eq!(market_of(""), "stocks");
         // Not a stock: listed under All only (#385).
         assert_eq!(market_of("sgb"), "other");
+    }
+
+    #[test]
+    fn an_extra_series_takes_its_symbols_info() {
+        let (ex, whole) = maps();
+        let r = route_in(&ex, &whole, "NFO:NIFTY26NOVFUT_OI").unwrap();
+        let (base, name) = split_series(&r).unwrap();
+        assert_eq!((base.symbol.as_str(), base.ticker.as_str(), name.as_str()), ("NFO:NIFTY26NOVFUT", "NFO:NIFTY26NOVFUT", "OI"));
+        assert!(split_series(&route_in(&ex, &whole, "NFO:_OI").unwrap()).is_none());
+        assert!(split_series(&route_in(&ex, &whole, "NFO:A_B-C").unwrap()).is_none());
+        let base: Info = serde_json::from_value(json!({
+            "description": "NIFTY NOV FUT", "type": "futures", "currency": "INR", "timezone": "Asia/Kolkata", "session": "0915-1530",
+            "pricescale": 20, "minmov": 1, "intervals": ["1", "5", "1D", "1T"], "pointValue": 65,
+            "series": ["OI", {"name": "UC", "description": "Upper circuit", "intervals": ["1D"], "pricescale": 100}],
+            "fields": [{"name": "Upper circuit", "value": 1}],
+        }))
+        .unwrap();
+        let oi = series_info(&base, "NFO:NIFTY26NOVFUT", "oi").unwrap();
+        assert_eq!(oi.description, "NIFTY26NOVFUT Open Interest");
+        assert_eq!((oi.kind.as_str(), oi.timezone.as_str(), oi.currency.as_deref(), oi.pricescale), ("futures", "Asia/Kolkata", Some("INR"), 20));
+        // Ticks are the symbol's own; the series has no point value, nor series or fields of its own.
+        assert_eq!(oi.intervals, iv(&["1", "5", "1D"]));
+        assert!(oi.point_value.is_none() && oi.series.is_empty() && oi.fields.is_empty());
+        let uc = series_info(&base, "NFO:NIFTY26NOVFUT", "UC").unwrap();
+        assert_eq!((uc.description.as_str(), uc.intervals.clone(), uc.pricescale), ("NIFTY26NOVFUT Upper circuit", iv(&["1D"]), 100));
+        assert!(series_info(&base, "NFO:NIFTY26NOVFUT", "VOLX").is_none());
     }
 
     #[test]

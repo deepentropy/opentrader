@@ -153,6 +153,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::data::plugin_watch_ticks,
             plugins::data::plugin_watchlists,
             plugins::events::plugin_events,
+            plugins::fields::plugin_symbol_fields,
             plugins::broker::broker_set_symbol_map,
             plugins::broker::broker_refresh_state,
             plugins::broker::broker_instrument,
@@ -181,6 +182,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::data::PluginTicks,
             plugins::data::PluginWatchlistsChanged,
             plugins::events::PluginEventsChanged,
+            plugins::fields::PluginFieldsChanged,
         ])
 }
 

@@ -237,3 +237,16 @@ describe("runOakScriptStrategy", () => {
     expect(() => runOakScriptStrategy(body2, bars)).toThrow(/immediately/);
   });
 });
+
+describe("declaration run", () => {
+  it("reads the chart's ticker: a series of the symbol's own is declared (#383)", async () => {
+    const { executeScript, indicator, plot, request, syminfo } = await import("oakscriptjs/script");
+    const { DECLARATION_CHART } = await import("../oakscript");
+    const run = executeScript(() => {
+      indicator("OI");
+      plot(request.security(syminfo.tickerid + "_OI", "", () => close), "OI");
+    }, [], {}, DECLARATION_CHART);
+    expect(run.metadata.title).toBe("OI");
+    expect(run.plotConfig.map((p) => p.title)).toEqual(["OI"]);
+  });
+});

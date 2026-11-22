@@ -38,8 +38,9 @@ export function securityTypeLabel(kind: string | null | undefined): string | nul
   }
 }
 
-/** One field of the dialog. `link`: opens in the browser (value = its host name); `copy`: has a copy button. */
-export type InfoField = { title: string; value: string; link?: string; copy?: boolean; flag?: string };
+/** One field of the dialog. `link`: opens in the browser (value = its host name); `copy`: has a copy button; `raw`:
+ *  a data plugin's own name and value (#383), shown as given, not translated. */
+export type InfoField = { title: string; value: string; link?: string; copy?: boolean; flag?: string; raw?: boolean };
 
 export type InfoInput = {
   /** Full symbol ("AMEX:SPY"). */

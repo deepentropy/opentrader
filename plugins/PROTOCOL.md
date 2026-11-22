@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **5**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). A plugin of an earlier version works unchanged.
+Plugin API version **6**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -167,8 +167,31 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `pointValue` | Optional, 1 when left out. The money one unit of quantity makes when the price moves by 1, in `currency`. A future counted in contracts gives its multiplier: 65 for an NSE NIFTY future, 50 for an E-mini S&P. Symbol info shows it, and scripts (`syminfo.pointvalue`), the strategy tester and Bar Replay trading compute profits with it. |
 | `intervals` | The resolutions served: minutes (`"1"`, `"5"`, `"60"`…), seconds (`"1S"`…), `"1D"`, `"1W"`, `"1M"`. Intraday bars start on the clock grid of their size in the symbol's time zone (a `"60"` bar starts on the hour). Other minute or second sizes are built by the app from a served size that divides them. Bars that start at the session open (09:30, 10:30…) are built from a served size that divides the time from midnight to the open; with none (only `"60"` for a 09:30 open), the bars keep the served grid (09:00, 10:00…) and the one the open falls in is stamped at the open. Weeks and months are built from days. Add `"1T"` when you serve ticks (`data.ticks`): the app then offers tick charts (1T, 10T, 100T, 1000T and custom tick counts), each bar the next N ticks. The interval picker offers only these; another interval shows that it is not supported. |
 | `history` | Optional. How far back your source serves each family of bars, in calendar days: `{"second":3,"minute":30,"day":365}`, any of the three. The app then asks for nothing older (scrolling back stops there) and never more bars than fit in what it asks. Weeks and months follow `day`. Without it, the app asks as far back as the chart goes (30 years of days) and you answer what you have. |
+| `series` | Optional (Plugin API 6). The symbol's extra series, such as its open interest: `["OI"]`. See [Extra series](#extra-series). |
+| `fields` | Optional (Plugin API 6). Values of the instrument to show with it: `[{"name":"Upper circuit","value":2950.5},{"name":"Price band","value":"10%"}]`. See [Instrument values](#instrument-values). |
 
 **Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment.
+
+### Extra series
+
+Data your source has besides a symbol's prices, as a time series: the open interest of a future or an option, a provider's own numbers. Each one is a symbol of its own, the symbol's name followed by `_` and the series name: the open interest of `NFO:NIFTY26NOVFUT` is `NFO:NIFTY26NOVFUT_OI`. List the names in the symbol's `series`:
+
+```json
+"series":["OI", {"name":"UC","description":"Upper circuit","intervals":["1D"],"pricescale":100}]
+```
+
+A name is letters and digits. Given alone, the series has the symbol's info: its sessions, time zone, currency, tick and intervals (ticks excepted), described as `<ticker> <name>`, and `OI` as `<ticker> Open Interest`. An object changes what differs: `description`, `intervals` (the open interest of a future often has daily values only: `["1D"]`), `pricescale`. The app doesn't ask `data.symbolInfo` for the series; you serve it like any symbol:
+
+- `data.bars` with the series' ticker (`"ticker":"NIFTY26NOVFUT_OI"`, or `"NFO:NIFTY26NOVFUT_OI"` for a plugin of several exchanges): `[time, open, high, low, close]`. Give the same value four times when your source has one value per bar.
+- `data.subscribe` lists it while a chart or a script reads it: send its `data.quote` with `minute` (and `day`) bars, `price` being the last value.
+
+The series charts like a symbol, and scripts read it with `request.security(syminfo.tickerid + "_OI", timeframe.period, close)`. The built-in **Open Interest** indicator draws the `_OI` series of the chart's symbol: candles when its bars have open, high, low and close, a step line when they have one value; on an intraday chart, a series without intraday bars is shown with its daily values. A symbol that does not list a name may still be served under it: the app then asks its `data.symbolInfo` as for any symbol.
+
+### Instrument values
+
+What your source tells of an instrument beyond its prices: circuit limits, price bands, lot size, expiry. Send them as the `fields` of `data.symbolInfo`, `{"name":…, "value":…}` each, a number or a text. Symbol info lists them after the symbol's own fields, and the Details panel under the plugin's name, in the order given, as given (the app doesn't translate them). At most 50, names up to 64 characters, texts up to 200.
+
+When a value changes during the day, send it in the symbol's `data.quote` (`"fields":[{"name":"Upper circuit","value":3010.0}]`): it replaces the value of that name, adds a name not sent before, and a `null` value removes it. A quote may carry `fields` alone, without `price`. Scripts don't read these values: to give scripts a value's history, serve it as an [extra series](#extra-series) too.
 
 ### `data.bars` (app → plugin, request)
 
@@ -216,6 +239,7 @@ Send this for every subscribed ticker on each price change. Several per second a
 | `minute` | The forming 1-minute bar. It updates the chart's last bar at every minute-based interval. |
 | `day` | The forming daily bar. It updates daily, weekly and monthly charts. |
 | `prevClose` | The previous session's close. It gives the change shown in watchlists. |
+| `fields` | Optional: instrument values that changed (see [Instrument values](#instrument-values)). A quote of `fields` alone may leave out `price`. |
 
 ### `data.watchlists` (plugin → app, notification)
 

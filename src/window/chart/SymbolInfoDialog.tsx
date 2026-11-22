@@ -16,6 +16,7 @@ import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import { splitSymbol } from "../../data/symbol-name";
 import { symbolSessions } from "../../data/session";
 import { symbolInfoGroups, type InfoField } from "../../data/symbol-info";
+import { fieldText, pluginFields } from "../../data/plugin-fields";
 import { sessionTimeline } from "./legend-status";
 import { SessionTimelineView } from "./LegendStatusPopup";
 
@@ -26,6 +27,8 @@ export function SymbolInfoDialog(props: Props) {
   const [sessions] = createResource(() => props.symbol, (s) => symbolSessions(s).catch(() => null));
   // The price the tick size depends on: the chart's, else the latest quote, else a snapshot.
   const [snapshotLast] = createResource(() => props.symbol, (s) => getTickerSnapshot(s).then((x) => x.last, () => null));
+  // A data plugin's instrument values (circuit limits…): a group of their own after the symbol's (#383).
+  const plugin = pluginFields(() => props.symbol);
   const [allDays, setAllDays] = createSignal(false);
   const [now, setNow] = createSignal(Math.floor(Date.now() / 1000));
   const groups = createMemo(() => {
@@ -34,7 +37,8 @@ export function SymbolInfoDialog(props: Props) {
     const s = sessions();
     const price = chartLastPrice(props.symbol) ?? quoteFor(props.symbol)?.last ?? snapshotLast() ?? null;
     const tick = s && price != null ? s.tickAt(price) : null;
-    return symbolInfoGroups({
+    const own = plugin()?.fields.map((f): InfoField => ({ title: f.name, value: fieldText(f.value), raw: true })) ?? [];
+    const groups = symbolInfoGroups({
       symbol: props.symbol,
       name: i?.name,
       sector: i?.sector,
@@ -48,6 +52,7 @@ export function SymbolInfoDialog(props: Props) {
       tickSize: tick != null ? String(Number(tick.toPrecision(6))) : null,
       pointValue: s?.pointValue,
     });
+    return own.length ? [...groups, own] : groups;
   });
   const timeline = createMemo(() => {
     const s = sessions();
@@ -106,8 +111,10 @@ function Field(props: { field: InfoField }) {
   };
   return (
     <div class="sid-item">
-      <span class="sid-label">{props.field.title}</span>
-      <div class="sid-value">
+      <Show when={props.field.raw} fallback={<span class="sid-label">{props.field.title}</span>}>
+        <span class="sid-label" data-no-translate>{props.field.title}</span>
+      </Show>
+      <div class="sid-value" data-no-translate={props.field.raw || undefined}>
         <Show when={props.field.flag}>{(src) => <img class="sid-flag" src={src()} alt="" />}</Show>
         <Show when={props.field.link} fallback={<span>{props.field.value}</span>}>
           {(href) => (

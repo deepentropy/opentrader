@@ -34,6 +34,7 @@ import { marketSession as marketSessionOf, type MarketSession } from "../../data
 import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
 import { abbreviatedPrice } from "../chart/price-format";
 import { localNumber } from "../../i18n/format";
+import { fieldText, pluginFields } from "../../data/plugin-fields";
 import { createPopover } from "../../components/popover";
 import { translateWith } from "../../i18n/translator";
 import { lastNoteOf } from "../../data/symbol-notes";
@@ -209,6 +210,8 @@ export function WatchlistDetail(props: Props) {
   onCleanup(kv.onExternalChange(PREFS_KEY, () => setPrefs(loadPrefs())));
 
   const hasNotes = () => !!lastNoteOf(full());
+  // A data plugin's instrument values (circuit limits…), under the plugin's name (#383).
+  const plugin = pluginFields(full);
   const togglePanel = (p: "settings") => {
     const opening = openPanel() !== p;
     setOpenPanel(opening ? p : null);
@@ -593,6 +596,22 @@ export function WatchlistDetail(props: Props) {
             <span class="watchlist-detail-stat-label">Market capitalization</span>
             <span class="watchlist-detail-stat-value">{fmtCompact(i()?.marketCap)}</span>
           </div>
+        </Show>
+
+        <Show when={plugin()}>
+          {(p) => (
+            <>
+              <div class="watchlist-detail-section-heading" data-no-translate>{p().pluginName}</div>
+              <For each={p().fields}>
+                {(f) => (
+                  <div class="watchlist-detail-stat-row" data-no-translate>
+                    <span class="watchlist-detail-stat-label">{f.name}</span>
+                    <span class="watchlist-detail-stat-value">{fieldText(f.value)}</span>
+                  </div>
+                )}
+              </For>
+            </>
+          )}
         </Show>
 
         <Show when={prefs().sections.performance}>

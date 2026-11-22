@@ -12,4 +12,5 @@ pub mod manifest;
 
 /// The Plugin API version this app speaks. 2: a data plugin may serve several exchanges (`exchanges`). 3: password
 /// settings, settings shown for another's value (`when`), prompts to the user (`plugin.prompt`) and a data folder.
-pub const API_VERSION: u32 = 5;
+/// 4: ready-made watchlists. 5: symbol events. 6: a symbol's extra series (`series`, open interest) and fields.
+pub const API_VERSION: u32 = 6;
