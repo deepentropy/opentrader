@@ -2330,6 +2330,7 @@
   "Opacity": {"at":["window/drawings/ColorPanel.tsx:176"]},
   "Opacity outside VA": {"at":["window/chart/IndicatorSettingsDialog.tsx:967"]},
   "Open": {"at":["data/alert-outputs.ts:39","data/alert-placeholders.ts:49","data/screener-catalog.ts:381"],"uses":10},
+  "Open Interest": {"at":["studies: open-interest name","studies: open-interest plot"]},
   "Open PnL": {"at":["run time: drawing library, labels translated by i18n/drawing-labels.ts"]},
   "Open Replay Trading": {"at":["window/strategy-tester/StrategyTesterPanel.tsx:251"]},
   "Open account manager": {"at":["window/strategy-tester/StrategyTesterPanel.tsx:283"]},

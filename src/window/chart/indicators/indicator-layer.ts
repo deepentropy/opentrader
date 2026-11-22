@@ -286,6 +286,29 @@ const ANCHOR_STYLES = new Set<string>(['cross', 'linebr', 'steplinebr']);
  *  name a plot by it; the legend skips hidden plots). */
 export type IndicatorLegendPlot = { color: string; value: number; index: number };
 
+type LegendCandle = { time: number; open: number; high: number; low: number; close: number; color?: string };
+
+/** The candles' values at `time` (or their last candle), after the plots as the reference lists them: open, high,
+ *  low and close of each, in its colour (#383). A candle output hidden in the Style tab is out of the result already. */
+export function candleLegendValues(
+  map: Record<string, LegendCandle[]> | undefined,
+  decls: ReadonlyArray<{ id: string; color?: string }>,
+  time: number | undefined,
+  first: number,
+): IndicatorLegendPlot[] {
+  const out: IndicatorLegendPlot[] = [];
+  for (const [k, decl] of decls.entries()) {
+    const list = map?.[decl.id];
+    if (!list?.length) continue;
+    const i = time == null ? list.length - 1 : indexOfTime(list, time);
+    const c = i >= 0 ? list[i] : undefined;
+    if (!c) continue;
+    const color = resetTransparency(c.color ?? decl.color ?? '#787b86');
+    [c.open, c.high, c.low, c.close].forEach((value, j) => out.push({ color, value, index: first + k * 4 + j }));
+  }
+  return out;
+}
+
 /** Drop a colour's alpha (#rrggbbaa / #rgba / rgba()), keeping its RGB. */
 function resetTransparency(color: string): string {
   const c = color.trim();
@@ -1279,7 +1302,8 @@ export class IndicatorLayer {
       const a = result.plots[p.id];
       if (a?.length) { sample = a; break; }
     }
-    if (!sample) return loadingPlots();
+    const candles = this.legendCandles(time, entry.plotConfig.length);
+    if (!sample) return candles.length ? candles : loadingPlots();
     let idx = sample.length - 1;
     if (time != null) {
       const hit = indexOfTime(sample, time);
@@ -1308,7 +1332,12 @@ export class IndicatorLayer {
       const color = mapped ?? own ?? ov?.color ?? p.color ?? '#787b86';
       out.push({ color: resetTransparency(color), value: pt.value, index });
     }
+    out.push(...candles);
     return out;
+  }
+
+  private legendCandles(time: number | undefined, first: number): IndicatorLegendPlot[] {
+    return candleLegendValues(this.lastResult?.plotCandles, this.entry?.plotCandleConfig ?? [], time, first);
   }
 
   /** Tear down every series + primitive this layer owns. */
