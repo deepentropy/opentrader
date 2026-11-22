@@ -23,6 +23,7 @@ import {
   watchlistStore,
   isSectionId,
   isDeletedList,
+  isLockedList,
   sectionId,
   sectionNameOf,
   type AddAnchor,
@@ -80,10 +81,13 @@ export function Watchlist(props: WatchlistProps) {
   // menu = right after that row).
   const [addOpen, setAddOpen] = createSignal(false);
   const [addAnchor, setAddAnchor] = createSignal<AddAnchor>(null);
-  // "Deleted symbols" takes no symbol by hand, no section and no new name.
+  // "Deleted symbols" takes no symbol by hand, no section and no new name; a
+  // data plugin's list (#381) takes no change by hand at all.
   const inDeleted = () => isDeletedList(watchlistStore.activeId());
+  const locked = () => isLockedList(watchlistStore.activeId());
+  const noAdd = () => inDeleted() || locked();
   const openAdd = (anchor: AddAnchor) => {
-    if (inDeleted()) return;
+    if (noAdd()) return;
     setAddAnchor(anchor);
     setAddOpen(true);
   };
@@ -162,6 +166,7 @@ export function Watchlist(props: WatchlistProps) {
     get extras() { return extras; },
     get groups() { return groups; },
     get inDeleted() { return inDeleted; },
+    get locked() { return locked; },
     get listDraft() { return listDraft; },
     get listName() { return listName; },
     get setAddAnchor() { return setAddAnchor; },
@@ -267,11 +272,11 @@ export function Watchlist(props: WatchlistProps) {
                   class={
                     h.dataName === "settings-button" && settingsOpen()
                       ? "is-active"
-                      : h.dataName === "add-symbol-button" && inDeleted()
+                      : h.dataName === "add-symbol-button" && noAdd()
                         ? "is-disabled"
                         : undefined
                   }
-                  disabled={h.dataName === "add-symbol-button" && inDeleted()}
+                  disabled={h.dataName === "add-symbol-button" && noAdd()}
                   onClick={() => {
                     if (h.dataName === "settings-button") setSettingsOpen((o) => !o);
                     else if (h.dataName === "add-symbol-button") openAdd(null);
@@ -291,7 +296,7 @@ export function Watchlist(props: WatchlistProps) {
           activeId={watchlistStore.activeId()}
           onSelectList={(id) => watchlistStore.setActive(id)}
           onClose={() => setMenuOpen(false)}
-          disabled={inDeleted() ? ["rename", "add-section"] : []}
+          disabled={locked() ? ["rename", "add-section", "clear-list"] : inDeleted() ? ["rename", "add-section"] : []}
           onRenameList={renameList}
           onAddSection={() => addSection(chartRow())}
           onClearList={clearList}
@@ -480,7 +485,7 @@ export function Watchlist(props: WatchlistProps) {
             canCompare={!!props.onAddCompare && (m().selected == null || selection().length <= 10)}
             onAddCompare={(rows) => props.onAddCompare?.(rows.map((r) => r.ticker))}
             onAddNote={openNoteFor}
-            canAdd={!inDeleted()}
+            canAdd={!noAdd()}
             onAddSection={() => addSection(m().row?.ticker ?? sectionId(m().section!))}
             onAddSymbol={() => openAdd(m().row ? { section: m().section, after: m().row!.ticker } : { section: m().section! })}
             onClose={() => setCtxMenu(null)}

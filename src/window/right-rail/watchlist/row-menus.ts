@@ -9,6 +9,7 @@ import {
   watchlistStore,
   isSectionId,
   isDeletedList,
+  isPluginList,
   listItems,
   sectionId,
   sectionNameOf,
@@ -67,6 +68,8 @@ export function createRowMenus(cx: WatchlistCx): RowMenusApi {
       return;
     }
     if (!isSectionSelected(name)) selectOnly(sectionId(name));
+    // A data plugin's sections are not edited by hand: nothing to offer.
+    if (cx.locked()) return;
     setSectionCtx({ name, x: e.clientX, y: e.clientY });
   };
   // The items the open row menu acts on, in list order: the selection
@@ -109,7 +112,7 @@ export function createRowMenus(cx: WatchlistCx): RowMenusApi {
   // misses.
   const ctxLists = () => {
     const id = watchlistStore.activeId();
-    const all = watchlistStore.lists().filter((l) => !l.id.startsWith("color-") && (l.id === id || !isDeletedList(l.id)));
+    const all = watchlistStore.lists().filter((l) => !l.id.startsWith("color-") && !isPluginList(l) && (l.id === id || !isDeletedList(l.id)));
     return [
       ...all.filter((l) => l.id === id),
       ...all.filter((l) => l.id !== id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),

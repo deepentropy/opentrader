@@ -79,6 +79,17 @@ class Source:
         points = [self.price(ticker, start + i * step // 8) for i in range(9)]
         return [start, points[0], max(points), min(points), points[-1], 100 + start % 900]
 
+    def watchlists(self):
+        """Ready-made watchlists of your symbols (optional, Plugin API 4): sent after connecting, and again whenever
+        they change (new contracts, new index members). Return [] to offer none."""
+        return [
+            {"id": "majors", "name": "Majors", "symbols": [t for t, (_d, kind, *_r) in self.SYMBOLS.items() if kind == "forex"]},
+            {"id": "all", "name": "All symbols", "sections": [
+                {"name": kind, "symbols": [t for t, (_d, k, *_r) in self.SYMBOLS.items() if k == kind]}
+                for kind in sorted({k for (_d, k, *_r) in self.SYMBOLS.values()})
+            ]},
+        ]
+
     def search(self, query):
         q = query.upper()
         return [
@@ -445,6 +456,10 @@ class Plugin:
         self.alive = True
         self.log(f"Connected to {welcome.get('result', {}).get('app', 'OpenTrader')} (Plugin API {welcome.get('result', {}).get('api')})")
         self.push_state()
+        with self.source.lock:
+            lists = self.source.watchlists()
+        if lists:
+            self.notify("data.watchlists", {"watchlists": lists})
         threading.Thread(target=self.stream, daemon=True).start()
         for line in reader:
             if not line.strip():

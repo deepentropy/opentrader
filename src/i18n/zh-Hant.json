@@ -2989,6 +2989,7 @@
 "Plotting and Coloring": "繪圖與著色",
 "Plotting and Coloring Settings": "繪圖與著色設定",
 "Plotting and UI Settings": "繪圖與介面設定",
+"Plugin lists": "外掛程式列表",
 "Plugins": "外掛程式",
 "Plugins connect OpenTrader to other applications on this computer: a data plugin adds the symbols it supplies, a broker plugin shows your account and trades on it. A plugin runs with your rights: install only the ones you trust. OpenTrader keeps no password of theirs.": "外掛程式將 OpenTrader 與此電腦上的其他應用程式連接：資料外掛程式加入其提供的代碼，券商外掛程式顯示您的帳戶並在其上交易。外掛程式以您的權限執行：只安裝您信任的外掛程式。OpenTrader 不保存外掛程式的任何密碼。",
 "Plus button": "加號按鈕",

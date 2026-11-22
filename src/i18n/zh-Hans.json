@@ -2989,6 +2989,7 @@
 "Plotting and Coloring": "绘图与着色",
 "Plotting and Coloring Settings": "绘图与着色设置",
 "Plotting and UI Settings": "绘图与界面设置",
+"Plugin lists": "插件列表",
 "Plugins": "插件",
 "Plugins connect OpenTrader to other applications on this computer: a data plugin adds the symbols it supplies, a broker plugin shows your account and trades on it. A plugin runs with your rights: install only the ones you trust. OpenTrader keeps no password of theirs.": "插件将 OpenTrader 与此电脑上的其他应用程序连接：数据插件添加其提供的代码，经纪商插件显示您的账户并在其上交易。插件以您的权限运行：只安装您信任的插件。OpenTrader 不保存插件的任何密码。",
 "Plus button": "加号按钮",

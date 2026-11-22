@@ -25,7 +25,7 @@ import { getIndicatorEntry } from "../indicators/registry";
 import { isStrategyId } from "../indicators/strategy-entries";
 import { CtxIcons, type CtxNode } from "../ChartContextMenu";
 import { TIMEZONES } from "../../../data/timezones";
-import { isDeletedList, watchlistStore } from "../../../data/watchlist-store";
+import { isDeletedList, isPluginList, watchlistStore } from "../../../data/watchlist-store";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../../data/indicator-favorites";
 import { menuPrice, roundedPrice } from "./helpers";
 import { PANE_MENU_ICONS } from "./pane-icons";
@@ -343,7 +343,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     // then the other lists by name; a row adds or removes the symbol and the
     // menu stays open; separator; "Create new list…".
     const activeId = watchlistStore.activeId();
-    const offered = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id));
+    const offered = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id) && !isPluginList(l));
     const lists = [
       ...offered.filter((l) => l.id === activeId),
       ...offered.filter((l) => l.id !== activeId)

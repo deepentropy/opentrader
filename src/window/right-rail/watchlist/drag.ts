@@ -66,7 +66,8 @@ export function createDrag(cx: WatchlistCx): DragApi {
   // cannot take keeps the last valid line.
   const onRowsDragOver = (e: DragEvent) => {
     const ids = dragIds();
-    if (!ids.length) return;
+    // A data plugin's list keeps the plugin's order.
+    if (!ids.length || cx.locked()) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     const container = e.currentTarget as HTMLElement;

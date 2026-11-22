@@ -105,7 +105,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
           onBlur={commitRename}
         />
       </Show>
-      <Show when={!isCollapsed(g.name)}>
+      <Show when={!isCollapsed(g.name) && !cx.locked()}>
         <button
           type="button"
           class="watchlist-group-delete"
@@ -123,7 +123,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
 
   // Remove-from-list trash — hidden until the row is hovered. Stops
   // propagation so removing doesn't also select.
-  const removeButton = (onRemove: () => void) => (
+  const removeButton = (onRemove: () => void) => cx.locked() ? null : (
     <button
       type="button"
       class="watchlist-row-remove"

@@ -123,7 +123,7 @@ export function createSelection(cx: WatchlistCx): SelectionApi {
   // item alone. More than one item asks first. A removed section header
   // leaves its rows in the list.
   const removeItems = (ids: string[], after?: () => void) => {
-    if (!ids.length) return;
+    if (!ids.length || cx.locked()) return;
     const run = () => {
       watchlistStore.removeItems(ids);
       after?.();

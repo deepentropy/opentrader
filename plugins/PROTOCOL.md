@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **3**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). A plugin of an earlier version works unchanged.
+Plugin API version **4**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -216,6 +216,30 @@ Send this for every subscribed ticker on each price change. Several per second a
 | `minute` | The forming 1-minute bar. It updates the chart's last bar at every minute-based interval. |
 | `day` | The forming daily bar. It updates daily, weekly and monthly charts. |
 | `prevClose` | The previous session's close. It gives the change shown in watchlists. |
+
+### `data.watchlists` (plugin → app, notification)
+
+Ready-made watchlists of the plugin's symbols (Plugin API 4): the members of an index, the contracts of the month, a market segment.
+
+```json
+{"watchlists":[
+  {"id":"nifty50","name":"NIFTY 50","symbols":["NSE:RELIANCE","NSE:TCS"],
+   "sections":[{"name":"Banks","symbols":["NSE:HDFCBANK","NSE:ICICIBANK"]}]},
+  {"id":"nifty-fut","name":"NIFTY futures","symbols":["NFO:NIFTY26NOVFUT","NFO:NIFTY26DECFUT"]}]}
+```
+
+Send the whole set once you know it (after `plugin.configure`, or once logged in), and again whenever it changes: it replaces the set sent before. The app keeps the last set while the plugin reconnects and forgets it when the plugin is turned off.
+
+| Field | Meaning |
+|---|---|
+| `id` | Your id of the list, up to 64 characters. The same id sent again is the same list: the app brings it up to date. |
+| `name` | Shown in the app (the id when left out). |
+| `symbols` | The symbols with no section, shown first. |
+| `sections` | Named groups of symbols, shown after them. Section names are shown in capitals. |
+
+Symbols are whole (`NSE:RELIANCE`); a one-exchange plugin may give bare tickers. A symbol of an exchange the plugin does not serve is dropped, and so is a symbol already in the list. A list holds at most 1000 symbols and sections, a set 100 lists.
+
+The Watchlists dialog (Open list…) shows the lists under the plugin's name. A list the user opens appears in the watchlist panel, read-only: the app brings it up to date from each set you send, and removes it when a set no longer holds it. The user changes a copy of it ("Make a copy").
 
 ## Broker plugins (`broker`)
 

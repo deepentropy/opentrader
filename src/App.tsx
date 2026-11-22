@@ -25,6 +25,7 @@ import { TabPanelActions } from "./window/shell/TabPanelActions";
 import { KeyboardShortcutsPanel } from "./window/shell/KeyboardShortcutsPanel";
 import { ZoomToast } from "./window/shell/ZoomToast";
 import { startPluginPrompts } from "./window/shell/plugin-prompts";
+import { startPluginListSync } from "./data/plugin-watchlists";
 import { WindowControls } from "./window/shell/WindowControls";
 import { DEFAULT_PANELS, reconcilePanes } from "./window/shell/tabs";
 import { recordRecentSymbol } from "./data/recent-symbols";
@@ -457,6 +458,10 @@ function App() {
   // Plugins' questions to the user (a broker login's code): asked in the main window.
   onMount(() => {
     if (isTauri() && windowLabel === "main") onCleanup(startPluginPrompts());
+  });
+  // Data plugins' watchlists (#381): the main window keeps the opened ones up to date.
+  onMount(() => {
+    if (isTauri() && windowLabel === "main") onCleanup(startPluginListSync());
   });
 
   // Synced folders of CSV files (#267): the main window keeps them in sync.

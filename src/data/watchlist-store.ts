@@ -42,7 +42,12 @@ export type WatchList = {
    *  arrow and the back-to-own-order button. Not saved: any change of the
    *  list's content, a list switch or a restart sets it back to "default". */
   sort: SortKey;
+  /** A data plugin's list (#381): the plugin's id and its id of the list. The
+   *  plugin keeps it up to date, so it takes no change by hand. */
+  source?: PluginListSource;
 };
+
+export type PluginListSource = { plugin: string; list: string };
 
 /** Per-list price-move alert: notify when any symbol's |change%| ≥ threshold.
  *  Keyed by list id; absent = no alert. A local list alert. */
@@ -319,6 +324,12 @@ export const DELETED_LIST_ID = "deleted_symbols";
 export const isDeletedList = (id: string | undefined): boolean => id === DELETED_LIST_ID;
 const DELETED_MAX = 100;
 
+/** A data plugin's list: read-only, the plugin keeps it up to date. */
+export const isPluginList = (l: WatchList | undefined): boolean => !!l?.source;
+const isPluginListId = (id: string): boolean => isPluginList(state.lists.find((l) => l.id === id));
+/** A list whose symbols and sections are not changed by hand: a plugin's. */
+export const isLockedList = (id: string | undefined): boolean => id != null && isPluginListId(id);
+
 /** Rows that left the list `fromId` join "Deleted symbols". */
 function keepDeleted(fromId: string, rows: readonly Row[]): void {
   if (isDeletedList(fromId) || !rows.length) return;
@@ -495,6 +506,8 @@ function dropSort(id: string): void {
  *  touch the rows). A section that left the list leaves the collapsed ones. */
 function mutateActive(fn: (l: WatchList) => void, keepSort = false): void {
   const i = activeIndex();
+  // A plugin's list only takes a sort or a collapsed section.
+  if (i >= 0 && !keepSort && state.lists[i].source) return;
   if (i >= 0) {
     setState("lists", i, produce((l: WatchList) => {
       fn(l);
@@ -632,7 +645,7 @@ export const watchlistStore = {
   /** Rename a list by id. */
   renameList(id: string, name: string): void {
     const i = state.lists.findIndex((l) => l.id === id);
-    if (i >= 0 && !isDeletedList(id)) setState("lists", i, "name", (cur) => name.trim() || cur);
+    if (i >= 0 && !isDeletedList(id) && !state.lists[i].source) setState("lists", i, "name", (cur) => name.trim() || cur);
   },
 
   /** Toggle a list's flagged/favourite state (the list-manager star). */
@@ -696,7 +709,7 @@ export const watchlistStore = {
   },
 
   renameActive(name: string): void {
-    if (isDeletedList(state.activeId)) return;
+    if (isDeletedList(state.activeId) || isPluginListId(state.activeId)) return;
     mutateActive((l) => {
       l.name = name.trim() || l.name;
     }, true);
@@ -704,7 +717,7 @@ export const watchlistStore = {
   /** Remove every row and section of the active list. */
   clearActive(): void {
     const cur = state.lists[activeIndex()];
-    if (!cur) return;
+    if (!cur || cur.source) return;
     const gone = rowsOf(unwrap(cur));
     mutateActive((l) => {
       l.groups = [];
@@ -806,7 +819,7 @@ export const watchlistStore = {
   /** Remove a symbol from the active list wherever it sits (section or extras). */
   removeSymbol(ticker: string): void {
     const cur = state.lists[activeIndex()];
-    if (!cur) return;
+    if (!cur || cur.source) return;
     const gone = rowsOf(unwrap(cur)).filter((r) => r.ticker === ticker);
     mutateActive((l) => {
       for (const g of l.groups) g.rows = g.rows.filter((r) => r.ticker !== ticker);
@@ -858,7 +871,7 @@ export const watchlistStore = {
    *  join "Deleted symbols". */
   removeItems(ids: readonly string[]): void {
     const cur = state.lists[activeIndex()];
-    if (!cur) return;
+    if (!cur || cur.source) return;
     const picked = new Set(ids);
     const raw = unwrap(cur);
     const extras: Row[] = raw.extras.filter((r) => !picked.has(r.ticker));
@@ -894,7 +907,7 @@ export const watchlistStore = {
    *  caller can word its toast truthfully. */
   addRowTo(listId: string, row: Row): boolean {
     const i = state.lists.findIndex((l) => l.id === listId);
-    if (i < 0) return false;
+    if (i < 0 || state.lists[i].source) return false;
     const l = state.lists[i];
     const exists =
       l.groups.some((g) => g.rows.some((r) => r.ticker === row.ticker)) ||
@@ -920,7 +933,7 @@ export const watchlistStore = {
    *  watchlist" submenu: a checked list row removes the symbol). */
   removeRowFrom(listId: string, ticker: string): void {
     const i = state.lists.findIndex((l) => l.id === listId);
-    if (i < 0) return;
+    if (i < 0 || state.lists[i].source) return;
     const keep = (r: Row) => r.ticker !== ticker && r.ticker !== shortOf(ticker);
     const gone = rowsOf(unwrap(state.lists[i])).filter((r) => !keep(r));
     setState("lists", i, produce((wl: WatchList) => {
@@ -936,7 +949,7 @@ export const watchlistStore = {
    *  a section of that name. */
   addSectionTo(listId: string, name: string): boolean {
     const i = state.lists.findIndex((l) => l.id === listId);
-    if (i < 0 || isDeletedList(listId) || state.lists[i].groups.some((g) => g.name === name)) return false;
+    if (i < 0 || isDeletedList(listId) || state.lists[i].source || state.lists[i].groups.some((g) => g.name === name)) return false;
     setState("lists", i, produce((wl: WatchList) => {
       wl.groups.push({ name, rows: [] });
     }));
@@ -947,7 +960,7 @@ export const watchlistStore = {
    *  section above (the rows with no section for the first one). */
   removeSectionFrom(listId: string, name: string): void {
     const i = state.lists.findIndex((l) => l.id === listId);
-    if (i < 0) return;
+    if (i < 0 || state.lists[i].source) return;
     setState("lists", i, produce((wl: WatchList) => {
       const gi = wl.groups.findIndex((g) => g.name === name);
       if (gi < 0) return;
@@ -974,6 +987,42 @@ export const watchlistStore = {
       { id, name: nm, flag: null, emoji: null, groups, extras, favorite: false, sort: "default" },
     ]);
     return nm;
+  },
+
+  /** The store list of a plugin's list (#381), if it was opened once. */
+  pluginList(source: PluginListSource): WatchList | undefined {
+    return state.lists.find((l) => l.source?.plugin === source.plugin && l.source.list === source.list);
+  },
+  /** Make the store list of a plugin's list, or bring it up to date: the
+   *  plugin's name, sections and symbols (a collapsed section stays
+   *  collapsed). Does not switch lists. Returns its id. */
+  setPluginList(source: PluginListSource, name: string, groups: Group[], extras: Row[]): string {
+    const i = state.lists.findIndex((l) => l.source?.plugin === source.plugin && l.source.list === source.list);
+    const finalGroups = dedupeSections(groups);
+    if (i < 0) {
+      const nm = uniqueName(name);
+      const id = uniqueId(nm);
+      setState("lists", (ls) => [...ls, { id, name: nm, flag: null, emoji: null, groups: finalGroups, extras, favorite: false, sort: "default", source: { ...source } }]);
+      return id;
+    }
+    const cur = state.lists[i];
+    const same =
+      JSON.stringify([cur.groups.map((g) => [g.name, g.rows.map((r) => r.ticker)]), cur.extras.map((r) => r.ticker)]) ===
+      JSON.stringify([finalGroups.map((g) => [g.name, g.rows.map((r) => r.ticker)]), extras.map((r) => r.ticker)]);
+    const nm = cur.name === name || state.lists.every((l) => l.name !== name) ? name : cur.name;
+    if (same && nm === cur.name) return cur.id;
+    // Rows already shown keep their last quote.
+    const kept = new Map(rowsOf(unwrap(cur)).map((r) => [r.ticker, r]));
+    const keep = (r: Row): Row => kept.get(r.ticker) ?? r;
+    setState("lists", i, produce((wl: WatchList) => {
+      wl.name = nm;
+      if (same) return;
+      wl.groups = finalGroups.map((g) => ({ name: g.name, rows: g.rows.map(keep) }));
+      wl.extras = extras.map(keep);
+      if (wl.collapsed?.length) wl.collapsed = wl.collapsed.filter((n) => wl.groups.some((g) => g.name === n));
+    }));
+    if (!same) dropSort(cur.id);
+    return cur.id;
   },
 
   // ── List alerts (local price-move alert per list) ──

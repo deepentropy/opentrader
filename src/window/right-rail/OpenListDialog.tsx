@@ -7,12 +7,18 @@
  * star, then the flag marker + name + an inline rename pencil, and reveals
  * copy / delete on hover; the "Deleted symbols" row has its name, its count
  * and copy only. Choosing a row switches lists.
+ *
+ * Each data plugin that sends watchlists (#381) gets a sidebar tab of its
+ * name listing them; choosing one opens it. An opened plugin list shows under
+ * "Plugin lists" in "My watchlists": no rename (the plugin names it), copy
+ * and delete as any list.
  */
 import { createSignal, For, onMount, Show } from "solid-js";
 import { FLAG_HEX } from "../../data/watchlist";
 import { WL_ICONS } from "./watchlist/ui";
 import { Icon } from "../../components/Icon";
-import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { isDeletedList, isPluginList, watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { itemCount, listRows, openPluginList, pluginWatchlists } from "../../data/plugin-watchlists";
 import { promptCopyWatchlist } from "./watchlist-prompts";
 import { Dialog } from "../../components/Dialog";
 import { translateWith } from "../../i18n/translator";
@@ -41,8 +47,9 @@ function Marker(props: { list: WatchList }) {
 
 export function OpenListDialog(props: Props) {
   const [query, setQuery] = createSignal("");
-  // One sidebar tab here ("Hotlists" needs a data source this app lacks).
-  const [tab, setTab] = createSignal<"mine">("mine");
+  // "My watchlists", or the lists of a data plugin (its id).
+  const [tab, setTab] = createSignal<string>("mine");
+  const pluginSet = () => pluginWatchlists().find((p) => p.plugin === tab());
   const [editingId, setEditingId] = createSignal<string | null>(null);
   const [draft, setDraft] = createSignal("");
   const [confirmingId, setConfirmingId] = createSignal<string | null>(null);
@@ -58,7 +65,13 @@ export function OpenListDialog(props: Props) {
   // "Created lists": the user's lists.
   const isColorList = (l: WatchList) => l.id.startsWith("color-");
   const flagged = () => filtered().filter((l) => isColorList(l) && (l.flag === "red" || count(l) > 0 || l.id === props.activeId));
-  const created = () => filtered().filter((l) => !isColorList(l) && !isDeletedList(l.id));
+  const created = () => filtered().filter((l) => !isColorList(l) && !isDeletedList(l.id) && !isPluginList(l));
+  const fromPlugins = () => filtered().filter(isPluginList);
+  const pluginLists = () => {
+    const q = query().trim().toLowerCase();
+    const lists = pluginSet()?.lists ?? [];
+    return q ? lists.filter((l) => l.name.toLowerCase().includes(q)) : lists;
+  };
   const other = () => filtered().filter((l) => isDeletedList(l.id));
 
   onMount(() => input.focus());
@@ -119,7 +132,7 @@ export function OpenListDialog(props: Props) {
               ref={(el) => queueMicrotask(() => el.focus())}
             />
           </Show>
-          <Show when={editingId() !== l.id && !isDeletedList(l.id)}>
+          <Show when={editingId() !== l.id && !isDeletedList(l.id) && !isPluginList(l)}>
             <button type="button" class="wl-lm-action wl-lm-rename" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(l); }}>
               <Icon name="menu-manage-layouts-rename" size={16} />
             </button>
@@ -157,10 +170,17 @@ export function OpenListDialog(props: Props) {
       </div>
       <div class="wl-lm-body">
         <nav class="wl-lm-sidebar" aria-label="Watchlist groups">
-          <button type="button" class={`wl-lm-tab${tab() === "mine" ? " active" : ""}`} onClick={() => setTab("mine")}>My watchlists</button>
+          <button type="button" class={`wl-lm-tab${!pluginSet() ? " active" : ""}`} onClick={() => setTab("mine")}>My watchlists</button>
+          <For each={pluginWatchlists().filter((p) => p.lists.length)}>
+            {(p) => (
+              <button type="button" class={`wl-lm-tab${tab() === p.plugin ? " active" : ""}`} data-no-translate onClick={() => setTab(p.plugin)}>
+                {p.pluginName}
+              </button>
+            )}
+          </For>
         </nav>
         <div class="wl-lm-main">
-          <Show when={tab() === "mine"}>
+          <Show when={!pluginSet()}>
             <div class="wl-lm-colhead"><span class="wl-lm-colhead-symbols">Symbols</span></div>
             <div class="wl-lm-list" role="listbox">
               <Show when={filtered().length} fallback={<div class="wl-dialog-empty">No lists found</div>}>
@@ -172,12 +192,64 @@ export function OpenListDialog(props: Props) {
                   <div class="wl-lm-section">Created lists</div>
                   <For each={created()}>{Row}</For>
                 </Show>
+                <Show when={fromPlugins().length}>
+                  <div class="wl-lm-section">Plugin lists</div>
+                  <For each={fromPlugins()}>{Row}</For>
+                </Show>
                 <Show when={other().length}>
                   <div class="wl-lm-section">Other</div>
                   <For each={other()}>{Row}</For>
                 </Show>
               </Show>
             </div>
+          </Show>
+          <Show when={pluginSet()}>
+            {(set) => (
+              <>
+                <div class="wl-lm-colhead"><span class="wl-lm-colhead-symbols">Symbols</span></div>
+                <div class="wl-lm-list" role="listbox">
+                  <Show when={pluginLists().length} fallback={<div class="wl-dialog-empty">No lists found</div>}>
+                    <For each={pluginLists()}>
+                      {(l) => {
+                        const opened = () => watchlistStore.pluginList({ plugin: set().plugin, list: l.id });
+                        const open = () => { openPluginList(set().plugin, l); props.onClose(); };
+                        return (
+                          <div
+                            role="option"
+                            tabindex={0}
+                            class={`wl-lm-row${opened()?.id === props.activeId ? " active" : ""}`}
+                            aria-selected={opened()?.id === props.activeId}
+                            onClick={open}
+                            onKeyDown={(e) => { if (e.key === "Enter") open(); }}
+                          >
+                            <span class="wl-lm-star-plug" />
+                            <span class="wl-lm-marker"><span class="wl-dialog-initial">{l.name.charAt(0).toUpperCase()}</span></span>
+                            <span class="wl-lm-name" data-no-translate>{l.name}</span>
+                            <span class="wl-lm-spacer" />
+                            <span class="wl-lm-count">{itemCount(l)}</span>
+                            <span class="wl-lm-actions" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                class="wl-lm-action"
+                                title="Make a copy"
+                                aria-label="Make a copy"
+                                onClick={() => promptCopyWatchlist(`${l.name} copy`, (name) => {
+                                  const { groups, extras } = listRows(l);
+                                  watchlistStore.importList(name, groups, extras);
+                                  props.onClose();
+                                })}
+                              >
+                                <Icon name="wl-copy" size={16} />
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </Show>
+                </div>
+              </>
+            )}
           </Show>
         </div>
       </div>

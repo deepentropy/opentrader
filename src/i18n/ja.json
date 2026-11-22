@@ -2536,6 +2536,7 @@
 "PlotCandle": "PlotCandle",
 "Plots": "プロット",
 "Plots Background": "プロットの背景",
+"Plugin lists": "プラグインのリスト",
 "Plugins": "プラグイン",
 "Plugins connect OpenTrader to other applications on this computer: a data plugin adds the symbols it supplies, a broker plugin shows your account and trades on it. A plugin runs with your rights: install only the ones you trust. OpenTrader keeps no password of theirs.": "プラグインは OpenTrader をこのコンピューター上の他のアプリケーションに接続します。データプラグインは提供するシンボルを追加し、ブローカープラグインは口座を表示してその口座で取引します。プラグインはあなたの権限で動作するため、信頼できるものだけをインストールしてください。OpenTrader はプラグインのパスワードを保存しません。",
 "Plus button": "プラスボタン",

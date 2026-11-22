@@ -11,6 +11,9 @@
  * `trade-tick` events the gateway's live task sends. Bars are not kept on disk: the plugin's source owns its history.
  * A symbol's recent bars are kept in memory a while (`recent`): the chart, the Details panel, its quote, replay and
  * alerts ask the same history, and each ask costs the plugin's source requests (#347).
+ *
+ * A plugin may also send ready-made watchlists of its symbols (`data.watchlists`, #381): the index members, the
+ * contracts of the month. They are kept here and offered in the Watchlists dialog under the plugin's name.
  */
 use super::Plugins;
 use crate::data::calendar::SessionCalendar;
@@ -22,7 +25,7 @@ use opentrader_core::sync::LockExt;
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
@@ -149,6 +152,8 @@ pub struct PluginData {
     tick_charts: Mutex<HashMap<String, String>>,
     /// The tickers each plugin was last asked to stream ticks of.
     tick_streaming: Mutex<HashMap<String, BTreeSet<String>>>,
+    /// Each data plugin's watchlists, as it last sent them (kept while it reconnects).
+    watchlists: Mutex<BTreeMap<String, Vec<PluginWatchlist>>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -198,6 +203,17 @@ pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashS
     s.unknown.locked().clear();
     s.recent.locked().clear();
     s.pages.locked().clear();
+    // The lists of a plugin that no longer serves data go with it.
+    let serving: HashSet<String> = s.exchanges.locked().values().cloned().collect();
+    let gone = {
+        let mut lists = s.watchlists.locked();
+        let before = lists.len();
+        lists.retain(|p, _| serving.contains(p));
+        lists.len() != before
+    };
+    if gone {
+        let _ = PluginWatchlistsChanged.emit(app);
+    }
 }
 
 /// Settings > Service > "Clear cache": the plugins' series kept in memory.
@@ -219,6 +235,7 @@ pub fn init(app: &AppHandle) {
                 }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.quote" => on_quote(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.tick" => on_ticks(&app, &plugin, params),
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "data.watchlists" => on_watchlists(&app, &plugin, params),
                 Ok(_) => {}
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(_) => break,
@@ -939,6 +956,162 @@ fn on_ticks(app: &AppHandle, plugin: &str, params: Value) {
     }
 }
 
+// ── Watchlists (#381) ────────────────────────────────────────────────────────
+
+/// Lists a plugin may send, and items (symbols and section headers) in one list: as many as an uploaded list file.
+const MAX_LISTS: usize = 100;
+const MAX_LIST_ITEMS: usize = 1000;
+
+/// A ready-made watchlist of a data plugin: its symbols with no section first, then its sections.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWatchlist {
+    /// The plugin's own id of the list: the same list sent again replaces it.
+    pub id: String,
+    pub name: String,
+    pub symbols: Vec<String>,
+    pub sections: Vec<PluginWatchlistSection>,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWatchlistSection {
+    pub name: String,
+    pub symbols: Vec<String>,
+}
+
+/// The watchlists of one data plugin.
+#[derive(Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWatchlists {
+    pub plugin: String,
+    pub plugin_name: String,
+    pub lists: Vec<PluginWatchlist>,
+}
+
+/// A plugin sent its watchlists, or a plugin's went away: read `plugin_watchlists` again.
+#[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct PluginWatchlistsChanged;
+
+#[derive(Deserialize)]
+struct SentList {
+    #[serde(default)]
+    id: Value,
+    #[serde(default)]
+    name: Value,
+    #[serde(default)]
+    symbols: Vec<Value>,
+    #[serde(default)]
+    sections: Vec<SentSection>,
+}
+
+#[derive(Deserialize)]
+struct SentSection {
+    #[serde(default)]
+    name: Value,
+    #[serde(default)]
+    symbols: Vec<Value>,
+}
+
+/// A symbol of a plugin's list as the app names it: one of the plugin's own exchanges only. A one-exchange plugin may
+/// give bare tickers.
+fn own_symbol(exchanges: &HashMap<String, String>, whole: &HashSet<String>, plugin: &str, s: &str) -> Option<String> {
+    let s = s.trim();
+    match s.split_once(':') {
+        Some((exchange, ticker)) => {
+            let exchange = exchange.trim().to_ascii_uppercase();
+            let ticker = ticker.trim();
+            (exchanges.get(&exchange).map(String::as_str) == Some(plugin) && !ticker.is_empty()).then(|| format!("{exchange}:{ticker}"))
+        }
+        None if s.is_empty() || whole.contains(plugin) => None,
+        None => symbol_of(exchanges, whole, plugin, s),
+    }
+}
+
+/// `{"watchlists":[{id, name, symbols, sections:[{name, symbols}]}]}` as the app keeps it: lists with an id, each
+/// symbol once in its list, section names upper-cased and unique (as the app's), at most `MAX_LISTS` lists of
+/// `MAX_LIST_ITEMS` items.
+fn parse_watchlists(exchanges: &HashMap<String, String>, whole: &HashSet<String>, plugin: &str, params: &Value) -> Vec<PluginWatchlist> {
+    let sent: Vec<SentList> = params.get("watchlists").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+    let text = |v: &Value| v.as_str().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let mut ids = HashSet::new();
+    let mut out = Vec::new();
+    for l in sent {
+        let Some(id) = text(&l.id).filter(|id| id.chars().count() <= 64 && ids.insert(id.clone())) else { continue };
+        let name: String = text(&l.name).unwrap_or_else(|| id.clone()).chars().take(100).collect();
+        let mut seen = HashSet::new();
+        let mut items = 0usize;
+        let mut take = |symbols: &[Value], items: &mut usize| -> Vec<String> {
+            let mut kept = Vec::new();
+            for s in symbols.iter().filter_map(Value::as_str) {
+                if *items >= MAX_LIST_ITEMS {
+                    break;
+                }
+                if let Some(sym) = own_symbol(exchanges, whole, plugin, s).filter(|sym| seen.insert(sym.clone())) {
+                    kept.push(sym);
+                    *items += 1;
+                }
+            }
+            kept
+        };
+        let symbols = take(&l.symbols, &mut items);
+        let mut sections: Vec<PluginWatchlistSection> = Vec::new();
+        for sec in l.sections {
+            if items >= MAX_LIST_ITEMS {
+                break;
+            }
+            let base = text(&sec.name).unwrap_or_else(|| "SECTION".into()).to_uppercase();
+            let mut name = base.clone();
+            let mut n = 2;
+            while sections.iter().any(|s| s.name == name) {
+                name = format!("{base} {n}");
+                n += 1;
+            }
+            items += 1;
+            let symbols = take(&sec.symbols, &mut items);
+            sections.push(PluginWatchlistSection { name, symbols });
+        }
+        out.push(PluginWatchlist { id, name, symbols, sections });
+        if out.len() >= MAX_LISTS {
+            break;
+        }
+    }
+    out
+}
+
+/// A data plugin's whole set of watchlists (`data.watchlists`): it replaces the one it sent before. An empty set is
+/// kept too: the lists it held are gone.
+fn on_watchlists(app: &AppHandle, plugin: &str, params: Value) {
+    let s = state(app);
+    let lists = parse_watchlists(&s.exchanges.locked(), &s.whole.locked(), plugin, &params);
+    let changed = {
+        let mut all = s.watchlists.locked();
+        all.get(plugin) != Some(&lists) && {
+            all.insert(plugin.to_string(), lists);
+            true
+        }
+    };
+    if changed {
+        let _ = PluginWatchlistsChanged.emit(app);
+    }
+}
+
+/// The data plugins' watchlists, by plugin name.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_watchlists(app: AppHandle) -> Vec<PluginWatchlists> {
+    let all = state(&app).watchlists.locked().clone();
+    let mut out: Vec<PluginWatchlists> = all
+        .into_iter()
+        .map(|(plugin, lists)| {
+            let plugin_name = super::installed_manifest(&app, &plugin).map(|m| m.name).unwrap_or_else(|| plugin.clone());
+            PluginWatchlists { plugin, plugin_name, lists }
+        })
+        .collect();
+    out.sort_by_key(|p| p.plugin_name.to_lowercase());
+    out
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1098,5 +1271,40 @@ mod tests {
         let bars = parse_bars(&v).unwrap();
         assert_eq!(bars.iter().map(|b| b.time).collect::<Vec<_>>(), vec![60.0, 120.0]);
         assert_eq!(bars[0].volume, 0.0);
+    }
+
+    #[test]
+    fn keeps_a_plugins_watchlists_to_its_own_symbols() {
+        let (ex, whole) = maps();
+        let params = json!({ "watchlists": [
+            { "id": "nifty", "name": " NIFTY 50 ", "symbols": ["NSE:RELIANCE", "nse:TCS", "NASDAQ:AAPL", "RELIANCE", "NSE:RELIANCE"],
+              "sections": [{ "name": "banks", "symbols": ["NSE:HDFCBANK", "NSE:TCS"] }, { "name": "Banks", "symbols": ["BSE:SBIN"] }, { "symbols": [] }] },
+            { "id": "nifty", "name": "Twice" },
+            { "name": "No id" },
+            { "id": "fut", "symbols": ["NFO:NIFTY26NOVFUT"] },
+        ]});
+        let lists = parse_watchlists(&ex, &whole, "algo", &params);
+        assert_eq!(lists.len(), 2);
+        assert_eq!((lists[0].id.as_str(), lists[0].name.as_str()), ("nifty", "NIFTY 50"));
+        assert_eq!(lists[0].symbols, vec!["NSE:RELIANCE", "NSE:TCS"]);
+        let sections: Vec<(&str, Vec<&str>)> =
+            lists[0].sections.iter().map(|s| (s.name.as_str(), s.symbols.iter().map(String::as_str).collect())).collect();
+        assert_eq!(sections, vec![("BANKS", vec!["NSE:HDFCBANK"]), ("BANKS 2", vec!["BSE:SBIN"]), ("SECTION", vec![])]);
+        // No name: the id.
+        assert_eq!(lists[1].name, "fut");
+        // A one-exchange plugin may give bare tickers.
+        let mt5 = parse_watchlists(&ex, &whole, "mt5", &json!({ "watchlists": [{ "id": "fx", "name": "FX", "symbols": ["EURUSD", "MT5:GBPUSD", "NSE:TCS"] }] }));
+        assert_eq!(mt5[0].symbols, vec!["MT5:EURUSD", "MT5:GBPUSD"]);
+    }
+
+    #[test]
+    fn caps_the_items_of_a_plugin_watchlist() {
+        let (ex, whole) = maps();
+        let many: Vec<String> = (0..1500).map(|i| format!("NSE:S{i}")).collect();
+        let params = json!({ "watchlists": [{ "id": "all", "name": "All", "symbols": many, "sections": [{ "name": "MORE", "symbols": ["NSE:X"] }] }] });
+        let lists = parse_watchlists(&ex, &whole, "algo", &params);
+        assert_eq!(lists[0].symbols.len(), MAX_LIST_ITEMS);
+        assert!(lists[0].sections.is_empty());
+        assert!(parse_watchlists(&ex, &whole, "algo", &json!({ "watchlists": "no" })).is_empty());
     }
 }

@@ -57,6 +57,7 @@ export function createSections(cx: WatchlistCx): SectionsApi {
     return shown().filter((id) => set.has(id));
   };
   const startRename = (name: string) => {
+    if (cx.locked()) return;
     setRenaming(name);
     setDraft(name);
   };

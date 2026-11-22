@@ -50,6 +50,8 @@ export interface WatchlistCore {
   extras: () => Row[];
   groups: () => Group[];
   inDeleted: () => boolean;
+  /** The open list is a data plugin's (#381): no change by hand. */
+  locked: () => boolean;
   listDraft: Accessor<string>;
   listName: () => string;
   setAddAnchor: Setter<AddAnchor>;

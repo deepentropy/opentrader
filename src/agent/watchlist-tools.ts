@@ -5,7 +5,7 @@
  */
 import { resolveSymbol } from "../data/datafeed";
 import type { Row } from "../data/watchlist";
-import { isDeletedList, watchlistStore, type WatchList } from "../data/watchlist-store";
+import { isDeletedList, isPluginList, watchlistStore, type WatchList } from "../data/watchlist-store";
 import { allFlags, FLAG_COLORS as FLAGS } from "../data/symbol-flags";
 import { setActiveRailTab } from "../window/shell/app-dialogs";
 import { AgentError, type AgentTool } from "./mcp";
@@ -62,7 +62,7 @@ export function createWatchlistTools(): AgentTool[] {
       name: "list_watchlists",
       title: "List watchlists",
       description:
-        "The user's watchlists: name, symbol count, sections, whether it is the one shown and flagged as a favourite. The colour lists (Red list…) hold the symbols flagged with that colour.",
+        "The user's watchlists: name, symbol count, sections, whether it is the one shown and flagged as a favourite. The colour lists (Red list…) hold the symbols flagged with that colour. fromPlugin: a data plugin's list, kept up to date by the plugin and read-only (make a copy to change it).",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true },
       run: async () => ({
@@ -72,6 +72,8 @@ export function createWatchlistTools(): AgentTool[] {
           sections: l.groups.map((g) => g.name),
           ...(l.id === watchlistStore.activeId() ? { shown: true } : {}),
           ...(l.favorite ? { favorite: true } : {}),
+          // Kept up to date by a data plugin: read-only.
+          ...(l.source ? { fromPlugin: true } : {}),
         })),
       }),
     },
@@ -146,6 +148,7 @@ export function createWatchlistTools(): AgentTool[] {
       run: async (args) => {
         const l = listNamed(args.name);
         if (isDeletedList(l.id)) throw new AgentError('"Deleted symbols" only takes the symbols removed from the other lists.');
+        if (isPluginList(l)) throw new AgentError(`"${l.name}" is a data plugin's list: the plugin keeps it up to date. Make a copy to change it.`);
         const { full, unknown } = await fullNames(args.symbols);
         show(l);
         const sec = typeof args.section === "string" ? args.section.trim().toUpperCase() : "";
@@ -174,6 +177,7 @@ export function createWatchlistTools(): AgentTool[] {
       annotations: { destructiveHint: true },
       run: async (args) => {
         const l = listNamed(args.name);
+        if (isPluginList(l)) throw new AgentError(`"${l.name}" is a data plugin's list: the plugin keeps it up to date. Make a copy to change it.`);
         if (!Array.isArray(args.symbols) || !args.symbols.length) throw new AgentError('"symbols": a non-empty array.');
         const removed: string[] = [];
         const missing: string[] = [];
@@ -201,7 +205,7 @@ export function createWatchlistTools(): AgentTool[] {
         const l = listNamed(args.name);
         const next = typeof args.newName === "string" ? args.newName.trim() : "";
         if (!next) throw new AgentError('"newName" is required.');
-        if (isDeletedList(l.id) || l.id.startsWith("color-")) throw new AgentError(`"${l.name}" cannot be renamed.`);
+        if (isDeletedList(l.id) || l.id.startsWith("color-") || isPluginList(l)) throw new AgentError(`"${l.name}" cannot be renamed.`);
         if (watchlistStore.lists().some((x) => x.id !== l.id && x.name.toLowerCase() === next.toLowerCase())) throw new AgentError(`A watchlist is already named "${next}".`);
         watchlistStore.renameList(l.id, next);
         return { renamed: l.name, to: next };
