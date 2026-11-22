@@ -61,6 +61,13 @@ impl Kind {
     }
 }
 
+/// The search type of a US listing: the broker's lookup gives no stock type, its description names ETFs and ETNs
+/// ("ISHARES CORE MSCI EUROPE ETF"), which go under Funds.
+fn listing_type(description: &str) -> &'static str {
+    let fund = description.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| w.eq_ignore_ascii_case("ETF") || w.eq_ignore_ascii_case("ETN"));
+    if fund { "fund" } else { "stock" }
+}
+
 /// A looked-up ticker.
 #[derive(Debug, Clone)]
 pub struct Symbol {
@@ -139,7 +146,7 @@ impl DataFeed {
             match c.security_type {
                 SecurityType::Stock if c.currency.as_str() == "USD" && US_EXCHANGES.contains(&c.primary_exchange.as_str()) => {
                     if let Some(ticker) = data_ticker(c) {
-                        rows.push(json!({ "ticker": ticker, "description": m.description, "type": "stock" }));
+                        rows.push(json!({ "ticker": ticker, "description": m.description, "type": listing_type(&m.description) }));
                     }
                 }
                 // The broker lists a currency alone ("EUR"): its pairs with the major currencies.
@@ -498,6 +505,14 @@ impl Live {
 mod tests {
     use super::*;
     use ibapi::market_data::realtime::{TickPrice, TickSize};
+
+    #[test]
+    fn etfs_and_etns_are_funds_in_search() {
+        assert_eq!(listing_type("ISHARES CORE MSCI EUROPE ETF"), "fund");
+        assert_eq!(listing_type("IPATH S&P 500 VIX ST FUT ETN"), "fund");
+        assert_eq!(listing_type("APPLE INC"), "stock");
+        assert_eq!(listing_type("NETFLIX INC"), "stock");
+    }
 
     #[test]
     fn hours_make_sessions() {
