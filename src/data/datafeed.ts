@@ -223,6 +223,13 @@ function pluginIntervals(symbol: string | null | undefined): readonly string[] |
   return served?.length ? served : null;
 }
 
+/** Whether a symbol's daily load is its whole history: the app's own data
+ *  sends decades at once, a data plugin may send its newest bars only (its
+ *  older ones come page by page, #386). */
+export function dailyLoadIsWhole(symbol: string | null | undefined): boolean {
+  return pluginIntervals(symbol) === null;
+}
+
 /** True for an economic series symbol ("ECONOMICS:UNRATE"): one value per
  *  observation date, daily or coarser intervals only, no live data. */
 export function isEconomicSymbol(symbol: string | null | undefined): boolean {

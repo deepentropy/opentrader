@@ -12,6 +12,7 @@ import {
   DAILY_ARCHIVE_START,
   aggregateCandles,
   aggregateUnitFor,
+  dailyLoadIsWhole,
   getBars,
   getBarsBefore,
   historyPageDays,
@@ -611,15 +612,20 @@ export function createHistory(cx: ChartCx): HistoryApi {
 
   /** True when the target predates the loaded bars and more can be loaded
    *  (below `maxBars`: Infinity asks whether the target is loaded at all). The
-   *  daily family holds its full history already. */
+   *  daily family holds its full history already, except a data plugin's. */
   function needsSyncLoad(fromSec: number, maxBars = SYNC_LOAD_MAX_BARS): boolean {
     return (
-      cx.rawDaily.length === 0 &&
+      !dailyWhole() &&
       !historyExhausted &&
       loaded().length > 0 &&
       loaded().length < maxBars &&
       (loaded()[0].time as number) > fromSec
     );
+  }
+
+  /** The daily family's bars are the symbol's whole history (see dailyLoadIsWhole). */
+  function dailyWhole(): boolean {
+    return cx.rawDaily.length > 0 && dailyLoadIsWhole(props.symbol);
   }
 
   /** Distinct local calendar days among the loaded bars (≥ 1). */
@@ -652,6 +658,29 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const reqSym = props.symbol ?? "";
     const reqInt = props.interval ?? "1D";
     while (needsSyncLoad(t) && wanted()) {
+      // A data plugin's daily bars: its older pages in front, until the target (they re-aggregate for 1W/1M).
+      if (cx.rawDaily.length > 0) {
+        const before = cx.rawDaily[0].time as number;
+        loadingMore = true;
+        let page: Candle[] | null = null;
+        try {
+          page = await fetchOlder(reqSym, reqInt, before);
+        } finally {
+          loadingMore = false;
+        }
+        if (reqGen !== fetchGen || !cx.chart || !cx.series) return false;
+        if (page === null) break; // transient error: frame what is loaded
+        const olderDays = page.filter((r) => (r.time as number) < before);
+        if (olderDays.length === 0) {
+          historyExhausted = true;
+          updateHistoryEnd();
+          break;
+        }
+        prefetch = null;
+        holdSyncGuard();
+        if (!prependOlder(olderDays, true, reqInt)) break;
+        continue;
+      }
       const beforeSec = loaded()[0].time as number;
       // Size the request so the depth cap holds: bars per day measured on the
       // loaded bars, window clipped to the bars still allowed.
@@ -859,7 +888,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (wantsWindow(fromSec, toSec)) return loadPastWindow(fromSec, toSec, wanted);
     if (!(await loadHistoryTo(fromSec, wanted, minDays))) return false;
     if (!(await loadNewerTo(toSec, wanted))) return false;
-    if (!wanted() || !needsSyncLoad(fromSec, Infinity)) return true;
+    // The daily family pages its daily bars (loadHistoryTo), never a window.
+    if (!wanted() || cx.rawDaily.length > 0 || !needsSyncLoad(fromSec, Infinity)) return true;
     return loadPastWindow(fromSec, toSec, wanted);
   }
 
@@ -993,7 +1023,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (!cx.chart || !cx.series || cx.raw.length === 0) return;
     const ts = cx.chart.timeScale();
     const indexOf = opts.index ?? syncIndex;
-    const isLoaded = (loaded()[0].time as number) <= targetSec || cx.rawDaily.length > 0 || historyExhausted;
+    const isLoaded = (loaded()[0].time as number) <= targetSec || dailyWhole() || historyExhausted;
     const cur = viewRange();
     const onChart = targetSec >= (cx.raw[0].time as number) && targetSec <= (cx.raw[cx.raw.length - 1].time as number);
     if (isLoaded && onChart && cur && !opts.alignIfVisible) {

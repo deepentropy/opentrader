@@ -19,7 +19,7 @@
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { type Time } from "lightweight-charts";
 import { liveBarSpacing } from "../control-bar";
-import { initialViewBars, type BarsResult, type SessionId } from "../../../data/datafeed";
+import { dailyLoadIsWhole, initialViewBars, type BarsResult, type SessionId } from "../../../data/datafeed";
 import { isTransformType, setDataForType } from "../chart-types";
 import { type ChartCx } from "./context";
 import { toOHLC, barsSpan, MIN_VISIBLE_BARS, SYMBOL_CHANGE_MAX_BACK } from "./helpers";
@@ -307,7 +307,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       }
       framed = view === null ? "all" : String(view);
     }
-    if (cx.rawDaily.length > 0) cx.historyExhausted = true;
+    // The daily family's load is the whole history, except a data plugin's (its newest bars, older ones paged: #386).
+    if (cx.rawDaily.length > 0 && dailyLoadIsWhole(props.symbol)) cx.historyExhausted = true;
     cx.updateHistoryEnd();
     {
       const _r = cx.chart.timeScale().getVisibleLogicalRange();
