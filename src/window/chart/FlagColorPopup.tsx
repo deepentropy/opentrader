@@ -28,10 +28,13 @@ export function FlagColorPopup(props: {
         if (!props.anchor.matches(":hover") && !root?.matches(":hover")) props.onClose();
       }, 150);
     };
-    props.anchor.addEventListener("mouseleave", leave);
+    // Kept here: the cleanup runs once the opener's <Show> has closed, when
+    // reading props.anchor throws a stale read.
+    const anchor = props.anchor;
+    anchor.addEventListener("mouseleave", leave);
     onCleanup(() => {
       window.clearTimeout(timer);
-      props.anchor.removeEventListener("mouseleave", leave);
+      anchor.removeEventListener("mouseleave", leave);
     });
   });
   return (
