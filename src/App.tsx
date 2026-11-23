@@ -45,6 +45,7 @@ import { currentWindowLabel, initWindowStorageCleanup, isTauri, openScreenerWind
 import { RightRail } from "./window/right-rail/RightRail";
 import { BottomBar } from "./window/bottom-bar/BottomBar";
 import { OakScriptPanel } from "./window/oakscript/OakScriptPanel";
+import { createEditorPlacements } from "./window/oakscript/editor-placements";
 import { StrategyTesterPanel } from "./window/strategy-tester/StrategyTesterPanel";
 import { intervalSeconds } from "./window/strategy-tester/equity-data";
 import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
@@ -431,6 +432,8 @@ function App() {
     moveDrawingToDisplayIndex,
   } = drawingStore;
   const chartEdits = createChartEdits(appTabs, undo, drawingStore);
+  // The OakScript editor in a tab or in a window of its own (#325).
+  const editorPlacements = createEditorPlacements({ tabs: appTabs, edits: chartEdits, editorOpen: oakPanelOpen, setEditorOpen: setOakPanelOpen });
   // Settings > About > Copy diagnostic info and the get_diagnostics agent tool read the tabs and drawings.
   setDiagnosticsHost({ tabs: appTabs, drawings: drawingStore });
   const {
@@ -879,7 +882,12 @@ function App() {
           The split view takes its width from the right; in its fullscreen
           mode the main layout is hidden (kept mounted). The panels keep their
           places right to left (ot-panel-row, styles/rtl.css). */}
-      <div class="ot-panel-row flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0, position: "relative" }}>
+      {/* An editor tab (#325) shows the editor in place of the layout below (kept mounted). */}
+      <editorPlacements.EditorTabView theme={theme()} />
+      <div
+        class="ot-panel-row flex flex-1 flex-row"
+        style={{ "min-height": 0, "min-width": 0, position: "relative", display: activeTab().editor ? "none" : undefined }}
+      >
       <div
         class="flex flex-1 flex-col"
         style={{
@@ -1068,6 +1076,7 @@ function App() {
               onToggleIndicator={toggleScriptOnChart}
               onAddIndicator={addIndicator}
               onClose={() => setOakPanelOpen(false)}
+              onOpenEditor={(where) => where !== "in-place" && editorPlacements.openOut(where)}
             />
           </Show>
           {/* The screener placed in the bottom panel (its title menu, Placement). */}

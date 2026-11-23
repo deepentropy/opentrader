@@ -95,10 +95,13 @@ export function detachTabToWindow(tab: TabChart, screenX: number, screenY: numbe
 
 /** Label of the screener's own window (placement "Separate window"): one at a time. */
 export const SCREENER_WINDOW = "screener";
-/** A window that is not a chart window (the screener's): it holds no tabs, and the app quits with the last chart
- *  window (src-tauri window_session.rs closes it with it). */
+/** Label prefix of the OakScript editor's own windows (#325, "Open editor ▸ New window"). */
+export const EDITOR_WINDOW_PREFIX = "oakscript-";
+
+/** A window that is not a chart window (the screener's, an editor's): it holds no tabs, and the app quits with the
+ *  last chart window (src-tauri window_session.rs closes these with it). */
 export function isAuxWindow(label: string): boolean {
-  return label === SCREENER_WINDOW;
+  return label === SCREENER_WINDOW || label.startsWith(EDITOR_WINDOW_PREFIX);
 }
 
 /** The open chart windows' labels. */

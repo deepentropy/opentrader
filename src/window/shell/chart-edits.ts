@@ -58,7 +58,7 @@ export function createChartEdits(
   undo: Pick<UndoHistory, "commit" | "record" | "rollback" | "undoStack" | "redoStack">,
   d: Pick<DrawingStore, "drawingKeyFor" | "drawingsFor" | "splitView" | "restoreSlice">,
 ) {
-  const { tabOf, patchTab, activeTab, activePaneState, patchActivePane } = t;
+  const { tabOf, patchTab, activeTab, activePaneState } = t;
 
   // ── Studies of a pane ──────────────────────────────────────────────────
   // Removals go through removeStudies (one undo step with the drawings the
@@ -214,10 +214,15 @@ export function createChartEdits(
       emitAppEvent("select-drawing-tool", { toolId: "fixed-range-volume-profile" });
       return;
     }
+    addStudyTo(activeTab().id, typeId, parent);
+  }
+  /** Add a study to the focused pane of tab `tabId`, shown or not (an editor tab's chart, #325). */
+  function addStudyTo(tabId: string, typeId: string, parent?: ChildStudyParent) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
     // A user's own script is counted, not named.
     track("indicator_added", { indicator: typeId.startsWith("user:") ? "user-script" : typeId });
-    const pane = activePaneState();
-    const tab = activeTab();
+    const pane = tab.panes[tab.activePane] ?? tab.panes[0];
     // Ids still held by undo/redo entries of this pane are not reused: undo
     // would otherwise restore over the new instance.
     const held: string[] = [];
@@ -255,13 +260,14 @@ export function createChartEdits(
     }
     // Adding a strategy opens its report (the reference app opens the footer panel).
     if (isStrategyId(typeId)) strategyTester.setCollapsed(false);
-    patchActivePane({
+    const added: Partial<PaneChart> = {
       indicators: [...pane.indicators, id],
       ...(seed ? { indicatorSettings: { ...pane.indicatorSettings, [id]: seed } } : {}),
       // A new study goes behind the other sources (no place kept from an
       // earlier, removed instance of the same id).
       ...(pane.sourceOrder?.includes(id) ? { sourceOrder: pane.sourceOrder.filter((x) => x !== id) } : {}),
-    });
+    };
+    patchTab(tab.id, { panes: tab.panes.map((p) => (p === pane ? { ...p, ...added } : p)) });
     // One undo step, "insert <name>" (the reference app): undo takes it off, redo puts it back.
     undo.record({
       kind: "study",
@@ -279,11 +285,15 @@ export function createChartEdits(
   /** OakScript panel: add the script to the chart, or take every instance of
    *  it off the chart. */
   function toggleScriptOnChart(typeId: string) {
-    const on = activePaneState().indicators.filter((x) => typeIdOf(x) === typeId);
-    if (on.length) {
-      const tab = activeTab();
-      removeStudies(tab.id, tab.activePane, on);
-    } else addIndicator(typeId);
+    toggleScriptOnTab(activeTab().id, typeId);
+  }
+  /** The same on the focused pane of tab `tabId` (an editor tab's chart, #325). */
+  function toggleScriptOnTab(tabId: string, typeId: string) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    const on = (tab.panes[tab.activePane]?.indicators ?? []).filter((x) => typeIdOf(x) === typeId);
+    if (on.length) removeStudies(tab.id, tab.activePane, on);
+    else addStudyTo(tab.id, typeId);
   }
   /** Remove-objects dropdown actions. Indicators live on the active pane. */
   function removeAllIndicators() {
@@ -549,6 +559,8 @@ export function createChartEdits(
     setVisibleRangeForPane,
     addIndicator,
     toggleScriptOnChart,
+    toggleScriptOnTab,
+    addStudyTo,
     removeAllIndicators,
     saveIndicatorTemplateNamed,
     applyIndicatorTemplate,

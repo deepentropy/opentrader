@@ -20,6 +20,10 @@
  *
  * A study of the shown script that took close to the runtime limit to calculate shows the "Heavy script." warning
  * under the header (#325, heavy-script.ts): its link turns Profiler mode on.
+ *
+ * Out of its chart (#325, More menu "Open editor": in a tab, or in a window of its own, detached-editor.ts) the
+ * panel fills its tab or window: no resize, minimize, maximize or close, no profiler (as the reference's), the
+ * status bar says whether its chart tab is still there ("Linked"), and "In-place" puts it back under the chart.
  */
 import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
@@ -52,7 +56,11 @@ import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
 import { showConfirm, showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
-import { setOpenedScript } from "./editor-state";
+import { setOpenedScript, setShownScriptName } from "./editor-state";
+import type { DetachMode } from "./detached-editor";
+import { isTauri } from "../shell/window-bridge";
+import { setShortcutsOpen } from "../shell/app-dialogs";
+import { releaseNotesNew } from "./help-links";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
 import { OakScriptMoreMenu } from "./OakScriptMoreMenu";
 import { EditorSettingsDialog } from "./EditorSettingsDialog";
@@ -92,11 +100,24 @@ type Props = {
   /** Add a study (a new instance) to the focused chart: "Add to chart" of a built-in. */
   onAddIndicator: (id: string) => void;
   onClose: () => void;
+  /** Where the editor is: under the chart (default), in a tab, or in a window of its own. */
+  placement?: "in-place" | DetachMode;
+  /** Out of its chart: its chart tab is still there. */
+  linked?: boolean;
+  /** More menu "Open editor": New window / New tab (under the chart), In-place (out of it). */
+  onOpenEditor?: (where: "in-place" | DetachMode) => void;
+  /** More menu "Logs" (default: this window's logs panel). */
+  onLogs?: (scriptId: string) => void;
+  /** What the script runtime of the chart window must know (an editor window of its own). */
+  onScriptChange?: (change: { kind: "compiled"; scriptId: string; source: string } | { kind: "deleted" | "renamed"; scriptId: string }) => void;
 };
 
 export function OakScriptPanel(props: Props) {
+  const detached = () => (props.placement ?? "in-place") !== "in-place";
   const [height, setHeight] = createSignal<number>(loadHeight());
-  const [minimized, setMinimized] = createSignal(kv.getItem(MINIMIZED_KEY) === "1");
+  const [minimizedUnder, setMinimized] = createSignal(kv.getItem(MINIMIZED_KEY) === "1");
+  // Minimized is the drawer's: out of its chart the editor is never minimized.
+  const minimized = () => !detached() && minimizedUnder();
   // Maximized fills the chart-pane column; not persisted (restores docked).
   const [maximized, setMaximized] = createSignal(false);
   const [cursor, setCursor] = createSignal<{ line: number; col: number } | null>(null);
@@ -167,8 +188,10 @@ export function OakScriptPanel(props: Props) {
   }
   if (startBuiltin) onMount(() => void openBuiltin(startBuiltin));
 
-  // The legends show "Opened in OakScript Editor" on the studies of the shown script.
+  // The legends show "Opened in OakScript Editor" on the studies of the shown script; its name titles an editor tab
+  // or window.
   createEffect(() => setOpenedScript(shownId()));
+  createEffect(() => setShownScriptName(shownName()));
   onCleanup(() => setOpenedScript(null));
 
   // Legend "Source code" of a study: its script in the editor, the panel
@@ -286,7 +309,8 @@ export function OakScriptPanel(props: Props) {
   const heavy = () => {
     closedTick();
     const c = calculation();
-    return !builtin() && isHeavy(c) && !wasClosed(currentScript().id) ? c : undefined;
+    // Out of its chart there is no profiler to point to (as the reference's).
+    return !detached() && !builtin() && isHeavy(c) && !wasClosed(currentScript().id) ? c : undefined;
   };
   function closeHeavyWarning(): void {
     closeWarning(currentScript().id);
@@ -309,6 +333,7 @@ export function OakScriptPanel(props: Props) {
       // Persist the compiled shape and redraw the study on any chart using it.
       notifyScriptCompiled(scriptId, meta);
       notifyUserStrategyCompiled(scriptId, meta);
+      props.onScriptChange?.({ kind: "compiled", scriptId, source });
       if (scriptId === currentScript().id) setIsStrategy(!!meta.strategy);
       log("info", translateWith("\"{0}\" compiled.", name));
     } catch (err) {
@@ -403,6 +428,7 @@ export function OakScriptPanel(props: Props) {
     const s = scripts.loadScript(id);
     if (!s) return;
     notifyScriptRenamed(id);
+    props.onScriptChange?.({ kind: "renamed", scriptId: id });
     setCurrentScript(s);
   }
 
@@ -435,6 +461,7 @@ export function OakScriptPanel(props: Props) {
     dropUserScriptRuntime(s.id);
     dropUserStrategy(s.id);
     scripts.deleteScript(s.id);
+    props.onScriptChange?.({ kind: "deleted", scriptId: s.id });
     log("info", translateWith("\"{0}\" deleted.", s.name));
     // Fall back to the next stored script, or a fresh template.
     const next = scripts.listScripts()[0];
@@ -454,7 +481,7 @@ export function OakScriptPanel(props: Props) {
 
   createEffect(() => {
     kv.setItem(HEIGHT_KEY, String(Math.round(height())));
-    kv.setItem(MINIMIZED_KEY, minimized() ? "1" : "0");
+    kv.setItem(MINIMIZED_KEY, minimizedUnder() ? "1" : "0");
     kv.setItem(CONSOLE_KEY, consoleOpen() ? "1" : "0");
   });
 
@@ -480,7 +507,7 @@ export function OakScriptPanel(props: Props) {
   }
 
   const styleHeight = () => {
-    if (maximized()) return "100%";
+    if (maximized() || detached()) return "100%";
     if (minimized()) return "auto"; // header only
     return `${height()}px`;
   };
@@ -488,11 +515,11 @@ export function OakScriptPanel(props: Props) {
   return (
     <section
       ref={rootRef}
-      class="oak-panel"
+      class={detached() ? "oak-panel oak-panel--detached" : "oak-panel"}
       style={{ height: styleHeight() }}
       aria-label="OakScript Editor"
     >
-      <Show when={!minimized() && !maximized()}>
+      <Show when={!minimized() && !maximized() && !detached()}>
         <div
           class="oak-panel__resizer"
           onMouseDown={beginResize}
@@ -587,25 +614,41 @@ export function OakScriptPanel(props: Props) {
               onClick={() => setMoreOpen((o) => !o)}
             >
               <Icon name="dt-more" size={22} />
+              {/* The release notes of this engine version are not read yet. */}
+              <Show when={releaseNotesNew()}>
+                <span class="oak-panel__more-dot" aria-hidden="true" />
+              </Show>
             </button>
           </Tooltip>
           <Show when={moreOpen()}>
             <OakScriptMoreMenu
               anchor={moreBtn}
-              profiler={profiler()}
+              profiler={detached() ? null : profiler()}
+              openEditor={
+                !props.onOpenEditor
+                  ? []
+                  : detached()
+                    ? ["in-place"]
+                    : isTauri()
+                      ? ["window", "tab"]
+                      : ["tab"]
+              }
+              onOpenEditor={(where) => props.onOpenEditor?.(where)}
               onEditorSettings={() => setSettingsOpen(true)}
               onProfiler={toggleProfiler}
-              onLogs={() => openScriptLogs({ scriptId: currentScript().id })}
+              onLogs={() => (props.onLogs ? props.onLogs(currentScript().id) : openScriptLogs({ scriptId: currentScript().id }))}
               onCommandPalette={() => {
                 setMinimized(false);
                 editorApi?.commandPalette();
               }}
+              onShortcuts={props.placement === "window" ? undefined : () => setShortcutsOpen(true)}
               onClose={() => setMoreOpen(false)}
             />
           </Show>
           <Show when={settingsOpen()}>
             <EditorSettingsDialog onClose={() => setSettingsOpen(false)} />
           </Show>
+          <Show when={!detached()}>
           <Tooltip text={minimized() ? "Restore" : "Minimize"} side="top">
             <button
               type="button"
@@ -655,6 +698,7 @@ export function OakScriptPanel(props: Props) {
               <Icon name="tab-close" size={16} />
             </button>
           </Tooltip>
+          </Show>
         </div>
       </header>
       <Show when={builtin() && !minimized()}>
@@ -705,6 +749,8 @@ export function OakScriptPanel(props: Props) {
               profile={profiler() && !builtin() ? profile() : null}
               revealSlowest={revealSlowest()}
               onReady={(api) => (editorApi = api)}
+              onOpenEditor={!detached() && props.onOpenEditor ? (where) => props.onOpenEditor?.(where) : undefined}
+              canOpenWindow={isTauri()}
             />
           </Suspense>
         </div>
@@ -740,6 +786,19 @@ export function OakScriptPanel(props: Props) {
             </Tooltip>
           </div>
           <div class="oak-panel__status-right">
+            <Show when={detached()}>
+              <Tooltip
+                text={props.linked ? "Linked with chart, all is fine." : "Link with chart was lost. Open the editor in the closed tab to relink."}
+                side="top"
+              >
+                <span class="oak-panel__status-item oak-panel__link" classList={{ "is-linked": !!props.linked }} data-qa-id="oakscript-link-status">
+                  {props.linked ? "Linked" : "Unlinked"}
+                  <span class="oak-panel__link-mark">
+                    <Icon name="oak-linked" size={14} />
+                  </span>
+                </span>
+              </Tooltip>
+            </Show>
             <Show when={fullRun()}>
               {(reason) => (
                 <Tooltip text={translateWith("Live updates recalculate every bar: {0}", translate(reason()))} side="top">

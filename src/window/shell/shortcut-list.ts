@@ -110,7 +110,11 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     id: "script-editor",
     title: "Script editor",
     icon: "oak-editor-logo",
-    items: [{ label: "Save script", combos: [k("Ctrl", "S")] }],
+    items: [
+      { label: "Save script", combos: [k("Ctrl", "S")] },
+      { label: "Open the editor in a new window", combos: [k("Alt", "Shift", "W")], desktop: true },
+      { label: "Open the editor in a new tab", combos: [k("Alt", "Shift", "T")] },
+    ],
   },
   {
     id: "app",

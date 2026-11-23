@@ -45,6 +45,13 @@ void hydrateKv().finally(async () => {
     hideSplash();
     return;
   }
+  // The OakScript editor's own window (#325, "Open editor ▸ New window") holds the editor only.
+  if (new URLSearchParams(location.search).get("view") === "oakscript") {
+    const { OakScriptWindow } = await import("./window/oakscript/OakScriptWindow");
+    render(() => <OakScriptWindow />, document.getElementById("root") as HTMLElement);
+    hideSplash();
+    return;
+  }
   // An embedded widget (#339) holds that widget only (index.html shows no splash in an embed).
   const embed = embedConfig();
   if (embed && embed.widget !== "chart") {

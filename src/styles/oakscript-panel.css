@@ -385,3 +385,39 @@ html.theme-light .oak-panel__readonly-close:active::before { background: var(--c
   margin-inline-start: 6px;
   color: var(--color-text-primary);
 }
+
+/* Out of its chart (#325): the editor fills its tab or window. */
+.oak-panel--detached {
+  flex: 1;
+  border-top: none;
+}
+/* Status bar "Linked" / "Unlinked" with its mark (green while linked). */
+.oak-panel__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.oak-panel__link-mark {
+  display: inline-flex;
+  color: var(--color-text-tertiary);
+}
+.oak-panel__link.is-linked .oak-panel__link-mark {
+  color: #22ab94;
+}
+
+/* An editor tab (#325): the editor under the tab strip, in place of the chart layout. */
+.oak-editor-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-top: 4px solid var(--color-widget-border);
+}
+/* The editor's own window. */
+.oak-editor-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}

@@ -18,6 +18,8 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import { importHints } from "./import-hints";
+import { translate, translateWith } from "../../i18n/translator";
 
 export { monaco };
 
@@ -101,6 +103,19 @@ export function setupMonaco(): void {
   });
   js.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
 
+  // Inlay hints for imports (Editor settings): the editor's inlayHints option turns them on or off.
+  monaco.languages.registerInlayHintsProvider("javascript", {
+    provideInlayHints(model) {
+      if (!model.uri.path.startsWith("/oakscript/")) return { hints: [], dispose() {} };
+      const hints = importHints(model.getValue()).map((h) => ({
+        position: { lineNumber: h.line, column: h.column },
+        label: h.version ? translateWith("v{0}", h.version) : translate("cannot be loaded"),
+        paddingLeft: true,
+      }));
+      return { hints, dispose() {} };
+    },
+  });
+
   for (const [path, source] of Object.entries(OAKSCRIPT_DTS)) {
     const rel = path.slice(path.indexOf("oakscriptjs/"));
     js.addExtraLib(source, `file:///node_modules/${rel.replace(/\\/g, "/")}`);
@@ -178,6 +193,9 @@ export function applyOakTheme(theme: "dark" | "light"): void {
         "editor.background": bg,
         "editorLineNumber.foreground": "#808080",
         "editorLineNumber.activeForeground": "#DBDBDB",
+        // Import hints (the reference's colours).
+        "editorInlayHint.foreground": "#9C9C9C",
+        "editorInlayHint.background": "#222222",
       },
     });
     monaco.editor.setTheme("oak-dark");

@@ -245,7 +245,13 @@ export type TabChart = {
   panels?: TabPanels;
   /** Id of the watchlist the tab shows. Absent = a new tab's: the one shown when it opened. */
   watchlist?: string;
+  /** An OakScript editor tab (More menu "Open editor ▸ New tab", #325), not a chart: the chart tab it is linked to
+   *  (its studies are the ones the editor's "Add to chart" adds to). Its `panes` are a placeholder, never drawn. */
+  editor?: EditorTabLink;
 };
+
+/** The chart tab an editor tab is linked to. */
+export type EditorTabLink = { chartTab: string };
 
 /** The panels of a tab: the right panel's page (null = closed), the screener (right or bottom panel), the OakScript
  *  editor and the trade journal tab. */
@@ -500,7 +506,23 @@ export function migrateTab(raw: any): TabChart {
   const replaySession = reviveReplaySession(raw?.replaySession);
   const panels = revivePanels(raw?.panels);
   const watchlist = typeof raw?.watchlist === "string" ? raw.watchlist : undefined;
-  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession, panels, watchlist };
+  const editor: EditorTabLink | undefined = typeof raw?.editor?.chartTab === "string" ? { chartTab: raw.editor.chartTab } : undefined;
+  return {
+    id,
+    isChart: editor ? false : isChart,
+    ...reconciled,
+    numbering: LAYOUT_NUMBERING,
+    sync,
+    layoutSizes,
+    link,
+    pinned,
+    savedLayoutId,
+    savedLayoutName,
+    replaySession,
+    panels,
+    watchlist,
+    editor,
+  };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:

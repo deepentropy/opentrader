@@ -40,10 +40,13 @@ const FILE: &str = "window-session.json";
 const MAIN: &str = "main";
 /// The screener's own window (placement "Separate window", window-bridge.ts).
 const SCREENER_WINDOW: &str = "screener";
-/// A window that is not a chart window (the screener's): not saved, not restored, not counted among the app's
-/// windows, and closed with the last chart window.
+/// Label prefix of the OakScript editor's own windows ("Open editor > New window", detached-editor.ts).
+const EDITOR_WINDOW_PREFIX: &str = "oakscript-";
+
+/// A window that is not a chart window (the screener's, an editor's): not saved, not restored, not counted among the
+/// app's windows, and closed with the last chart window.
 pub fn is_aux_window(label: &str) -> bool {
-    label == SCREENER_WINDOW
+    label == SCREENER_WINDOW || label.starts_with(EDITOR_WINDOW_PREFIX)
 }
 /// Minimum overlap (physical px) between a saved window and a monitor for the
 /// saved position to be used.
@@ -184,8 +187,8 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
                 }
             }
             if open <= 1 {
-                // Quitting: keep the last window with its latest bounds. The screener's window closes with it (it
-                // would otherwise keep the app running without a chart).
+                // Quitting: keep the last window with its latest bounds. The screener's and the editor's windows
+                // close with it (they would otherwise keep the app running without a chart).
                 record(&session, window);
                 for (label, w) in app.webview_windows() {
                     if is_aux_window(&label) {

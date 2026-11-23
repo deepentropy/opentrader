@@ -2,16 +2,20 @@
  * Editor settings dialog of the OakScript editor (#324), the reference's layout: a "Text editor" section of check
  * rows, then Reset to default / Cancel / Ok. Edits a draft: Cancel drops it, Ok saves it.
  */
-import { For, createSignal } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { Dialog } from "../../components/Dialog";
 import { CheckBox } from "../../components/form";
+import { Icon } from "../../components/Icon";
+import { Tooltip } from "../../components/Tooltip";
 import { DEFAULT_EDITOR_SETTINGS, editorSettings, saveEditorSettings, type EditorSettings } from "./editor-settings";
 
-const ROWS: { key: keyof EditorSettings; label: string }[] = [
+const ROWS: { key: keyof EditorSettings; label: string; tip?: string }[] = [
   { key: "suggestions", label: "Suggestions as you type" },
   { key: "minimap", label: "Minimap" },
   { key: "lineGuide", label: "Line length guide" },
-  { key: "wordWrap", label: "Use word wrap by default" },
+  { key: "inlayHints", label: "Inlay hints for imports", tip: "Shows the version of each imported package, or that it cannot be loaded" },
+  { key: "diffDecorations", label: "Diff decorations", tip: "Marks the lines changed since the script was opened, or since the last Ctrl+S" },
+  { key: "wordWrap", label: "Use word wrap by default", tip: "Wraps lines to fit the editor width." },
 ];
 
 export function EditorSettingsDialog(props: { onClose: () => void }) {
@@ -39,6 +43,15 @@ export function EditorSettingsDialog(props: { onClose: () => void }) {
             <div class="oak-editor-settings__row">
               <CheckBox checked={draft()[r.key]} onToggle={() => toggle(r.key)} />
               <span class="cp3-title" onClick={() => toggle(r.key)}>{r.label}</span>
+              <Show when={r.tip}>
+                {(tip) => (
+                  <Tooltip text={tip()} side="top">
+                    <span class="ind3-info" aria-label={tip()}>
+                      <Icon name="st-settings-info" size={18} />
+                    </span>
+                  </Tooltip>
+                )}
+              </Show>
             </div>
           )}
         </For>

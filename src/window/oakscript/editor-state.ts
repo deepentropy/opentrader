@@ -27,3 +27,7 @@ export function isOpenedInEditor(studyId: string): boolean {
 /** A line to show in the editor once script `scriptId` is open in it (a log message's "Source code"). */
 const [revealRequest, setRevealRequest] = createSignal<{ scriptId: string; line: number } | null>(null);
 export { revealRequest, setRevealRequest };
+
+/** Name of the script the editor shows (an editor tab's or window's title, #325). */
+const [shownScriptName, setShownScriptName] = createSignal("");
+export { shownScriptName, setShownScriptName };

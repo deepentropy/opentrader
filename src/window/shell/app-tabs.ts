@@ -68,7 +68,8 @@ export function createAppTabs(windowLabel: string) {
     setMountedTabs(new Set([...cur].filter((x) => ids.has(x)).concat(id)));
   });
   const tabById = createMemo(() => new Map(tabs().map((t) => [t.id, t] as const)));
-  const gridTabIds = createMemo(() => tabs().map((t) => t.id).filter((id) => mountedTabs().has(id)));
+  // An editor tab (#325) draws no chart: it has no grid.
+  const gridTabIds = createMemo(() => tabs().filter((t) => !t.editor && mountedTabs().has(t.id)).map((t) => t.id));
 
   /** Patch one tab's (tab-level) state. */
   function patchTab(id: string, patch: Partial<TabChart>) {
@@ -214,9 +215,30 @@ export function createAppTabs(windowLabel: string) {
     setTabs([...tabs(), t]);
     activateTab(t.id);
   }
+  /** "Open editor ▸ New tab" (#325): an OakScript editor tab linked to chart tab `chartTab`, after it, shown. */
+  function newEditorTab(chartTab: string) {
+    const t: TabChart = { ...makeTab({ isChart: false }), editor: { chartTab } };
+    const arr = tabs().slice();
+    arr.splice(insertPosition(arr, false, arr.findIndex((x) => x.id === chartTab) + 1), 0, t);
+    setTabs(arr);
+    activateTab(t.id);
+  }
+  /** The editor tab goes back in place (#325, "Open editor ▸ In-place"): it closes, not kept for "Reopen closed tab",
+   *  and its chart tab is shown. */
+  function closeEditorTab(id: string) {
+    const tab = tabOf(id);
+    if (!tab?.editor) return;
+    const next = tabs().filter((t) => t.id !== id);
+    // No chart left in the window: the editor goes under a new one.
+    if (!next.some((t) => !t.editor)) next.push(makeTab());
+    const chart = next.find((t) => t.id === tab.editor!.chartTab) ?? next.find((t) => !t.editor) ?? next[0];
+    setTabs(next);
+    activateTab(chart.id);
+  }
   function duplicateTab(id: string) {
     const src = tabs().find((t) => t.id === id);
-    if (!src) return;
+    // An editor tab is not copied: one editor per chart.
+    if (!src || src.editor) return;
     const clone: TabChart = {
       id: newTabId(),
       layout: src.layout,
@@ -282,7 +304,7 @@ export function createAppTabs(windowLabel: string) {
    *  keeps at least one tab. Returns true when the tab moved. */
   async function dropTabOnWindow(id: string, sx: number, sy: number): Promise<boolean> {
     const tab = tabs().find((t) => t.id === id);
-    if (!tab || (tabs().length <= 1 && windowLabel === "main")) return false;
+    if (!tab || tab.editor || (tabs().length <= 1 && windowLabel === "main")) return false;
     const hit = await findStripAt(sx, sy);
     if (!hit || hit.label === windowLabel) return false;
     if (!(await sendTabTo(hit.label, tab, hit.index))) return false;
@@ -321,7 +343,8 @@ export function createAppTabs(windowLabel: string) {
     const arr = tabs();
     if (arr.length <= 1) return;
     const tab = arr.find((t) => t.id === id);
-    if (!tab || !detachTabToWindow(tab, screenX, screenY)) return;
+    // An editor tab stays in the window of its chart (#325).
+    if (!tab || tab.editor || !detachTabToWindow(tab, screenX, screenY)) return;
     const idx = arr.findIndex((t) => t.id === id);
     const next = arr.filter((t) => t.id !== id);
     setTabs(next);
@@ -419,6 +442,8 @@ export function createAppTabs(windowLabel: string) {
     followCloseOnlyTypes,
     activateTab,
     newTab,
+    newEditorTab,
+    closeEditorTab,
     duplicateTab,
     insertTab,
     reopenClosed,

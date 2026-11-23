@@ -13,8 +13,8 @@
  * A built-in study's source shows read-only (`readOnly` prop): its own model,
  * never saved; typing in it shows the read-only message.
  *
- * Editor metrics: Menlo/Consolas 13px/18px; the Editor settings (#324) set suggestions, minimap, line guide and
- * word wrap. Profiler mode (#312): the profile of the script's runs in a column left of the line numbers.
+ * Editor metrics: Menlo/Consolas 13px/18px; the Editor settings (#324) set suggestions, minimap, line guide, import
+ * hints, diff decorations (#325) and word wrap. Profiler mode (#312): the profile of the script's runs in a column left of the line numbers.
  */
 import { Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
 import { monaco, setupMonaco, applyOakTheme } from "./monaco-setup";
@@ -25,6 +25,8 @@ import { revealRequest, setRevealRequest } from "./editor-state";
 import type { OakProfile } from "./engine-types";
 import { PROFILER_GUTTER_CHARS, ProfilerGutter } from "./profiler/ProfilerGutter";
 import { hotLines, profileRows } from "./profiler/rows";
+import { DiffDecorations } from "./diff-decorations";
+import { translate } from "../../i18n/translator";
 
 const AUTOSAVE_MS = 400;
 /** Shown when typing into a read-only source (the reference app's wording). */
@@ -47,11 +49,17 @@ type Props = {
   revealSlowest?: number;
   /** The editor's commands the panel calls (its More menu). */
   onReady?: (api: { commandPalette: () => void }) => void;
+  /** Under the chart: the editor's "New window" (Alt+Shift+W) and "New tab" (Alt+Shift+T) commands (#325), in its
+   *  context menu and command palette as the reference's. */
+  onOpenEditor?: (where: "window" | "tab") => void;
+  /** "New window" is offered (the desktop app). */
+  canOpenWindow?: boolean;
 };
 
 export default function OakScriptEditor(props: Props) {
   let host!: HTMLDivElement;
   let editor: monaco.editor.IStandaloneCodeEditor | undefined;
+  let diffMarks: DiffDecorations | undefined;
   const [shownEditor, setShownEditor] = createSignal<monaco.editor.IStandaloneCodeEditor>();
   let saveTimer: number | undefined;
   /** The script the CURRENT model belongs to (saves are keyed to this, not to
@@ -106,8 +114,35 @@ export default function OakScriptEditor(props: Props) {
     editor.onDidChangeCursorPosition((e) =>
       props.onCursor?.(e.position.lineNumber, e.position.column),
     );
-    // Ctrl+S saves immediately instead of triggering the browser dialog.
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, flushSave);
+    diffMarks = new DiffDecorations(editor);
+    if (props.onOpenEditor) {
+      const open = props.onOpenEditor;
+      const { KeyMod, KeyCode } = monaco;
+      if (props.canOpenWindow) {
+        editor.addAction({
+          id: "oakscript.openInNewWindow",
+          label: translate("New window"),
+          contextMenuGroupId: "navigation",
+          contextMenuOrder: -1,
+          keybindings: [KeyMod.Alt | KeyMod.Shift | KeyCode.KeyW],
+          run: () => open("window"),
+        });
+      }
+      editor.addAction({
+        id: "oakscript.openInNewTab",
+        label: translate("New tab"),
+        contextMenuGroupId: "navigation",
+        contextMenuOrder: 0,
+        keybindings: [KeyMod.Alt | KeyMod.Shift | KeyCode.KeyT],
+        run: () => open("tab"),
+      });
+    }
+    // Ctrl+S saves immediately instead of triggering the browser dialog; the text is the saved version of the diff
+    // decorations from then on.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      flushSave();
+      diffMarks?.saved();
+    });
   });
 
   // A coding agent saved a script: its model (open or cached) takes the new text as one edit the user can undo.
@@ -145,6 +180,7 @@ export default function OakScriptEditor(props: Props) {
     readOnlyActive = ro !== null;
     lastSaved = model.getValue();
     editor.updateOptions({ readOnly: readOnlyActive, readOnlyMessage: { value: READ_ONLY_MESSAGE } });
+    DiffDecorations.opened(model);
     editor.setModel(model);
     const pos = editor.getPosition();
     if (pos) props.onCursor?.(pos.lineNumber, pos.column);
@@ -165,8 +201,9 @@ export default function OakScriptEditor(props: Props) {
   createEffect(on(revealRequest, revealAsked));
 
   createEffect(() => {
-    const options = editorOptions(editorSettings());
-    editor?.updateOptions(options);
+    const settings = editorSettings();
+    editor?.updateOptions(editorOptions(settings));
+    diffMarks?.setEnabled(settings.diffDecorations);
   });
 
   // Profiler mode: the line numbers' gutter widens for the bars.
@@ -192,6 +229,7 @@ export default function OakScriptEditor(props: Props) {
 
   onCleanup(() => {
     flushSave();
+    diffMarks?.dispose();
     editor?.dispose();
   });
 

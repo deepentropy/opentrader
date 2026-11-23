@@ -330,3 +330,171 @@
   z-index: 60;
   min-width: 200px;
 }
+
+/* ── Diff decorations (#325) ───────────────────────────────────────────── */
+/* The reference's gutter marks: 3 px wide (5 px under the pointer), green added, hatched blue modified, a red pointer
+   between the lines for removed ones. */
+.monaco-editor .oak-line-deco {
+  width: 4px !important;
+  margin-inline-start: 4px;
+  cursor: pointer;
+}
+.monaco-editor .oak-line-deco::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  height: 100%;
+  z-index: 1;
+  transition: width 0.2s;
+}
+.monaco-editor .oak-line-deco:hover::before,
+.monaco-editor .oak-line-deco:active::before {
+  width: 5px;
+}
+.monaco-editor .oak-line-deco--added::before {
+  background: #089950;
+}
+.monaco-editor .oak-line-deco--modified::before {
+  background-image: linear-gradient(-45deg, #2962ff 25%, #0000 25%, #0000 50%, #2962ff 50%, #2962ff 75%, #0000 75%, #0000);
+  background-size: 3px 3px;
+}
+/* Removed lines: a pointer on the line below the gap (on the first line when they were at the top). */
+.monaco-editor .oak-line-deco--removed::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  inset-inline-start: 0;
+  border-block: 4px solid transparent;
+  border-inline-start: 5px solid #f23645;
+  z-index: 2;
+}
+.monaco-editor .oak-line-deco--removed.is-top::after {
+  bottom: auto;
+  top: -4px;
+}
+.monaco-editor .oak-line-deco--removed:hover::before {
+  background-color: #f23645;
+}
+.monaco-editor .oak-line-deco--removed:hover::after {
+  display: none;
+}
+
+/* The inline diff of a block, under its lines. */
+.oak-diff-overlay {
+  position: absolute;
+  inset-inline-start: 0;
+}
+.oak-diff-zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-bottom: 1px solid;
+  user-select: none;
+  color: var(--color-text-primary);
+  background: var(--ot-chart-bg);
+}
+.oak-diff-zone__arrow {
+  position: absolute;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  transform: rotate(-45deg);
+}
+.oak-diff-zone__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  margin-top: 5px;
+  border-block: 1px solid transparent;
+}
+.oak-diff-zone__title {
+  margin-inline-start: 27px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.oak-diff-zone__actions {
+  display: flex;
+  align-items: center;
+}
+.oak-diff-zone__action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-secondary);
+}
+.oak-diff-zone__action::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 4px;
+}
+.oak-diff-zone__action > * {
+  position: relative;
+}
+.oak-diff-zone__editor {
+  flex: 1;
+  min-height: 0;
+}
+.oak-diff-zone--added { border-bottom-color: #089950; }
+.oak-diff-zone--added .oak-diff-zone__arrow { background: #089950; }
+.oak-diff-zone--added .oak-diff-zone__header { background: #1a3326; border-color: #089950; }
+.oak-diff-zone--added .oak-diff-zone__action:hover::before { background: #056636; }
+.oak-diff-zone--removed { border-bottom-color: #f23645; }
+.oak-diff-zone--removed .oak-diff-zone__arrow { background: #f23645; }
+.oak-diff-zone--removed .oak-diff-zone__header { background: #331f20; border-color: #f23645; }
+.oak-diff-zone--removed .oak-diff-zone__action:hover::before { background: #802028; }
+.oak-diff-zone--modified { border-bottom-color: #2962ff; }
+.oak-diff-zone--modified .oak-diff-zone__arrow { background: #2962ff; }
+.oak-diff-zone--modified .oak-diff-zone__header { background: #131313; border-color: #2962ff; }
+.oak-diff-zone--modified .oak-diff-zone__action:hover::before { background: #142e61; }
+html.theme-light .oak-diff-zone--added .oak-diff-zone__header { background: #daf2e6; }
+html.theme-light .oak-diff-zone--added .oak-diff-zone__action:hover::before { background: #70cc9e; }
+html.theme-light .oak-diff-zone--removed .oak-diff-zone__header { background: #ffebec; }
+html.theme-light .oak-diff-zone--removed .oak-diff-zone__action:hover::before { background: #faa1a4; }
+html.theme-light .oak-diff-zone--modified .oak-diff-zone__header { background: #e3effd; }
+html.theme-light .oak-diff-zone--modified .oak-diff-zone__action:hover::before { background: #90bff9; }
+
+/* ── More menu: Release notes and Help (#325) ──────────────────────────── */
+.oak-more-menu__link-row {
+  grid-template-columns: 28px 1fr auto;
+}
+.oak-more-menu__trail {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+}
+.oak-more-menu__chevron {
+  padding-inline: 4px;
+  font-size: 16px;
+  color: var(--color-text-secondary);
+}
+[dir="rtl"] .oak-more-menu__chevron {
+  transform: scaleX(-1);
+}
+/* The red dot of release notes not read yet (on the row, and on the ⋯ button). */
+.oak-more-menu__new-dot,
+.oak-panel__more-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f23645;
+}
+.oak-more-menu__new-dot {
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+.oak-panel__more-btn {
+  position: relative;
+}
+.oak-panel__more-dot {
+  position: absolute;
+  top: 3px;
+  inset-inline-end: 3px;
+}

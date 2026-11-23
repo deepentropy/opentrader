@@ -78,7 +78,8 @@ export function TabContextMenu(props: Props) {
 
   const id = a.tabId;
   const rows = (): Row[] => [
-    { kind: "item", label: "Duplicate tab", icon: "tab-chart", hotkey: "Ctrl+U", onClick: () => props.onDuplicate(id) },
+    // An editor tab (#325, not a chart) is not copied.
+    ...(a.isChart ? [{ kind: "item" as const, label: "Duplicate tab", icon: "tab-chart" as IconName, hotkey: "Ctrl+U", onClick: () => props.onDuplicate(id) }] : []),
     { kind: "item", label: "Reload tab", icon: "tab-menu-reload", hotkey: "Ctrl+R", onClick: () => props.onReload(id) },
     ...(a.isChart ? [{ kind: "item" as const, label: "Copy link", icon: "main-menu-open-link" as IconName, onClick: () => props.onCopyLink(id) }] : []),
     {

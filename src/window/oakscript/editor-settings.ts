@@ -12,10 +12,21 @@ export type EditorSettings = {
   minimap: boolean;
   /** A guide line at LINE_GUIDE_COLUMN. */
   lineGuide: boolean;
+  /** Hints after the imports: the version of the package an import loads, or that it cannot be loaded. */
+  inlayHints: boolean;
+  /** Gutter marks on the lines changed since the script was opened or last saved with Ctrl+S (diff-decorations.ts). */
+  diffDecorations: boolean;
   wordWrap: boolean;
 };
 
-export const DEFAULT_EDITOR_SETTINGS: EditorSettings = { suggestions: true, minimap: false, lineGuide: false, wordWrap: false };
+export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  suggestions: true,
+  minimap: false,
+  lineGuide: false,
+  inlayHints: true,
+  diffDecorations: true,
+  wordWrap: false,
+};
 
 /** Column of the line length guide. */
 export const LINE_GUIDE_COLUMN = 120;
@@ -46,6 +57,7 @@ export function editorOptions(s: EditorSettings): editor.IEditorOptions {
     suggestOnTriggerCharacters: s.suggestions,
     minimap: { enabled: s.minimap },
     rulers: s.lineGuide ? [LINE_GUIDE_COLUMN] : [],
+    inlayHints: { enabled: s.inlayHints ? "on" : "off" },
     wordWrap: s.wordWrap ? "on" : "off",
   };
 }
