@@ -88,7 +88,7 @@ struct Columns {
     day: [Option<usize>; 5],
     prev: [Option<usize>; 5],
     minute_close: Option<usize>,
-    ext: [Option<usize>; 14],
+    ext: [Option<usize>; 15],
 }
 
 impl Columns {

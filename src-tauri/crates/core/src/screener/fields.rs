@@ -491,9 +491,10 @@ fn live(f: Live, row: &Row) -> Option<f64> {
         Live::PostVolume => x.post_volume?,
         Live::PostChange => pct(x.post_close, x.post_base)?,
         Live::PostChangeAbs => diff(x.post_close, x.post_base)?,
-        // The bar's price is the regular session's (the row's), frozen after the close like the bars.
-        Live::Change1h => pct(Some(m.last), x.hour_base)?,
-        Live::Change4h => pct(Some(m.last), x.h4_base)?,
+        // The bar's close is the last regular-session trade, kept after the close (not the official close, which
+        // the bars leave out); the row's price without it (an older gateway).
+        Live::Change1h => pct(x.reg_close.or(Some(m.last)), x.hour_base)?,
+        Live::Change4h => pct(x.reg_close.or(Some(m.last)), x.h4_base)?,
         Live::Close => pos(m.last)?,
         Live::Open => pos(m.open)?,
         Live::High => pos(m.high)?,

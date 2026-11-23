@@ -459,6 +459,7 @@ mod tests {
             post_base: Some(10.0),
             hour_base: Some(12.5),
             h4_base: Some(8.0),
+            reg_close: Some(10.2),
             ..Default::default()
         };
         // No feed values (the REST snapshot): every extended-hours field is empty.
@@ -475,7 +476,7 @@ mod tests {
             Some(Cell::Num(v)) => Some((v * 1e6).round() / 1e6),
             _ => None,
         };
-        let want = [Some(8.8), Some(10.0), Some(5.0), Some(500.0), Some(4.761905), Some(10.5), Some(5.0), Some(70.0), Some(-20.0), Some(25.0), None];
+        let want = [Some(8.8), Some(10.0), Some(5.0), Some(500.0), Some(4.761905), Some(10.5), Some(5.0), Some(70.0), Some(-18.4), Some(27.5), None];
         for (i, w) in want.iter().enumerate() {
             assert_eq!(num(0, i), *w, "{}", fields[i]);
             assert_eq!(num(1, i), None, "{} without feed values", fields[i]);

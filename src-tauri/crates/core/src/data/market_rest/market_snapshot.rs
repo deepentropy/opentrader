@@ -39,8 +39,8 @@ pub struct MarketRow {
 
 /// What the live feed keeps of the extended hours for one ticker (gateway columns `preOpen` … `h4Base`): the
 /// pre-market (04:00-09:30 New York) and the post-market (the close to 20:00), each held after its session until
-/// the next day trades, with the close its change is measured from; and the close of the previous regular 1h / 4h
-/// bar (bars from 09:30). `None` when not known.
+/// the next day trades, with the close its change is measured from; the close of the previous regular 1h / 4h bar
+/// (bars from 09:30) and the last regular-session trade, the current bar's close. `None` when not known.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ExtHours {
     pub pre_open: Option<f64>,
@@ -59,16 +59,19 @@ pub struct ExtHours {
     pub post_base: Option<f64>,
     pub hour_base: Option<f64>,
     pub h4_base: Option<f64>,
+    /// The last regular-session trade: after the close it stays the last bar's close (the closing auction is not
+    /// in the bars).
+    pub reg_close: Option<f64>,
 }
 
 impl ExtHours {
     /// Gateway column names, in the order of [`ExtHours::from_values`].
-    pub const COLUMNS: [&'static str; 14] = [
+    pub const COLUMNS: [&'static str; 15] = [
         "preOpen", "preHigh", "preLow", "preClose", "preVolume", "preBase", "postOpen", "postHigh", "postLow",
-        "postClose", "postVolume", "postBase", "hourBase", "h4Base",
+        "postClose", "postVolume", "postBase", "hourBase", "h4Base", "regClose",
     ];
 
-    pub fn from_values(v: [Option<f64>; 14]) -> Self {
+    pub fn from_values(v: [Option<f64>; 15]) -> Self {
         ExtHours {
             pre_open: v[0],
             pre_high: v[1],
@@ -84,6 +87,7 @@ impl ExtHours {
             post_base: v[11],
             hour_base: v[12],
             h4_base: v[13],
+            reg_close: v[14],
         }
     }
 }
