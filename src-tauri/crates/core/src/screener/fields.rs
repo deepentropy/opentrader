@@ -89,6 +89,10 @@ pub enum Step {
     AvgVolIncl(u32),
     /// Today's volume / `|next` (= average_volume_10d_calc at D).
     RelVol,
+    /// 100 * (today's volume / the previous session's - 1); `volume_change|next` = D's volume.
+    VolChange,
+    /// Today's volume - the previous session's (`volume_change|next`).
+    VolChangeAbs,
     /// Price * `shares` (weighted shares outstanding).
     MarketCap,
     /// Text column (sector, industry): the same value all day.
@@ -215,6 +219,8 @@ const STATE: &[(&str, Step)] = &[
     ("average_volume_60d_calc", Step::AvgVolIncl(60)),
     ("average_volume_90d_calc", Step::AvgVolIncl(90)),
     ("relative_volume_10d_calc", Step::RelVol),
+    ("volume_change", Step::VolChange),
+    ("volume_change_abs", Step::VolChangeAbs),
     ("market_cap_basic", Step::MarketCap),
     ("sector", Step::Text),
     ("industry", Step::Text),
@@ -282,7 +288,8 @@ fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
 const STATE_OPTIONAL: &[&str] = &[
     "Perf.5Y", "Perf.10Y", "Recommend.All", "Recommend.MA", "Recommend.Other", "TechRating_1D", "MARating_1D", "OsRating_1D", "Mom",
     "Mom_14", "AO", "CCI20", "Stoch.K", "Stoch.D", "Stoch.K_14_1_3", "Stoch.D_14_1_3", "Volatility.W", "Volatility.M",
-    "volume|1W", "volume|1M", "Value.Traded|1W", "Value.Traded|1M", "candlestick_patterns",
+    "volume|1W", "volume|1M", "Value.Traded|1W", "Value.Traded|1M", "candlestick_patterns", "volume_change",
+    "volume_change_abs",
 ];
 
 /// The state key whose presence offers an optional field.
@@ -474,6 +481,11 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
                 let avg = next()?;
                 (avg > 0.0).then(|| m.volume / avg)
             }
+            Step::VolChange => {
+                let prev = s.num("volume_change|next", i)?;
+                (prev > 0.0).then(|| 100.0 * (m.volume / prev - 1.0))
+            }
+            Step::VolChangeAbs => Some(m.volume - s.num("volume_change|next", i)?),
             Step::MarketCap => Some(price? * s.num("shares", i)?),
             Step::Daily => s.num(key, i),
             Step::Tech(tech) => technicals::step(s, i, m, tech),

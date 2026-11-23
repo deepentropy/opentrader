@@ -157,7 +157,7 @@ function valueUnit(col: ColumnRef): string | null {
 function inputText(col: ColumnRef | undefined, v: number | null): string {
   if (v === null) return "";
   const fmt = col ? COLUMN_BY_ID[col.id]?.fmt : undefined;
-  return fmt === "volume" || fmt === "money" ? abbrev(v) : String(v);
+  return fmt === "volume" || fmt === "signedVolume" || fmt === "money" ? abbrev(v) : String(v);
 }
 
 /** Number input with the reference app stepper (increase / decrease). `col`: the column whose format the text

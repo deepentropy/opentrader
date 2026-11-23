@@ -76,6 +76,8 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
     // Cells: the reference volume formatter, whole numbers under 1,000.
     case "volume":
       return { text: volumeFormat(v, 0) };
+    case "signedVolume":
+      return { text: signed(v, volumeFormat(Math.abs(v), 0)), tone };
     case "money":
       return { text: volumeFormat(v, 0), unit };
     case "number":
@@ -106,6 +108,7 @@ export function valueText(fmt: Fmt, n: number): string {
 function englishValueText(fmt: Fmt, n: number): string {
   switch (fmt) {
     case "volume":
+    case "signedVolume":
     case "money":
       return abbrev(n);
     case "change":

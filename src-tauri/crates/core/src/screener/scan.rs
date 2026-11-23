@@ -508,6 +508,29 @@ mod tests {
     }
 
     #[test]
+    fn volume_change_fields() {
+        // AAA on 29/09: volume 1000; D's volume 800 (S's previous session).
+        let with_values = |mut st: StateFile| {
+            for (k, v) in [("volume_change", 60.0), ("volume_change_abs", 300.0), ("volume_change|next", 800.0)] {
+                st.num.insert(k.to_string(), vec![Some(v), None, None]);
+            }
+            st
+        };
+        let t = table(Some(with_values(state((2026, 9, 28)))));
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, &t.rows[0]);
+        assert_eq!(v("volume_change"), Some(Val::Num(25.0)));
+        assert_eq!(v("volume_change_abs"), Some(Val::Num(200.0)));
+        // On the state's own day: the values at its close.
+        let t = table(Some(with_values(state((2026, 9, 29)))));
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, &t.rows[0]);
+        assert_eq!(v("volume_change"), Some(Val::Num(60.0)));
+        assert_eq!(v("volume_change_abs"), Some(Val::Num(300.0)));
+        // Offered only once the served state holds them.
+        let ids: Vec<String> = crate::screener::fields::catalog(&table(Some(state((2026, 9, 28))))).into_iter().filter(|f| f.available).map(|f| f.id).collect();
+        assert!(!ids.contains(&"volume_change".to_string()));
+    }
+
+    #[test]
     fn fundamentals_and_their_price_ratios() {
         // AAA: price 10, 100 shares (market cap 1000).
         let mut st = state((2026, 9, 28));

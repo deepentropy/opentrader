@@ -91,6 +91,12 @@ describe("formatCell", () => {
     expect(zero.tone).toBeUndefined();
   });
 
+  it("formats signed volumes with a sign and a tone", () => {
+    expect(formatCell("signedVolume", 39_661_407, "usd")).toEqual({ text: "+39.66 M", tone: "up" });
+    expect(formatCell("signedVolume", -2_967_302, null)).toEqual({ text: `${MINUS}2.97 M`, tone: "down" });
+    expect(valueText("signedVolume", -5e6)).toBe(`${MINUS}5 M`);
+  });
+
   it("formats changes as signed percentages with a tone", () => {
     expect(formatCell("change", 6.47, "usd")).toEqual({ text: "+6.47%", tone: "up" });
     expect(formatCell("change", -1.36, null)).toEqual({ text: `${MINUS}1.36%`, tone: "down" });

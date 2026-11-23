@@ -28,6 +28,7 @@ export type Fmt =
   | "change" //      +6.47%, colored
   | "percent" //     5.22%
   | "volume" //      9.07 M
+  | "signedVolume" // +39.66 M, colored
   | "money" //       4.8 B USD
   | "number" //      1.79
   | "integer" //     25
@@ -436,6 +437,11 @@ export const COLUMNS: ColumnDef[] = [
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
   { id: "Volume", title: "Volume", short: "Vol", category: "marketData", align: "right", fmt: "volume", width: 90, params: RES_DWM("volume", "volume|1W", "volume|1M"),
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "AverageVolume", "Volume"]] } },
+  // The session's volume against the previous session's (colored like the price change).
+  { id: "VolumeChange", title: "Volume change %", short: "Vol chg %", category: "marketData", align: "right", fmt: "change", width: 86, params: RES_1D("volume_change"),
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
+  { id: "VolumeChangeAbs", title: "Volume change", short: "Vol chg", category: "marketData", align: "right", fmt: "signedVolume", width: 90, params: RES_1D("volume_change_abs"),
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
   // Technicals
   { id: "AverageDailyRange", title: "Average daily range", short: "ADR", category: "technicals", align: "right", fmt: "price", width: 86, field: "ADR",
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
@@ -723,7 +729,7 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i })),
     C("Volatility", { interval: "Interval1W" }), C("Volatility", { interval: "Interval1M" })] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
-  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
+  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D)] },
   { id: "forecasts", title: "Forecasts", columns: [C("MarketCap"), C("Price")] },
   { id: "valuation", title: "Valuation", columns: [C("MarketCap"), C("MarketCapPerf", { interval: "Interval1Y" }), C("PriceToEarnings"), C("PriceToEarningsToGrowth", TTM),
     C("PriceToSales"), C("PriceToBook"), C("PriceToCashFlow"), C("PriceToFreeCashFlow"), C("PriceToCashRatio"), C("Ev"), C("EvToRevenue", TTM), C("EvToEbit", TTM), C("EvToEbitda", TTM)] },
@@ -747,7 +753,7 @@ export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] 
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
-  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
+  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D)] },
   { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward"), C("DividendsFrequency")] },
   { id: "holdings", title: "Holdings", columns: [C("TotalHoldings"), C("PercentInTop10"), C("PercentInTop25"), C("PercentInTop50")] },
   { id: "risk", title: "Risk", columns: [C("Beta", { interval: "Interval1Y" }), C("Beta", { interval: "Interval3Y" }), C("Beta", { interval: "Interval5Y" }),
