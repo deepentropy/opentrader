@@ -5,6 +5,7 @@
 import { Channel } from "@tauri-apps/api/core";
 import { createSignal } from "solid-js";
 import { commands, type LocalModelInfo, type LocalProgress } from "../../bindings";
+import { trackModelDownload } from "./telemetry";
 
 const [info, setInfo] = createSignal<LocalModelInfo | null>(null);
 const [progress, setProgress] = createSignal<LocalProgress | null>(null);
@@ -16,13 +17,33 @@ export async function refreshLocal(): Promise<void> {
   if (r.status === "ok") setInfo(r.data);
 }
 
+/** What keeps the model from running here, or null. */
+export type LocalBlocker = "unavailable" | "low_memory" | "low_disk";
+
+export function localBlockerKind(i: LocalModelInfo): LocalBlocker | null {
+  const [ram, need, free, down] = [i.ramBytes ?? 0, i.ramNeededBytes ?? 0, i.freeDiskBytes ?? 0, i.downloadBytes ?? 0];
+  if (!i.available) return "unavailable";
+  if (ram && ram < need) return "low_memory";
+  if (!i.installed && free && free < down * 1.1) return "low_disk";
+  return null;
+}
+
+/** Where the model stands, for the usage statistics: ready, not activated yet, or what keeps it from running here. */
+export function localState(i: LocalModelInfo | null): string {
+  if (!i) return "unknown";
+  if (i.installed) return "ready";
+  return localBlockerKind(i) ?? "not_activated";
+}
+
 /** Why the model can't run here, or null: too little memory or disk space. */
 export function localBlocker(i: LocalModelInfo): string | null {
   const [ram, need, free, down] = [i.ramBytes ?? 0, i.ramNeededBytes ?? 0, i.freeDiskBytes ?? 0, i.downloadBytes ?? 0];
-  if (!i.available) return "No model for this system in this version.";
-  if (ram && ram < need) return `It needs ${gb(need)} of memory; this computer has ${gb(ram)}.`;
-  if (!i.installed && free && free < down * 1.1) return `It needs ${gb(down)} of free disk space (${gb(free)} free).`;
-  return null;
+  switch (localBlockerKind(i)) {
+    case "unavailable": return "No model for this system in this version.";
+    case "low_memory": return `It needs ${gb(need)} of memory; this computer has ${gb(ram)}.`;
+    case "low_disk": return `It needs ${gb(down)} of free disk space (${gb(free)} free).`;
+    default: return null;
+  }
 }
 
 /** Bytes as GB, one decimal under 10 GB (byte counts come as numbers or null from Rust). */
@@ -33,11 +54,15 @@ export const gb = (bytes: number | null) => {
 
 export async function installLocal(): Promise<void> {
   setError(null);
+  const update = !!info()?.installed;
+  const started = Date.now();
   const ch = new Channel<LocalProgress>();
   ch.onmessage = (p) => setProgress(p);
   const r = await commands.localModelInstall(ch);
   setProgress(null);
-  if (r.status === "error" && r.error !== "Stopped.") setError(r.error);
+  const stopped = r.status === "error" && r.error === "Stopped.";
+  if (r.status === "error" && !stopped) setError(r.error);
+  trackModelDownload({ outcome: r.status === "ok" ? "done" : stopped ? "stopped" : "failed", update, seconds: Math.round((Date.now() - started) / 1000) });
   await refreshLocal();
 }
 

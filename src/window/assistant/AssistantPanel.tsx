@@ -17,7 +17,8 @@ import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAn
 import { attach, MAX_ATTACHMENT_BYTES } from "../../data/assistant/attachments";
 import { Popup } from "./Popup";
 import { AssistantSetup } from "./LocalModel";
-import { gb, localError, localInfo, localProgress, refreshLocal, removeLocal, setUpdateLater, updateBytes, updateLater, updateLocal } from "../../data/assistant/local";
+import { trackPanelOpened } from "../../data/assistant/telemetry";
+import { gb, localError, localInfo, localProgress, localState, refreshLocal, removeLocal, setUpdateLater, updateBytes, updateLater, updateLocal } from "../../data/assistant/local";
 import { stepTitle } from "./steps";
 import "../../styles/screener.css";
 import "../../styles/community.css";
@@ -34,7 +35,7 @@ const suggestions = (ticker: string) => [
 ];
 
 export function AssistantPanel(props: { ticker: string }) {
-  onMount(() => void refreshLocal());
+  onMount(() => void refreshLocal().then(() => trackPanelOpened(localState(localInfo()))));
   const ready = () => !!localInfo()?.installed;
   const overlay = () => assistantPanel.mode() === "overlay";
   const [view, setView] = createSignal<"chat" | "chats">("chat");

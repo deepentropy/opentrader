@@ -5,6 +5,9 @@
  * ($ai_session_id); a thumbs up or down on an answer is `assistant_feedback` on the same trace. They tell where the
  * model goes wrong, and feed its next training.
  *
+ * The way to a first question too: `assistant_opened` with where the model stands, `assistant_model_download` with
+ * how its download ended.
+ *
  * Kept small: the system prompt goes as its name (it is fixed), tool results are cut, pictures never leave.
  */
 import { track } from "../analytics";
@@ -117,4 +120,14 @@ export function trackTrace(o: {
 /** A thumbs up or down on an answer. */
 export function trackFeedback(trace: string, chat: string, rating: "good" | "bad"): void {
   track("assistant_feedback", { ...base(trace, chat), rating });
+}
+
+/** The panel opened (each time), with where the model stands (see localState). */
+export function trackPanelOpened(model: string): void {
+  track("assistant_opened", { model });
+}
+
+/** A model download (Activate, or Update to a newer fine-tune) ended. The error text stays out: it names folders. */
+export function trackModelDownload(o: { outcome: "done" | "stopped" | "failed"; update: boolean; seconds: number }): void {
+  track("assistant_model_download", { ...o, $ai_model: model() });
 }
