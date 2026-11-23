@@ -29,7 +29,7 @@ import { type ChartCx } from "./context";
 const LIVE_PAINT_MS = 33;
 
 /** The bar a live paint gives the series' incremental update, or null to set the whole series again. The paint
- *  waits for a frame and the studies' results (up to LIVE_WAIT_MS): the series may have been given other bars
+ *  waits for the studies' results (up to LIVE_WAIT_MS): the series may have been given other bars
  *  meanwhile (another interval or symbol, a reload), whose newest bar can be later than the queued one, which the
  *  chart library refuses (#361). The bars' own newest bar is painted, the queued one only told which bar moved. */
 export function liveUpdateBar(queued: OHLC | null, bars: readonly OHLC[]): OHLC | null {
@@ -103,11 +103,12 @@ export function createLive(cx: ChartCx): LiveApi {
     }
     paintWhenCalculated(next, appended);
   }
-  /** The live bar to paint: a tick merges into it, and it is painted at most once per animation frame, after its
+  /** The live bar to paint: a tick merges into it, and it is painted at most every LIVE_PAINT_MS, after its
    *  studies' worker results (#259, #262). A newer tick of the same bar takes its place; another bar's sets the
-   *  whole series again (next = null). Ticks that come while the studies calculate wait for the next frame. */
+   *  whole series again (next = null). Ticks that come while the studies calculate wait for the next paint. */
   let waiting: { next: OHLC | null; appended: boolean } | null = null;
-  let frame = 0;
+  /** Waiting for the page to be shown again. */
+  let waitingShown = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let calculating = false;
   let paintedAt = -Infinity;
@@ -117,20 +118,33 @@ export function createLive(cx: ChartCx): LiveApi {
       : { next, appended };
     schedulePaint();
   }
-  /** The next live paint: on an animation frame, at least LIVE_PAINT_MS after the one before. The chart library draws
-   *  every series of the pane again on each paint, which at 60 per second takes cores on charts with many plots
-   *  (#264). */
+  /** The next live paint: at least LIVE_PAINT_MS after the one before, and not while the page is hidden (a minimised
+   *  window, a browser tab in the background): it paints once shown. The chart library draws every series of the
+   *  pane again on each paint, which at 60 per second takes cores on charts with many plots (#264). Not on an
+   *  animation frame of its own: the chart library draws on the next one, a frame of ours before it was a second frame
+   *  per live update with nothing drawn (#249). */
   function schedulePaint() {
-    if (frame || timer || calculating) return;
-    const wait = paintedAt + LIVE_PAINT_MS - performance.now();
-    if (wait <= 0) frame = requestAnimationFrame(paintFrame);
-    else timer = setTimeout(() => {
+    if (waitingShown || timer || calculating) return;
+    const wait = Math.max(0, paintedAt + LIVE_PAINT_MS - performance.now());
+    timer = setTimeout(() => {
       timer = null;
-      frame = requestAnimationFrame(paintFrame);
+      if (!document.hidden) {
+        paintNow();
+        return;
+      }
+      waitingShown = true;
+      const shown = () => {
+        if (document.hidden) return;
+        document.removeEventListener("visibilitychange", shown);
+        waitingShown = false;
+        paintNow();
+      };
+      document.addEventListener("visibilitychange", shown);
+      stopWaitingShown = () => document.removeEventListener("visibilitychange", shown);
     }, wait);
   }
-  function paintFrame() {
-    frame = 0;
+  let stopWaitingShown = () => {};
+  function paintNow() {
     paintedAt = performance.now();
     const w = waiting;
     waiting = null;
@@ -151,7 +165,7 @@ export function createLive(cx: ChartCx): LiveApi {
     });
   }
   onCleanup(() => {
-    if (frame) cancelAnimationFrame(frame);
+    stopWaitingShown();
     if (timer) clearTimeout(timer);
   });
   /** Run `fn` (several series data changes) with the crosshair parked. While a
