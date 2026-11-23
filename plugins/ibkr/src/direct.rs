@@ -173,6 +173,8 @@ struct Routes {
     executions: HashMap<i64, Reading<Executions>>,
     /// Order id → the cancel waiting for the broker's first answer.
     cancels: HashMap<i64, oneshot::Sender<Notice>>,
+    /// Order id → the what-if order (an order preview) waiting for its answer: the order's state, or its refusal.
+    what_ifs: HashMap<i64, oneshot::Sender<Result<OrderState, String>>>,
     history: HashMap<i64, Reading<HistBar, Result<Vec<HistBar>, HistError>>>,
     matches: HashMap<i64, oneshot::Sender<Vec<Match>>>,
 }
@@ -393,6 +395,25 @@ impl Direct {
         self.call(move |c| c.place_order(order.order_id, &contract, &order)).await?
     }
 
+    /// What an order would do (a what-if order: nothing is placed): its margin and commission, or the broker's refusal.
+    pub async fn what_if(&self, contract: &Contract, order: &Order) -> Result<OrderState, String> {
+        let id = i64::from(order.order_id);
+        let (tx, rx) = oneshot::channel();
+        lock(&self.routes).what_ifs.insert(id, tx);
+        let (contract, mut order) = (to_contract(contract), to_order(order));
+        order.what_if = true;
+        if let Err(e) = self.call(move |c| c.place_order(order.order_id, &contract, &order)).await.and_then(|r| r) {
+            lock(&self.routes).what_ifs.remove(&id);
+            return Err(e);
+        }
+        let answer = tokio::time::timeout(Duration::from_secs(15), rx).await;
+        lock(&self.routes).what_ifs.remove(&id);
+        match answer {
+            Ok(Ok(r)) => r,
+            _ => Err("The broker did not answer the preview".into()),
+        }
+    }
+
     pub async fn cancel_order(&self, order_id: i32) -> Result<Option<String>, String> {
         let id = i64::from(order_id);
         let (tx, rx) = oneshot::channel();
@@ -571,6 +592,10 @@ impl Wrapper for Router {
             notice_to(&mut r.summary, req_id, n);
         } else if let Some(tx) = r.cancels.remove(&req_id) {
             let _ = tx.send(n);
+        } else if r.what_ifs.contains_key(&req_id) && crate::link::refuses(&n) {
+            if let Some(tx) = r.what_ifs.remove(&req_id) {
+                let _ = tx.send(Err(n.message));
+            }
         } else if req_id > 0 && req_id < FIRST_REQUEST_ID {
             // An order's notice.
             if let Some(tx) = &r.orders {
@@ -715,6 +740,11 @@ impl Wrapper for Router {
     }
 
     fn open_order(&mut self, order_id: i64, contract: &x::Contract, order: &x::Order, order_state: &x::OrderState) {
+        // A preview's answer: not an order of the account.
+        if let Some(tx) = self.routes().what_ifs.remove(&order_id) {
+            let _ = tx.send(Ok(from_state(order_state)));
+            return;
+        }
         let d = OrderData {
             order_id: i32::try_from(order_id).unwrap_or_default(),
             contract: from_contract(contract),
@@ -943,7 +973,24 @@ pub fn from_order(o: &x::Order) -> Order {
 }
 
 fn from_state(s: &x::OrderState) -> OrderState {
+    // The what-if figures come as texts; an empty or unset one is left out.
+    let num = |t: &str| t.trim().parse::<f64>().ok().filter(|v| v.is_finite() && v.abs() < 1e300);
+    let fee = |v: f64| Some(v).filter(|v| v.is_finite() && v.abs() < 1e300);
     OrderState {
+        initial_margin_before: num(&s.init_margin_before),
+        maintenance_margin_before: num(&s.maint_margin_before),
+        equity_with_loan_before: num(&s.equity_with_loan_before),
+        initial_margin_change: num(&s.init_margin_change),
+        maintenance_margin_change: num(&s.maint_margin_change),
+        equity_with_loan_change: num(&s.equity_with_loan_change),
+        initial_margin_after: num(&s.init_margin_after),
+        maintenance_margin_after: num(&s.maint_margin_after),
+        equity_with_loan_after: num(&s.equity_with_loan_after),
+        commission: fee(s.commission_and_fees),
+        minimum_commission: fee(s.min_commission_and_fees),
+        maximum_commission: fee(s.max_commission_and_fees),
+        commission_currency: s.commission_and_fees_currency.clone(),
+        margin_currency: s.margin_currency.clone(),
         status: s.status.parse().unwrap_or(OrderStatusKind::Unknown(s.status.clone())),
         reject_reason: s.reject_reason.clone(),
         warning_text: s.warning_text.clone(),

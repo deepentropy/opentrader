@@ -216,6 +216,10 @@ async fn request(ib: &Arc<Ibkr>, method: &str, p: Value) -> Result<Value, RpcErr
             let t: OrderTicket = params(method, p)?;
             Ok(json!({ "orderId": ib.place(t).await? }))
         }
+        "broker.previewOrder" => {
+            let t: OrderTicket = params(method, p)?;
+            Ok(ib.preview(t).await?)
+        }
         "broker.modify" => {
             let r: ModifyParams = params(method, p)?;
             ib.modify(&r.order_id, r.ticket).await?;

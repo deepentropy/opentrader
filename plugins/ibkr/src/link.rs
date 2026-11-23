@@ -14,7 +14,7 @@ use ibapi::contracts::{Contract, ContractDetails};
 use ibapi::market_data::realtime::{MarketDepths, TickTypes};
 use ibapi::market_data::historical::{BarSize, BarTimestamp, Duration as IbDuration, WhatToShow};
 use ibapi::market_data::{MarketDataType, SmartDepth, TradingHours};
-use ibapi::orders::{ExecutionFilter, Executions, Order, OrderUpdate, Orders};
+use ibapi::orders::{ExecutionFilter, Executions, Order, OrderState, OrderUpdate, Orders, PlaceOrder};
 use ibapi::subscriptions::{NoticeStream, SubscriptionItem};
 use ibapi::{Client, Error as IbError, Notice, NoticeCategory};
 use std::pin::Pin;
@@ -298,6 +298,30 @@ impl Link {
         match self {
             Link::Gateway(c) => c.submit_order(order.order_id, contract, order).await.map_err(|e| e.to_string()),
             Link::Direct(d) => d.submit_order(contract, order).await,
+        }
+    }
+
+    /// What an order would do, nothing placed (a what-if order): its margin and commission, or the broker's refusal.
+    pub async fn what_if(&self, contract: &Contract, order: &Order) -> Result<OrderState, String> {
+        match self {
+            Link::Gateway(c) => {
+                let mut o = order.clone();
+                o.what_if = true;
+                let mut sub = c.place_order(o.order_id, contract, &o).await.map_err(|e| e.to_string())?;
+                let read = async {
+                    while let Some(item) = sub.next().await {
+                        match item {
+                            Ok(SubscriptionItem::Data(PlaceOrder::OpenOrder(d))) if d.order_id == o.order_id => return Ok(d.order_state),
+                            Ok(SubscriptionItem::Notice(n)) | Err(IbError::Notice(n)) if refuses(&n) => return Err(n.message),
+                            Err(e) => return Err(e.to_string()),
+                            _ => {}
+                        }
+                    }
+                    Err("The broker did not answer the preview".to_string())
+                };
+                tokio::time::timeout(Duration::from_secs(15), read).await.unwrap_or_else(|_| Err("The broker did not answer the preview".into()))
+            }
+            Link::Direct(d) => d.what_if(contract, order).await,
         }
     }
 

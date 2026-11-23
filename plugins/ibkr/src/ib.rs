@@ -649,6 +649,8 @@ impl Ibkr {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(SubscriptionItem::Data(u)) => match u {
+                        // A preview's what-if order is answered on its own request: never an order of the account.
+                        OrderUpdate::OpenOrder(d) if d.order.what_if => {}
                         OrderUpdate::OpenOrder(d) => {
                             let msg = non_empty(&d.order_state.reject_reason).or_else(|| non_empty(&d.order_state.warning_text));
                             self.apply_order(&conn, &d.contract, &d.order, d.order_id, &d.order_state.status, msg);
@@ -903,6 +905,24 @@ impl Ibkr {
         self.send(&conn, &contract, &legs).await
     }
 
+    /// What an order would do (`broker.previewOrder`): the broker's what-if answer for the order itself (its take profit
+    /// and stop loss are left out, as the confirmation page says), as the preview's tables.
+    pub async fn preview(&self, ticket: OrderTicket) -> Result<serde_json::Value, String> {
+        orders::validate(&ticket)?;
+        let conn = self.current()?;
+        let account = self.account()?;
+        let contract = self.contract_for(&conn, &ticket.ticker).await?;
+        let ticket = orders::rounded(&ticket, self.tick_of(contract.contract_id));
+        let mut order = orders::build_order(&ticket, &account);
+        order.order_id = conn.client.next_order_id().await;
+        let warnings: Vec<String> = orders::outside_rth_any(&ticket).then(|| "Order can be executed outside regular trading hours.".to_string()).into_iter().collect();
+        Ok(match conn.client.what_if(&contract, &order).await {
+            Ok(state) => orders::preview_of(&state, warnings),
+            // A refusal is the preview's answer: the user sees why, and the order is not sent.
+            Err(e) => serde_json::json!({ "sections": [], "warnings": warnings, "errors": [e] }),
+        })
+    }
+
     /// A working order of this plugin's client id.
     fn own_order(&self, key: &str) -> Result<OrdRow, String> {
         let row = self.store.read(|t| t.orders.get(key).cloned()).ok_or("The order is gone")?;
@@ -1116,6 +1136,7 @@ impl Ibkr {
             take_profit: None,
             stop_loss: None,
             duration: None,
+            fields: Default::default(),
         };
         let mut order = orders::build_order(&ticket, &account);
         order.order_id = conn.client.next_order_id().await;

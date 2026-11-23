@@ -97,6 +97,26 @@ pub struct BrokerCapabilities {
     pub modify_orders: bool,
     /// The times in force the order ticket offers.
     pub durations: Vec<OrderDuration>,
+    /// The broker's own choices with each order (trading outside regular hours).
+    pub ticket_fields: Vec<TicketField>,
+    /// The order ticket asks `broker.previewOrder` (a what-if order) before sending an order.
+    pub order_preview: bool,
+}
+
+/// A choice of the order ticket's Extra settings (`capabilities.ticketFields`): a checkbox here, "true" / "false".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TicketField {
+    pub id: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// The order types it applies to; all of them when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub order_types: Vec<OrderType>,
+    /// "takeProfit" / "stopLoss": shown and sent only while the order has that exit.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub exit: Option<String>,
 }
 
 /// A time in force (`capabilities.durations`): the id the order carries and `orders[].duration` reports.
@@ -122,6 +142,8 @@ impl Default for BrokerCapabilities {
             partial_close: true,
             modify_orders: true,
             durations: crate::orders::durations(),
+            ticket_fields: crate::orders::ticket_fields(),
+            order_preview: true,
         }
     }
 }
@@ -224,6 +246,9 @@ pub struct OrderTicket {
     /// The time in force picked (a `durations` id); left out by an app that has none to offer.
     #[serde(default)]
     pub duration: Option<String>,
+    /// The ticket fields' values (`ticketFields`): "outsideRth", "tpOutsideRth", "slOutsideRth" = "true" / "false".
+    #[serde(default)]
+    pub fields: std::collections::BTreeMap<String, String>,
 }
 
 /// How a ticker trades (`broker.instrument`): quantities in units, and the money one unit makes per price point.
