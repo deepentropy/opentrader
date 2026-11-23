@@ -95,6 +95,16 @@ export function detachTabToWindow(tab: TabChart, screenX: number, screenY: numbe
 
 /** Label of the screener's own window (placement "Separate window"): one at a time. */
 export const SCREENER_WINDOW = "screener";
+/** A window that is not a chart window (the screener's): it holds no tabs, and the app quits with the last chart
+ *  window (src-tauri window_session.rs closes it with it). */
+export function isAuxWindow(label: string): boolean {
+  return label === SCREENER_WINDOW;
+}
+
+/** The open chart windows' labels. */
+async function chartWindowLabels(): Promise<string[]> {
+  return (await getAllWebviewWindows()).map((w) => w.label).filter((l) => !isAuxWindow(l));
+}
 
 /** Open the screener's window, or bring it to the front. Returns true inside Tauri. */
 let screenerOpening = false;
@@ -186,7 +196,7 @@ export async function initWindowStorageCleanup(label: string): Promise<() => voi
   let unlisten: () => void = () => {};
   try {
     unlisten = await getCurrentWebviewWindow().onCloseRequested(async () => {
-      if ((await getAllWebviewWindows()).length <= 1) return;
+      if ((await chartWindowLabels()).length <= 1) return;
       // A window the user closes goes on the undo stack ("Reopen closed
       // window"); one that closes because its last tab moved out does not.
       if (!closingAfterMove) await recordClosedWindow(label);

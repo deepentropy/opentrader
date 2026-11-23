@@ -38,9 +38,14 @@ pub fn ours<'a>(urls: impl IntoIterator<Item = &'a str>) -> Vec<String> {
     urls.into_iter().filter(|u| u.starts_with(&format!("{SCHEME}://"))).map(str::to_string).collect()
 }
 
-/// The window links go to: main, or the first window when main was closed.
+/// The window links go to: main, or the first chart window when main was closed.
 fn target(app: &AppHandle) -> Option<tauri::WebviewWindow> {
-    app.get_webview_window("main").or_else(|| app.webview_windows().into_values().next())
+    app.get_webview_window("main").or_else(|| {
+        app.webview_windows()
+            .into_iter()
+            .find(|(label, _)| !crate::window_session::is_aux_window(label))
+            .map(|(_, w)| w)
+    })
 }
 
 /// Brings the app's window forward (a link, or a second launch).
