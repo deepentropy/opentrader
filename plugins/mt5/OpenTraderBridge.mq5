@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.2.0"
+#define PLUGIN_VERSION "0.3.0"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -50,6 +50,8 @@ bool     g_stateDirty = true;
 ulong    g_placed[];               // pending orders already announced (their next update is a modification)
 ulong    g_lastState = 0;
 CTrade   g_trade;
+
+#include "OpenTraderLevels.mqh"
 
 //--- A long text built in parts: appending to one string copies it whole each time.
 class CText
@@ -1292,7 +1294,7 @@ string BrokerState(void)
    string login = IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
    string name = AccountInfoString(ACCOUNT_COMPANY) + " " + login;
    string ccy = AccountInfoString(ACCOUNT_CURRENCY);
-   bool hedging = (ENUM_ACCOUNT_MARGIN_MODE)AccountInfoInteger(ACCOUNT_MARGIN_MODE) == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING;
+   bool hedging = Hedging();
    string account = "{\"id\":" + JQ(login) + ",\"name\":" + JQ(name) + ",\"currency\":" + JQ(ccy) + ",\"isDemo\":" + (mode == ACCOUNT_TRADE_MODE_REAL ? "false" : "true") +
                     ",\"balance\":" + JN(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",\"equity\":" + JN(AccountInfoDouble(ACCOUNT_EQUITY), 2) +
                     ",\"unrealizedPnl\":" + JN(AccountInfoDouble(ACCOUNT_PROFIT), 2) + ",\"marginUsed\":" + JN(AccountInfoDouble(ACCOUNT_MARGIN), 2) +
@@ -1301,29 +1303,60 @@ string BrokerState(void)
                     JQ("1:" + IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE))) + "},{\"label\":\"Margin level\",\"value\":" +
                     JQ(JN(AccountInfoDouble(ACCOUNT_MARGIN_LEVEL), 2) + "%") + "},{\"label\":\"Credit\",\"value\":" + JQ(JN(AccountInfoDouble(ACCOUNT_CREDIT), 2)) + "}]}";
    //--- Positions
+   // A hedging account's parts of one order with exit levels (one magic number) are one position, and one order.
    string positions = "";
+   long groups[];
    for(int i = 0; i < PositionsTotal(); i++)
      {
       ulong ticket = PositionGetTicket(i);
       if(ticket == 0)
          continue;
+      long magic = PositionGetInteger(POSITION_MAGIC);
+      if(hedging && IsOt(magic))
+        {
+         if(Listed(groups, magic))
+            continue;
+         positions += (positions == "" ? "" : ",") + GroupPositionJson(magic);
+         continue;
+        }
       string t = PositionGetString(POSITION_SYMBOL);
       int digits = (int)SymbolInfoInteger(t, SYMBOL_DIGITS);
       bool buy = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY;
-      positions += (positions == "" ? "" : ",") + "{\"id\":" + JQ(IntegerToString(ticket)) + ",\"ticker\":" + JQ(t) + ",\"side\":" + Side(buy) +
-                   ",\"qty\":" + JN(PositionGetDouble(POSITION_VOLUME) * ContractSize(t), 4) + ",\"avgPrice\":" + JN(PositionGetDouble(POSITION_PRICE_OPEN), digits) +
-                   ",\"last\":" + JN(PositionGetDouble(POSITION_PRICE_CURRENT), digits) + ",\"unrealizedPnl\":" + JN(PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP), 2) +
-                   ",\"takeProfit\":" + JP(PositionGetDouble(POSITION_TP), digits) + ",\"stopLoss\":" + JP(PositionGetDouble(POSITION_SL), digits) + "}";
+      double tp = PositionGetDouble(POSITION_TP), sl = PositionGetDouble(POSITION_SL);
+      string head = "{\"id\":" + JQ(IntegerToString(ticket)) + ",\"ticker\":" + JQ(t) + ",\"side\":" + Side(buy) +
+                    ",\"qty\":" + JN(PositionGetDouble(POSITION_VOLUME) * ContractSize(t), 4) + ",\"avgPrice\":" + JN(PositionGetDouble(POSITION_PRICE_OPEN), digits) +
+                    ",\"last\":" + JN(PositionGetDouble(POSITION_PRICE_CURRENT), digits) + ",\"unrealizedPnl\":" + JN(PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP), 2) +
+                    ",\"takeProfit\":" + JP(tp, digits) + ",\"stopLoss\":" + JP(sl, digits);
+      // A netting position's levels are the EA's pending order pairs on its symbol.
+      string levels = hedging ? "" : NetExits(t, buy);
+      positions += (positions == "" ? "" : ",") + head + (levels != "" ? ",\"exitLevels\":[" + levels + "]" : "") + "}";
      }
    //--- Working orders, then the last week's finished ones
    CText orders, deals;
    bool firstOrder = true, firstDeal = true;
+   ArrayResize(groups, 0);
    for(int i = 0; i < OrdersTotal(); i++)
      {
       ulong ticket = OrderGetTicket(i);
       if(ticket == 0)
          continue;
-      orders.Add((firstOrder ? "" : ",") + OrderJson(ticket, false));
+      long magic = OrderGetInteger(ORDER_MAGIC);
+      string one;
+      if(IsOt(magic))
+        {
+         // Netting: a level's leg, listed with its position.
+         if(!hedging || Listed(groups, magic))
+            continue;
+         one = GroupOrderJson(magic);
+        }
+      else
+        {
+         int plan = hedging ? -1 : PlanOf(ticket);
+         one = OrderJson(ticket, false, -1, plan >= 0 ? PlanExits(plan) : "");
+        }
+      if(one == "")
+         continue;
+      orders.Add((firstOrder ? "" : ",") + one);
       firstOrder = false;
      }
    if(HistorySelect(TimeCurrent() - 7 * 86400, TimeCurrent() + 86400))
@@ -1332,6 +1365,10 @@ string BrokerState(void)
       for(int i = MathMax(0, n - 100); i < n; i++)
         {
          ulong ticket = HistoryOrderGetTicket(i);
+         // A netting level's leg cancelled by the EA (its other leg filled, or sent again) is not an order the user
+         // placed.
+         if(ticket > 0 && !hedging && IsOt(HistoryOrderGetInteger(ticket, ORDER_MAGIC)) && HistoryOrderGetInteger(ticket, ORDER_STATE) == ORDER_STATE_CANCELED)
+            continue;
          if(ticket > 0)
            {
             orders.Add((firstOrder ? "" : ",") + OrderJson(ticket, true));
@@ -1358,12 +1395,13 @@ string BrokerState(void)
      }
    return "{\"connected\":" + (TerminalInfoInteger(TERMINAL_CONNECTED) ? "true" : "false") + ",\"accounts\":[{\"id\":" + JQ(login) + ",\"name\":" + JQ(name) + "}]" +
           ",\"account\":" + account + ",\"positionMode\":" + (hedging ? "\"hedging\"" : "\"netting\"") +
-          ",\"capabilities\":{\"orderTypes\":[\"market\",\"limit\",\"stop\",\"stopLimit\"],\"brackets\":true,\"positionBrackets\":true,\"partialClose\":true,\"modifyOrders\":true,\"orderPreview\":true}" +
+          ",\"capabilities\":{\"orderTypes\":[\"market\",\"limit\",\"stop\",\"stopLimit\"],\"brackets\":true,\"positionBrackets\":true,\"partialClose\":true,\"modifyOrders\":true,\"orderPreview\":true,\"exitLevels\":true,\"maxExitLevels\":" + IntegerToString(MAX_LEVELS) + "}" +
           ",\"positions\":[" + positions + "],\"orders\":[" + orders.Text() + "],\"executions\":[" + deals.Text() + "]}";
   }
 
-//--- One order (working: OrderGet…, history: HistoryOrderGet…).
-string OrderJson(const ulong ticket, const bool history)
+//--- One order (working: OrderGet…, history: HistoryOrderGet…). A group's order gives its parts' quantity (`lots`) and
+//--- exits (`exits`, the takeProfit / stopLoss / exitLevels fields).
+string OrderJson(const ulong ticket, const bool history, const double lots = -1, const string exits = "")
   {
    string t = history ? HistoryOrderGetString(ticket, ORDER_SYMBOL) : OrderGetString(ORDER_SYMBOL);
    ENUM_ORDER_TYPE type = (ENUM_ORDER_TYPE)(history ? HistoryOrderGetInteger(ticket, ORDER_TYPE) : OrderGetInteger(ORDER_TYPE));
@@ -1383,9 +1421,14 @@ string OrderJson(const ulong ticket, const bool history)
    double size = ContractSize(t);
    string limit = kind == "limit" ? JP(open, digits) : kind == "stopLimit" ? JP(stoplimit, digits) : "null";
    string stop = (kind == "stop" || kind == "stopLimit") ? JP(open, digits) : "null";
+   if(lots >= 0)
+     {
+      initial = lots;
+      current = lots;
+     }
    return "{\"id\":" + JQ(IntegerToString(ticket)) + ",\"ticker\":" + JQ(t) + ",\"side\":" + Side(IsBuy(type)) + ",\"type\":" + JQ(kind) +
           ",\"qty\":" + JN(initial * size, 4) + ",\"filledQty\":" + JN((initial - current) * size, 4) + ",\"limitPrice\":" + limit + ",\"stopPrice\":" + stop +
-          ",\"takeProfit\":" + JP(tp, digits) + ",\"stopLoss\":" + JP(sl, digits) + ",\"status\":" + JQ(StatusOf(state)) +
+          "," + (exits != "" ? exits : "\"takeProfit\":" + JP(tp, digits) + ",\"stopLoss\":" + JP(sl, digits)) + ",\"status\":" + JQ(StatusOf(state)) +
           ",\"duration\":" + JQ(life == ORDER_TIME_DAY ? "day" : "gtc") + ",\"updatedMs\":" + IntegerToString(ToUtc((datetime)(when / 1000)) * 1000 + when % 1000) + "}";
   }
 
@@ -1461,26 +1504,38 @@ string BrokerPlace(CJ *p, string &error)
    bool buy = JStr(p, "side") == "buy";
    string type = JStr(p, "type");
    double limit = Price(p, "limitPrice"), stop = Price(p, "stopPrice"), tp = Price(p, "takeProfit"), sl = Price(p, "stopLoss");
-   bool ok = false;
-   ENUM_ORDER_TYPE_TIME life = Life(p, t);
-   if(type == "market")
-      ok = buy ? g_trade.Buy(lots, t, 0, sl, tp, "OpenTrader") : g_trade.Sell(lots, t, 0, sl, tp, "OpenTrader");
-   else
-      if(type == "limit")
-         ok = buy ? g_trade.BuyLimit(lots, limit, t, sl, tp, life, 0, "OpenTrader") : g_trade.SellLimit(lots, limit, t, sl, tp, life, 0, "OpenTrader");
-      else
-         if(type == "stop")
-            ok = buy ? g_trade.BuyStop(lots, stop, t, sl, tp, life, 0, "OpenTrader") : g_trade.SellStop(lots, stop, t, sl, tp, life, 0, "OpenTrader");
-         else
-            if(type == "stopLimit")
-               ok = g_trade.OrderOpen(t, buy ? ORDER_TYPE_BUY_STOP_LIMIT : ORDER_TYPE_SELL_STOP_LIMIT, lots, limit, stop, sl, tp, life, 0, "OpenTrader");
-   error = Outcome();
-   if(!ok && error == "")
-      error = "The order was not sent (" + IntegerToString(GetLastError()) + ")";
+   CLevels lv;
+   bool levels = ReadLevels(p, t, lv, error);
    if(error != "")
       return "";
+   if(levels && Hedging())
+      return PlaceGroup(p, t, lots, lv, error);
+   if(levels)
+     {
+      // Netting: the order goes without exits; its levels are placed on the position as it fills.
+      long protect = 0;
+      double from = EntryOf(t, buy, type, limit, stop);
+      for(int j = 0; j < lv.Size() && error == ""; j++)
+        {
+         protect += Steps(t, lv.lots[j]);
+         error = ExitError(t, buy, from, lv.tp[j], lv.sl[j]);
+        }
+      if(error == "" && protect > Steps(t, lots))
+         error = "The exit levels protect more than the order's quantity";
+      if(error != "")
+         return "";
+      tp = 0;
+      sl = 0;
+     }
+   ulong id = 0;
+   if(!SendOrder(t, buy, type, lots, limit, stop, sl, tp, Life(p, t), 0, id, error))
+      return "";
+   if(levels && lv.Size() > 0)
+     {
+      SetPlan(id, t, buy, lv);
+      ProcessPlans();
+     }
    g_stateDirty = true;
-   ulong id = g_trade.ResultOrder();
    return "{\"orderId\":" + JQ(IntegerToString(id)) + "}";
   }
 
@@ -1557,6 +1612,25 @@ string BrokerModify(CJ *p, string &error)
       return "";
      }
    string t = OrderGetString(ORDER_SYMBOL);
+   bool levels = p != NULL && p.Get("exitLevels") != NULL && p.Get("exitLevels").type == J_ARR;
+   if(Hedging() && (levels || IsOt(OrderGetInteger(ORDER_MAGIC))))
+      return ModifyGroup(p, ticket, error);
+   // Netting: the order's levels wait for its fill (they replace its take profit / stop loss).
+   CLevels lv;
+   if(levels)
+     {
+      ReadLevels(p, t, lv, error);
+      if(error != "")
+         return "";
+      long protect = 0;
+      for(int j = 0; j < lv.Size(); j++)
+         protect += Steps(t, lv.lots[j]);
+      if(protect > Steps(t, OrderGetDouble(ORDER_VOLUME_CURRENT)))
+        {
+         error = "The exit levels protect more than the order's quantity";
+         return "";
+        }
+     }
    double size = ContractSize(t);
    double now = OrderGetDouble(ORDER_VOLUME_CURRENT) * size;
    if(JHasNum(p, "qty") && MathAbs(JNum(p, "qty") - now) > size * SymbolInfoDouble(t, SYMBOL_VOLUME_STEP) / 2)
@@ -1569,10 +1643,19 @@ string BrokerModify(CJ *p, string &error)
    double stoplimit = kind == "stopLimit" ? Price(p, "limitPrice") : 0;
    // The duration picked; without one the order keeps its own.
    ENUM_ORDER_TYPE_TIME life = JStr(p, "duration") != "" ? Life(p, t) : (ENUM_ORDER_TYPE_TIME)OrderGetInteger(ORDER_TYPE_TIME);
-   bool ok = g_trade.OrderModify(ticket, price, Price(p, "stopLoss"), Price(p, "takeProfit"), life, (datetime)OrderGetInteger(ORDER_TIME_EXPIRATION), stoplimit);
+   bool plain = !levels || lv.Size() == 0;
+   bool ok = g_trade.OrderModify(ticket, price, plain ? Price(p, "stopLoss") : 0, plain ? Price(p, "takeProfit") : 0, life, (datetime)OrderGetInteger(ORDER_TIME_EXPIRATION), stoplimit);
    error = Outcome();
    if(!ok && error == "")
       error = "The order was not modified (" + IntegerToString(GetLastError()) + ")";
+   if(error == "" && !plain)
+      SetPlan(ticket, t, IsBuy((ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE)), lv);
+   else
+      if(error == "" && PlanOf(ticket) >= 0)
+        {
+         DropPlan(PlanOf(ticket));
+         SavePlans();
+        }
    g_stateDirty = true;
    return error == "" ? "{}" : "";
   }
@@ -1580,6 +1663,9 @@ string BrokerModify(CJ *p, string &error)
 string BrokerCancel(CJ *p, string &error)
   {
    ulong ticket = (ulong)StringToInteger(JStr(p, "orderId"));
+   // A hedging order with levels: all its parts.
+   if(CancelGroup(ticket, error))
+      return error == "" ? "{}" : "";
    bool ok = g_trade.OrderDelete(ticket);
    error = Outcome();
    if(!ok && error == "")
@@ -1599,6 +1685,19 @@ string BrokerClose(CJ *p, string &error)
       return "";
      }
    string t = PositionGetString(POSITION_SYMBOL);
+   if(Hedging() && IsOt(PositionGetInteger(POSITION_MAGIC)))
+     {
+      double part = 0;
+      if(JHasNum(p, "qty"))
+        {
+         part = Lots(t, JNum(p, "qty"), error);
+         if(part <= 0)
+            return "";
+        }
+      return CloseGroup(ticket, !JHasNum(p, "qty"), part, error);
+     }
+   // Netting: the levels left over follow the position at once (gone with it, or no more than what is left).
+   g_levelsDirty = true;
    bool ok;
    if(JHasNum(p, "qty"))
      {
@@ -1626,6 +1725,10 @@ string BrokerBrackets(CJ *p, string &error)
       error = "No position " + JStr(p, "positionId");
       return "";
      }
+   if(!Hedging())
+      return NetBrackets(p, ticket, error);
+   if(IsOt(PositionGetInteger(POSITION_MAGIC)) || (p != NULL && p.Get("exitLevels") != NULL))
+      return GroupBrackets(p, ticket, error);
    bool ok = g_trade.PositionModify(ticket, Price(p, "stopLoss"), Price(p, "takeProfit"));
    error = Outcome();
    if(!ok && error == "")
@@ -1656,6 +1759,7 @@ void Forget(const ulong order)
 void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
   {
    g_stateDirty = true;
+   g_levelsDirty = true;
    if(!g_ready)
       return;
    string kind = "";
@@ -1689,6 +1793,16 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       Forget(trans.order);
    if(kind == "")
       return;
+   // The EA's own exit orders of a netting position are not the user's orders; the other parts of a hedging order with
+   // levels are told by its first part.
+   long magic = 0;
+   if(OrderSelect(trans.order))
+      magic = OrderGetInteger(ORDER_MAGIC);
+   else
+      if(HistoryOrderSelect(trans.order))
+         magic = HistoryOrderGetInteger(trans.order, ORDER_MAGIC);
+   if((IsOt(magic) && !Hedging()) || IsQuiet(trans.order))
+      return;
    int digits = (int)SymbolInfoInteger(trans.symbol, SYMBOL_DIGITS);
    double price = trans.price > 0 ? trans.price : trans.price_trigger;
    Notify("broker.event", "{\"kind\":" + JQ(kind) + ",\"ticker\":" + JQ(trans.symbol) + ",\"side\":" + Side(IsBuy(trans.order_type)) + ",\"type\":" +
@@ -1711,10 +1825,13 @@ void OnDeinit(const int reason)
   {
    EventKillTimer();
    Disconnect();
+   ClearPlans();
   }
 
 void OnTimer(void)
   {
+   // Before the connection: the netting levels are kept while OpenTrader is closed too.
+   KeepLevels();
    if(g_sock == INVALID_HANDLE)
      {
       TryConnect();
