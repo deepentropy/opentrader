@@ -30,6 +30,8 @@ To trade, choose **Trade > Connect broker… > MetaTrader 5**, then **Trade > Tu
   - pick **New York close** or **Eastern European time** if bars look shifted by an hour.
 - **Updates.** After an update, remove the EA from its chart and attach it again: MetaTrader keeps running the old copy until then.
 - **Order quantity.** MetaTrader cannot change a working order's quantity: cancel the order and place a new one.
+- **Order confirmation.** Before sending an order, the order ticket shows the terminal's check of it: the margin it takes and the free margin and margin level after it, or why the server would refuse it. Turn it off with "Show order confirmation" in the ticket's menu.
+- **Margin.** Under the quantity, the order ticket shows the order's value with the symbol's leverage ("Trade value (100x)") and the account's free margin.
 
 ## Build
 

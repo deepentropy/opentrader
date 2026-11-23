@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.1.7"
+#define PLUGIN_VERSION "0.2.0"
 #define RECONNECT_MS 3000
 #define MAX_BARS 50000
 
@@ -524,6 +524,8 @@ string Handle(const string method, CJ *p, string &error)
      }
    if(method == "broker.place")
       return BrokerPlace(p, error);
+   if(method == "broker.previewOrder")
+      return BrokerPreview(p, error);
    if(method == "broker.modify")
       return BrokerModify(p, error);
    if(method == "broker.cancel")
@@ -1228,6 +1230,10 @@ string BrokerInstrument(CJ *p, string &error)
       out += "\"qtyMax\":" + JN(max * size, 8) + ",";
    if(pointValue > 0)
       out += "\"pointValue\":" + JN(pointValue, 10) + ",";
+   // The margin of one lot over its value, both in the account currency: the ticket's leverage and free margin.
+   double margin = 0;
+   if(pointValue > 0 && price > 0 && OrderCalcMargin(ORDER_TYPE_BUY, t, 1.0, price, margin) && margin > 0)
+      out += "\"marginRate\":" + JN(margin / (size * price * pointValue), 10) + ",";
    string durations = Durations(t);
    if(durations != "")
       out += "\"durations\":[" + durations + "],";
@@ -1352,7 +1358,7 @@ string BrokerState(void)
      }
    return "{\"connected\":" + (TerminalInfoInteger(TERMINAL_CONNECTED) ? "true" : "false") + ",\"accounts\":[{\"id\":" + JQ(login) + ",\"name\":" + JQ(name) + "}]" +
           ",\"account\":" + account + ",\"positionMode\":" + (hedging ? "\"hedging\"" : "\"netting\"") +
-          ",\"capabilities\":{\"orderTypes\":[\"market\",\"limit\",\"stop\",\"stopLimit\"],\"brackets\":true,\"positionBrackets\":true,\"partialClose\":true,\"modifyOrders\":true}" +
+          ",\"capabilities\":{\"orderTypes\":[\"market\",\"limit\",\"stop\",\"stopLimit\"],\"brackets\":true,\"positionBrackets\":true,\"partialClose\":true,\"modifyOrders\":true,\"orderPreview\":true}" +
           ",\"positions\":[" + positions + "],\"orders\":[" + orders.Text() + "],\"executions\":[" + deals.Text() + "]}";
   }
 
@@ -1476,6 +1482,68 @@ string BrokerPlace(CJ *p, string &error)
    g_stateDirty = true;
    ulong id = g_trade.ResultOrder();
    return "{\"orderId\":" + JQ(IntegerToString(id)) + "}";
+  }
+
+//--- What an order would do (broker.previewOrder): the terminal's check of it (OrderCheck), nothing sent. The margin
+//--- it takes and the account's free margin and margin level after it; the broker's refusal as an error.
+string BrokerPreview(CJ *p, string &error)
+  {
+   string t = JStr(p, "ticker");
+   if(!SymbolSelect(t, true))
+     {
+      error = "Unknown symbol " + t;
+      return "";
+     }
+   string lotError = "";
+   double lots = Lots(t, JNum(p, "qty"), lotError);
+   if(lots <= 0)
+      return "{\"sections\":[],\"errors\":[" + JQ(lotError) + "]}";
+   bool buy = JStr(p, "side") == "buy";
+   string type = JStr(p, "type");
+   MqlTradeRequest r;
+   ZeroMemory(r);
+   r.symbol = t;
+   r.volume = lots;
+   r.sl = Price(p, "stopLoss");
+   r.tp = Price(p, "takeProfit");
+   r.type_time = Life(p, t);
+   r.type_filling = (ENUM_ORDER_TYPE_FILLING)g_trade.RequestTypeFilling();
+   if(type == "market")
+     {
+      r.action = TRADE_ACTION_DEAL;
+      r.type = buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
+      r.price = SymbolInfoDouble(t, buy ? SYMBOL_ASK : SYMBOL_BID);
+     }
+   else
+     {
+      r.action = TRADE_ACTION_PENDING;
+      if(type == "limit")
+        {
+         r.type = buy ? ORDER_TYPE_BUY_LIMIT : ORDER_TYPE_SELL_LIMIT;
+         r.price = Price(p, "limitPrice");
+        }
+      else
+         if(type == "stop")
+           {
+            r.type = buy ? ORDER_TYPE_BUY_STOP : ORDER_TYPE_SELL_STOP;
+            r.price = Price(p, "stopPrice");
+           }
+         else
+           {
+            r.type = buy ? ORDER_TYPE_BUY_STOP_LIMIT : ORDER_TYPE_SELL_STOP_LIMIT;
+            r.price = Price(p, "stopPrice");
+            r.stoplimit = Price(p, "limitPrice");
+           }
+     }
+   MqlTradeCheckResult c;
+   ZeroMemory(c);
+   bool ok = OrderCheck(r, c);
+   string ccy = JQ(AccountInfoString(ACCOUNT_CURRENCY));
+   string row = "{\"label\":\"%s\",\"value\":\"%s\",\"currency\":" + ccy + "}";
+   string rows = StringFormat(row, "Margin", DoubleToString(c.margin, 2)) + "," + StringFormat(row, "Free margin after", DoubleToString(c.margin_free, 2));
+   string level = c.margin_level > 0 ? ",{\"label\":\"Margin level after\",\"value\":" + JQ(DoubleToString(c.margin_level, 2) + "%") + "}" : "";
+   string errors = ok || c.retcode == 0 ? "" : JQ(c.comment + " (" + IntegerToString(c.retcode) + ")");
+   return "{\"sections\":[{\"rows\":[" + rows + level + "]}],\"errors\":[" + errors + "]}";
   }
 
 string BrokerModify(CJ *p, string &error)
