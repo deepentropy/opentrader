@@ -5,10 +5,11 @@
 import { createEffect, createMemo, createSignal, on, onCleanup, untrack } from "solid-js";
 import { broker } from "../../data/trading/broker";
 import { pluginBroker } from "../../data/trading/plugin-broker";
-import { ANY_INSTRUMENT, durationsFor, pickDuration, qtyArrowStep, qtyProblem, wholeLots, type Instrument } from "../../data/trading/capabilities";
+import { ANY_INSTRUMENT, durationsFor, fieldsFor, pickDuration, qtyArrowStep, qtyProblem, wholeLots, type Instrument } from "../../data/trading/capabilities";
+import type { OrderPreview } from "../../bindings";
 import { ticketDurationPref, ticketFieldPrefs } from "../../data/trading/trading-ui";
 import { POSITION_EDIT, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
-import type { OrderType } from "../../data/trading/types";
+import type { OrderRequest, OrderType } from "../../data/trading/types";
 import { replayStartSeq } from "../../data/replay";
 import { parsePositive, tickDecimals } from "./format";
 import {
@@ -36,6 +37,7 @@ import {
   type QtyType,
 } from "./ticket";
 import { TIPS, takeTip } from "./ticket-labels";
+import { translateWith } from "../../i18n/translator";
 
 export type TicketModel = ReturnType<typeof createTicketModel>;
 
@@ -118,6 +120,8 @@ export function createTicketModel() {
     return ok(d().fields?.[id]) ?? ok(ticketFieldPrefs()[id]) ?? f.default;
   };
   const setField = (id: string, value: string) => patch({ fields: { ...d().fields, [id]: value } });
+  /** The fields the order takes: those of its type, and those of its take profit / stop loss while they are on. */
+  const shownFields = () => fieldsFor(inst().fields, d().orderType, d().tpOn, d().slOn);
 
   // ── Time in force (#349) ────────────────────────────────────────────
   /** The broker's durations for the ticket's order type (none: the broker's own, no selector). */
@@ -354,14 +358,46 @@ export function createTicketModel() {
       tradingUi.setSent(true);
       return;
     }
-    const fields = Object.fromEntries(inst().fields.map((f) => [f.id, fieldValue(f.id)]));
+    const fields = Object.fromEntries(shownFields().map((f) => [f.id, fieldValue(f.id)]));
     const duration = durationValue() ?? undefined;
-    if (broker.place({ ...t, ...(inst().fields.length ? { fields } : {}), ...(duration ? { duration } : {}) }) === null && !state().ok) return;
-    tradingUi.savePrefs({ ...r(), fields, duration });
+    const req: OrderRequest = { ...t, ...(inst().fields.length ? { fields } : {}), ...(duration ? { duration } : {}) };
+    // A broker that previews orders: the confirmation page first ("Show order confirmation", reference).
+    if (caps().orderPreview && tradingUi.showOrderPreview()) {
+      setPreview({ req, data: null });
+      void broker.preview(req).then((res) => {
+        if (preview()?.req !== req) return;
+        if (typeof res !== "string") return setPreview({ req, data: res });
+        setPreview(null);
+        setErrorText(translateWith("Order preview: {0}", res));
+      });
+      return;
+    }
+    place(req);
+  }
+
+  /** Send a new order; the ticket waits for the next one. */
+  function place(req: OrderRequest) {
+    if (broker.place(req) === null && !state().ok) return;
+    tradingUi.savePrefs({ ...r(), fields: req.fields, duration: req.duration });
     // The order dialog of the DOM closes once the order is sent.
     if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
     tradingUi.setSent(true);
   }
+
+  // ── Order confirmation (#139) ──────────────────────────────────────────
+  /** The order on the confirmation page and the broker's preview of it (null while asked). */
+  const [preview, setPreview] = createSignal<{ req: OrderRequest; data: OrderPreview | null } | null>(null);
+  /** Send Order: the order previewed, tied to its preview. */
+  const sendPreviewed = () => {
+    const p = preview();
+    if (!p?.data || p.data.errors?.length) return;
+    setPreview(null);
+    place({ ...p.req, ...(p.data.confirmId ? { confirmId: p.data.confirmId } : {}) });
+  };
+  /** Back / Cancel: the form again, as it was. */
+  const closePreview = () => setPreview(null);
+  // A new symbol or chart: the order previewed is not the ticket's any more.
+  createEffect(on(() => tradingUi.draft()?.symbol, () => setPreview(null), { defer: true }));
 
   /** The modified order differs from the working one. */
   const changed = createMemo(() => {
@@ -374,6 +410,22 @@ export function createTicketModel() {
   });
 
   const rr = () => riskReward(r(), q());
+
+  // ── The quantity's values (#139) ──────────────────────────────────
+  /** The order's value at its entry price, in the account's currency. */
+  const tradeValue = (): number | null => {
+    const n = qtyNum();
+    const e = entry();
+    return n != null && e != null ? n * e * inst().pointValue : null;
+  };
+  /** The leverage of a broker that gives its margin rate ("20x"), null without one or at 1x. */
+  const leverage = (): string | null => {
+    const rate = inst().marginRate;
+    const x = rate != null ? Math.round(1 / rate) : 1;
+    return x !== 1 ? `${x}x` : null;
+  };
+  /** The account's free margin, for a broker that gives its margin rate. */
+  const availableMargin = (): number | null => (inst().marginRate != null ? broker.marginFree() : null);
 
   // ── Order presets ────────────────────────────────────────────────────
   /** What "Save order preset…" saves: the type, the offsets (mirrored for
@@ -450,10 +502,11 @@ export function createTicketModel() {
   onCleanup(() => (document.body.style.cursor = ""));
 
   return {
-    d, q, tick, dec, ccy, state, r, types, caps, inst, fieldValue, setField, durations, durationValue, setDuration, stepQty, qtyTypes, isPos, editing, editingPos, errorText, qtyTip, setQtyTip, slTip, setSlTip, boxes,
+    d, q, tick, dec, ccy, state, r, types, caps, inst, fieldValue, setField, shownFields, durations, durationValue, setDuration, stepQty, qtyTypes, isPos, editing, editingPos, errorText, qtyTip, setQtyTip, slTip, setSlTip, boxes,
     patch, spread, setType,
     exitOn, exitType, exitEquiv, qtyNum, exitValueText, exitInputValue, setExit, setExitType, setExitEquiv, swapExit, exitStep,
     setQtyType, qtyValueText, priceMode, swapPrice, stepKey,
     submit, changed, rr, currentPreset, applyPreset, presetApplied,
+    preview, sendPreviewed, closePreview, tradeValue, leverage, availableMargin,
   };
 }

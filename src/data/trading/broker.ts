@@ -47,6 +47,11 @@ export const broker = {
   currency: (paneId?: number | null) => brokerOf(paneId).currency(paneId ?? undefined),
   /** The account's cash: the replay account's capital and net profit, or the broker's balance. */
   balance: () => brokerOf().balance(),
+  /** The account's free margin (the ticket's "Margin used"); null when the broker doesn't say (the replay account
+   *  trades without margin). */
+  marginFree: () => (brokerOf() === pluginBroker ? pluginBroker.marginFree() : null),
+  /** The focused chart's broker previews the order before it is sent (capability `orderPreview`). */
+  preview: (req: OrderRequest) => pluginBroker.preview(req),
   position: (paneId: number) => brokerOf(paneId).position(paneId),
   orders: (paneId: number) => brokerOf(paneId).orders(paneId),
   executions: (paneId: number) => brokerOf(paneId).executions(paneId),

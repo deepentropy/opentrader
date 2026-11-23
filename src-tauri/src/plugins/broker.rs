@@ -7,7 +7,7 @@
  * stay possible, so a position can always be got out of.
  */
 use super::{installed_manifest, Plugins};
-use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, Instrument, OrderTicket};
+use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, Instrument, OrderPreview, OrderTicket};
 use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::plugins::manifest::Capability;
 use opentrader_core::sync::LockExt;
@@ -428,6 +428,15 @@ pub async fn broker_place(app: AppHandle, ticket: OrderTicket) -> Result<String,
     require_trading(&app).map_err(|e| failed(&app, "Order", e))?;
     let v = ask(&app, "broker.place", serde_json::to_value(&ticket).map_err(|e| e.to_string())?).await.map_err(|e| failed(&app, "Order", e))?;
     Ok(v.get("orderId").map(|id| id.as_str().map(str::to_string).unwrap_or_else(|| id.to_string())).unwrap_or_default())
+}
+
+/// What the broker says of an order before it is sent (`broker.previewOrder`, for a broker with `orderPreview`): the
+/// order ticket's confirmation page. Nothing is placed, so trading needn't be on.
+#[tauri::command]
+#[specta::specta]
+pub async fn broker_preview_order(app: AppHandle, ticket: OrderTicket) -> Result<OrderPreview, String> {
+    let v = ask(&app, "broker.previewOrder", serde_json::to_value(&ticket).map_err(|e| e.to_string())?).await.map_err(|e| failed(&app, "Order preview", e))?;
+    serde_json::from_value(v).map_err(|e| failed(&app, "Order preview", e.to_string()))
 }
 
 #[tauri::command]

@@ -108,6 +108,9 @@ pub struct BrokerCapabilities {
     /// A limit order may not cross the market (a buy limit above the ask). Without it such an order is sent, as a
     /// marketable limit, unless its price is more than half the market price away.
     pub strict_limit_price: bool,
+    /// The broker previews an order before it is sent (`broker.previewOrder`: its commission, its margin…): the order
+    /// ticket shows the confirmation page, unless the user turned it off.
+    pub order_preview: bool,
 }
 
 impl Default for BrokerCapabilities {
@@ -123,6 +126,7 @@ impl Default for BrokerCapabilities {
             stop_orders_both_sides: false,
             stop_limit_orders_both_sides: false,
             strict_limit_price: false,
+            order_preview: false,
         }
     }
 }
@@ -137,15 +141,49 @@ pub struct TicketFieldOption {
 }
 
 /// A choice the broker needs with each order, beyond the app's own fields: a product type (intraday / delivery), a
-/// margin mode… The order ticket shows it as a selector; the value picked goes with the order in `fields`.
+/// margin mode, trading outside regular hours… The order ticket shows it as a selector or a checkbox; the value picked
+/// goes with the order in `fields`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TicketField {
     pub id: String,
     pub label: String,
+    /// A selector of `options`, or a checkbox whose value is "true" / "false".
+    #[serde(rename = "type")]
+    pub kind: TicketFieldKind,
     pub options: Vec<TicketFieldOption>,
-    /// The value picked at first; the first option when left out.
+    /// The value picked at first; the first option (a checkbox: "false") when left out.
     pub default: Option<String>,
+    /// The order types it applies to; all of them when empty. It is left out of the other orders.
+    pub order_types: Vec<OrderType>,
+    /// It is about the order's take profit or stop loss: shown, and sent, only while that exit is on.
+    pub exit: Option<ExitLeg>,
+}
+
+/// How a ticket field is picked. An unknown kind is a selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum TicketFieldKind {
+    #[default]
+    Select,
+    Checkbox,
+}
+
+impl<'de> Deserialize<'de> for TicketFieldKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)?.as_str().unwrap_or_default() {
+            "checkbox" => Self::Checkbox,
+            _ => Self::Select,
+        })
+    }
+}
+
+/// An exit of an order: its take profit or its stop loss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ExitLeg {
+    TakeProfit,
+    StopLoss,
 }
 
 /// A time in force the broker takes: "day", "gtc"… as the plugin names it, and what the ticket shows.
@@ -180,6 +218,9 @@ pub struct Instrument {
     pub ticket_fields: Option<Vec<TicketField>>,
     /// This ticker's times in force, in place of the capabilities' `durations`.
     pub durations: Option<Vec<OrderDuration>>,
+    /// The margin an order takes, as a share of its value (0.05 = 5 %, leverage 1:20): the order ticket's "Margin used"
+    /// against the account's free margin.
+    pub margin_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -430,6 +471,31 @@ pub struct OrderTicket {
     /// The time in force picked (a `durations` id); left out when the broker declares none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
+    /// The preview's `confirmId` of an order the user confirmed on the confirmation page; left out otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm_id: Option<String>,
+}
+
+/// What the broker says of an order before it is sent (`broker.previewOrder`): the order ticket's confirmation page.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OrderPreview {
+    /// Tables of label / value rows (commission, margin before and after…), each under its title when it has one.
+    pub sections: Vec<PreviewSection>,
+    /// Shown above the tables; the order can still be sent.
+    pub warnings: Vec<String>,
+    /// The broker would refuse the order: shown, and Send Order is off.
+    pub errors: Vec<String>,
+    /// Sent back with the order once the user confirms it (`broker.place` `confirmId`), for a broker that ties the
+    /// order to what it previewed.
+    pub confirm_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PreviewSection {
+    pub title: Option<String>,
+    pub rows: Vec<AccountValue>,
 }
 
 #[cfg(test)]
@@ -523,5 +589,32 @@ mod tests {
         assert!(serde_json::to_value(&t).unwrap().get("duration").is_none());
         let t = OrderTicket { duration: Some("gtc".into()), ..t };
         assert_eq!(serde_json::to_value(&t).unwrap()["duration"], "gtc");
+    }
+
+    #[test]
+    fn checkbox_fields_margin_rate_and_previews_read() {
+        let c: BrokerCapabilities = serde_json::from_value(serde_json::json!({
+            "orderPreview": true,
+            "ticketFields": [
+                { "id": "outsideRth", "label": "Outside RTH", "type": "checkbox", "orderTypes": ["limit"] },
+                { "id": "tpOutsideRth", "label": "Outside RTH Take Profit", "type": "checkbox", "exit": "takeProfit" },
+                { "id": "route", "label": "Routing", "type": "dropdown", "options": [{ "value": "SMART" }] }
+            ]
+        }))
+        .unwrap();
+        assert!(c.order_preview);
+        assert_eq!((c.ticket_fields[0].kind, &c.ticket_fields[0].order_types), (TicketFieldKind::Checkbox, &vec![OrderType::Limit]));
+        assert_eq!(c.ticket_fields[1].exit, Some(ExitLeg::TakeProfit));
+        assert_eq!((c.ticket_fields[2].kind, c.ticket_fields[2].exit), (TicketFieldKind::Select, None));
+        assert!(!BrokerCapabilities::default().order_preview);
+        let i: Instrument = serde_json::from_value(serde_json::json!({ "marginRate": 0.05 })).unwrap();
+        assert_eq!(i.margin_rate, Some(0.05));
+        let p: OrderPreview = serde_json::from_value(serde_json::json!({
+            "sections": [{ "rows": [{ "label": "Commission", "value": "1.00" }] }, { "title": "Initial margin", "rows": [] }],
+            "warnings": ["Outside regular hours"]
+        }))
+        .unwrap();
+        assert_eq!((p.sections[0].title.as_deref(), p.sections[1].title.as_deref()), (None, Some("Initial margin")));
+        assert_eq!((p.sections[0].rows[0].label.as_str(), p.errors.len()), ("Commission", 0));
     }
 }

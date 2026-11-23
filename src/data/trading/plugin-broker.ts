@@ -8,7 +8,7 @@
  * refusal comes back as a rejected-order toast.
  */
 import { createEffect, createRoot, createSignal } from "solid-js";
-import { commands, events, type BrokerState, type BrokerStatus, type Execution, type Order, type OrderTicket, type Position as WirePosition } from "../../bindings";
+import { commands, events, type BrokerState, type OrderPreview, type BrokerStatus, type Execution, type Order, type OrderTicket, type Position as WirePosition } from "../../bindings";
 import type { Finite } from "../datafeed-rest";
 import { getTickerInfo } from "../datafeed";
 import { onTradeTick } from "../datafeed-live";
@@ -16,7 +16,7 @@ import { cachedSymbolSessions } from "../session";
 import { strategyTester } from "../strategy-tester-store";
 import { translate } from "../../i18n/translator";
 import { ticketDurationPref, ticketFieldPrefs } from "./trading-ui";
-import { ANY_INSTRUMENT, capabilitiesOf, instrumentOf, pickDuration, type Instrument, type TradingCapabilities } from "./capabilities";
+import { ANY_INSTRUMENT, capabilitiesOf, fieldsFor, instrumentOf, pickDuration, type Instrument, type TradingCapabilities } from "./capabilities";
 import { applyDepth, type DepthBook } from "./depth-book";
 import { qtyMessage } from "./qty-message";
 import type { Tradability } from "./replay-broker";
@@ -310,11 +310,12 @@ export const pluginBroker = createRoot(() => {
     return i;
   };
 
-  /** The order's ticket fields: each field's value picked, else the last one picked, else its default. */
-  const fieldsOf = (ticker: string, picked: Record<string, string> | undefined): Record<string, string> => {
+  /** The order's ticket fields (those its type and exits take): each field's value picked, else the last one picked,
+   *  else its default. */
+  const fieldsOf = (ticker: string, req: OrderRequest, picked: Record<string, string> | undefined): Record<string, string> => {
     const out: Record<string, string> = {};
     const last = ticketFieldPrefs();
-    for (const f of instrumentOfTicker(ticker).fields) {
+    for (const f of fieldsFor(instrumentOfTicker(ticker).fields, req.type, req.takeProfit !== null, req.stopLoss !== null)) {
       const ok = (v: string | undefined) => (v !== undefined && f.options.some((o) => o.value === v) ? v : undefined);
       out[f.id] = ok(picked?.[f.id]) ?? ok(last[f.id]) ?? f.default;
     }
@@ -337,6 +338,7 @@ export const pluginBroker = createRoot(() => {
     fields,
     // Left out when the broker declares none: it keeps its own.
     ...(duration ? { duration } : {}),
+    ...(req.confirmId ? { confirmId: req.confirmId } : {}),
   });
 
   /** An order quantity the broker would refuse (not whole lots…): refused here, with the quantities it takes. */
@@ -472,15 +474,28 @@ export const pluginBroker = createRoot(() => {
       const a = account()?.account;
       return a?.balance ?? a?.equity ?? 0;
     },
+    /** The account's free margin, null when the broker doesn't report it. */
+    marginFree: (): number | null => {
+      version();
+      return account()?.account?.marginFree ?? null;
+    },
     position,
     orders,
     executions,
 
+    /** What the broker says of an order before it is sent (`broker.previewOrder`): its preview, or why there is none. */
+    async preview(req: OrderRequest): Promise<OrderPreview | string> {
+      const r = ready(activePane());
+      if (!r) return tradabilityOf(activePane()).text;
+      const fields = fieldsOf(r.ticker, req, req.fields);
+      const res = await commands.brokerPreviewOrder(ticketOf(req, r.ticker, fields, durationOf(r.ticker, req)));
+      return res.status === "ok" ? res.data : res.error;
+    },
     place(req: OrderRequest): string | null {
       const r = ready(activePane());
       if (!r) return null;
       if (badQty(req, r.ticker, r.symbol)) return "sent";
-      const fields = fieldsOf(r.ticker, req.fields);
+      const fields = fieldsOf(r.ticker, req, req.fields);
       const duration = durationOf(r.ticker, req);
       guarded(summary(req, r.symbol), () => report(commands.brokerPlace(ticketOf(req, r.ticker, fields, duration)), { ...req, symbol: r.symbol, price: req.limitPrice ?? req.stopPrice }));
       return "sent";
@@ -534,7 +549,7 @@ export const pluginBroker = createRoot(() => {
       const r = ready(paneId);
       if (!p || !r) return null;
       const req: OrderRequest = { symbol: r.symbol, side: exitSide(p.side), type: "market", qty: p.qty * 2, limitPrice: null, stopPrice: null, takeProfit: null, stopLoss: null };
-      const fields = fieldsOf(r.ticker, undefined);
+      const fields = fieldsOf(r.ticker, req, undefined);
       guarded(summary(req, r.symbol), () => report(commands.brokerPlace(ticketOf(req, r.ticker, fields, durationOf(r.ticker, req))), { ...req, price: null }));
       return "sent";
     },

@@ -152,13 +152,13 @@ describe("order ticket field types (reference: QQQ at 717.12, TP 75 / SL 25 tick
   });
 
   it("sizes a risk in whole lots with the instrument's point value (#341)", () => {
-    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [], durations: [] };
+    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [], durations: [], marginRate: null };
     const d = { ...base, qtyType: "riskUsd" as const, risk: "1000", slOn: true, stopLoss: "707.12" };
     // 1000 at 10 a unit = 100 units: one lot of 65.
     expect(resolveDraft(d, q, { ...c, instrument: nifty }).qty).toBe("65");
     expect(resolveDraft({ ...d, risk: "500" }, q, { ...c, instrument: nifty }).qty).toBe("");
     // A futures multiplier: 1000 at 10 × 50 a contract = 2 contracts.
-    const es = { qtyMin: null, qtyStep: 1, qtyMax: null, pointValue: 50, fields: [], durations: [] };
+    const es = { qtyMin: null, qtyStep: 1, qtyMax: null, pointValue: 50, fields: [], durations: [], marginRate: null };
     expect(resolveDraft(d, q, { ...c, pointValue: 50, instrument: es }).qty).toBe("2");
     expect(riskValue({ ...d, qty: "2" }, q, 50)).toBeCloseTo(1000, 6);
   });
@@ -172,7 +172,7 @@ describe("order ticket field types (reference: QQQ at 717.12, TP 75 / SL 25 tick
     expect(resolveDraft({ ...d, qtyType: "balancePct" }, q, { ...c, balance: null }).qty).toBe("");
     // A market order is valued at the quote; a futures contract at its point value, in whole lots.
     expect(resolveDraft({ ...d, orderType: "market", limitPrice: "" }, { bid: 99, ask: 100, last: 100 }, c).qty).toBe("100");
-    const es = { qtyMin: null, qtyStep: 1, qtyMax: null, pointValue: 50, fields: [], durations: [] };
+    const es = { qtyMin: null, qtyStep: 1, qtyMax: null, pointValue: 50, fields: [], durations: [], marginRate: null };
     expect(resolveDraft({ ...d, risk: "100000" }, q, { ...c, pointValue: 50, instrument: es }).qty).toBe("2");
     // The equivalents: the order's value and its share of the balance.
     const r = resolveDraft({ ...base, qty: "10" }, q, c);
@@ -186,7 +186,7 @@ describe("order ticket field types (reference: QQQ at 717.12, TP 75 / SL 25 tick
   });
 
   it("refuses a quantity that is not whole lots and sends the broker's fields (#341)", () => {
-    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [], durations: [] };
+    const nifty = { qtyMin: 65, qtyStep: 65, qtyMax: null, pointValue: 1, fields: [], durations: [], marginRate: null };
     expect(buildTicket({ ...base, qty: "1" }, q, nifty)).toBe("65 is one lot: use 65 or 130");
     expect(buildTicket({ ...base, qty: "100" }, q, nifty)).toBe("65 is one lot: use 65 or 130");
     expect(buildTicket({ ...base, qty: "130" }, q, nifty)).toMatchObject({ qty: 130 });

@@ -73,6 +73,8 @@ export type OrderRequest = {
   fields?: Record<string, string>;
   /** The time in force picked (a broker duration id); left out, the last one picked or the broker's default. */
   duration?: string;
+  /** The broker's preview id of an order the user confirmed on the confirmation page. */
+  confirmId?: string;
 };
 
 /** Order notifications (toasts). `label`: "Market", "Limit", "Stop",

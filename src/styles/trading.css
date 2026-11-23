@@ -1766,6 +1766,79 @@ html.theme-light {
   padding: 4px 0 8px;
 }
 
+/* A broker's yes / no ticket field ("Outside RTH"): its box and label (#139). */
+.trd-tk-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  text-align: start;
+}
+
+/* Order confirmation (#139): label / value rows, 13px/18px, 4 px apart (reference info tables). */
+.trd-tk-info-head {
+  color: var(--color-text-primary);
+  font: 600 13px/18px var(--trd-font);
+}
+.trd-tk-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font: 400 13px/18px var(--trd-font);
+}
+.trd-tk-info-title {
+  color: var(--color-text-secondary);
+}
+.trd-tk-info-value {
+  color: var(--color-text-primary);
+  text-align: end;
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-tk-info-value small {
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.trd-tk-info-value.is-buy {
+  color: var(--trd-buy);
+}
+.trd-tk-info-value.is-sell {
+  color: var(--trd-sell);
+}
+
+/* The broker's errors and warnings, then the tables. */
+.trd-tk-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 16px 0;
+}
+.trd-tk-confirm-loading {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+.trd-tk-confirm .trd-tk-info-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trd-tk-informer {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font: 400 13px/18px var(--trd-font);
+  color: var(--color-text-primary);
+}
+.trd-tk-informer.is-warning {
+  background: color-mix(in srgb, var(--color-tan-orange-500) 15%, transparent);
+}
+.trd-tk-informer.is-danger {
+  background: color-mix(in srgb, var(--color-ripe-red-400) 15%, transparent);
+}
+
 /* A broker page with several tables (#384): each under its title. */
 .trd-am-table-title {
   margin: 0;

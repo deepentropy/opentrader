@@ -111,6 +111,7 @@ const K = {
   reportView: "ot:replay-trading:view",
   presets: "ot:order-ticket:presets",
   slRisk: "ot:order-ticket:sl-enables-risk",
+  showPreview: "ot:order-ticket:show-preview",
   tab: "ot:order-ticket:tab",
   mode: "ot:order-ticket:mode",
   domPrices: "ot:order-ticket:dom-prices",
@@ -209,6 +210,8 @@ export const tradingUi = createRoot(() => {
   // Order presets and the ticket's ⋯ menu setting.
   const [presets, setPresets] = persisted<OrderPreset[]>(K.presets, { parse: parsePresets, default: [], sync: true });
   const [slEnablesRisk, setSlEnablesRisk] = persisted(K.slRisk, { parse: (raw) => raw === "true", default: false, sync: true });
+  /** "Show order confirmation": a broker that previews orders shows the order and its preview before sending it. */
+  const [showOrderPreview, setShowOrderPreview] = persisted(K.showPreview, { parse: (raw) => raw !== "false", default: true, sync: true });
 
   /** The order preset of the chart Buy / Sell buttons (presets menu). */
   const [activePreset, setActivePreset] = createSignal<string | null>(null);
@@ -426,6 +429,8 @@ export const tradingUi = createRoot(() => {
     /** "SL enables quantity in risk" (ticket ⋯ menu). */
     slEnablesRisk,
     setSlEnablesRisk,
+    showOrderPreview,
+    setShowOrderPreview,
 
     settingsOpen,
     openReplaySettings: () => setSettingsOpen(true),

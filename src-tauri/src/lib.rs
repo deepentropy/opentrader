@@ -143,6 +143,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::broker::broker_select_account,
             plugins::broker::broker_resolve_symbol,
             plugins::broker::broker_place,
+            plugins::broker::broker_preview_order,
             plugins::broker::broker_modify,
             plugins::broker::broker_cancel,
             plugins::broker::broker_close_position,

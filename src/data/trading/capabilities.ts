@@ -21,6 +21,8 @@ export type TradingCapabilities = {
   stopOrdersBothSides: boolean;
   stopLimitOrdersBothSides: boolean;
   strictLimitPrice: boolean;
+  /** The broker previews an order before it is sent (its commission, margin…): the ticket's confirmation page. */
+  orderPreview: boolean;
 };
 
 export const ORDER_TYPES: OrderType[] = ["market", "limit", "stop", "stopLimit"];
@@ -34,6 +36,7 @@ export const ALL_CAPABILITIES: TradingCapabilities = {
   stopOrdersBothSides: false,
   stopLimitOrdersBothSides: false,
   strictLimitPrice: false,
+  orderPreview: false,
 };
 
 /** A plugin's capabilities; a feature it leaves out is supported (as the app reads `broker.state`), a price rule it
@@ -52,6 +55,7 @@ export function capabilitiesOf(c: BrokerCapabilities | null | undefined): Tradin
     stopOrdersBothSides: c.stopOrdersBothSides ?? false,
     stopLimitOrdersBothSides: c.stopLimitOrdersBothSides ?? false,
     strictLimitPrice: c.strictLimitPrice ?? false,
+    orderPreview: c.orderPreview ?? false,
   };
 }
 
@@ -72,8 +76,18 @@ export function canMove(c: TradingCapabilities, o: TradingOrder): boolean {
 /** A working order's take profit / stop loss can be added from its line: a modify that sets them. */
 export const canAddOrderBrackets = (c: TradingCapabilities) => c.modifyOrders && c.brackets;
 
-/** A choice the broker needs with each order (a product type…): a selector in the order ticket. */
-export type TicketField = { id: string; label: string; options: { value: string; label: string }[]; default: string };
+/** A choice the broker needs with each order (a product type, trading outside regular hours…): a selector or a
+ *  checkbox ("true" / "false") in the order ticket, for the order types it names (all: null) and, when it is about an
+ *  exit, while that exit is on. */
+export type TicketField = {
+  id: string;
+  label: string;
+  kind: "select" | "checkbox";
+  options: { value: string; label: string }[];
+  default: string;
+  orderTypes: OrderType[] | null;
+  exit: "tp" | "sl" | null;
+};
 
 /** A time in force the broker takes (#349): its id goes with the order, the label shows in the ticket. */
 export type TicketDuration = { id: string; label: string; orderTypes: OrderType[] | null; default: boolean };
@@ -88,23 +102,45 @@ export type Instrument = {
   fields: TicketField[];
   /** Its times in force; none: the broker's own, and the ticket shows no selector. */
   durations: TicketDuration[];
+  /** The margin an order takes as a share of its value (the ticket's "Margin used"); null: the broker doesn't say. */
+  marginRate: number | null;
 };
 
-export const ANY_INSTRUMENT: Instrument = { qtyMin: null, qtyStep: null, qtyMax: null, pointValue: 1, fields: [], durations: [] };
+export const ANY_INSTRUMENT: Instrument = { qtyMin: null, qtyStep: null, qtyMax: null, pointValue: 1, fields: [], durations: [], marginRate: null };
 
-type WireField = { id?: string | null; label?: string | null; options?: { value?: string | null; label?: string | null }[] | null; default?: string | null };
+type WireField = {
+  id?: string | null;
+  label?: string | null;
+  type?: string | null;
+  options?: { value?: string | null; label?: string | null }[] | null;
+  default?: string | null;
+  orderTypes?: string[] | null;
+  exit?: string | null;
+};
 
-/** The ticket fields a plugin declares, cleaned: without an id or an option they are left out. */
+/** A checkbox field's values. */
+const CHECK = ["true", "false"];
+
+/** The ticket fields a plugin declares, cleaned: without an id, or a selector without an option, they are left out. */
 export function ticketFieldsOf(list: WireField[] | null | undefined): TicketField[] {
   const out: TicketField[] = [];
   for (const f of list ?? []) {
-    const options = (f.options ?? []).filter((o) => o.value).map((o) => ({ value: o.value!, label: o.label || o.value! }));
-    if (!f.id || !options.length) continue;
-    const def = options.some((o) => o.value === f.default) ? f.default! : options[0].value;
-    out.push({ id: f.id, label: f.label || f.id, options, default: def });
+    if (!f.id) continue;
+    const kind = f.type === "checkbox" ? "checkbox" : "select";
+    const options = kind === "checkbox" ? CHECK.map((v) => ({ value: v, label: v })) : (f.options ?? []).filter((o) => o.value).map((o) => ({ value: o.value!, label: o.label || o.value! }));
+    if (!options.length) continue;
+    const def = options.some((o) => o.value === f.default) ? f.default! : kind === "checkbox" ? "false" : options[0].value;
+    const types = ORDER_TYPES.filter((t) => f.orderTypes?.includes(t));
+    const exit = f.exit === "takeProfit" ? "tp" : f.exit === "stopLoss" ? "sl" : null;
+    out.push({ id: f.id, label: f.label || f.id, kind, options, default: def, orderTypes: types.length ? types : null, exit });
   }
   return out;
 }
+
+/** The fields an order of `type` takes, with its take profit / stop loss on or off: the others are neither shown nor
+ *  sent. */
+export const fieldsFor = (list: TicketField[], type: OrderType, tpOn: boolean, slOn: boolean): TicketField[] =>
+  list.filter((f) => (!f.orderTypes || f.orderTypes.includes(type)) && (f.exit !== "tp" || tpOn) && (f.exit !== "sl" || slOn));
 
 type WireDuration = { id?: string | null; label?: string | null; orderTypes?: string[] | null; default?: boolean | null };
 
@@ -133,7 +169,15 @@ const positive = (v: number | null | undefined) => (v != null && Number.isFinite
 /** A plugin's instrument (`broker.instrument`), the capabilities' ticket fields and durations when it names none. */
 export function instrumentOf(
   i:
-    | { qtyMin?: number | null; qtyStep?: number | null; qtyMax?: number | null; pointValue?: number | null; ticketFields?: WireField[] | null; durations?: WireDuration[] | null }
+    | {
+        qtyMin?: number | null;
+        qtyStep?: number | null;
+        qtyMax?: number | null;
+        pointValue?: number | null;
+        ticketFields?: WireField[] | null;
+        durations?: WireDuration[] | null;
+        marginRate?: number | null;
+      }
     | null
     | undefined,
   fields: WireField[] | null | undefined,
@@ -146,6 +190,7 @@ export function instrumentOf(
     pointValue: positive(i?.pointValue) ?? 1,
     fields: ticketFieldsOf(i?.ticketFields ?? fields),
     durations: durationsOf(i?.durations ?? durations),
+    marginRate: positive(i?.marginRate),
   };
 }
 

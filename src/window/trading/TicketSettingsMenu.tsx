@@ -7,6 +7,7 @@ import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { CheckMarkBox } from "../../components/form";
 import { emitAppEvent } from "../../data/app-events";
+import { broker } from "../../data/trading/broker";
 import { tradingUi } from "../../data/trading/trading-ui";
 import { ChevronIcon } from "./icons";
 import { Popup } from "./TicketMenus";
@@ -40,7 +41,8 @@ const DockIcon = () => (
 );
 
 /** ⋯ (tooltip "Settings"): Undock order ticket / Dock to right, Trading settings… (the chart Settings dialog on
- *  its Trading tab) and "SL enables quantity in risk". */
+ *  its Trading tab), "SL enables quantity in risk" and, for a broker that previews orders, "Show order
+ *  confirmation". */
 export function TicketSettingsMenu() {
   const [open, setOpen] = createSignal(false);
   const prices = tradingUi.domPrices;
@@ -97,6 +99,10 @@ export function TicketSettingsMenu() {
           <Show when={!domTab()}>
             <div class="trd-menu-divider" />
             <CheckRow label="SL enables quantity in risk" on={tradingUi.slEnablesRisk()} onToggle={() => tradingUi.setSlEnablesRisk(!tradingUi.slEnablesRisk())} />
+          </Show>
+          {/* Only for a broker that previews orders (reference). */}
+          <Show when={!domTab() && broker.capabilities().orderPreview}>
+            <CheckRow label="Show order confirmation" on={tradingUi.showOrderPreview()} onToggle={() => tradingUi.setShowOrderPreview(!tradingUi.showOrderPreview())} />
           </Show>
         </Popup>
       </Show>

@@ -6,7 +6,7 @@ import { translate, translateWith } from "../../i18n/translator";
 import { Show } from "solid-js";
 import { broker } from "../../data/trading/broker";
 import type { TicketDraft } from "../../data/trading/trading-ui";
-import { Switch } from "../../components/form";
+import { CheckMarkBox, Switch } from "../../components/form";
 import { localNumber } from "../../i18n/format";
 import { priceFieldProps } from "../../i18n/price-field";
 import { EXIT_TYPES, exitTypeDisabled, marketHint, priceBase, type ExitKind, type ExitType, type PriceField } from "./ticket";
@@ -173,6 +173,16 @@ export function QtyInput(props: { m: TicketModel }) {
 export function BrokerFieldInput(props: { m: TicketModel; field: TicketField }) {
   const { fieldValue, setField } = props.m;
   const picked = () => props.field.options.find((o) => o.value === fieldValue(props.field.id));
+  // A yes / no choice ("Outside RTH"): a checkbox with the plugin's label.
+  if (props.field.kind === "checkbox") {
+    const on = () => fieldValue(props.field.id) === "true";
+    return (
+      <button type="button" class="trd-tk-check" role="checkbox" aria-checked={on()} onClick={() => setField(props.field.id, on() ? "false" : "true")}>
+        <CheckMarkBox variant="ticket" checked={on()} />
+        <span data-no-translate>{props.field.label}</span>
+      </button>
+    );
+  }
   return (
     <div class="trd-tk-field">
       <span class="trd-tk-label" data-no-translate>
