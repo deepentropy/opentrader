@@ -3,9 +3,7 @@
  * Color by and Group by options, the tile colour scale and the treemap
  * layout. Pure: ScreenerHeatmap draws what these return.
  *
- * Options are the reference lists restricted to the columns the backend has
- * (Chg % 1h / 4h and the pre/post-market changes have no data source: the
- * live table holds the day's bar only).
+ * Options are the reference lists restricted to the columns the backend has.
  */
 import type { ColumnRef, ScreenerType } from "./screener-catalog";
 
@@ -60,7 +58,14 @@ export const HEAT_SIZE: HeatOption[] = [
   { id: "MonoEtf", short: "Mono size", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 3, mono: true, type: "etf" },
 ];
 
+/** The change of the current 1h / 4h bar, the pre- and post-market changes (stocks only, as in the reference). */
+const change = (id: string, label: string, column: ColumnRef, group: number): HeatOption => ({
+  id, short: label, valueShort: label, column, group, scale: "signed", type: "stock",
+});
+
 export const HEAT_COLOR: HeatOption[] = [
+  change("Change1h", "Chg %, 1h", { id: "Change", params: { resolution: "TimeResolution60" } }, 0),
+  change("Change4h", "Chg %, 4h", { id: "Change", params: { resolution: "TimeResolution240" } }, 0),
   { id: "Change", short: "Chg %, 1D", valueShort: "Chg %, 1D", column: { id: "Change", params: R1D }, group: 0, scale: "signed" },
   perf("Interval1W", "1W", "Perf %, 1W"),
   perf("Interval1M", "1M", "Perf %, 1M"),
@@ -68,11 +73,13 @@ export const HEAT_COLOR: HeatOption[] = [
   perf("Interval6M", "6M", "Perf %, 6M"),
   perf("IntervalYTD", "YTD", "Perf %, YTD"),
   perf("Interval1Y", "1Y", "Perf %, 1Y"),
-  { id: "RelativeVolume", short: "Rel vol", valueShort: "Rel vol", column: { id: "RelativeVolume", params: R1D }, group: 2, scale: "relVol", type: "stock" },
-  { id: "Volatility", short: "Volatility, 1D", valueShort: "Volatility, 1D", column: { id: "Volatility", params: { interval: "Interval1D" } }, group: 2, scale: "volatility" },
-  { id: "Gap", short: "Gap %", valueShort: "Gap %", column: { id: "Gap", params: R1D }, group: 2, scale: "gap", type: "stock" },
+  change("PreMarketChange", "Pre-mkt chg %", { id: "PreMarketChange", params: {} }, 2),
+  change("PostMarketChange", "Post-mkt chg %", { id: "PostMarketChange", params: {} }, 2),
+  { id: "RelativeVolume", short: "Rel vol", valueShort: "Rel vol", column: { id: "RelativeVolume", params: R1D }, group: 3, scale: "relVol", type: "stock" },
+  { id: "Volatility", short: "Volatility, 1D", valueShort: "Volatility, 1D", column: { id: "Volatility", params: { interval: "Interval1D" } }, group: 3, scale: "volatility" },
+  { id: "Gap", short: "Gap %", valueShort: "Gap %", column: { id: "Gap", params: R1D }, group: 3, scale: "gap", type: "stock" },
   ...(["1Y", "3Y", "5Y"] as const).map((y): HeatOption => ({
-    id: `Beta${y}`, short: BETA_LABELS[y], valueShort: BETA_LABELS[y], column: { id: "Beta", params: { interval: `Interval${y}` } }, group: 3, scale: "beta", type: "etf",
+    id: `Beta${y}`, short: BETA_LABELS[y], valueShort: BETA_LABELS[y], column: { id: "Beta", params: { interval: `Interval${y}` } }, group: 4, scale: "beta", type: "etf",
   })),
 ];
 
@@ -89,10 +96,11 @@ export const heatColors = (type: ScreenerType) => ofType(HEAT_COLOR, type);
 /** Group by options; the reference default is the first group (Sector), "No group" when there is none. */
 export const heatGroups = (type: ScreenerType) => ofType(HEAT_GROUP, type);
 
-/** A toolbar option of the screener, else its first one (a setting chosen in the other screener). */
+/** A toolbar option of the screener, else its initial one (a setting chosen in the other screener): the first size,
+ *  Chg %, 1D for the colour. */
 export function heatOption(kind: "size" | "color", id: string, type: ScreenerType = "stock"): HeatOption {
   const list = kind === "size" ? heatSizes(type) : heatColors(type);
-  return list.find((o) => o.id === id) ?? list[0];
+  return list.find((o) => o.id === id) ?? (kind === "color" ? list.find((o) => o.id === "Change") : undefined) ?? list[0];
 }
 export function heatGroup(id: string, type: ScreenerType) {
   const list = heatGroups(type);

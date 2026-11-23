@@ -285,7 +285,7 @@ mod tests {
                 s.num.entry(k.clone()).or_default().push(v.as_f64());
             }
         }
-        let m = MarketRow { ticker: String::new(), last: 0.0, change: 0.0, change_percent: 0.0, open: 0.0, high: 0.0, low: 0.0, volume: 0.0, prev_close: None, live: false, updated_ms: 0.0 };
+        let m = MarketRow { ticker: String::new(), last: 0.0, change: 0.0, change_percent: 0.0, open: 0.0, high: 0.0, low: 0.0, volume: 0.0, prev_close: None, live: false, updated_ms: 0.0, ext: Default::default() };
         for (i, r) in f.rows.iter().enumerate() {
             let want: Vec<&str> = r["patterns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
             assert_eq!(patterns(&s, i, &m, false).unwrap(), want, "{}", r["ticker"]);
@@ -343,7 +343,7 @@ mod tests {
         s.num.insert("candle.avg".into(), vec![Some(1.5)]);
         // 49 closes summing to 49 * 13: the live close 12 is below the SMA.
         s.num.insert("SMA50|next".into(), vec![Some(49.0 * 13.0)]);
-        let m = MarketRow { ticker: "AAA".into(), last: 12.0, change: 0.0, change_percent: 0.0, open: 9.0, high: 12.5, low: 8.9, volume: 1.0, prev_close: Some(10.0), live: true, updated_ms: 0.0 };
+        let m = MarketRow { ticker: "AAA".into(), last: 12.0, change: 0.0, change_percent: 0.0, open: 9.0, high: 12.5, low: 8.9, volume: 1.0, prev_close: Some(10.0), live: true, updated_ms: 0.0, ext: Default::default() };
         // Body 3 against the EMA 1.5 + 2/15 * 1.5 = 1.7: long; close 12 < SMA 12.98: downtrend.
         assert!(patterns(&s, 0, &m, true).unwrap().contains(&"engulfing_bullish"));
         // On D itself: D's bar alone (a black bar, nothing before it).

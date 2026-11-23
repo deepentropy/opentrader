@@ -193,6 +193,25 @@ const MA_PRESETS = (id: "Ema" | "Ma"): Preset[] => [
   { operation: "below", target: id, leftParams: { length: "50" }, right: { column: { id, params: { length: "100", resolution: "TimeResolution1D" } } }, ...d("Bearish alignment") },
 ];
 
+/** Extended-hours columns (the reference column kinds: a price, a coloured percent change with the Change presets, a
+ *  coloured amount, a volume). */
+const extPrice = (id: string, title: string, short: string, field: string): ColumnDef => ({
+  id, title, short, category: "marketData", align: "right", fmt: "price", width: 99, field,
+  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS(id) },
+});
+const extChange = (id: string, title: string, short: string, field: string): ColumnDef => ({
+  id, title, short, category: "marketData", align: "right", fmt: "change", width: 90, field,
+  filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: CHANGE_TARGETS, presets: BANDS },
+});
+const extChangeAbs = (id: string, title: string, short: string, field: string): ColumnDef => ({
+  id, title, short, category: "marketData", align: "right", fmt: "signedPrice", width: 90, field,
+  filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]] },
+});
+const extVolume = (id: string, title: string, short: string, field: string): ColumnDef => ({
+  id, title, short, category: "marketData", align: "right", fmt: "volume", width: 90, field,
+  filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] },
+});
+
 /** An ETF's weight of its largest holdings, % of net assets. */
 const topWeight = (id: string, title: string, short: string, field: string): ColumnDef => ({
   id, title, short, category: "securityInfo", align: "right", fmt: "percent", width: 90, field,
@@ -209,8 +228,12 @@ const oscillator = (id: string, title: string, short: string, params: ParamDef[]
   filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: [["value", id]] },
 });
 
-// Price-like right-hand targets (the reference app groups: Value | Open High Low Price | EMA SMA).
-const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Price"].filter((x) => x !== self), ["Ema", "Ma"]];
+// Price-like right-hand targets (the reference app groups: Value | Open High Low Price | EMA SMA | the extended-hours
+// prices).
+const EXT_PRICES = ["PostMarketHigh", "PostMarketLow", "PostMarketOpen", "PostMarketClose", "PreMarketHigh", "PreMarketLow", "PreMarketOpen", "PreMarketClose"];
+const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Price"].filter((x) => x !== self), ["Ema", "Ma"], EXT_PRICES.filter((x) => x !== self)];
+/** The right-hand targets of the percent changes (the reference Change filter's list). */
+const CHANGE_TARGETS = [["value", "ChangeFromOpen", "Gap", "PostMarketChange", "PreMarketChange", "PreMarketChangeFromOpen", "PreMarketGap", "Change"]];
 const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "between", "outside", "equal"];
 const CHANGE_OPS: Operation[] = ["above", "below", "between", "outside", "equal"];
 
@@ -364,8 +387,14 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "above", target: "value", right: { value: 0 }, ...d("Positive sensitivity") },
       { operation: "below", target: "value", right: { value: 0 }, ...d("Inverse sensitivity") },
     ] } },
-  { id: "Change", title: "Price change %", short: "Chg %", category: "marketData", align: "right", fmt: "change", width: 80, params: RES_1D("change"),
-    filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value", "ChangeFromOpen", "Gap", "Change"]], presets: BANDS } },
+  // 1h and 4h: the price against the close of the regular session's previous 1h / 4h bar (bars from 09:30).
+  { id: "Change", title: "Price change %", short: "Chg %", category: "marketData", align: "right", fmt: "change", width: 80,
+    params: [{ key: "resolution", title: "Interval", default: "TimeResolution1D", options: [
+      { value: "TimeResolution60", label: "1 hour", short: "1h", field: "change|60" },
+      { value: "TimeResolution240", label: "4 hours", short: "4h", field: "change|240" },
+      { value: "TimeResolution1D", label: "1 day", short: "1D", field: "change" },
+    ] }],
+    filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: CHANGE_TARGETS, presets: BANDS } },
   { id: "ChangeAbs", title: "Price change", short: "Chg", category: "marketData", align: "right", fmt: "signedPrice", width: 86, params: RES_1D("change_abs"),
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: [
       { operation: "below", target: "value", right: { value: 1 } },
@@ -446,6 +475,26 @@ export const COLUMNS: ColumnDef[] = [
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
   { id: "VolumeChangeAbs", title: "Volume change", short: "Vol chg", category: "marketData", align: "right", fmt: "signedVolume", width: 90, params: RES_1D("volume_change_abs"),
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
+  // Market data (extended hours): the pre-market (04:00-09:30 New York) of the latest session that traded, shown all
+  // day, and its post-market (to 20:00), shown overnight; the changes against the previous close (pre-market) and
+  // the day's close (post-market), the gap = the pre-market open against the previous close.
+  extPrice("PreMarketOpen", "Pre-market open", "Pre-mkt open", "premarket_open"),
+  extPrice("PreMarketHigh", "Pre-market high", "Pre-mkt high", "premarket_high"),
+  extPrice("PreMarketLow", "Pre-market low", "Pre-mkt low", "premarket_low"),
+  extPrice("PreMarketClose", "Pre-market price", "Pre-mkt price", "premarket_close"),
+  extChange("PreMarketChange", "Pre-market change %", "Pre-mkt chg %", "premarket_change"),
+  extChangeAbs("PreMarketChangeAbs", "Pre-market change", "Pre-mkt chg", "premarket_change_abs"),
+  extChange("PreMarketChangeFromOpen", "Pre-market change from open %", "Pre-mkt chg from open %", "premarket_change_from_open"),
+  extChangeAbs("PreMarketChangeFromOpenAbs", "Pre-market change from open", "Pre-mkt chg from open", "premarket_change_from_open_abs"),
+  extChange("PreMarketGap", "Pre-market gap %", "Pre-mkt gap %", "premarket_gap"),
+  extVolume("PreMarketVolume", "Pre-market volume", "Pre-mkt vol", "premarket_volume"),
+  extPrice("PostMarketOpen", "Post-market open", "Post-mkt open", "postmarket_open"),
+  extPrice("PostMarketHigh", "Post-market high", "Post-mkt high", "postmarket_high"),
+  extPrice("PostMarketLow", "Post-market low", "Post-mkt low", "postmarket_low"),
+  extPrice("PostMarketClose", "Post-market price", "Post-mkt price", "postmarket_close"),
+  extChange("PostMarketChange", "Post-market change %", "Post-mkt chg %", "postmarket_change"),
+  extChangeAbs("PostMarketChangeAbs", "Post-market change", "Post-mkt chg", "postmarket_change_abs"),
+  extVolume("PostMarketVolume", "Post-market volume", "Post-mkt vol", "postmarket_volume"),
   // Technicals
   { id: "AverageDailyRange", title: "Average daily range", short: "ADR", category: "technicals", align: "right", fmt: "price", width: 86, field: "ADR",
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
@@ -751,7 +800,7 @@ const TECHNICALS = [C("TechnicalRating", R1D), C("RatingMa", R1D), C("RatingOsci
   C("AwesomeOscillator", R1D), C("CommodityChannelIndex", { resolution: "TimeResolution1D", length: "20" }), STOCH_3_3("Stochastic:K"), STOCH_3_3("Stochastic:D"),
   C("Pattern", R1D)];
 /** The reference app column-set presets, in the reference app menu order (03/11/2026). Columns without a data
- *  source are left out (analyst rating, estimates, extended hours, all-time performance...); a preset with no column the backend has is not listed. */
+ *  source are left out (analyst rating, estimates...); a preset with no column the backend has is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("PriceToEarnings"),
     C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM), C("DividendsYield", TTM), C("Sector")] },
@@ -759,7 +808,8 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i })),
     C("Volatility", { interval: "Interval1W" }), C("Volatility", { interval: "Interval1M" })] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
-  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D)] },
+  { id: "extendedHours", title: "Extended hours", columns: [C("PreMarketClose"), C("PreMarketChange"), C("PreMarketGap"), C("PreMarketVolume"), C("Price"), C("Change", R1D),
+    C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D), C("PostMarketClose"), C("PostMarketChange"), C("PostMarketVolume")] },
   { id: "forecasts", title: "Forecasts", columns: [C("MarketCap"), C("Price")] },
   { id: "valuation", title: "Valuation", columns: [C("MarketCap"), C("MarketCapPerf", { interval: "Interval1Y" }), C("PriceToEarnings"), C("PriceToEarningsToGrowth", TTM),
     C("PriceToSales"), C("PriceToBook"), C("PriceToCashFlow"), C("PriceToFreeCashFlow"), C("PriceToCashRatio"), C("Ev"), C("EvToRevenue", TTM), C("EvToEbit", TTM), C("EvToEbitda", TTM)] },
@@ -784,7 +834,8 @@ export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] 
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
-  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D)] },
+  { id: "extendedHours", title: "Extended hours", columns: [C("PreMarketClose"), C("PreMarketChange"), C("PreMarketGap"), C("PreMarketVolume"), C("Price"), C("Change", R1D),
+    C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D), C("PostMarketClose"), C("PostMarketChange"), C("PostMarketVolume")] },
   { id: "fundFlows", title: "Fund flows", columns: ["Interval1M", "Interval3M", "Interval1Y", "Interval3Y", "IntervalYTD"].map((i) => C("FundFlows", { interval: i })) },
   { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward"), C("DividendsFrequency"), C("DividendTreatment")] },
   { id: "holdings", title: "Holdings", columns: [C("Issuer"), C("TotalHoldings"), C("PercentInTop10"), C("PercentInTop25"), C("PercentInTop50"),

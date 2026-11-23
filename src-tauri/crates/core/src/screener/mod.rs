@@ -94,6 +94,20 @@ pub struct Screener {
     inner: Arc<Inner>,
 }
 
+/// Rows of the REST snapshot have no extended-hours values (only the live feed keeps them): while the feed is
+/// down they keep the ones of the table before, so the pre-/post-market columns do not empty out.
+fn keep_extended_hours(rows: &mut [MarketRow], before: Option<&Table>) {
+    let Some(before) = before else { return };
+    let held: std::collections::HashMap<&str, market_rest::ExtHours> =
+        before.rows.iter().map(|r| (r.m.ticker.as_str(), r.m.ext)).collect();
+    for row in rows {
+        // The table holds the app's spelling of a ticker, the snapshot the source's.
+        if let Some(ext) = held.get(crate::data::ticker_case::to_app(&row.ticker).as_str()) {
+            row.ext = *ext;
+        }
+    }
+}
+
 impl Screener {
     pub fn table(&self) -> Arc<Table> {
         self.inner.table.read_locked().clone().unwrap_or_else(|| Arc::new(Table::empty()))
@@ -418,6 +432,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         // else from a REST poll.
         let via_feed = feed.is_some();
         let rest_won = matches!(rest_rows, Some(Ok(_)));
+        let mut from_feed = false;
         let snap: anyhow::Result<Vec<MarketRow>> = if let Some(rows) = rest_rows {
             rows
         } else if let Some(f) = feed.as_mut() {
@@ -430,6 +445,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                 }
             }
             feed_fresh = false;
+            from_feed = lost.is_none();
             match lost {
                 None => market_rest::shape_feed_snapshots(f.table.snapshots()).await,
                 Some(e) => Err(e),
@@ -454,7 +470,10 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         };
 
         let update = match snap {
-            Ok(rows) => {
+            Ok(mut rows) => {
+                if !from_feed {
+                    keep_extended_hours(&mut rows, inner.table.read_locked().as_deref());
+                }
                 version = version.wrapping_add(1);
                 let state = src.table_state(&wanted).await;
                 let mut t = Table::build(version, rows, src.refs.clone(), state);

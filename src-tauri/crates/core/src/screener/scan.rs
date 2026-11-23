@@ -354,6 +354,7 @@ mod tests {
             prev_close: Some(last),
             live,
             updated_ms: ms,
+            ext: Default::default(),
         }
     }
 
@@ -442,6 +443,43 @@ mod tests {
         };
         // The quiet row's session is a trading day before today.
         assert!(quiet < chrono::Utc::now().timestamp() as f64 && quiet >= day(2026, 9, 29));
+    }
+
+    #[test]
+    fn extended_hours_fields_from_the_feed_values() {
+        use crate::data::market_rest::ExtHours;
+        let mut a = mrow("AAA", 10.0, 1000.0, true, "2026-09-29T20:30:00Z");
+        a.ext = ExtHours {
+            pre_open: Some(8.4),
+            pre_close: Some(8.8),
+            pre_volume: Some(500.0),
+            pre_base: Some(8.0),
+            post_close: Some(10.5),
+            post_volume: Some(70.0),
+            post_base: Some(10.0),
+            hour_base: Some(12.5),
+            h4_base: Some(8.0),
+            ..Default::default()
+        };
+        // No feed values (the REST snapshot): every extended-hours field is empty.
+        let b = mrow("BBB", 4.0, 5000.0, true, "2026-09-29T20:30:00Z");
+        let t = Table::build(1, vec![a, b], Arc::new(vec![]), None);
+        let mut r = req(vec![], Some(("name", SortOrder::Asc)));
+        let fields = [
+            "premarket_close", "premarket_change", "premarket_gap", "premarket_volume", "premarket_change_from_open",
+            "postmarket_close", "postmarket_change", "postmarket_volume", "change|60", "change|240", "premarket_high",
+        ];
+        r.columns = fields.iter().map(|f| f.to_string()).collect();
+        let r = run(&t, &r).unwrap();
+        let num = |row: usize, i: usize| match r.rows[row].d[i] {
+            Some(Cell::Num(v)) => Some((v * 1e6).round() / 1e6),
+            _ => None,
+        };
+        let want = [Some(8.8), Some(10.0), Some(5.0), Some(500.0), Some(4.761905), Some(10.5), Some(5.0), Some(70.0), Some(-20.0), Some(25.0), None];
+        for (i, w) in want.iter().enumerate() {
+            assert_eq!(num(0, i), *w, "{}", fields[i]);
+            assert_eq!(num(1, i), None, "{} without feed values", fields[i]);
+        }
     }
 
     #[test]

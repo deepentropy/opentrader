@@ -12,7 +12,9 @@
  *
  * Columns (contract v2): updated, change, open, high, low, close, volume,
  * vwap, prevOpen, prevHigh, prevLow, prevClose, prevVolume, prevVwap,
- * minuteClose, cumVolume. They are found by name, so their order may change.
+ * minuteClose, cumVolume, then the extended-hours ones (`ExtHours::COLUMNS`,
+ * gateway 3.14). They are found by name, so their order may change, and a
+ * gateway without some of them leaves those values empty.
  *
  * `seq` rises by one per message; a gap means a message was lost and the
  * table held here is no longer the gateway's. After a failed poll the gateway
@@ -30,7 +32,7 @@
  * snapshot's rules and falls back to REST polling whenever the feed fails.
  */
 use crate::data::gateway;
-use crate::data::market_rest::FeedSnapshot;
+use crate::data::market_rest::{ExtHours, FeedSnapshot};
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
@@ -86,6 +88,7 @@ struct Columns {
     day: [Option<usize>; 5],
     prev: [Option<usize>; 5],
     minute_close: Option<usize>,
+    ext: [Option<usize>; 14],
 }
 
 impl Columns {
@@ -97,6 +100,7 @@ impl Columns {
             day: ["open", "high", "low", "close", "volume"].map(at),
             prev: ["prevOpen", "prevHigh", "prevLow", "prevClose", "prevVolume"].map(at),
             minute_close: at("minuteClose"),
+            ext: ExtHours::COLUMNS.map(at),
         }
     }
 }
@@ -191,6 +195,7 @@ impl LiveTable {
                     day: bar(&c.day),
                     prev: bar(&c.prev),
                     minute_close: value(c.minute_close),
+                    ext: ExtHours::from_values(c.ext.map(value)),
                 }
             })
             .collect();

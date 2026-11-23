@@ -343,6 +343,7 @@ mod tests {
                 prev_close: None,
                 live: true,
                 updated_ms: 0.0,
+                ext: Default::default(),
             };
             for t in techs {
                 let want = case.expected.get(state_key(t)).copied().flatten();

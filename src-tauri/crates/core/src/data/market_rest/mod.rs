@@ -47,7 +47,7 @@ pub use corporate_actions::{
 pub(crate) use corporate_actions::set_splits_for_test;
 pub use filings::{fetch_filing_text, fetch_filings, Filing, FilingList, FilingQuery, FilingSection, FilingText};
 pub use fundamentals::{fetch_fundamentals, Fundamentals};
-pub use market_snapshot::{fetch_market_snapshot, fetch_market_snapshot_counted, shape_feed_snapshots, FeedSnapshot, MarketRow};
+pub use market_snapshot::{fetch_market_snapshot, fetch_market_snapshot_counted, shape_feed_snapshots, ExtHours, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
 pub use quotes::{fetch_snapshots, LiveTick};
 pub use reference::{

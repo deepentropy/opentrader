@@ -33,6 +33,59 @@ pub struct MarketRow {
     pub live: bool,
     /// Snapshot update stamp, UNIX milliseconds.
     pub updated_ms: f64,
+    /// Pre-/post-market values and the 1h / 4h bar bases: from the live feed only.
+    pub ext: ExtHours,
+}
+
+/// What the live feed keeps of the extended hours for one ticker (gateway columns `preOpen` … `h4Base`): the
+/// pre-market (04:00-09:30 New York) and the post-market (the close to 20:00), each held after its session until
+/// the next day trades, with the close its change is measured from; and the close of the previous regular 1h / 4h
+/// bar (bars from 09:30). `None` when not known.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ExtHours {
+    pub pre_open: Option<f64>,
+    pub pre_high: Option<f64>,
+    pub pre_low: Option<f64>,
+    pub pre_close: Option<f64>,
+    pub pre_volume: Option<f64>,
+    /// The previous session's close.
+    pub pre_base: Option<f64>,
+    pub post_open: Option<f64>,
+    pub post_high: Option<f64>,
+    pub post_low: Option<f64>,
+    pub post_close: Option<f64>,
+    pub post_volume: Option<f64>,
+    /// The day's regular close.
+    pub post_base: Option<f64>,
+    pub hour_base: Option<f64>,
+    pub h4_base: Option<f64>,
+}
+
+impl ExtHours {
+    /// Gateway column names, in the order of [`ExtHours::from_values`].
+    pub const COLUMNS: [&'static str; 14] = [
+        "preOpen", "preHigh", "preLow", "preClose", "preVolume", "preBase", "postOpen", "postHigh", "postLow",
+        "postClose", "postVolume", "postBase", "hourBase", "h4Base",
+    ];
+
+    pub fn from_values(v: [Option<f64>; 14]) -> Self {
+        ExtHours {
+            pre_open: v[0],
+            pre_high: v[1],
+            pre_low: v[2],
+            pre_close: v[3],
+            pre_volume: v[4],
+            pre_base: v[5],
+            post_open: v[6],
+            post_high: v[7],
+            post_low: v[8],
+            post_close: v[9],
+            post_volume: v[10],
+            post_base: v[11],
+            hour_base: v[12],
+            h4_base: v[13],
+        }
+    }
 }
 
 /// Fetch and shape the whole-market delayed snapshot.
@@ -48,12 +101,13 @@ pub async fn fetch_market_snapshot_counted(d: Option<&Download>) -> Result<Vec<M
     }
     let body = read_body(resp, d, "market snapshot").await?;
     let list: SnapshotList = serde_json::from_slice(&body).context("market snapshot: unreadable answer")?;
-    Ok(market_rows(&list.entries()).await)
+    Ok(market_rows(&list.entries(), &[]).await)
 }
 
 /// Shape snapshot entries into screener rows (the rules of the REST path and
-/// of the live feed).
-async fn market_rows(entries: &[SnapEntry]) -> Vec<MarketRow> {
+/// of the live feed). `ext`: each entry's extended-hours values, empty for the
+/// REST snapshot.
+async fn market_rows(entries: &[SnapEntry], ext: &[ExtHours]) -> Vec<MarketRow> {
     let prior = if entries.iter().any(is_closed) {
         Some(prior_session_closes().await)
     } else {
@@ -61,7 +115,8 @@ async fn market_rows(entries: &[SnapEntry]) -> Vec<MarketRow> {
     };
     entries
         .iter()
-        .filter_map(|t| {
+        .enumerate()
+        .filter_map(|(i, t)| {
             let closed = is_closed(t);
             let prior_close = if closed {
                 prior.as_ref().and_then(|m| m.get(&t.ticker).copied())
@@ -94,6 +149,7 @@ async fn market_rows(entries: &[SnapEntry]) -> Vec<MarketRow> {
                 prev_close,
                 live: !closed,
                 updated_ms: t.updated_ms,
+                ext: ext.get(i).copied().unwrap_or_default(),
             })
         })
         .collect()
@@ -111,12 +167,14 @@ pub struct FeedSnapshot {
     pub prev: Option<[f64; 5]>,
     /// Close of the latest minute bar.
     pub minute_close: Option<f64>,
+    pub ext: ExtHours,
 }
 
 /// Shape live-feed snapshots with the rules of [`fetch_market_snapshot`], so
 /// a table built from the feed equals one built from the REST snapshot.
 pub async fn shape_feed_snapshots(snapshots: Vec<FeedSnapshot>) -> Result<Vec<MarketRow>> {
     let bar = |b: [f64; 5]| SnapBar { o: b[0], h: b[1], l: b[2], c: b[3], v: b[4] };
+    let ext: Vec<ExtHours> = snapshots.iter().map(|f| f.ext).collect();
     let entries: Vec<SnapEntry> = snapshots
         .into_iter()
         .map(|f| SnapEntry {
@@ -131,5 +189,5 @@ pub async fn shape_feed_snapshots(snapshots: Vec<FeedSnapshot>) -> Result<Vec<Ma
             minute: f.minute_close.map(|c| MinBar { bar: SnapBar { c, ..SnapBar::default() }, t: 0 }),
         })
         .collect();
-    Ok(market_rows(&entries).await)
+    Ok(market_rows(&entries, &ext).await)
 }
