@@ -66,10 +66,10 @@ export function withField<T extends object>(list: readonly T[], field: string, f
 
 const same = (a: unknown, b: unknown) => a === b || (typeof a === "number" && typeof b === "number" && Number.isNaN(a) && Number.isNaN(b));
 
-/** Point k of two column sets has the same fields and values. */
-function sameAt(a: PackedColumns, b: PackedColumns, k: number): boolean {
+/** Point k of two column sets has the same fields and values (`fields`: the names of both sets' other fields). */
+function sameAt(a: PackedColumns, b: PackedColumns, k: number, fields: readonly string[]): boolean {
   if (!same(a.time[k], b.time[k]) || !same(a.value[k], b.value[k])) return false;
-  for (const f of new Set([...Object.keys(a.extra), ...Object.keys(b.extra)])) if (!same(a.extra[f]?.[k], b.extra[f]?.[k])) return false;
+  for (const f of fields) if (!same(a.extra[f]?.[k], b.extra[f]?.[k])) return false;
   return true;
 }
 
@@ -84,7 +84,8 @@ export function packedPrefix(next: readonly unknown[], prev: unknown, n: number)
   const nc = packedColumns(next);
   let k = 0;
   if (nc) {
-    while (k < n && sameAt(nc, cols, k)) k++;
+    const fields = [...new Set([...Object.keys(nc.extra), ...Object.keys(cols.extra)])];
+    while (k < n && sameAt(nc, cols, k, fields)) k++;
     return k;
   }
   const extras = Object.entries(cols.extra);

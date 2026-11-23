@@ -36,6 +36,11 @@ type StudyState = {
   sent: { id: number; result: unknown } | null;
   /** The bar pools its bars and bar lists are from. */
   pools: Set<string>;
+  /** The chart context given to the run on the last job (chartContext), and its object fields as JSON. */
+  ctx: Record<string, unknown> | null;
+  ctxJson: Record<string, string>;
+  /** Where the accessors report the data the current job has not got. */
+  missing: StudyCall[];
 };
 
 /** The studies calculated the least recently are dropped past STATES_KEPT (a removed study sends no more jobs). */
@@ -112,7 +117,7 @@ function stateOf(job: StudyJob): StudyState | null {
     }
     const bars = shareBars(pool, job.bars, 0);
     const seen = job.restamp ? scriptBars(bars, job.ctx) : bars;
-    st = { id: job.id, bars, seen, data, run: null, runInputs: "", sent: held?.sent ?? null, pools };
+    st = { id: job.id, bars, seen, data, run: null, runInputs: "", sent: held?.sent ?? null, pools, ctx: null, ctxJson: {}, missing: [] };
   } else {
     if (!held || held.id !== job.prev) return null;
     st = held;
@@ -143,6 +148,41 @@ function stateOf(job: StudyJob): StudyState | null {
   return st;
 }
 
+/**
+ * The chart context of a job for the study's run, holding the same values as the context of the job before where they
+ * did not change. A run calculates the newest bars only when its context is the same as on the update before, field by
+ * field (Object.is): a message brings new objects (the session) and the accessors were made again on every job, so
+ * every live update calculated each study from its first bar (#249). The accessors are made again when the job brings
+ * data changes: a run that does not compare the data it reads sees them by its functions changing.
+ */
+function chartContext(st: StudyState, job: StudyJob, missing: StudyCall[]): Record<string, unknown> {
+  st.missing = missing;
+  const prev = st.ctx;
+  const ctx: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(job.ctx)) {
+    if (v === null || typeof v !== "object") {
+      ctx[k] = v;
+      continue;
+    }
+    const json = JSON.stringify(v);
+    ctx[k] = prev && k in prev && st.ctxJson[k] === json ? prev[k] : v;
+    st.ctxJson[k] = json;
+  }
+  const newData = !prev || Object.keys(job.data).length > 0;
+  for (const kind of ACCESSORS) {
+    if (!job.accessors.includes(kind)) continue;
+    const held = prev?.[kind];
+    ctx[kind] = !newData && typeof held === "function" ? held : (...args: unknown[]) => {
+      const key = callKey(kind, args);
+      if (key in st.data) return st.data[key];
+      if (!st.missing.some((m) => callKey(m.kind, m.args) === key)) st.missing.push({ kind, args });
+      return undefined;
+    };
+  }
+  st.ctx = ctx;
+  return ctx;
+}
+
 export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
   loader ??= import("lightweight-charts-indicators/loader").then((m) => {
     setPackedSeries = m.setPackedSeries;
@@ -153,16 +193,7 @@ export async function calculateStudy(job: StudyJob): Promise<StudyReply> {
   if (!entry) return { id: job.id, error: `Unknown study ${job.entryId}`, missing, ms: 0 };
   const st = stateOf(job);
   if (!st) return { id: job.id, retry: true, missing, ms: 0 };
-  const ctx: Record<string, unknown> = { ...job.ctx };
-  for (const kind of ACCESSORS) {
-    if (!job.accessors.includes(kind)) continue;
-    ctx[kind] = (...args: unknown[]) => {
-      const key = callKey(kind, args);
-      if (key in st.data) return st.data[key];
-      if (!missing.some((m) => callKey(m.kind, m.args) === key)) missing.push({ kind, args });
-      return undefined;
-    };
-  }
+  const ctx = chartContext(st, job, missing);
   setSourceResolver((name) => job.sources[name] ?? null);
   const t0 = performance.now();
   try {

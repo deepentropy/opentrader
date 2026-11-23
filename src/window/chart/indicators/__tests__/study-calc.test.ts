@@ -46,12 +46,19 @@ function createRun() {
 
 /** The bars each calculation of "seen-sum" was given. */
 const seenBars: Bar[][] = vi.hoisted(() => []);
+/** The chart contexts "ctx-probe" runs were given. */
+const contexts: Record<string, unknown>[] = vi.hoisted(() => []);
 
 vi.mock("lightweight-charts-indicators/loader", () => {
   const entries = [
     { id: "run-sum", calculate: (bars: Bar[]) => full(bars), createRun },
     { id: "plain-sum", calculate: (bars: Bar[]) => full(bars) },
     { id: "seen-sum", calculate: (bars: Bar[]) => (seenBars.push(bars), full(bars)) },
+    {
+      id: "ctx-probe",
+      calculate: (bars: Bar[]) => full(bars),
+      createRun: () => ({ fullRunReason: null, update: (bars: Bar[], chart: unknown) => (contexts.push(chart as Record<string, unknown>), Object.assign(full(bars), { from: 0 })) }),
+    },
   ];
   return { setPackedSeries: () => {}, loadIndicator: async (id: string) => entries.find((e) => e.id === id) ?? null };
 });
@@ -108,6 +115,29 @@ describe("study worker: changed bars only, results as full runs", () => {
       expect(await c.update(bars)).toEqual(full(bars));
     });
   }
+
+  it("a run gets the same chart context objects while they do not change (#249)", async () => {
+    const sent = { stateId: null as number | null, bars: null as Bar[] | null, data: new Map<string, unknown>() };
+    const bars = Array.from({ length: 20 }, (_, i) => bar(i, 10 + i));
+    let id = 0;
+    const run = async (session: object, data: Record<string, unknown>) => {
+      const changes = jobChanges(sent, bars, data, (v) => JSON.stringify(v));
+      const job = structuredClone({ kind: "study" as const, id: ++id, entryId: "ctx-probe", study: "chart|ctx", base: null, restamp: false, inputs: {}, ctx: { timezone: "UTC", session }, accessors: ["bars"], sources: {}, ...changes });
+      const reply = await calculateStudy(job as never);
+      sent.stateId = reply.id;
+    };
+    contexts.length = 0;
+    await run({ open: "0930" }, { a: [1] });
+    bars[19] = { ...bars[19]!, close: 5 };
+    await run({ open: "0930" }, { a: [1] });
+    expect(contexts[1]!.session).toBe(contexts[0]!.session);
+    expect(contexts[1]!.bars).toBe(contexts[0]!.bars);
+    // another session: a new object; data that changed: new accessors (a run that does not compare data sees them)
+    await run({ open: "0400" }, { a: [2] });
+    expect(contexts[2]!.session).not.toBe(contexts[1]!.session);
+    expect(contexts[2]!.session).toEqual({ open: "0400" });
+    expect(contexts[2]!.bars).not.toBe(contexts[1]!.bars);
+  });
 
   it("a worker that does not hold the study's state takes the whole bars again", async () => {
     const bars = Array.from({ length: 50 }, (_, i) => bar(i, 10 + i));
