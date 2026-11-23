@@ -72,6 +72,8 @@ pub struct OrdRow {
     pub status: OrderStatus,
     pub tif: TimeInForce,
     pub outside_rth: bool,
+    /// The venue it was routed to ("SMART", "ARCA"…): kept when it is modified.
+    pub exchange: String,
     pub message: Option<String>,
     /// Placed through this plugin's client id: it can be modified and cancelled from here.
     pub mine: bool,
@@ -559,6 +561,7 @@ mod tests {
             status,
             tif: TimeInForce::GoodTillCanceled,
             outside_rth: false,
+            exchange: "SMART".into(),
             message: None,
             mine: true,
             detached: false,

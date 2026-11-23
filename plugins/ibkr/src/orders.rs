@@ -100,6 +100,8 @@ pub fn ticket_fields() -> Vec<TicketField> {
         id: id.into(),
         label: label.into(),
         kind: "checkbox".into(),
+        options: Vec::new(),
+        default: None,
         order_types,
         exit: exit.map(String::from),
     };
@@ -108,6 +110,41 @@ pub fn ticket_fields() -> Vec<TicketField> {
         check("tpOutsideRth", "Outside RTH Take Profit", vec![], Some("takeProfit")),
         check("slOutsideRth", "Outside RTH Stop Loss", vec![], Some("stopLoss")),
     ]
+}
+
+/// The venues IB lists for a contract that an order may be routed to (reference: its algo and internal venues left
+/// out), SMART first; one or none: no choice to make.
+pub fn routes(valid: &[String]) -> Vec<String> {
+    const SKIP: [&str; 8] = ["QBALGO", "IBEOS", "OVERNIGHT", "TPLUS0", "IBKRATS", "IBOPT", "JEFFALGO", "CSFBALGO"];
+    let mut out: Vec<String> = Vec::new();
+    for e in valid.iter().flat_map(|v| v.split(',')).map(|e| e.trim().to_ascii_uppercase()) {
+        if !e.is_empty() && !SKIP.contains(&e.as_str()) && !out.contains(&e) {
+            out.push(e);
+        }
+    }
+    if let Some(i) = out.iter().position(|e| e == "SMART") {
+        let smart = out.remove(i);
+        out.insert(0, smart);
+    }
+    out
+}
+
+/// The ticket's "Routing" selector (reference: SMART when listed, else the first venue).
+pub fn routing_field(routes: &[String]) -> TicketField {
+    TicketField {
+        id: "route".into(),
+        label: "Routing".into(),
+        kind: "select".into(),
+        options: routes.iter().map(|r| crate::wire::FieldOption { value: r.clone(), label: r.clone() }).collect(),
+        default: routes.first().cloned(),
+        order_types: Vec::new(),
+        exit: None,
+    }
+}
+
+/// The venue an order picked, when the contract lists it; else none (SMART).
+pub fn route_of<'a>(t: &'a OrderTicket, routes: &[String]) -> Option<&'a str> {
+    t.fields.get("route").map(String::as_str).filter(|r| routes.iter().any(|x| x == r))
 }
 
 /// A ticket field ticked.
@@ -446,6 +483,21 @@ mod tests {
         assert_eq!(caps["orderPreview"], true);
         assert_eq!(caps["ticketFields"][0], serde_json::json!({ "id": "outsideRth", "label": "Outside RTH", "type": "checkbox", "orderTypes": ["limit", "stop", "stopLimit"] }));
         assert_eq!(caps["ticketFields"][1]["exit"], "takeProfit");
+    }
+
+    #[test]
+    fn routes_and_the_routing_field() {
+        let r = routes(&["ARCA,SMART,NYSE,IBEOS,OVERNIGHT,arca".to_string()]);
+        assert_eq!(r, ["SMART", "ARCA", "NYSE"]);
+        let f = serde_json::to_value(routing_field(&r)).unwrap();
+        assert_eq!(f, serde_json::json!({ "id": "route", "label": "Routing", "type": "select", "default": "SMART",
+            "options": [{ "value": "SMART", "label": "SMART" }, { "value": "ARCA", "label": "ARCA" }, { "value": "NYSE", "label": "NYSE" }] }));
+        let mut t = ticket(OrderType::Limit, Some(1.0), None);
+        t.fields.insert("route".into(), "ARCA".into());
+        assert_eq!(route_of(&t, &r), Some("ARCA"));
+        t.fields.insert("route".into(), "NOPE".into());
+        assert_eq!(route_of(&t, &r), None);
+        assert!(routes(&[]).is_empty());
     }
 
     #[test]

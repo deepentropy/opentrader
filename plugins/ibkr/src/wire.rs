@@ -111,6 +111,12 @@ pub struct TicketField {
     pub label: String,
     #[serde(rename = "type")]
     pub kind: String,
+    /// A selector's choices (the routes), none for a checkbox.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub options: Vec<FieldOption>,
+    /// The value picked at first.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub default: Option<String>,
     /// The order types it applies to; all of them when empty.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub order_types: Vec<OrderType>,
@@ -251,6 +257,12 @@ pub struct OrderTicket {
     pub fields: std::collections::BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldOption {
+    pub value: String,
+    pub label: String,
+}
+
 /// How a ticker trades (`broker.instrument`): quantities in units, and the money one unit makes per price point.
 /// A field IB doesn't give is left out.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -262,4 +274,7 @@ pub struct Instrument {
     pub qty_step: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub point_value: Option<f64>,
+    /// This ticker's choices, in place of the capabilities' (its routes, then the Outside RTH boxes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ticket_fields: Option<Vec<TicketField>>,
 }

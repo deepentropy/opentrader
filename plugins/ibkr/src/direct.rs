@@ -921,6 +921,7 @@ fn from_details(d: &x::ContractDetails) -> ContractDetails {
         min_size: set(d.min_size),
         size_increment: set(d.size_increment),
         suggested_size_increment: set(d.suggested_size_increment),
+        valid_exchanges: d.valid_exchanges.split(',').map(str::trim).filter(|e| !e.is_empty()).map(String::from).collect(),
         ..Default::default()
     }
 }

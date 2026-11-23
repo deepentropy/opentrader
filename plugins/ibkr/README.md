@@ -62,6 +62,7 @@ Not served yet: other countries' stocks, options, indexes, tick charts.
   - Closing a position cancels its exit orders once IB takes the closing order; a partial close cuts them to what is left.
 - **Durations.** Market orders are day orders; the others are good till cancelled. Stops trigger in regular hours only.
 - **Outside RTH.** The order ticket's Extra settings tick an order (limit and stop orders) and its take profit or stop loss to fill outside regular trading hours, as IB's Outside RTH.
+- **Routing.** For a contract IB lists on several venues, the order ticket's Extra settings pick where the order goes: SMART (the default) or one of those venues (IB's algo and internal venues left out). A working order keeps its venue. IB checks directly routed orders against your Precautionary Settings (Global Configuration in IB Gateway / TWS): when they forbid them, the order is refused with IB's message.
 - **Order confirmation.** Before sending an order, the order ticket shows IB's what-if answer: the commission, and the equity with loan, initial and maintenance margin now, the change and after (its take profit and stop loss left out). Turn it off with "Show order confirmation" in the ticket's menu.
 - **Prices** are rounded to the contract's price step.
 - **Orders placed elsewhere** (TWS, another API program) are shown but cannot be changed or cancelled from OpenTrader: IB lets only the program that placed an order change it.

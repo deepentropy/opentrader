@@ -177,6 +177,8 @@ pub struct Ibkr {
     ticks: Mutex<HashMap<i32, f64>>,
     /// Contract id → the smallest order and the size step IB gives (`broker.instrument`).
     sizes: Mutex<HashMap<i32, (Option<f64>, Option<f64>)>>,
+    /// Contract id → the venues an order may be routed to (the ticket's Routing).
+    routes: Mutex<HashMap<i32, Vec<String>>>,
     /// The tickers whose quotes the app wants.
     watched: Mutex<Vec<String>>,
     /// The tickers whose order book the app wants.
@@ -197,6 +199,7 @@ impl Ibkr {
             by_id: Mutex::new(HashMap::new()),
             ticks: Mutex::new(HashMap::new()),
             sizes: Mutex::new(HashMap::new()),
+            routes: Mutex::new(HashMap::new()),
             watched: Mutex::new(Vec::new()),
             watched_depth: Mutex::new(Vec::new()),
         })
@@ -757,6 +760,7 @@ impl Ibkr {
         }
         let positive = |v: Option<f64>| v.filter(|v| v.is_finite() && *v > 0.0);
         lock(&self.sizes).insert(c.contract_id, (positive(d.min_size), positive(d.size_increment)));
+        lock(&self.routes).insert(c.contract_id, orders::routes(&d.valid_exchanges));
         self.remember(&d.contract);
         lock(&self.contracts).insert(symbols::ticker_of(&c), c.clone());
         c
@@ -843,7 +847,24 @@ impl Ibkr {
         let qty_min = Some(min.map_or(1.0, |m| m.ceil().max(1.0)));
         let multiplier = contract.multiplier.parse::<f64>().ok().filter(|m| *m > 0.0).unwrap_or(1.0);
         let rate = self.store.read(|t| t.rate_to_base(&contract.currency.0));
-        Ok(Instrument { qty_min, qty_step, point_value: rate.map(|r| multiplier * r) })
+        // A contract with more than one venue: the Routing selector, then the Outside RTH boxes (this ticker's fields
+        // replace the capabilities').
+        let routes = self.routes_of(contract.contract_id);
+        let ticket_fields = (routes.len() > 1).then(|| [vec![orders::routing_field(&routes)], orders::ticket_fields()].concat());
+        Ok(Instrument { qty_min, qty_step, point_value: rate.map(|r| multiplier * r), ticket_fields })
+    }
+
+    fn routes_of(&self, cid: i32) -> Vec<String> {
+        lock(&self.routes).get(&cid).cloned().unwrap_or_default()
+    }
+
+    /// The contract routed as the ticket picked (SMART by default).
+    fn routed_for(&self, contract: &Contract, t: &OrderTicket) -> Contract {
+        let routes = self.routes_of(contract.contract_id);
+        match orders::route_of(t, &routes) {
+            Some(r) => Contract { exchange: r.into(), ..contract.clone() },
+            None => contract.clone(),
+        }
     }
 
     // ── Trading ────────────────────────────────────────────────────────────
@@ -896,6 +917,7 @@ impl Ibkr {
         let ticket = orders::rounded(&ticket, self.tick_of(contract.contract_id));
         // A price under half a tick rounds to 0.
         orders::validate(&ticket)?;
+        let contract = self.routed_for(&contract, &ticket);
         let mut ids = Vec::new();
         for _ in 0..orders::bracket_size(&ticket) {
             ids.push(conn.client.next_order_id().await);
@@ -913,6 +935,7 @@ impl Ibkr {
         let account = self.account()?;
         let contract = self.contract_for(&conn, &ticket.ticker).await?;
         let ticket = orders::rounded(&ticket, self.tick_of(contract.contract_id));
+        let contract = self.routed_for(&contract, &ticket);
         let mut order = orders::build_order(&ticket, &account);
         order.order_id = conn.client.next_order_id().await;
         let warnings: Vec<String> = orders::outside_rth_any(&ticket).then(|| "Order can be executed outside regular trading hours.".to_string()).into_iter().collect();
@@ -983,7 +1006,9 @@ impl Ibkr {
         orders::validate(&ticket)?;
         let conn = self.current()?;
         let row = self.own_order(key)?;
+        // A modified order keeps the venue it was routed to (reference: Routing can't be changed on a working order).
         let contract = self.contract_by_id(&conn, row.contract_id).await?;
+        let contract = if row.exchange.is_empty() { contract } else { Contract { exchange: row.exchange.as_str().into(), ..contract } };
         let ticket = orders::rounded(&ticket, self.tick_of(row.contract_id));
         // A price under half a tick rounds to 0.
         orders::validate(&ticket)?;
@@ -1439,6 +1464,7 @@ fn order_row(key: String, order_id: i32, client_id: i32, c: &Contract, o: &IbOrd
         status,
         tif: o.tif.clone(),
         outside_rth: o.outside_rth,
+        exchange: c.exchange.as_str().to_string(),
         message: None,
         mine,
         detached: false,
