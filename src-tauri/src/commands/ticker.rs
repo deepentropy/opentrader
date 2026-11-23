@@ -17,6 +17,7 @@ pub async fn get_ticker_info(app: AppHandle, provider: State<'_, Provider>, symb
     if let Some(r) = plugin::route(&app, &symbol) {
         return plugin::ticker_info(&app, &r).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(core::ticker_info(&provider, &symbol).await?)
 }
 
@@ -29,6 +30,7 @@ pub async fn get_symbol_session(app: AppHandle, provider: State<'_, Provider>, s
     if let Some(r) = plugin::route(&app, &symbol) {
         return plugin::session(&app, &r).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(core::symbol_session(&provider, &symbol).await?)
 }
 
@@ -38,6 +40,7 @@ pub async fn get_ticker_snapshot(app: AppHandle, provider: State<'_, Provider>, 
     if let Some(r) = plugin::route(&app, &symbol) {
         return plugin::snapshot(&app, &r).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(core::ticker_snapshot(&provider, &symbol).await?)
 }
 

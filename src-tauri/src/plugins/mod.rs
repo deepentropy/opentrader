@@ -386,6 +386,7 @@ fn apply(app: &AppHandle) {
         app,
         feeds.iter().flat_map(|m| m.data_exchanges().into_iter().map(|e| (e, m.id.clone()))).collect(),
         feeds.iter().filter(|m| m.whole_symbols()).map(|m| m.id.clone()).collect(),
+        manifests.iter().filter(|m| m.provides.contains(&Capability::Datafeed)).flat_map(|m| m.data_exchanges()).collect(),
     );
     state.hub.set_allowed(
         enabled

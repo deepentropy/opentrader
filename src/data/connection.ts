@@ -59,17 +59,35 @@ function waitRetry(ms: number): Promise<void> {
   });
 }
 
+/** A server that answered with an error: unlike an unreachable one, it may
+ *  fail this one request for good (a symbol its source refuses). */
+const SERVER_ERROR = /\((?:UPSTREAM_ERROR|INTERNAL|HTTP 5\d\d)(?:,|\))/;
+/** Server errors a request gets while others get through before it stops. */
+const MAX_LONE_FAILURES = 3;
+/** Requests that got through, counted to tell a server down from one failing
+ *  a single request. */
+let gotThrough = 0;
+
 /** `request()`, tried again after each transient failure until it succeeds.
  *  A final failure is thrown. `wanted()` false stops the retries (the caller
- *  moved on): the last error is thrown. */
+ *  moved on): the last error is thrown. A request the server keeps failing
+ *  while other requests get through stops after MAX_LONE_FAILURES: each
+ *  request that gets through wakes it, so it would otherwise be sent again at
+ *  every one of them. */
 export async function retryTransient<T>(request: () => Promise<T>, wanted: () => boolean = () => true): Promise<T> {
+  let lone = 0;
+  let seen = gotThrough;
   for (let attempt = 0; ; attempt++) {
     try {
       const value = await request();
+      gotThrough++;
       if (attempt > 0) wakeRetries();
       return value;
     } catch (e) {
       if (!isTransientError(e) || !wanted()) throw e;
+      // Another request got through since this one's last failure: the server is up.
+      if (gotThrough > seen && SERVER_ERROR.test(e instanceof Error ? e.message : String(e)) && ++lone >= MAX_LONE_FAILURES) throw e;
+      seen = gotThrough;
       if (attempt === 0) console.warn("[connection] request failed, retrying until it gets through:", e);
       await waitBeforeRetry(attempt);
       if (!wanted()) throw e;

@@ -34,6 +34,7 @@ pub async fn get_daily_history(
     if let Some(r) = plugin::route(&app, &symbol) {
         return Ok(History { bars: plugin::recent(&app, &r, "day", 1, days).await?, partial: false });
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_daily_history(&provider, symbol, days, adjusted).await?)
 }
 
@@ -55,6 +56,7 @@ pub async fn get_minute_history(
     if let Some(r) = plugin::route(&app, &symbol) {
         return Ok(History { bars: plugin::recent(&app, &r, "minute", interval_min.max(1), days).await?, partial: false });
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_minute_history(&provider, symbol, days, interval_min, adjusted).await?)
 }
 
@@ -75,6 +77,7 @@ pub async fn get_second_history(
     if let Some(r) = plugin::route(&app, &symbol) {
         return Ok(History { bars: plugin::recent(&app, &r, "second", mult, days).await?, partial: false });
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_second_history(&provider, symbol, mult, days, adjusted).await?)
 }
 
@@ -97,6 +100,7 @@ pub async fn get_second_history_tail(
         let to = chrono::Utc::now().timestamp() as f64;
         return plugin::bars(&app, &r, "second", mult, since_sec + 1.0, to, 5_000).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_second_history_tail(&provider, symbol, mult, since_sec, adjusted).await?)
 }
 
@@ -124,6 +128,7 @@ pub async fn get_aggregates_before(
     if let Some(r) = plugin::route(&app, &symbol) {
         return plugin::before(&app, &r, &timespan, mult, before_sec, span_days).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_aggregates_before(&provider, symbol, timespan, mult, before_sec, span_days, adjusted).await?)
 }
 
@@ -146,5 +151,6 @@ pub async fn get_daily_history_before(
     if let Some(r) = plugin::route(&app, &symbol) {
         return plugin::before(&app, &r, "day", 1, before_sec, span_days).await;
     }
+    plugin::refuse_idle(&app, &symbol)?;
     Ok(history::get_daily_history_before(&provider, symbol, before_sec, span_days, adjusted).await?)
 }

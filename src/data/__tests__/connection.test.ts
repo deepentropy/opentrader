@@ -75,6 +75,33 @@ describe("retryTransient", () => {
     expect(slowCalls).toBe(5);
   });
 
+  it("stops a request the server keeps failing while others get through", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    // The source refuses this symbol while another request gets through at each of its tries.
+    const lone = retryTransient(async () => {
+      calls++;
+      await retryTransient(async () => "ok");
+      throw new Error("ticker details: data source error (UPSTREAM_ERROR, ref x)");
+    });
+    const settled = expect(lone).rejects.toThrow("UPSTREAM_ERROR");
+    await vi.advanceTimersByTimeAsync(60_000);
+    await settled;
+    expect(calls).toBe(3);
+  });
+
+  it("keeps trying a server error while nothing gets through (an outage)", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    let up = false;
+    const p = retryTransient(async () => { calls++; if (!up) throw new Error("bars: x (HTTP 502)"); return "bars"; });
+    await vi.advanceTimersByTimeAsync(1000 + 2000 + 4000 + 8000 + 15_000 * 3);
+    expect(calls).toBe(8);
+    up = true;
+    await vi.advanceTimersByTimeAsync(15_000);
+    await expect(p).resolves.toBe("bars");
+  });
+
   it("a plugin that connects wakes the requests waiting for it (#371)", async () => {
     vi.useFakeTimers();
     let connected = false;

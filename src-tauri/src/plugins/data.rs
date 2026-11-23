@@ -205,6 +205,8 @@ pub struct PluginData {
     exchanges: Mutex<HashMap<String, String>>,
     /// The plugins asked with whole symbols (they serve several exchanges).
     whole: Mutex<HashSet<String>>,
+    /// The exchanges of installed data plugins that serve no data now (off, or their chart data switched off).
+    idle: Mutex<HashSet<String>>,
     infos: Mutex<HashMap<String, Arc<Info>>>,
     /// The symbols a plugin said it doesn't know (`UNKNOWN_SYMBOL`): not asked again, nor streamed, until it connects
     /// again. A watchlist of expired contracts would otherwise ask for each of them at every look.
@@ -264,9 +266,25 @@ fn symbol_of(exchanges: &HashMap<String, String>, whole: &HashSet<String>, plugi
     exchanges.iter().find(|(_, p)| *p == plugin).map(|(e, _)| format!("{e}:{ticker}"))
 }
 
-/// The enabled data plugins' exchanges (from `plugins::apply`), and those of them asked with whole symbols.
-pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashSet<String>) {
+/// A symbol of an installed data plugin that serves no data now: unknown, not asked of the app's own source, which
+/// can't know it (a broker's `MT5:AMZN.US-24` was asked of the gateway in a loop). The window asks again when the
+/// plugins change.
+pub fn refuse_idle(app: &AppHandle, symbol: &str) -> Result<(), String> {
+    match idle_in(&state(app).idle.locked(), symbol) {
+        true => Err(unknown_symbol(&symbol.trim().to_ascii_uppercase())),
+        false => Ok(()),
+    }
+}
+
+fn idle_in(idle: &HashSet<String>, symbol: &str) -> bool {
+    symbol.trim().split_once(':').is_some_and(|(exchange, _)| idle.contains(&exchange.to_ascii_uppercase()))
+}
+
+/// The enabled data plugins' exchanges (from `plugins::apply`), those of them asked with whole symbols, and the
+/// exchanges of the installed data plugins that serve none now.
+pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashSet<String>, idle: HashSet<String>) {
     let s = state(app);
+    *s.idle.locked() = idle.into_iter().filter(|e| !map.contains_key(e)).collect();
     *s.exchanges.locked() = map;
     *s.whole.locked() = whole;
     s.infos.locked().clear();
@@ -1309,6 +1327,14 @@ mod tests {
         let ex: HashMap<String, String> =
             [("MT5", "mt5"), ("NSE", "algo"), ("BSE", "algo"), ("NFO", "algo")].iter().map(|(e, p)| (e.to_string(), p.to_string())).collect();
         (ex, HashSet::from(["algo".to_string()]))
+    }
+
+    #[test]
+    fn an_idle_plugins_symbols_are_its_own() {
+        let idle = HashSet::from(["MT5".to_string()]);
+        assert!(idle_in(&idle, "mt5:AMZN.US-24"));
+        assert!(!idle_in(&idle, "NASDAQ:AMZN"));
+        assert!(!idle_in(&idle, "AMZN"));
     }
 
     #[test]
