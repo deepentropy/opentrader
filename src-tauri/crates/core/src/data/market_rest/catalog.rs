@@ -222,7 +222,7 @@ async fn refresh() -> Result<(), String> {
     if loaded.as_ref().is_some_and(|c| c.date == today) {
         return Ok(());
     }
-    let token = gateway::token().ok_or(gateway::NO_TOKEN)?;
+    let token = gateway::data_token().await.ok_or(gateway::NO_TOKEN)?;
     let etag = match loaded {
         Some(_) => tokio::fs::read_to_string(dir().join(ETAG_FILE)).await.ok(),
         None => None,

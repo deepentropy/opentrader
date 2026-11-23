@@ -84,7 +84,7 @@ pub fn read_cache() -> Option<Closes> {
 /// Fetch the closes from the gateway, counting their bytes on `d`; `Ok(None)` when it serves none (404). Cached on
 /// disk.
 pub async fn fetch(d: Option<&crate::screener::progress::Download>) -> Result<Option<Closes>> {
-    let token = gateway::token().context(NO_TOKEN)?;
+    let token = gateway::data_token().await.context(NO_TOKEN)?;
     let resp = http().get(format!("{BASE}/screener/v1/closes")).bearer_auth(token).send().await.context("screener closes request")?;
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {

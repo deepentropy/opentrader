@@ -111,7 +111,7 @@ async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
     if let Some(archive) = ARCHIVES.get(ticker, |as_of| *as_of == today) {
         return Ok(archive);
     }
-    let token = gateway::token().context(NO_TOKEN)?;
+    let token = gateway::data_token().await.context(NO_TOKEN)?;
     let disk = read_disk(ticker).await;
 
     let mut req = http()

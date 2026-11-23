@@ -92,7 +92,7 @@ fn raw_http() -> reqwest::Client {
 /// Fetch the state from the gateway, counting its bytes on `d`. `Ok(None)` when the gateway does not
 /// serve it (404). The raw body is cached on disk for the next start.
 pub async fn fetch(d: Option<&Download>) -> Result<Option<StateFile>> {
-    let token = gateway::token().context(NO_TOKEN)?;
+    let token = gateway::data_token().await.context(NO_TOKEN)?;
     let url = format!("{BASE}/screener/v1/state");
     let resp = raw_http()
         .get(&url)

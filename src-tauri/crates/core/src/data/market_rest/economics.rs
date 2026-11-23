@@ -355,7 +355,7 @@ pub fn init() {
 }
 
 async fn refresh() -> Result<(), String> {
-    let token = gateway::token().ok_or(gateway::NO_TOKEN)?;
+    let token = gateway::data_token().await.ok_or(gateway::NO_TOKEN)?;
     let etag = match current() {
         Some(_) => tokio::fs::read_to_string(dir().join(ETAG_FILE)).await.ok(),
         None => None,

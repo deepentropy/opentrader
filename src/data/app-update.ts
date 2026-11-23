@@ -10,7 +10,7 @@ import { createEffect, createRoot, createSignal } from "solid-js";
 import { commands, events, type AppUpdateStatus, type BuildInfo } from "../bindings";
 import { flushKv } from "./kv";
 
-const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null, updateRequired: false });
+const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null, updateRequired: false, disabled: null });
 
 /** Current update state (same in every window). */
 export const appUpdateStatus = status;
@@ -20,6 +20,9 @@ export const updateReady = () => status().state === "ready-to-install";
 
 /** True once the market data server stopped serving this version. */
 export const updateRequired = () => status().updateRequired;
+
+/** The code of this copy once the market data server disabled it (gateway#16), else null. */
+export const installDisabled = () => status().disabled;
 
 /** Longest gap between two reports of the user using the app. */
 const ACTIVE_REPORT_MS = 60_000;

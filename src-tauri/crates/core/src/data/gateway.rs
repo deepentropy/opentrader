@@ -48,9 +48,17 @@ pub const NO_TOKEN: &str =
     "No gateway token — set OPENTRADER_GATEWAY_TOKEN when building the app or starting the server";
 
 /// The token the gateway calls send: this install's own (`install_token`),
-/// else the shared one. `None` when there is neither.
+/// else the shared one. `None` when there is neither. Data calls take
+/// `data_token`, which waits for a first registration in flight.
 pub fn token() -> Option<&'static str> {
     crate::data::install_token::current().or_else(shared_token)
+}
+
+/// `token` once the registration in flight (a new install) has ended, so a
+/// data call goes with the install's own token (gateway#16).
+pub async fn data_token() -> Option<&'static str> {
+    crate::data::install_token::settle().await;
+    token()
 }
 
 /// The shared app token: the compiled-in one, else `OPENTRADER_GATEWAY_TOKEN`
@@ -104,6 +112,8 @@ pub enum ErrorCode {
     RateLimited,
     /// The gateway no longer serves this version (`MIN_APP_VERSION`).
     UpdateRequired,
+    /// The gateway disabled this copy (a revoked install token, gateway#16).
+    InstallDisabled,
     UpstreamError,
     UpstreamTimeout,
     Internal,
@@ -119,6 +129,7 @@ impl ErrorCode {
             "NOT_FOUND" => Self::NotFound,
             "RATE_LIMITED" => Self::RateLimited,
             "UPDATE_REQUIRED" => Self::UpdateRequired,
+            "INSTALL_DISABLED" => Self::InstallDisabled,
             "UPSTREAM_ERROR" => Self::UpstreamError,
             "UPSTREAM_TIMEOUT" => Self::UpstreamTimeout,
             "INTERNAL" => Self::Internal,
@@ -186,7 +197,8 @@ impl ApiError {
     }
 
     /// An error answer: its status, headers' `Retry-After` and body. An
-    /// `UPDATE_REQUIRED` one also raises `update_required()`.
+    /// `UPDATE_REQUIRED` one also raises `update_required()`, an
+    /// `INSTALL_DISABLED` one `install_token::disabled()` (with its code).
     pub fn from_answer(what: &'static str, status: StatusCode, retry_after: Option<Duration>, body: &[u8]) -> Self {
         #[derive(serde::Deserialize)]
         struct Body {
@@ -196,12 +208,17 @@ impl ApiError {
             error: Option<String>,
             #[serde(default, rename = "ref")]
             reference: Option<String>,
+            #[serde(default)]
+            install: Option<String>,
         }
         let parsed: Option<Body> = serde_json::from_slice(body).ok();
         let code_text = parsed.as_ref().and_then(|b| b.code.clone());
         let code = code_text.as_deref().map_or_else(|| ErrorCode::from_status(status), ErrorCode::parse);
         if code == ErrorCode::UpdateRequired {
             raise_update_required();
+        }
+        if code == ErrorCode::InstallDisabled {
+            crate::data::install_token::mark_disabled(parsed.as_ref().and_then(|b| b.install.as_deref()).unwrap_or(""));
         }
         Self {
             what,
@@ -324,6 +341,29 @@ mod tests {
         assert!(*flag.borrow());
         assert!(!e.is_transient());
         assert_eq!(ErrorCode::from_status(StatusCode::UPGRADE_REQUIRED), ErrorCode::UpdateRequired);
+    }
+
+    /// A revoked install (gateway#16): flagged with its code, no fallback to the shared token
+    /// (not `Unauthorized`), cleared once a call goes through again.
+    #[test]
+    fn install_disabled_answer_flags_the_copy() {
+        let flag = crate::data::install_token::disabled();
+        let body = br#"{"code":"INSTALL_DISABLED","error":"this copy of OpenTrader has been disabled; write to support with the code 0123","install":"0123"}"#;
+        let e = ApiError::from_answer("bars", StatusCode::UNAUTHORIZED, None, body);
+        assert_eq!(e.code, ErrorCode::InstallDisabled);
+        assert!(!e.is_transient());
+        assert!(e.to_string().contains("code 0123"), "{e}");
+        assert_eq!(flag.borrow().as_deref(), Some("0123"));
+        crate::data::install_token::mark_served();
+        assert_eq!(*flag.borrow(), None);
+    }
+
+    /// No registration in flight: data calls do not wait.
+    #[tokio::test]
+    async fn data_token_does_not_wait_without_a_registration() {
+        let t = std::time::Instant::now();
+        let _ = data_token().await;
+        assert!(t.elapsed() < Duration::from_secs(1));
     }
 
     #[test]

@@ -63,6 +63,9 @@ pub struct AppUpdateStatus {
     /// The gateway no longer serves this version: market data has stopped
     /// until the app is updated.
     pub update_required: bool,
+    /// The gateway disabled this copy (gateway#16): its code (install id) to
+    /// quote to support. Market data has stopped.
+    pub disabled: Option<String>,
 }
 
 /// Sent to every window right before the app exits (an update installs, or
@@ -95,12 +98,14 @@ pub struct AppUpdate {
     /// An alert is on (`app_set_alerts_active`).
     alerts_active: AtomicBool,
     required: AtomicBool,
+    /// The code of this copy once the gateway disabled it.
+    disabled: Mutex<Option<String>>,
 }
 
 impl Default for AppUpdate {
     fn default() -> Self {
         Self {
-            status: Mutex::new(AppUpdateStatus { state: UpdateState::UpToDate, version: None, update_required: false }),
+            status: Mutex::new(AppUpdateStatus { state: UpdateState::UpToDate, version: None, update_required: false, disabled: None }),
             ready: Mutex::new(None),
             flushed: Mutex::new(HashSet::new()),
             flushed_notify: tokio::sync::Notify::new(),
@@ -108,6 +113,7 @@ impl Default for AppUpdate {
             last_active: Mutex::new(Instant::now()),
             alerts_active: AtomicBool::new(false),
             required: AtomicBool::new(false),
+            disabled: Mutex::new(None),
         }
     }
 }
@@ -150,7 +156,7 @@ fn updater(app: &AppHandle) -> Result<Updater, String> {
 
 fn set_status(app: &AppHandle, state: UpdateState, version: Option<String>) {
     let update = app.state::<AppUpdate>();
-    let status = AppUpdateStatus { state, version, update_required: update.required.load(Ordering::Relaxed) };
+    let status = AppUpdateStatus { state, version, update_required: update.required.load(Ordering::Relaxed), disabled: update.disabled.locked().clone() };
     *update.status.locked() = status.clone();
     let _ = status.emit(app);
 }
@@ -158,6 +164,25 @@ fn set_status(app: &AppHandle, state: UpdateState, version: Option<String>) {
 /// Start the check loop and the idle install (setup).
 pub fn init(app: &AppHandle) {
     app.manage(AppUpdate::default());
+    // The gateway disabling this copy (or serving it again): every window says so.
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut disabled = opentrader_core::data::install_token::disabled();
+        loop {
+            let code = disabled.borrow_and_update().clone();
+            let update = handle.state::<AppUpdate>();
+            *update.disabled.locked() = code.clone();
+            let status = {
+                let mut st = update.status.locked();
+                st.disabled = code;
+                st.clone()
+            };
+            let _ = status.emit(&handle);
+            if disabled.changed().await.is_err() {
+                return;
+            }
+        }
+    });
     // The gateway refusing this version: every window shows it, a check starts at once.
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -233,7 +258,7 @@ fn check(app: &AppHandle) {
         st.state = UpdateState::Checking;
         prev
     };
-    let _ = AppUpdateStatus { state: UpdateState::Checking, version: prev.version, update_required: prev.update_required }.emit(app);
+    let _ = AppUpdateStatus { state: UpdateState::Checking, version: prev.version, update_required: prev.update_required, disabled: prev.disabled }.emit(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = check_and_download(&app).await {
@@ -468,7 +493,8 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
     };
     let version = update.version.clone();
     let required = state.required.load(Ordering::Relaxed);
-    let _ = AppUpdateStatus { state: UpdateState::Installing, version: Some(version.clone()), update_required: required }.emit(&app);
+    let disabled = state.disabled.locked().clone();
+    let _ = AppUpdateStatus { state: UpdateState::Installing, version: Some(version.clone()), update_required: required, disabled }.emit(&app);
 
     // 1-2. Every window's pending settings, the settings store and the window session to disk.
     save_before_exit(&app, Some(version.clone())).await;

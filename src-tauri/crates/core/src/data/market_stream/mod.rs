@@ -245,6 +245,8 @@ async fn run_connection(
 
         // No token compiled in: stay idle (still draining subscription
         // updates) rather than end the task.
+        // A new install's first session goes with its own token (gateway#16).
+        crate::data::install_token::settle().await;
         let Some(route) = route() else {
             if wait_with_drain(&mut rx, NO_KEY_RETRY, &mut state).await {
                 return Ok(()); // mpsc closed — app shutting down
@@ -517,6 +519,7 @@ where
 /// one bool per channel (true = subscribed), then closes. A channel without a
 /// reply within `PROBE_REPLY_WAIT` is an error.
 pub async fn probe_channels(channels: &[String]) -> Result<Vec<bool>> {
+    crate::data::install_token::settle().await;
     let route = route().ok_or_else(|| anyhow!(gateway::NO_TOKEN))?;
     let mut ws = connect_authed(route.url, &route.credential, true).await?;
     send_op(&mut ws, "subscribe", channels).await?;

@@ -89,7 +89,7 @@ const RATE_LIMIT_RETRIES: usize = 2;
 /// `GET <MARKET>/<path>?<query>` with the app token; the body of a success
 /// answer. `what` names the request in error messages.
 async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Result<reqwest::Response, ApiError> {
-    let token = gateway::token().ok_or_else(|| ApiError::transport(what, NO_TOKEN))?;
+    let token = gateway::data_token().await.ok_or_else(|| ApiError::transport(what, NO_TOKEN))?;
     let url = format!("{MARKET}/{path}");
     let mut attempt = 0;
     loop {
@@ -104,6 +104,7 @@ async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Re
             .map_err(|e| ApiError::transport(what, format!("request failed: {}", e.without_url())))?;
         let status = resp.status();
         if status.is_success() {
+            crate::data::install_token::mark_served();
             return Ok(resp);
         }
         let retry_after = resp

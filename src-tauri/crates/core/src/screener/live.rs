@@ -232,7 +232,7 @@ impl Feed {
     }
 
     async fn open(url: &str, pass: Option<&str>) -> Result<Self> {
-        let token = gateway::token().context(gateway::NO_TOKEN)?;
+        let token = gateway::data_token().await.context(gateway::NO_TOKEN)?;
         let proxy_changes = crate::net::proxy_changes();
         let pass_changes = crate::data::pass::subscribe();
         let address = match pass {
