@@ -80,6 +80,8 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
       return { text: signed(v, volumeFormat(Math.abs(v), 0)), tone };
     case "money":
       return { text: volumeFormat(v, 0), unit };
+    case "signedMoney":
+      return { text: signed(v, volumeFormat(Math.abs(v), 0)), unit, tone };
     case "number":
       return { text: `${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}` };
     case "integer":
@@ -110,6 +112,7 @@ function englishValueText(fmt: Fmt, n: number): string {
     case "volume":
     case "signedVolume":
     case "money":
+    case "signedMoney":
       return abbrev(n);
     case "change":
     case "percent":

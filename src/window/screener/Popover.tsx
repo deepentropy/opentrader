@@ -92,6 +92,8 @@ type ItemProps = {
   right?: JSX.Element;
   selected?: boolean;
   disabled?: boolean;
+  /** The title is data (a value of the loaded table), not interface text. */
+  data?: boolean;
   onClick?: () => void;
 };
 
@@ -114,7 +116,7 @@ export function PopItem(props: ItemProps) {
         </span>
       </Show>
       <span class="scr-item-text">
-        <span class="scr-item-title">{props.title}</span>
+        <span class="scr-item-title" data-no-translate={props.data || undefined}>{props.title}</span>
         <Show when={props.description}>
           <span class="scr-item-desc">{props.description}</span>
         </Show>

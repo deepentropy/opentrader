@@ -57,7 +57,7 @@ export function pillOperation(f: ConditionFilter): Operation {
 
 function unitOf(col: ColumnRef): string {
   const fmt = COLUMN_BY_ID[col.id]?.fmt;
-  return fmt === "price" || fmt === "signedPrice" || fmt === "money" ? "USD" : "";
+  return fmt === "price" || fmt === "signedPrice" || fmt === "money" || fmt === "signedMoney" ? "USD" : "";
 }
 
 const OFFSET_LABEL: Record<OffsetRangeId, string> = {
@@ -92,6 +92,10 @@ export function pillTexts(f: Filter): PillTexts {
     const cfg = def.filter;
     if (f.values.length === 1 && cfg?.type === "CheckboxGroup" && cfg.adaptive && cfg.options !== "data") {
       return { primary: "", value: cfg.options.find(([v]) => v === f.values[0])?.[1] ?? f.values[0] };
+    }
+    // A single-value filter (the reference RadioGroup): its title and the value picked.
+    if (cfg?.type === "CheckboxGroup" && cfg.single) {
+      return { primary: def.short, value: (cfg.options === "data" ? undefined : cfg.options.find(([v]) => v === f.values[0])?.[1]) ?? f.values[0] };
     }
     return { primary: def.short, value: null };
   }

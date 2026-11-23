@@ -97,6 +97,17 @@ describe("formatCell", () => {
     expect(valueText("signedVolume", -5e6)).toBe(`${MINUS}5 M`);
   });
 
+  it("formats fund flows as signed money with a tone and the currency", () => {
+    const up = formatCell("signedMoney", 4_559_410_660, "usd");
+    expect(up.text.replace(/\s/g, " ")).toBe("+4.56 B");
+    expect([up.unit, up.tone]).toEqual(["USD", "up"]);
+    const down = formatCell("signedMoney", -410_526_733, "usd");
+    expect(down.text.replace(/\s/g, " ")).toBe(`${MINUS}410.53 M`);
+    expect(down.tone).toBe("down");
+    expect(formatCell("signedMoney", 0, "usd").tone).toBeUndefined();
+    expect(valueText("signedMoney", 1e9).replace(/\s/g, " ")).toBe("1 B");
+  });
+
   it("formats changes as signed percentages with a tone", () => {
     expect(formatCell("change", 6.47, "usd")).toEqual({ text: "+6.47%", tone: "up" });
     expect(formatCell("change", -1.36, null)).toEqual({ text: `${MINUS}1.36%`, tone: "down" });

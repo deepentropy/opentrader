@@ -82,6 +82,12 @@ describe("pillTexts", () => {
     expect(pillTexts(box(C("Sector"), ["Technology"]))).toEqual({ primary: "Sector", value: null });
   });
 
+  it("a single-value filter shows its title and the value picked", () => {
+    expect(pillTexts(box(C("Management"), ["Passive"]))).toEqual({ primary: "Management style", value: "Passive" });
+    expect(pillTexts(box(C("DividendTreatment"), ["Distributes"]))).toEqual({ primary: "Div treat", value: "Distributes" });
+    expect(pillTexts(box(C("Management"), []))).toEqual({ primary: "Management style", value: null });
+  });
+
   it("price-like values carry the USD unit", () => {
     expect(pillTexts(cond(C("Price"), "aboveOrEqual", { value: 5 }))).toEqual({ primary: "Price", value: "5 USD", icon: "aboveOrEqual" });
     expect(pillTexts(cond(C("Price"), "between", { left: null, right: 10 }))).toEqual({ primary: "Price", value: "10 USD", icon: "belowOrEqual" });

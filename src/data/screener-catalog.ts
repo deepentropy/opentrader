@@ -30,6 +30,7 @@ export type Fmt =
   | "volume" //      9.07 M
   | "signedVolume" // +39.66 M, colored
   | "money" //       4.8 B USD
+  | "signedMoney" // +4.56 B USD, colored
   | "number" //      1.79
   | "integer" //     25
   | "date" //        27/09/2026 (UNIX seconds)
@@ -103,7 +104,10 @@ export type ColumnDef = {
      *  `codes`: the value is a short code shown before the label ("SPX • S&P 500").
      *  `adaptive`: a single checked value is the pill text (the reference app
      *  `adaptiveFilterTitle`). */
-    | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data"; codes?: boolean; adaptive?: boolean };
+    | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data"; codes?: boolean; adaptive?: boolean;
+        /** One value at a time (the reference app RadioGroup filter): a plain list, a click picks the value, the
+         *  active pill shows it. */
+        single?: boolean };
   /** Text shown for a raw cell value (a list of codes shown as names). */
   cellText?: (raw: string) => string;
   /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
@@ -551,12 +555,38 @@ export const COLUMNS: ColumnDef[] = [
     filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Leveraged", title: "Leveraged", short: "Leveraged", category: "securityInfo", align: "left", fmt: "text", width: 110, field: "f.leveraged", noColumn: true,
     filter: { type: "CheckboxGroup", options: "data" } },
+  // The reference: a filter only, the Leverage column shows the ratio with the flag.
   { id: "LeverageRatio", title: "Leverage ratio", short: "Leverage ratio", category: "securityInfo", align: "left", fmt: "text", width: 100, field: "f.leverage_ratio",
+    noColumn: true, filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "Leverage", title: "Leverage", short: "Leverage", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "f.leverage" },
+  // The fund family (the start of the funds' names), the adviser's parent company, the index a passive fund tracks
+  // (the annual fund census, the prospectus summaries, the legal entity records).
+  { id: "Brand", title: "Brand", short: "Brand", category: "securityInfo", align: "left", fmt: "text", width: 130, field: "f.brand",
     filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "Issuer", title: "Issuer", short: "Issuer", category: "securityInfo", align: "left", fmt: "text", width: 220, field: "f.issuer",
+    filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "IndexTracked", title: "Index tracked", short: "Index", category: "securityInfo", align: "left", fmt: "text", width: 220, field: "f.index_tracked",
+    filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "Management", title: "Management style", short: "Management style", category: "securityInfo", align: "left", fmt: "text", width: 130,
+    field: "f.management", filter: { type: "CheckboxGroup", options: "data", single: true } },
+  { id: "DividendTreatment", title: "Dividend treatment", short: "Div treat", category: "dividends", align: "left", fmt: "text", width: 110,
+    field: "f.dividend_treatment", filter: { type: "CheckboxGroup", options: "data", single: true } },
+  // Money into the fund over the period (its weekly share count changes x the price), a column once the gateway's
+  // share count history covers the period.
+  { id: "FundFlows", title: "Fund flows", short: "Fund flows", category: "valuation", align: "right", fmt: "signedMoney", width: 110, financial: true,
+    params: [{ key: "interval", title: "Date Range", default: "Interval1M", options: [
+      { value: "Interval1M", label: "1 month", short: "1M", field: "f.fund_flows_1m" },
+      { value: "Interval3M", label: "3 months", short: "3M", field: "f.fund_flows_3m" },
+      { value: "IntervalYTD", label: "Year to date", short: "YTD", field: "f.fund_flows_ytd" },
+      { value: "Interval1Y", label: "1 year", short: "1Y", field: "f.fund_flows_1y" },
+      { value: "Interval3Y", label: "3 years", short: "3Y", field: "f.fund_flows_3y" },
+      { value: "Interval5Y", label: "5 years", short: "5Y", field: "f.fund_flows_5y" },
+    ] }],
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
 ];
 /** Columns of the ETF Screener only (fund data). */
 const ETF_ONLY = new Set(["AssetsUnderManagement", "AssetClass", "ExpenseRatio", "TotalHoldings", "PercentInTop10", "PercentInTop25", "PercentInTop50",
-  "DividendsFrequency", "Leveraged", "LeverageRatio"]);
+  "DividendsFrequency", "Leveraged", "LeverageRatio", "Leverage", "Brand", "Issuer", "IndexTracked", "Management", "DividendTreatment", "FundFlows"]);
 
 /** Columns of the ETF Screener (the reference ETF catalog restricted to ours): market data, technicals, exchange,
  *  indicated dividend yield and the fund data. The Stock Screener has every other column. */
@@ -746,7 +776,8 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
   { id: "perShare", title: "Per share", columns: [C("RevenuePerShare", TTM), C("BasicEps", TTM), C("EpsDiluted", TTM), C("OperatingCashFlowPerShare", TTM), C("FreeCashFlowPerShare", TTM),
     C("EBITPerShare", TTM), C("EBITDAPerShare", TTM), C("BookPerShare", FQ), C("TotalDebtPerShare", FQ), C("CashPerShare", FQ)] },
 ];
-/** The reference ETF column sets restricted to ours (Fund flows and NAV performance have no data source). */
+/** The reference ETF column sets restricted to ours (NAV performance has no data source; a fund flows period shows
+ *  once the share count history covers it). */
 export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement"),
     C("TotalHoldings"), C("ExpenseRatio"), C("AssetClass")] },
@@ -754,8 +785,10 @@ export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] 
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y", "Interval10Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D), C("VolumeChange", R1D)] },
-  { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward"), C("DividendsFrequency")] },
-  { id: "holdings", title: "Holdings", columns: [C("TotalHoldings"), C("PercentInTop10"), C("PercentInTop25"), C("PercentInTop50")] },
+  { id: "fundFlows", title: "Fund flows", columns: ["Interval1M", "Interval3M", "Interval1Y", "Interval3Y", "IntervalYTD"].map((i) => C("FundFlows", { interval: i })) },
+  { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward"), C("DividendsFrequency"), C("DividendTreatment")] },
+  { id: "holdings", title: "Holdings", columns: [C("Issuer"), C("TotalHoldings"), C("PercentInTop10"), C("PercentInTop25"), C("PercentInTop50"),
+    C("Management"), C("IndexTracked"), C("Leverage")] },
   { id: "risk", title: "Risk", columns: [C("Beta", { interval: "Interval1Y" }), C("Beta", { interval: "Interval3Y" }), C("Beta", { interval: "Interval5Y" }),
     ...["Interval1D", "Interval1W", "Interval1M"].map((i) => C("Volatility", { interval: i }))] },
 ];
@@ -865,10 +898,10 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE, pills: ColumnRef[] =
   };
 }
 
-/** The reference ETF default pills that have a data source (Focus, Niche, Holdings region, Brand, NAV total return,
- *  Management style, Strategy, Div treat and UCITS have none). */
-const ETF_DEFAULT_PILLS: ColumnRef[] = [C("AssetClass"), C("Performance", { interval: "IntervalYTD" }), C("AssetsUnderManagement"), C("DividendsYieldForward"),
-  C("DividendsFrequency"), C("Leveraged"), C("ExpenseRatio")];
+/** The reference ETF default pills that have a data source (Focus, Niche, Holdings region, NAV total return, Strategy
+ *  and UCITS have none). */
+const ETF_DEFAULT_PILLS: ColumnRef[] = [C("AssetClass"), C("Brand"), C("Performance", { interval: "IntervalYTD" }), C("AssetsUnderManagement"),
+  C("Management"), C("DividendTreatment"), C("DividendsYieldForward"), C("DividendsFrequency"), C("Leveraged"), C("ExpenseRatio")];
 
 /** The reference ETF Screener's "Untitled screen": its default pills, Overview, sorted by AUM; primary listing off. */
 export function defaultEtfScreen(title = DEFAULT_SCREEN_TITLE): Screen {

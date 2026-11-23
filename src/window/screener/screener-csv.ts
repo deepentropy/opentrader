@@ -10,7 +10,7 @@ import { COLUMN_BY_ID, configuredLong, type ColumnRef } from "../../data/screene
 
 export const MAX_ROWS = 30_000;
 
-const MONEY = new Set(["price", "signedPrice", "money"]);
+const MONEY = new Set(["price", "signedPrice", "money", "signedMoney"]);
 
 export const csvField = (s: string): string => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 

@@ -8,7 +8,8 @@
  *           target select ("Value" or a column), then the value input(s)
  *           ("Enter value", or "From" / "To" for Between / Outside) or the
  *           target column params.
- *   CheckboxGroup: Search + checkbox list.
+ *   CheckboxGroup: Search + checkbox list; a single-value one (the reference RadioGroup): the values as a plain
+ *           list, a click picks one and closes the popover.
  * Typed values apply on Enter, on blur, and 400 ms after the last key.
  */
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
@@ -148,7 +149,7 @@ export function EditorHeader(props: {
 
 function valueUnit(col: ColumnRef): string | null {
   const fmt = COLUMN_BY_ID[col.id]?.fmt;
-  if (fmt === "price" || fmt === "signedPrice" || fmt === "money") return "USD";
+  if (fmt === "price" || fmt === "signedPrice" || fmt === "money" || fmt === "signedMoney") return "USD";
   if (fmt === "change" || fmt === "percent") return "%";
   return null;
 }
@@ -157,7 +158,7 @@ function valueUnit(col: ColumnRef): string | null {
 function inputText(col: ColumnRef | undefined, v: number | null): string {
   if (v === null) return "";
   const fmt = col ? COLUMN_BY_ID[col.id]?.fmt : undefined;
-  return fmt === "volume" || fmt === "signedVolume" || fmt === "money" ? abbrev(v) : String(v);
+  return fmt === "volume" || fmt === "signedVolume" || fmt === "money" || fmt === "signedMoney" ? abbrev(v) : String(v);
 }
 
 /** Number input with the reference app stepper (increase / decrease). `col`: the column whose format the text
@@ -360,7 +361,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
   );
 }
 
-function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => void }) {
+function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => void; onClose: () => void }) {
   const [q, setQ] = createSignal("");
   const def = () => COLUMN_BY_ID[props.filter.left.id];
   // Sector / industry: the values present in the loaded data (SIC names).
@@ -396,8 +397,31 @@ function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => 
     const values = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
     props.onChange({ ...props.filter, values });
   };
+  const single = () => {
+    const d = def()?.filter;
+    return d?.type === "CheckboxGroup" && !!d.single;
+  };
   return (
-    <>
+    <Show
+      when={!single()}
+      fallback={
+        <div class="scr-pop-scroll" role="listbox">
+          <For each={options()}>
+            {([v, label]) => (
+              <PopItem
+                title={label}
+                data={!!fromData()}
+                selected={props.filter.values.includes(v)}
+                onClick={() => {
+                  props.onChange({ ...props.filter, values: [v] });
+                  props.onClose();
+                }}
+              />
+            )}
+          </For>
+        </div>
+      }
+    >
       <PopSearch value={q()} onInput={setQ} />
       <div class="scr-pop-scroll" role="listbox">
         <For each={shown()} fallback={<div class="scr-pop-empty">Nothing matches this search</div>}>
@@ -430,7 +454,7 @@ function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => 
           )}
         </For>
       </div>
-    </>
+    </Show>
   );
 }
 
@@ -480,7 +504,7 @@ export function FilterEditor(props: Props) {
         onParam={setLeft}
       />
       <Show when={props.filter.type === "CheckboxGroup"}>
-        <CheckboxList filter={props.filter as CheckboxFilter} onChange={props.onChange} />
+        <CheckboxList filter={props.filter as CheckboxFilter} onChange={props.onChange} onClose={props.onClose} />
       </Show>
       <Show when={props.filter.type === "Condition"}>
         <Show

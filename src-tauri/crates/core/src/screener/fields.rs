@@ -270,7 +270,19 @@ const RATIO: &[(&str, Ratio)] = &[
 ];
 
 /// Text fundamentals (every other `f.` key is a number).
-const FUND_TEXT: &[&str] = &["f.fiscal_period", "f.asset_class", "f.leveraged", "f.leverage_ratio", "f.dividends_frequency"];
+const FUND_TEXT: &[&str] = &[
+    "f.fiscal_period",
+    "f.asset_class",
+    "f.leveraged",
+    "f.leverage_ratio",
+    "f.leverage",
+    "f.dividends_frequency",
+    "f.brand",
+    "f.issuer",
+    "f.index_tracked",
+    "f.management",
+    "f.dividend_treatment",
+];
 
 /// State keys a ratio reads (its field is offered when they are all in the state).
 fn ratio_inputs(r: Ratio) -> Vec<&'static str> {

@@ -120,6 +120,10 @@ export function FilterPills(props: Props) {
     const active = () => isActive(f());
     const texts = () => pillTexts(f());
     const def = () => COLUMN_BY_ID[f().left.id];
+    const dataValues = () => {
+      const cfg = def()?.filter;
+      return cfg?.type === "CheckboxGroup" && cfg.options === "data";
+    };
     return (
       <div
         ref={(el) => els.set(id, el)}
@@ -137,7 +141,10 @@ export function FilterPills(props: Props) {
             <span class="scr-pill-text">{texts().primary}</span>
           </Show>
           <Show when={active() && f().type === "CheckboxGroup" && texts().value}>
-            <span class="scr-pill-value">{texts().value}</span>
+            {/* A value of the loaded data (a single-value filter's pick) is not interface text. */}
+            <span class="scr-pill-value" data-no-translate={dataValues() || undefined}>
+              {texts().value}
+            </span>
           </Show>
           <Show when={active() && f().type === "CheckboxGroup" && !texts().value}>
             <span class="scr-pill-counter">{(f() as Extract<Filter, { type: "CheckboxGroup" }>).values.length}</span>
