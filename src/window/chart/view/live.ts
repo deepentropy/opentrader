@@ -37,6 +37,12 @@ export function liveUpdateBar(queued: OHLC | null, bars: readonly OHLC[]): OHLC 
   return queued && last && last.time === queued.time ? last : null;
 }
 
+/** A live bar is left out while the series has no bars and its history is loading: the history has that bar. Once a
+ *  load gave no bars (a symbol listed today), live bars start the series. */
+export function liveBarWaitsForHistory(historyLoading: boolean, bars: readonly OHLC[]): boolean {
+  return historyLoading && bars.length === 0;
+}
+
 /** What createLive adds to the chart context. */
 export interface LiveApi {
   liveAppendedWhileHidden: boolean;
@@ -218,6 +224,9 @@ export function createLive(cx: ChartCx): LiveApi {
     // A window of past bars: live bars come again once it reaches now.
     if (cx.pastWindowEnd !== null) return null;
     const all = cx.allBars;
+    // The first history load is still under way (the app opens on an empty chart): the history brings this bar. A
+    // live bar taken now made a one-bar chart that the studies were drawn on for the time the history took (#360).
+    if (liveBarWaitsForHistory(history.loading, all)) return null;
     const lastTime = all.length > 0 ? (all[all.length - 1].time as number) : -1;
     let next: OHLC;
     let appended = false;
