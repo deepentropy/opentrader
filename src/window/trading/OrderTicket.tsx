@@ -42,6 +42,7 @@ import { DomPanel } from "./DomPanel";
 import { orderSummary, positionSummary } from "../chart/trading-lines-model";
 import { translate, translateAs, translateWith } from "../../i18n/translator";
 import { OrderConfirmation } from "./OrderConfirmation";
+import { AddLevelButton, ExitLevelsPage, LevelList } from "./ExitLevels";
 
 /** Order / DOM switch: tab, title, tooltip and its Shift hotkey. */
 const TABS: ["order" | "dom", string, string, string][] = [
@@ -241,32 +242,38 @@ function TicketBody(props: { floating: boolean }) {
     <>
       <TicketHead
         title={
-          <Show when={!m.preview()} fallback={translate("Order confirmation")}>
+          <Show when={!m.preview() && !m.levelPage()} fallback={translate(m.levelPage() ? "Exit levels" : "Order confirmation")}>
             {tickerOf(d().symbol)}
             {d().editing && !isPos() ? translateWith(", order {0}", d().editing ?? "") : ""}
           </Show>
         }
         extra={
-          <Show when={state().ok && !d().editing && !m.preview()}>
+          <Show when={state().ok && !d().editing && !m.preview() && !m.levelPage()}>
             <OrderPresetsButton current={currentPreset} apply={applyPreset} />
           </Show>
         }
         onClose={close}
         onDrag={props.floating ? beginDrag : undefined}
-        onBack={m.preview() ? m.closePreview : undefined}
+        // Back on the levels page keeps the changes (reference).
+        onBack={m.preview() ? m.closePreview : m.levelPage() ? m.confirmLevels : undefined}
       />
-      <Show when={editing()}>{(o) => <div class="trd-tk-sub">{orderSummary(o(), tick())}</div>}</Show>
-      <Show when={editingPos()}>{(pos) => <div class="trd-tk-sub">{positionSummary(pos(), tick())}</div>}</Show>
+      <Show when={!m.levelPage()}>
+        <Show when={editing()}>{(o) => <div class="trd-tk-sub">{orderSummary(o(), tick())}</div>}</Show>
+        <Show when={editingPos()}>{(pos) => <div class="trd-tk-sub">{positionSummary(pos(), tick())}</div>}</Show>
+      </Show>
 
-      <Show when={!d().editing && !props.floating && !m.preview()}>
+      <Show when={!d().editing && !props.floating && !m.preview() && !m.levelPage()}>
         <TicketTabs />
       </Show>
 
       <Show when={m.preview() && state().ok}>
         <OrderConfirmation m={m} />
       </Show>
+      <Show when={m.levelPage() && state().ok}>
+        <ExitLevelsPage m={m} />
+      </Show>
       <Show
-        when={!m.preview() && (state().ok || state().reason === "loading")}
+        when={!m.preview() && !m.levelPage() && (state().ok || state().reason === "loading")}
         fallback={
           <div class="trd-tk-empty">
             <Show when={state().title}>
@@ -371,15 +378,28 @@ function TicketBody(props: { floating: boolean }) {
           {/* An order's take profit / stop loss need a broker that takes brackets; the position's are Protect position. */}
           <Show when={isPos() || m.caps().brackets}>
             <TicketSection title="Exits">
-              <ExitInput m={m} kind="tp" />
-              <ExitInput m={m} kind="sl" />
-              <Show when={rr()}>
-                {(v) => (
-                  <div class="trd-tk-row">
-                    <span>Risk / Reward</span>
-                    <span class="trd-tk-row-value">{Number(v().toFixed(2))}</span>
-                  </div>
-                )}
+              {/* Exit levels (#330) in place of the take profit / stop loss. */}
+              <Show
+                when={d().levels?.length}
+                fallback={
+                  <>
+                    <ExitInput m={m} kind="tp" />
+                    <ExitInput m={m} kind="sl" />
+                    <Show when={rr()}>
+                      {(v) => (
+                        <div class="trd-tk-row">
+                          <span>Risk / Reward</span>
+                          <span class="trd-tk-row-value">{Number(v().toFixed(2))}</span>
+                        </div>
+                      )}
+                    </Show>
+                  </>
+                }
+              >
+                <LevelList m={m} list={d().levels!} />
+              </Show>
+              <Show when={m.canAddLevel()}>
+                <AddLevelButton m={m} />
               </Show>
             </TicketSection>
           </Show>

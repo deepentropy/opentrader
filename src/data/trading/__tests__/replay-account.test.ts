@@ -201,3 +201,75 @@ describe("ReplayAccount", () => {
     expect(b.position()).toEqual(a.position());
   });
 });
+
+describe("ReplayAccount exit levels (#330)", () => {
+  const levels = [
+    { qty: 1, takeProfit: 105, stopLoss: 95 },
+    { qty: 2, takeProfit: 110, stopLoss: 90 },
+  ];
+
+  it("an order's levels go to the position; each level closes its own quantity, the others stay", () => {
+    const a = account(100);
+    a.place(req({ type: "limit", limitPrice: 99, qty: 3, exitLevels: levels }));
+    expect(a.orders().map((o) => `${o.kind}:${o.levelId ?? ""}:${o.qty}`)).toEqual(["order::3", "tp:1:1", "sl:1:1", "tp:2:2", "sl:2:2"]);
+    expect(a.orders()[0].exitLevels?.map((l) => l.qty)).toEqual([1, 2]);
+    a.update(bar(1, 100, 100.5, 98.5, 100));
+    expect(a.position()).toMatchObject({ qty: 3, avgPrice: 99, takeProfit: null, stopLoss: null });
+    expect(a.position()?.exitLevels?.map((l) => [l.qty, l.takeProfit, l.stopLoss])).toEqual([
+      [1, 105, 95],
+      [2, 110, 90],
+    ]);
+    expect(a.orders().every((o) => o.parentId === "position")).toBe(true);
+    // The first level's take profit: one unit goes, the second level stays on the two left.
+    a.update(bar(2, 100, 106, 99.5, 104));
+    expect(a.position()).toMatchObject({ qty: 2 });
+    expect(a.position()?.exitLevels?.map((l) => l.qty)).toEqual([2]);
+    a.update(bar(3, 104, 104.5, 89, 92));
+    expect(a.position()).toBeNull();
+    expect(a.orders()).toEqual([]);
+    expect(a.report().trades.map((t) => [t.exit.signal, t.exit.price])).toEqual([
+      ["Bracket Take Profit", 105],
+      ["Bracket Stop Loss", 90],
+    ]);
+  });
+
+  it("sets, changes and cancels the position's levels; one take profit / stop loss replaces them", () => {
+    const a = account(100);
+    a.place(req({ qty: 3 }));
+    a.setPositionBrackets(120, 80);
+    a.setPositionExitLevels(levels);
+    expect(a.position()).toMatchObject({ takeProfit: null, stopLoss: null });
+    const ids = a.position()!.exitLevels!.map((l) => l.id);
+    // A level's line cancelled: the whole level goes.
+    a.cancel(`position:sl:${ids[0]}`);
+    expect(a.position()?.exitLevels?.map((l) => l.qty)).toEqual([2]);
+    a.setPositionBrackets(120, null);
+    expect(a.position()).toMatchObject({ takeProfit: 120, stopLoss: null });
+    expect(a.position()?.exitLevels).toBeUndefined();
+    a.setPositionExitLevels([]);
+    expect(a.orders().map((o) => o.kind)).toEqual(["tp"]);
+  });
+
+  it("a working order's level is modified and cancelled", () => {
+    const a = account(100);
+    const id = a.place(req({ type: "limit", limitPrice: 99, qty: 3, exitLevels: levels }))!;
+    a.modify(id, req({ type: "limit", limitPrice: 98, qty: 3, exitLevels: [{ qty: 3, takeProfit: 104, stopLoss: 96 }] }));
+    expect(a.orders().filter((o) => o.levelId).map((o) => `${o.kind}:${o.qty}:${o.limitPrice ?? o.stopPrice}`)).toEqual(["tp:3:104", "sl:3:96"]);
+    const lvl = a.orders()[0].exitLevels![0].id;
+    a.cancel(`${id}:tp:${lvl}`);
+    expect(a.orders().map((o) => o.kind)).toEqual(["order"]);
+    // Filled without levels: no exits on the position.
+    a.update(bar(1, 99, 99.5, 97, 98.5));
+    expect(a.position()).toMatchObject({ qty: 3, takeProfit: null, stopLoss: null });
+    expect(a.orders()).toEqual([]);
+  });
+
+  it("a snapshot keeps the levels", () => {
+    const a = account(100);
+    a.place(req({ qty: 3 }));
+    a.setPositionExitLevels(levels);
+    const b = ReplayAccount.restore(JSON.parse(JSON.stringify(a.snapshot())));
+    expect(b.position()).toEqual(a.position());
+    expect(b.orders()).toEqual(a.orders());
+  });
+});

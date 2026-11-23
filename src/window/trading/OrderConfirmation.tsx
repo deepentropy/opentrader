@@ -31,7 +31,7 @@ export function OrderConfirmation(props: { m: TicketModel }) {
   const req = () => p().req;
   const px = (v: number | null) => fmtPrice(v, m.tick());
   /** The broker's money figures leave the take profit / stop loss out (reference). */
-  const withExits = () => req().takeProfit !== null || req().stopLoss !== null;
+  const withExits = () => req().takeProfit !== null || req().stopLoss !== null || !!req().exitLevels?.length;
   const errors = () => p().data?.errors ?? [];
   return (
     <>

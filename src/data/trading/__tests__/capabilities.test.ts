@@ -21,9 +21,11 @@ const caps = (p: Partial<TradingCapabilities>): TradingCapabilities => ({ ...ALL
 
 describe("capabilitiesOf", () => {
   it("allows everything when the plugin reports nothing", () => {
-    expect(capabilitiesOf(undefined)).toEqual(ALL_CAPABILITIES);
-    expect(capabilitiesOf(null)).toEqual(ALL_CAPABILITIES);
-    expect(capabilitiesOf({})).toEqual(ALL_CAPABILITIES);
+    const plain = { ...ALL_CAPABILITIES, exitLevels: false };
+    expect(capabilitiesOf(undefined)).toEqual(plain);
+    expect(capabilitiesOf(null)).toEqual(plain);
+    expect(capabilitiesOf({})).toEqual(plain);
+    expect(capabilitiesOf({ exitLevels: true, maxExitLevels: 3 })).toMatchObject({ exitLevels: true, maxExitLevels: 3 });
   });
 
   it("keeps what is reported, a left-out field being supported", () => {
@@ -37,6 +39,8 @@ describe("capabilitiesOf", () => {
       stopLimitOrdersBothSides: false,
       strictLimitPrice: false,
       orderPreview: false,
+      exitLevels: false,
+      maxExitLevels: 8,
     });
     expect(capabilitiesOf({ orderPreview: true }).orderPreview).toBe(true);
     expect(capabilitiesOf({ stopOrdersBothSides: true, strictLimitPrice: true })).toMatchObject({ stopOrdersBothSides: true, stopLimitOrdersBothSides: false, strictLimitPrice: true });

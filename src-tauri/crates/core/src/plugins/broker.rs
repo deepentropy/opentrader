@@ -111,6 +111,11 @@ pub struct BrokerCapabilities {
     /// The broker previews an order before it is sent (`broker.previewOrder`: its commission, its margin…): the order
     /// ticket shows the confirmation page, unless the user turned it off.
     pub order_preview: bool,
+    /// Several exit levels on an order or a position (`exitLevels` on orders, positions and tickets), each a part of
+    /// its quantity with its own take profit and stop loss.
+    pub exit_levels: bool,
+    /// The most exit levels an order or a position takes (8 when left out).
+    pub max_exit_levels: Option<u32>,
 }
 
 impl Default for BrokerCapabilities {
@@ -127,6 +132,8 @@ impl Default for BrokerCapabilities {
             stop_limit_orders_both_sides: false,
             strict_limit_price: false,
             order_preview: false,
+            exit_levels: false,
+            max_exit_levels: None,
         }
     }
 }
@@ -223,6 +230,18 @@ pub struct Instrument {
     pub margin_rate: Option<f64>,
 }
 
+/// An exit level of an order or a position: a part of its quantity with its own take profit and stop loss. `id` is the
+/// plugin's (kept across states, so the chart's lines follow the level); the app leaves it out of what it sends.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ExitLevel {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub qty: f64,
+    pub take_profit: Option<f64>,
+    pub stop_loss: Option<f64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Position {
@@ -242,6 +261,9 @@ pub struct Position {
     pub take_profit: Option<f64>,
     #[serde(default)]
     pub stop_loss: Option<f64>,
+    /// Its exit levels, in place of `takeProfit` / `stopLoss` (a broker with `capabilities.exitLevels`).
+    #[serde(default)]
+    pub exit_levels: Vec<ExitLevel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -277,6 +299,9 @@ pub struct Order {
     /// The ticket fields it was placed with (`ticketFields`): sent again when it is modified.
     #[serde(default)]
     pub fields: BTreeMap<String, String>,
+    /// Its exit levels, in place of `takeProfit` / `stopLoss` (a broker with `capabilities.exitLevels`).
+    #[serde(default)]
+    pub exit_levels: Vec<ExitLevel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -474,6 +499,9 @@ pub struct OrderTicket {
     /// The preview's `confirmId` of an order the user confirmed on the confirmation page; left out otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirm_id: Option<String>,
+    /// Exit levels, in place of `takeProfit` / `stopLoss` (then null); left out without any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exit_levels: Vec<ExitLevel>,
 }
 
 /// What the broker says of an order before it is sent (`broker.previewOrder`): the order ticket's confirmation page.
@@ -616,5 +644,23 @@ mod tests {
         .unwrap();
         assert_eq!((p.sections[0].title.as_deref(), p.sections[1].title.as_deref()), (None, Some("Initial margin")));
         assert_eq!((p.sections[0].rows[0].label.as_str(), p.errors.len()), ("Commission", 0));
+    }
+
+    #[test]
+    fn exit_levels_read_and_go_with_the_order() {
+        let c: BrokerCapabilities = serde_json::from_value(serde_json::json!({ "exitLevels": true, "maxExitLevels": 4 })).unwrap();
+        assert!(c.exit_levels && c.max_exit_levels == Some(4));
+        assert!(!BrokerCapabilities::default().exit_levels);
+        let o: Order = serde_json::from_value(serde_json::json!({
+            "id": "1", "ticker": "X", "side": "buy", "type": "limit", "qty": 2, "limitPrice": 10,
+            "exitLevels": [{ "id": "a", "qty": 1, "takeProfit": 11, "stopLoss": 9 }, { "qty": 1, "takeProfit": 12 }]
+        }))
+        .unwrap();
+        assert_eq!((o.exit_levels[0].id.as_deref(), o.exit_levels[1].stop_loss), (Some("a"), None));
+        let t: OrderTicket = serde_json::from_value(serde_json::json!({ "ticker": "X", "side": "buy", "type": "market", "qty": 1, "limitPrice": null, "stopPrice": null, "takeProfit": null, "stopLoss": null })).unwrap();
+        // Left out without levels, so a plugin without them sees the same order as before.
+        assert!(serde_json::to_value(&t).unwrap().get("exitLevels").is_none());
+        let t = OrderTicket { exit_levels: vec![ExitLevel { id: None, qty: 1.0, take_profit: Some(11.0), stop_loss: Some(9.0) }], ..t };
+        assert_eq!(serde_json::to_value(&t).unwrap()["exitLevels"][0], serde_json::json!({ "qty": 1.0, "takeProfit": 11.0, "stopLoss": 9.0 }));
     }
 }

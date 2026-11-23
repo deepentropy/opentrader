@@ -5,7 +5,7 @@ import { localNumber } from "../../i18n/format";
  * labels, the dialog summaries, tick snapping, the default bracket of a
  * position and the order request a dragged line sends.
  */
-import type { OrderRequest, TradingExecution, TradingOrder, TradingPosition } from "../../data/trading/types";
+import type { ExitLevel, OrderRequest, TradingExecution, TradingOrder, TradingPosition } from "../../data/trading/types";
 
 /** Default bracket distances in ticks (the order ticket's). */
 export const TP_TICKS = 75;
@@ -105,8 +105,10 @@ export function orderMenuTitle(o: TradingOrder, tick: number): string {
   return `${o.side === "buy" ? "Buy" : "Sell"} ${fmtQty(o.qty)}${price !== null ? ` @${fmtPrice(price, tick)}` : ""} ${type}`;
 }
 
-/** Cancel dialog title: "Cancel order", "Cancel take profit order", "Cancel stop loss order". */
+/** Cancel dialog title: "Cancel order", "Cancel take profit order", "Cancel stop loss order"; a level's line cancels
+ *  its whole level: "Cancel exit level" (reference). */
 export function cancelTitle(o: TradingOrder): string {
+  if (o.levelId) return "Cancel exit level";
   return o.kind === "tp" ? "Cancel take profit order" : o.kind === "sl" ? "Cancel stop loss order" : "Cancel order";
 }
 
@@ -220,10 +222,39 @@ export function requestWithPrice(o: TradingOrder, price: number | null, patch: P
     stopPrice: o.stopPrice,
     takeProfit: o.takeProfit,
     stopLoss: o.stopLoss,
+    // A modified order keeps its exit levels (#330).
+    ...(o.exitLevels?.length ? { exitLevels: o.exitLevels } : {}),
   };
   if (price !== null) {
     if (o.type === "stop" || o.type === "stopLimit") base.stopPrice = price;
     else base.limitPrice = price;
   }
   return { ...base, ...patch };
+}
+
+/**
+ * The exit levels of an order or a position of `qty` once a level is added on the chart (#330, "Multiple exit
+ * levels"): its one take profit / stop loss becomes the first level, and the new level takes the quantity no level
+ * protects yet, else half of the largest level (whole `step`s). The levels never protect more than the quantity: each
+ * is an exit of its own part. Null when no part is left to give it.
+ */
+export function withNewLevel(
+  qty: number,
+  current: { exitLevels?: ExitLevel[]; takeProfit: number | null; stopLoss: number | null },
+  add: { takeProfit: number; stopLoss: number },
+  step: number,
+): ExitLevel[] | null {
+  const levels: ExitLevel[] = current.exitLevels?.length
+    ? current.exitLevels.map((l) => ({ qty: l.qty, takeProfit: l.takeProfit, stopLoss: l.stopLoss }))
+    : current.takeProfit !== null || current.stopLoss !== null
+      ? [{ qty, takeProfit: current.takeProfit, stopLoss: current.stopLoss }]
+      : [];
+  const whole = (v: number) => Number((Math.floor(v / step + 1e-9) * step).toFixed(10));
+  const free = whole(qty - levels.reduce((a, l) => a + l.qty, 0));
+  if (free >= step) return [...levels, { qty: free, ...add }];
+  const big = levels.reduce<ExitLevel | null>((m, l) => (!m || l.qty > m.qty ? l : m), null);
+  const half = big ? whole(big.qty / 2) : 0;
+  if (!big || half < step) return null;
+  big.qty = Number((big.qty - half).toFixed(10));
+  return [...levels, { qty: half, ...add }];
 }

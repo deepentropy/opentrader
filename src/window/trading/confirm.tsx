@@ -44,8 +44,9 @@ export function confirmCancelOrder(order: TradingOrder, onConfirm: () => void) {
   showConfirm({
     title: cancelTitle(order),
     text: "",
-    mainText: "Cancel order",
-    cancelText: "Keep order",
+    // A level goes whole, its take profit with its stop loss (reference "Cancel level" / "Keep level").
+    mainText: order.levelId ? "Cancel level" : "Cancel order",
+    cancelText: order.levelId ? "Keep level" : "Keep order",
     intent: "neutral",
     body: () => <Body symbol={order.symbol} line={line} />,
     onConfirm,

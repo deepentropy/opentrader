@@ -29,7 +29,7 @@ import {
 import { symbolSessions } from "../session";
 import { ALL_CAPABILITIES, ANY_INSTRUMENT, type Instrument, type TradingCapabilities } from "./capabilities";
 import { DEFAULT_REPLAY_SETTINGS, ReplayAccount, type ReplayAccountSnapshot, type ReplaySettings } from "./replay-account";
-import type { OrderRequest, TradingEvent, TradingExecution, TradingOrder, TradingPosition, TradingQuote } from "./types";
+import type { ExitLevel, OrderRequest, TradingEvent, TradingExecution, TradingOrder, TradingPosition, TradingQuote } from "./types";
 
 /** What the order ticket shows instead of the form when trading is off. */
 export type Tradability = { ok: boolean; reason: "ok" | "launch" | "symbol" | "loading"; title: string; text: string };
@@ -347,6 +347,7 @@ export const replayBroker = createRoot(() => {
     closePosition: (qty: number | null = null, paneId?: number) => withActive((a) => a.closePosition(qty), paneId),
     reverse: (paneId?: number) => withActive((a) => a.reverse(), paneId),
     setPositionBrackets: (tp: number | null, sl: number | null, paneId?: number) => withActive((a) => a.setPositionBrackets(tp, sl), paneId),
+    setPositionExitLevels: (levels: ExitLevel[], paneId?: number) => withActive((a) => a.setPositionExitLevels(levels), paneId),
     onEvent(fn: (e: TradingEvent) => void): () => void {
       listeners.add(fn);
       return () => listeners.delete(fn);

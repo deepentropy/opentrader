@@ -15,6 +15,7 @@ const KEY = "ot:trading:app-prefs";
 /** Draft keys of the app-wide rows of the Trading tab. */
 export const APP_WIDE_TRADING_ROWS = [
   "trading:One-click trading",
+  "trading:Multiple exit levels",
   "trading:Execution sound",
   "trading:Execution sound type",
   "trading:Show only rejection notifications",
@@ -23,6 +24,9 @@ export const APP_WIDE_TRADING_ROWS = [
 
 export type TradingPrefs = {
   oneClick: boolean;
+  /** "Multiple exit levels": a take profit / stop loss dragged from an order or a position that has some adds an exit
+   *  level (#330). */
+  multipleExitLevels: boolean;
   /** Execution sound: null = off; else the sound-bank key and volume 0-1. */
   sound: { key: string; volume: number } | null;
   rejectionOnly: boolean;
@@ -50,6 +54,7 @@ function prefsOf(rows: Partial<Draft>): TradingPrefs {
   const t = tradingAppearance(d);
   return {
     oneClick: t.oneClick,
+    multipleExitLevels: !!d["trading:Multiple exit levels"]?.checked,
     sound: t.sound,
     rejectionOnly: t.rejectionOnly,
     snapshot: !!d["trading:Orders, executions, and positions in chart snapshots"]?.checked,

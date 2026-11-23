@@ -7,7 +7,7 @@
  * stay possible, so a position can always be got out of.
  */
 use super::{installed_manifest, Plugins};
-use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, Instrument, OrderPreview, OrderTicket};
+use opentrader_core::plugins::broker::{BrokerEvent, BrokerState, ExitLevel, Instrument, OrderPreview, OrderTicket};
 use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::plugins::manifest::Capability;
 use opentrader_core::sync::LockExt;
@@ -463,9 +463,20 @@ pub async fn broker_close_position(app: AppHandle, position_id: String, qty: Opt
 
 #[tauri::command]
 #[specta::specta]
-pub async fn broker_set_position_brackets(app: AppHandle, position_id: String, take_profit: Option<f64>, stop_loss: Option<f64>) -> Result<(), String> {
+pub async fn broker_set_position_brackets(
+    app: AppHandle,
+    position_id: String,
+    take_profit: Option<f64>,
+    stop_loss: Option<f64>,
+    exit_levels: Option<Vec<ExitLevel>>,
+) -> Result<(), String> {
     require_trading(&app).map_err(|e| failed(&app, "Protect", e))?;
-    ask(&app, "broker.setPositionBrackets", json!({ "positionId": position_id, "takeProfit": take_profit, "stopLoss": stop_loss }))
+    let mut params = json!({ "positionId": position_id, "takeProfit": take_profit, "stopLoss": stop_loss });
+    // Exit levels in place of the take profit / stop loss (#330); left out without any.
+    if let Some(levels) = exit_levels.filter(|l| !l.is_empty()) {
+        params["exitLevels"] = serde_json::to_value(levels).map_err(|e| e.to_string())?;
+    }
+    ask(&app, "broker.setPositionBrackets", params)
         .await
         .map(|_| ())
         .map_err(|e| failed(&app, "Protect", e))

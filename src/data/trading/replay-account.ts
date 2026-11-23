@@ -12,6 +12,9 @@
  *     price; the limit works from the next update;
  *   - the brackets of an order go to the position when it fills; the position
  *     brackets close the whole position (one-cancels-other);
+ *   - exit levels (#330): each level is a strategy exit of its own quantity
+ *     with its take profit and stop loss; the levels of an order go to the
+ *     position when it fills; a level that fills is gone, the others stay;
  *   - commissions are the strategy ones (percent of the value, per contract,
  *     per order); no slippage, no margin.
  *
@@ -28,7 +31,7 @@ import {
   type StrategyProperties,
   type SymbolInfo,
 } from "../../backtester/types";
-import type { OrderRequest, OrderType, Side, TradingEvent, TradingExecution, TradingOrder, TradingPosition } from "./types";
+import type { ExitLevel, OrderRequest, OrderType, Side, TradingEvent, TradingExecution, TradingOrder, TradingPosition } from "./types";
 import { ORDER_LABEL } from "./types";
 
 export type CommissionType = "percent" | "cash_per_contract" | "cash_per_order";
@@ -76,6 +79,7 @@ type Cmd =
   | { op: "close"; qty: number | null }
   | { op: "reverse" }
   | { op: "brackets"; tp: number | null; sl: number | null }
+  | { op: "levels"; levels: ExitLevel[] }
   | { op: "flatten" };
 
 type Working = {
@@ -87,6 +91,8 @@ type Working = {
   stop: number | null;
   tp: number | null;
   sl: number | null;
+  /** Exit levels in place of tp / sl (null: none). */
+  levels: Level[] | null;
   /** Stop-limit: the stop was reached, the limit works. */
   triggered: boolean;
   /** Stop-limit reached on the way with its limit at or beyond the stop: it
@@ -94,11 +100,17 @@ type Working = {
   asStop: boolean;
 };
 
+/** An exit level as the account keeps it: its id names its strategy exit and its bracket lines. */
+type Level = { id: string; qty: number; tp: number | null; sl: number | null };
+
 const POSITION_ID = "position";
 /** Broker ids: placed orders, their brackets, the position brackets, closes. */
 const orderKey = (id: string) => `O${id}`;
 const bracketKey = (id: string) => `B${id}`;
 const POS_KEY = "P";
+/** The strategy exit of a level of an order / of the position. */
+const levelKey = (id: string, level: string) => `B${id}#${level}`;
+const posLevelKey = (level: string) => `P#${level}`;
 
 export class ReplayAccount {
   readonly bars: Bar[];
@@ -110,6 +122,11 @@ export class ReplayAccount {
   private closeSeq = 0;
   private posTp: number | null = null;
   private posSl: number | null = null;
+  /** The position's exit levels (null: none). */
+  private posLevels: Level[] | null = null;
+  /** The strategy exits of levels sent to the broker, to cancel the ones no longer wanted. */
+  private levelKeys = new Set<string>();
+  private levelSeq = 0;
   /** filledOrders already turned into executions / events. */
   private seen = 0;
   /** Sign of the position the brackets belong to. */
@@ -160,6 +177,9 @@ export class ReplayAccount {
     this.closeSeq = 0;
     this.posTp = null;
     this.posSl = null;
+    this.posLevels = null;
+    this.levelKeys.clear();
+    this.levelSeq = 0;
     this.posSide = 0;
     this.seen = 0;
   }
@@ -251,6 +271,7 @@ export class ReplayAccount {
       pl: this.broker.openProfitAt(this.last),
       takeProfit: this.posTp,
       stopLoss: this.posSl,
+      ...(this.posLevels ? { exitLevels: this.posLevels.map(toExitLevel) } : {}),
     };
   }
 
@@ -272,15 +293,26 @@ export class ReplayAccount {
         takeProfit: w.tp,
         stopLoss: w.sl,
         stopTriggered: w.type === "stopLimit" ? w.triggered : undefined,
+        ...(w.levels ? { exitLevels: w.levels.map(toExitLevel) } : {}),
       });
       if (w.tp !== null) out.push(this.bracket(`${w.id}:tp`, exitSide(w.side), w.qty, "tp", w.tp, w.id));
       if (w.sl !== null) out.push(this.bracket(`${w.id}:sl`, exitSide(w.side), w.qty, "sl", w.sl, w.id));
+      for (const l of w.levels ?? []) out.push(...this.levelBrackets(w.id, exitSide(w.side), l));
     }
     const p = this.position();
     if (p) {
       if (this.posTp !== null) out.push(this.bracket(`${POSITION_ID}:tp`, exitSide(p.side), p.qty, "tp", this.posTp, POSITION_ID));
       if (this.posSl !== null) out.push(this.bracket(`${POSITION_ID}:sl`, exitSide(p.side), p.qty, "sl", this.posSl, POSITION_ID));
+      for (const l of this.posLevels ?? []) out.push(...this.levelBrackets(POSITION_ID, exitSide(p.side), l));
     }
+    return out;
+  }
+
+  /** The take profit / stop loss lines of a level: "<parent>:tp:<level>". */
+  private levelBrackets(parent: string, side: Side, l: Level): TradingOrder[] {
+    const out: TradingOrder[] = [];
+    if (l.tp !== null) out.push({ ...this.bracket(`${parent}:tp:${l.id}`, side, l.qty, "tp", l.tp, parent), levelId: l.id });
+    if (l.sl !== null) out.push({ ...this.bracket(`${parent}:sl:${l.id}`, side, l.qty, "sl", l.sl, parent), levelId: l.id });
     return out;
   }
 
@@ -343,6 +375,10 @@ export class ReplayAccount {
   setPositionBrackets(tp: number | null, sl: number | null) {
     this.run({ op: "brackets", tp, sl });
   }
+  /** The position's exit levels (#330), in place of its take profit / stop loss; none: no exits. */
+  setPositionExitLevels(levels: ExitLevel[]) {
+    this.run({ op: "levels", levels });
+  }
   /** End of the session: orders cancelled, position closed. */
   flatten() {
     this.run({ op: "flatten" });
@@ -367,6 +403,8 @@ export class ReplayAccount {
         return this.execReverse();
       case "brackets":
         return this.execBrackets(cmd.tp, cmd.sl);
+      case "levels":
+        return this.execLevels(cmd.levels);
       case "flatten":
         for (const id of [...this.working.keys()]) this.execCancel(id);
         return this.execClose(null);
@@ -391,8 +429,9 @@ export class ReplayAccount {
       qty,
       limit: req.type === "limit" || req.type === "stopLimit" ? this.price(req.limitPrice) : null,
       stop: req.type === "stop" || req.type === "stopLimit" ? this.price(req.stopPrice) : null,
-      tp: req.takeProfit !== null ? this.price(req.takeProfit) : null,
-      sl: req.stopLoss !== null ? this.price(req.stopLoss) : null,
+      tp: req.exitLevels?.length || req.takeProfit === null ? null : this.price(req.takeProfit),
+      sl: req.exitLevels?.length || req.stopLoss === null ? null : this.price(req.stopLoss),
+      levels: this.levelsOf(req.exitLevels),
       triggered: false,
       asStop: false,
     };
@@ -428,15 +467,31 @@ export class ReplayAccount {
     w.qty = qty;
     if (w.type === "limit" || w.type === "stopLimit") w.limit = this.price(req.limitPrice ?? w.limit);
     if (w.type === "stop" || w.type === "stopLimit") w.stop = this.price(req.stopPrice ?? w.stop);
-    w.tp = req.takeProfit !== null ? this.price(req.takeProfit) : null;
-    w.sl = req.stopLoss !== null ? this.price(req.stopLoss) : null;
+    w.levels = this.levelsOf(req.exitLevels);
+    w.tp = w.levels || req.takeProfit === null ? null : this.price(req.takeProfit);
+    w.sl = w.levels || req.stopLoss === null ? null : this.price(req.stopLoss);
     this.submit(w);
     this.emit({ kind: "modified", label: ORDER_LABEL[w.type], side: w.side, qty, price: this.orderPrice(w) });
   }
 
   private execCancel(id: string) {
-    // A bracket: "<order id>:tp" / "position:sl"...
-    const [parent, leg] = id.split(":");
+    // A bracket: "<order id>:tp" / "position:sl"...; a level's: "<order id>:tp:<level>", the whole level goes
+    // (its take profit and stop loss are one exit, reference "Cancel exit level").
+    const [parent, leg, level] = id.split(":");
+    if ((leg === "tp" || leg === "sl") && level) {
+      if (parent === POSITION_ID) {
+        if (this.posLevels) this.execLevels(this.posLevels.filter((l) => l.id !== level).map(toExitLevel));
+        return;
+      }
+      const w = this.working.get(parent);
+      const l = w?.levels?.find((x) => x.id === level);
+      if (!w || !l) return;
+      const rest = w.levels!.filter((x) => x !== l);
+      w.levels = rest.length ? rest : null;
+      this.submitBrackets(w);
+      this.emitLevel(l, w.side === "buy" ? "sell" : "buy", "cancelled");
+      return;
+    }
     if (leg === "tp" || leg === "sl") {
       if (parent === POSITION_ID) {
         this.execBrackets(leg === "tp" ? null : this.posTp, leg === "sl" ? null : this.posSl);
@@ -456,6 +511,7 @@ export class ReplayAccount {
     this.working.delete(id);
     this.broker.cancel(orderKey(id));
     this.broker.cancel(bracketKey(id));
+    this.submitLevels(id, null);
     this.emit({ kind: "cancelled", label: ORDER_LABEL[w.type], side: w.side, qty: w.qty, price: this.orderPrice(w) });
     this.emitBrackets(w, "cancelled");
   }
@@ -500,6 +556,11 @@ export class ReplayAccount {
     ];
     this.posTp = next.tp;
     this.posSl = next.sl;
+    // One take profit / stop loss in place of the levels.
+    if (this.posLevels && (next.tp !== null || next.sl !== null)) {
+      for (const l of this.posLevels) this.emitLevel(l, side, "cancelled");
+      this.posLevels = null;
+    }
     this.submitPositionBrackets();
     for (const [leg, before, after] of legs) {
       const label = leg === "tp" ? "Take Profit" : "Stop Loss";
@@ -507,6 +568,40 @@ export class ReplayAccount {
       else if (before !== null && after === null) this.emit({ kind: "cancelled", label, side, qty, price: before });
       else if (before !== null && after !== null && before !== after) this.emit({ kind: "modified", label, side, qty, price: after });
     }
+  }
+
+  private execLevels(levels: ExitLevel[]) {
+    const pos = this.broker.positionSize;
+    if (pos === 0) return;
+    const side: Side = pos > 0 ? "sell" : "buy";
+    const before = this.posLevels ?? [];
+    const next = this.levelsOf(levels);
+    // The levels replace the position's take profit / stop loss.
+    if (next) {
+      if (this.posTp !== null) this.emit({ kind: "cancelled", label: "Take Profit", side, qty: Math.abs(pos), price: this.posTp });
+      if (this.posSl !== null) this.emit({ kind: "cancelled", label: "Stop Loss", side, qty: Math.abs(pos), price: this.posSl });
+      this.posTp = null;
+      this.posSl = null;
+    }
+    this.posLevels = next;
+    this.submitPositionBrackets();
+    // Toasts: a level as it was is not told again; one that went is cancelled, a new or changed one placed.
+    const same = (a: Level, b: Level) => a.qty === b.qty && a.tp === b.tp && a.sl === b.sl;
+    for (const l of before) if (!next?.some((n) => same(n, l))) this.emitLevel(l, side, "cancelled");
+    for (const l of next ?? []) if (!before.some((b) => same(b, l))) this.emitLevel(l, side, "placed");
+  }
+
+  /** Levels of a request, with new ids; none: null. Prices on the tick, quantities on the step. */
+  private levelsOf(list: ExitLevel[] | undefined): Level[] | null {
+    const out = (list ?? [])
+      .map((l) => ({ id: String(++this.levelSeq), qty: this.qty(l.qty), tp: this.price(l.takeProfit), sl: this.price(l.stopLoss) }))
+      .filter((l) => l.qty > 0 && (l.tp !== null || l.sl !== null));
+    return out.length ? out : null;
+  }
+
+  private emitLevel(l: Level, side: Side, kind: "placed" | "cancelled") {
+    if (l.tp !== null) this.emit({ kind, label: "Take Profit", side, qty: l.qty, price: l.tp });
+    if (l.sl !== null) this.emit({ kind, label: "Stop Loss", side, qty: l.qty, price: l.sl });
   }
 
   // ------------------------------------------------------------ updates
@@ -599,6 +694,7 @@ export class ReplayAccount {
     const pos = this.broker.positionSize;
     if (pos === 0 || this.posSide !== Math.sign(pos)) {
       // Flat or reversed: the position brackets go.
+      this.posLevels = null;
       if (this.posTp !== null || this.posSl !== null) {
         const side: Side = this.posSide > 0 ? "sell" : "buy";
         if (pos !== 0) {
@@ -620,11 +716,18 @@ export class ReplayAccount {
       if (!w) return;
       this.working.delete(w.id);
       this.broker.cancel(bracketKey(w.id));
+      const levels = w.levels;
+      this.submitLevels(w.id, null);
       this.emit({ kind: "executed", label: ORDER_LABEL[w.type], side, qty: f.qty, price: w.type === "market" ? null : this.orderPrice(w) });
-      // Its brackets go to the position.
-      if (w.tp !== null || w.sl !== null) {
+      // Its brackets (or levels) go to the position.
+      if (w.tp !== null || w.sl !== null || levels) {
         const pos = this.broker.positionSize;
         if (pos !== 0 && Math.sign(pos) === (w.side === "buy" ? 1 : -1)) {
+          if (levels) {
+            this.posLevels = levels;
+            this.posTp = null;
+            this.posSl = null;
+          }
           if (w.tp !== null) this.posTp = w.tp;
           if (w.sl !== null) this.posSl = w.sl;
           this.posSide = Math.sign(pos);
@@ -632,12 +735,19 @@ export class ReplayAccount {
       }
       return;
     }
-    if (f.id === POS_KEY || f.id.startsWith("B")) {
+    if (f.id === POS_KEY || f.id.startsWith("B") || f.id.startsWith("P#")) {
       const tp = f.type === "LIMIT";
       this.emit({ kind: "executed", label: tp ? "Take Profit" : "Stop Loss", side, qty: f.qty, price: f.price });
       if (f.id === POS_KEY) {
         this.posTp = null;
         this.posSl = null;
+      }
+      // A position level filled: that level is done, the others stay.
+      if (f.id.startsWith("P#") && this.posLevels) {
+        const id = f.id.slice(2);
+        this.levelKeys.delete(f.id);
+        const rest = this.posLevels.filter((l) => l.id !== id);
+        this.posLevels = rest.length ? rest : null;
       }
       return;
     }
@@ -660,6 +770,7 @@ export class ReplayAccount {
   }
 
   private submitBrackets(w: Working) {
+    this.submitLevels(w.id, w.levels, orderKey(w.id));
     if (w.tp === null && w.sl === null) {
       this.broker.cancel(bracketKey(w.id));
       return;
@@ -673,7 +784,31 @@ export class ReplayAccount {
     });
   }
 
+  /** The strategy exits of `levels` of an order (`fromEntry` its order key) or of the position (`parent` POSITION_ID):
+   *  sent again whole, so their quantities are reserved in the levels' order; the ones no longer wanted cancelled. */
+  private submitLevels(parent: string, levels: Level[] | null, fromEntry?: string) {
+    const prefix = parent === POSITION_ID ? "P#" : `B${parent}#`;
+    for (const k of [...this.levelKeys]) {
+      if (!k.startsWith(prefix)) continue;
+      this.broker.cancel(k);
+      this.levelKeys.delete(k);
+    }
+    for (const l of levels ?? []) {
+      const k = parent === POSITION_ID ? posLevelKey(l.id) : levelKey(parent, l.id);
+      this.broker.exit(k, {
+        ...(fromEntry ? { fromEntry } : {}),
+        qty: l.qty,
+        limit: l.tp ?? undefined,
+        stop: l.sl ?? undefined,
+        commentProfit: TP_COMMENT,
+        commentLoss: SL_COMMENT,
+      });
+      this.levelKeys.add(k);
+    }
+  }
+
   private submitPositionBrackets() {
+    this.submitLevels(POSITION_ID, this.broker.positionSize === 0 ? null : this.posLevels);
     if (this.broker.positionSize === 0 || (this.posTp === null && this.posSl === null)) {
       this.broker.cancel(POS_KEY);
       return;
@@ -690,6 +825,7 @@ export class ReplayAccount {
     const side: Side = w.side === "buy" ? "sell" : "buy";
     if (w.tp !== null) this.emit({ kind, label: "Take Profit", side, qty: w.qty, price: w.tp });
     if (w.sl !== null) this.emit({ kind, label: "Stop Loss", side, qty: w.qty, price: w.sl });
+    for (const l of w.levels ?? []) this.emitLevel(l, side, kind);
   }
 
   private orderPrice(w: Working): number | null {
@@ -705,3 +841,5 @@ export class ReplayAccount {
     return p === null ? null : this.broker.roundPrice(p);
   }
 }
+
+const toExitLevel = (l: Level): ExitLevel => ({ id: l.id, qty: l.qty, takeProfit: l.tp, stopLoss: l.sl });

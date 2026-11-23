@@ -66,6 +66,7 @@ import {
   stackLabels,
   SL_TICKS,
   TP_TICKS,
+  withNewLevel,
 } from "../trading-lines-model";
 import { type ChartCx } from "./context";
 
@@ -365,6 +366,21 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     }
 
     /** The dotted TP / SL chips of a line without them. */
+    /** "Multiple exit levels" (#330): a take profit / stop loss dragged from an order or a position that has its exits
+     *  adds a level, for a broker that takes levels. */
+    const multiLevels = () => tradingPrefs.prefs().multipleExitLevels && caps().exitLevels;
+    /** A level more fits: exits there already (one pair or levels), and fewer levels than the broker takes. */
+    const levelRoom = (x: { exitLevels?: unknown[]; takeProfit: number | null; stopLoss: number | null }) =>
+      multiLevels() && (x.exitLevels?.length ?? (x.takeProfit !== null || x.stopLoss !== null ? 1 : 0)) < caps().maxExitLevels;
+    const hasExits = (x: { exitLevels?: unknown[]; takeProfit: number | null; stopLoss: number | null }) =>
+      !!x.exitLevels?.length || (x.takeProfit !== null && x.stopLoss !== null);
+    /** The levels with one more, its other exit at the default distance; null when no part of the quantity is left. */
+    const addLevel = (qty: number, x: TradingOrder | TradingPosition, kind: "tp" | "sl", at: number, other: number | null) => {
+      if (other === null) return null;
+      const add = kind === "tp" ? { takeProfit: at, stopLoss: other } : { takeProfit: other, stopLoss: at };
+      return withNewLevel(qty, x, add, broker.instrument(paneId).qtyStep ?? 1);
+    };
+
     function BracketChips(p: { tp: boolean; sl: boolean; set: (kind: "tp" | "sl", price: number | null) => void }) {
       return (
         <>
@@ -402,6 +418,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         const x = o();
         if (!x || x.kind !== "order" || x.type === "market" || !canAddOrderBrackets(caps())) return false;
         if (hasLimitLine(x) !== p.line.limit) return false;
+        if (hasExits(x)) return levelRoom(x);
         return kind === "tp" ? x.takeProfit === null : x.stopLoss === null;
       };
       const setBracket = (kind: "tp" | "sl", at: number | null) => {
@@ -409,6 +426,11 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         if (!x) return;
         const v = at ?? defaultOrderBracket(x, kind, tick());
         if (v === null) return;
+        if (hasExits(x)) {
+          const levels = addLevel(x.qty, x, kind, v, defaultOrderBracket(x, kind === "tp" ? "sl" : "tp", tick()));
+          if (levels) broker.modify(x.id, requestWithPrice(x, null, { takeProfit: null, stopLoss: null, exitLevels: levels }), paneId);
+          return;
+        }
         broker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
       };
       return (
@@ -466,8 +488,15 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       const setBracket = (kind: "tp" | "sl", at: number | null) => {
         const pos = p.pos;
         const v = at ?? defaultBracket(pos, kind, tick());
+        if (hasExits(pos)) {
+          const levels = addLevel(pos.qty, pos, kind, v, defaultBracket(pos, kind === "tp" ? "sl" : "tp", tick()));
+          if (levels) broker.setPositionExitLevels(levels, paneId);
+          return;
+        }
         broker.setPositionBrackets(kind === "tp" ? v : pos.takeProfit, kind === "sl" ? v : pos.stopLoss, paneId);
       };
+      const chip = (kind: "tp" | "sl") =>
+        caps().positionBrackets && (hasExits(p.pos) ? levelRoom(p.pos) : kind === "tp" ? p.pos.takeProfit === null : p.pos.stopLoss === null);
       return (
         <Show when={y() !== null}>
           <div class="ot-trd-row is-position" style={{ "--c": sideColor(p.pos.side), top: `${y()}px`, ...rowBox(p.g) }}>
@@ -480,7 +509,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               </Tooltip>
               <span class="ot-trd-seg" />
             </Show>
-            <BracketChips tp={caps().positionBrackets && p.pos.takeProfit === null} sl={caps().positionBrackets && p.pos.stopLoss === null} set={setBracket} />
+            <BracketChips tp={chip("tp")} sl={chip("sl")} set={setBracket} />
             <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop} onContextMenu={(e) => openMenu(e, null)}>
               <Tooltip text={fmtPl(p.pos.pl, broker.currency(paneId))} side="top">
                 <span class="ot-trd-chip__part is-qty is-filled">

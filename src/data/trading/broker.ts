@@ -7,7 +7,7 @@ import { isPaneInReplay, replayActivePane, replayEnabled, setReplayActivePane } 
 import { strategyTester } from "../strategy-tester-store";
 import { pluginBroker } from "./plugin-broker";
 import { replayBroker } from "./replay-broker";
-import type { OrderRequest, TradingEvent } from "./types";
+import type { ExitLevel, OrderRequest, TradingEvent } from "./types";
 
 /** The broker of a chart (none given: of the focused one). */
 export function brokerOf(paneId?: number | null) {
@@ -61,6 +61,8 @@ export const broker = {
   closePosition: (qty: number | null = null, paneId?: number) => brokerOf(paneId).closePosition(qty, paneId),
   reverse: (paneId?: number) => brokerOf(paneId).reverse(paneId),
   setPositionBrackets: (tp: number | null, sl: number | null, paneId?: number) => brokerOf(paneId).setPositionBrackets(tp, sl, paneId),
+  /** The position's exit levels (#330), in place of its take profit / stop loss. */
+  setPositionExitLevels: (levels: ExitLevel[], paneId?: number) => brokerOf(paneId).setPositionExitLevels(levels, paneId),
   onEvent(fn: (e: TradingEvent) => void): () => void {
     const offReplay = replayBroker.onEvent(fn);
     const offPlugin = pluginBroker.onEvent(fn);

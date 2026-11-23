@@ -99,6 +99,8 @@ export type FormRow = {
   parent?: string;
   /** Symbol events row: shown only on stocks, funds and depositary receipts. */
   symbolEvents?: boolean;
+  /** Shown only while the focused chart's broker takes exit levels (#330). */
+  exitLevels?: boolean;
   /** Shown disabled (greyed, not editable): no ported surface (e.g. Trading). */
   inert?: boolean;
   /** Stored chart setting with no dialog row (set from a chart menu). */
@@ -429,6 +431,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     section('General'),
     row({ id: 'Buy/sell buttons', cb: true, checked: true, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart' }),
     row({ cb: true, checked: false, label: 'One-click trading', help: 'One-click trading', desc: 'Instantly place, edit, cancel orders, or close positions without confirmation' }),
+    // Shown for a broker that takes exit levels (#330, reference: after One-click trading, off by default).
+    row({ cb: true, checked: false, label: 'Multiple exit levels', desc: 'Allows adding multiple take profit and stop loss levels directly on the chart', exitLevels: true }),
     // Volume (slider, 50 %) and the sound, both greyed while off.
     row({ cb: true, checked: false, label: 'Execution sound', controls: [{ c: 'slider', value: 50 }] }),
     row({ id: 'Execution sound type', label: null, child: true, parent: 'Execution sound', controls: [{ c: 'select', value: 'Alarm Clock', options: ORDER_SOUNDS }] }),

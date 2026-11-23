@@ -7,6 +7,10 @@
 export type Side = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop" | "stopLimit";
 
+/** One exit level of an order or a position (#330): a part of its quantity with its own take profit and stop loss.
+ *  `id` is the broker's (the level's bracket lines and cancels name it); a request leaves it out. */
+export type ExitLevel = { id?: string; qty: number; takeProfit: number | null; stopLoss: number | null };
+
 /** A working order. Brackets of an order (take profit / stop loss) are their
  *  own orders with `parentId` set. */
 export type TradingOrder = {
@@ -26,6 +30,10 @@ export type TradingOrder = {
   stopLoss: number | null;
   /** Stop-limit: its stop was reached, only the limit works. */
   stopTriggered?: boolean;
+  /** Its exit levels, in place of one take profit / stop loss (#330). */
+  exitLevels?: ExitLevel[];
+  /** A bracket of an exit level: the level's id. */
+  levelId?: string;
 };
 
 export type TradingPosition = {
@@ -39,6 +47,8 @@ export type TradingPosition = {
   pl: number;
   takeProfit: number | null;
   stopLoss: number | null;
+  /** Its exit levels, in place of one take profit / stop loss (#330). */
+  exitLevels?: ExitLevel[];
 };
 
 export type TradingExecution = {
@@ -75,6 +85,9 @@ export type OrderRequest = {
   duration?: string;
   /** The broker's preview id of an order the user confirmed on the confirmation page. */
   confirmId?: string;
+  /** Exit levels (#330), in place of `takeProfit` / `stopLoss` (then null): each its quantity, take profit and stop
+   *  loss. */
+  exitLevels?: ExitLevel[];
 };
 
 /** Order notifications (toasts). `label`: "Market", "Limit", "Stop",

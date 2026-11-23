@@ -57,7 +57,13 @@ export type TicketDraft = {
   /** Stop limit: the limit's distance from the stop in ticks, kept when the stop moves (#370; one tick beyond it at
    *  first, then what the user set). */
   stopLimitGap?: number;
+  /** Exit levels in place of the take profit / stop loss (#330): each its quantity in units and its prices, as typed. */
+  levels?: { qty: string; tp: string; sl: string }[];
 };
+
+/** The exit levels of an order or a position, as the ticket types them. */
+const draftLevels = (list: { qty: number; takeProfit: number | null; stopLoss: number | null }[] | undefined) =>
+  list?.length ? list.map((l) => ({ qty: String(l.qty), tp: l.takeProfit != null ? String(l.takeProfit) : "", sl: l.stopLoss != null ? String(l.stopLoss) : "" })) : undefined;
 
 /** What the open order ticket offers the chart's project order line. */
 export type TicketActions = {
@@ -324,6 +330,7 @@ export const tradingUi = createRoot(() => {
         stopLoss: o.stopLoss != null ? String(o.stopLoss) : "",
         editing: o.id,
         paneId,
+        levels: draftLevels(o.exitLevels),
       });
       setSent(false);
       setTicketOpen(true);
@@ -345,6 +352,7 @@ export const tradingUi = createRoot(() => {
         stopLoss: pos.stopLoss != null ? String(pos.stopLoss) : "",
         editing: POSITION_EDIT,
         paneId,
+        levels: draftLevels(pos.exitLevels),
       });
       setSent(false);
       setTicketOpen(true);

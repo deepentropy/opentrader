@@ -1839,6 +1839,102 @@ html.theme-light {
   background: color-mix(in srgb, var(--color-ripe-red-400) 15%, transparent);
 }
 
+/* Exit levels (#330, reference): totals, then each level ("Level 1  50.00%" in grey 13px, its "TP 1 @ x  SL 1 @ y"
+ * button with TP green and SL orange), "Add level" as a blue text button. */
+.trd-tk-levels,
+.trd-tk-levels-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trd-tk-levels-page {
+  padding: 8px 16px 0;
+}
+.trd-tk-levels-symbol {
+  color: var(--color-text-primary);
+  font: 600 14px/18px var(--trd-font);
+}
+.trd-tk-levels-summary {
+  color: var(--color-text-secondary);
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-tk-level-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trd-tk-level-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 23px;
+  color: var(--color-text-secondary);
+  font: 400 13px/18px var(--trd-font);
+}
+.trd-tk-level {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.trd-tk-level-btn {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 27px;
+  padding: 0 10px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/16px var(--trd-font);
+  text-align: start;
+  align-items: center;
+}
+.trd-tk-level-btn:hover {
+  background: var(--trd-idle-bg);
+}
+.trd-tk-level-leg {
+  white-space: nowrap;
+}
+.trd-tk-level-leg .is-tp {
+  color: #089981;
+}
+.trd-tk-level-leg .is-sl {
+  color: #ff9800;
+}
+.trd-tk-level-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+.trd-tk-level-fields .trd-tk-box .trd-tk-input {
+  flex: 1 1 0;
+  width: 0;
+}
+.trd-tk-level-fields .trd-tk-hint {
+  margin-inline-start: auto;
+}
+.trd-tk-level-del {
+  width: 27px;
+  height: 27px;
+}
+.trd-tk-add-level {
+  align-self: flex-start;
+  margin: 4px 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--trd-buy);
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-tk-add-level:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.trd-tk-add-level:disabled {
+  color: var(--color-text-secondary);
+}
+
 /* A broker page with several tables (#384): each under its title. */
 .trd-am-table-title {
   margin: 0;

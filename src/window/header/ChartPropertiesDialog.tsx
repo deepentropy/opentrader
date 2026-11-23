@@ -38,6 +38,7 @@ import {
 } from "./chart-settings";
 import type { ChartTypeId } from "../chart/chart-types";
 import { LineGlyphSelect } from "../drawings/LineEndSelect";
+import { broker } from "../../data/trading/broker";
 import { TransparencySlider } from "../drawings/ImageDialog";
 import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
@@ -307,6 +308,7 @@ export function ChartPropertiesDialog(props: Props) {
     // "Open market status" only while the symbol's market is open.
     if (tab === "legend" && r.label === "Open market status" && marketSession(props.symbol ?? "") !== "open") return false;
     if (r.symbolEvents && !hasSymbolEvents(props.symbol ?? "")) return false;
+    if (r.exitLevels && !broker.capabilities().exitLevels) return false;
     if (!r.visibleWhen) return true;
     const c = draft[keyOf(tab, r.visibleWhen.id)]?.controls?.[0];
     return !!c && c.kind === "select" && r.visibleWhen.values.includes(c.value);

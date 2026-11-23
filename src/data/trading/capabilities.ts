@@ -23,7 +23,14 @@ export type TradingCapabilities = {
   strictLimitPrice: boolean;
   /** The broker previews an order before it is sent (its commission, margin…): the ticket's confirmation page. */
   orderPreview: boolean;
+  /** Several exit levels on an order or a position, each a part of its quantity with its own take profit and stop loss
+   *  (#330); at most `maxExitLevels`. */
+  exitLevels: boolean;
+  maxExitLevels: number;
 };
+
+/** The exit levels of an order or a position, at most (reference default). */
+export const MAX_EXIT_LEVELS = 8;
 
 export const ORDER_TYPES: OrderType[] = ["market", "limit", "stop", "stopLimit"];
 
@@ -37,12 +44,15 @@ export const ALL_CAPABILITIES: TradingCapabilities = {
   stopLimitOrdersBothSides: false,
   strictLimitPrice: false,
   orderPreview: false,
+  exitLevels: true,
+  maxExitLevels: MAX_EXIT_LEVELS,
 };
 
 /** A plugin's capabilities; a feature it leaves out is supported (as the app reads `broker.state`), a price rule it
  *  leaves out applies. */
 export function capabilitiesOf(c: BrokerCapabilities | null | undefined): TradingCapabilities {
-  if (!c) return ALL_CAPABILITIES;
+  // Exit levels are the one feature a plugin has only when it says so (#330).
+  if (!c) return { ...ALL_CAPABILITIES, exitLevels: false };
   const listed = c.orderTypes ? ORDER_TYPES.filter((t) => c.orderTypes!.includes(t)) : ORDER_TYPES;
   return {
     // A broker that lists no order type the app knows would leave the ticket without one: all of them, it refuses.
@@ -56,6 +66,8 @@ export function capabilitiesOf(c: BrokerCapabilities | null | undefined): Tradin
     stopLimitOrdersBothSides: c.stopLimitOrdersBothSides ?? false,
     strictLimitPrice: c.strictLimitPrice ?? false,
     orderPreview: c.orderPreview ?? false,
+    exitLevels: c.exitLevels ?? false,
+    maxExitLevels: c.maxExitLevels && c.maxExitLevels > 0 ? c.maxExitLevels : MAX_EXIT_LEVELS,
   };
 }
 

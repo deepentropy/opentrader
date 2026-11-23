@@ -20,7 +20,7 @@ import { ANY_INSTRUMENT, capabilitiesOf, fieldsFor, instrumentOf, pickDuration, 
 import { applyDepth, type DepthBook } from "./depth-book";
 import { qtyMessage } from "./qty-message";
 import type { Tradability } from "./replay-broker";
-import { ORDER_LABEL, type OrderRequest, type Side, type TradingEvent, type TradingExecution, type TradingOrder, type TradingPosition, type TradingQuote } from "./types";
+import { ORDER_LABEL, type ExitLevel, type OrderRequest, type Side, type TradingEvent, type TradingExecution, type TradingOrder, type TradingPosition, type TradingQuote } from "./types";
 
 const POSITION_ID = "position";
 
@@ -198,7 +198,18 @@ export const pluginBroker = createRoot(() => {
     const symbol = symbolOf(paneId) ?? list[0].ticker;
     if (list.length === 1) {
       const p = list[0];
-      return { id: p.id, symbol, side: p.side, qty: p.qty, avgPrice: p.avgPrice, pl: p.unrealizedPnl ?? 0, takeProfit: p.takeProfit ?? null, stopLoss: p.stopLoss ?? null };
+      const levels = levelsOf(p.exitLevels);
+      return {
+        id: p.id,
+        symbol,
+        side: p.side,
+        qty: p.qty,
+        avgPrice: p.avgPrice,
+        pl: p.unrealizedPnl ?? 0,
+        takeProfit: p.takeProfit ?? null,
+        stopLoss: p.stopLoss ?? null,
+        ...(levels ? { exitLevels: levels } : {}),
+      };
     }
     const signed = list.reduce((a, p) => a + (p.side === "buy" ? p.qty : -p.qty), 0);
     if (signed === 0) return null;
@@ -207,6 +218,12 @@ export const pluginBroker = createRoot(() => {
     const avg = same.reduce((a, p) => a + p.avgPrice * p.qty, 0) / qty;
     const pl = list.reduce((a, p) => a + (p.unrealizedPnl ?? 0), 0);
     return { id: `net:${list[0].ticker}`, symbol, side: signed > 0 ? "buy" : "sell", qty: Math.abs(signed), avgPrice: avg, pl, takeProfit: null, stopLoss: null };
+  };
+
+  /** A plugin's exit levels (#330), each with an id the lines and cancels name (its own, else its place). */
+  const levelsOf = (list: { id?: string | null; qty?: number | null; takeProfit?: number | null; stopLoss?: number | null }[] | null | undefined): ExitLevel[] | null => {
+    const out = (list ?? []).map((l, i) => ({ id: l.id || String(i + 1), qty: l.qty ?? 0, takeProfit: l.takeProfit ?? null, stopLoss: l.stopLoss ?? null })).filter((l) => l.qty > 0);
+    return out.length ? out : null;
   };
 
   const toOrder = (o: Working, symbol: string): TradingOrder => ({
@@ -221,7 +238,14 @@ export const pluginBroker = createRoot(() => {
     parentId: null,
     takeProfit: o.takeProfit ?? null,
     stopLoss: o.stopLoss ?? null,
+    ...(levelsOf(o.exitLevels) ? { exitLevels: levelsOf(o.exitLevels)! } : {}),
   });
+  /** The take profit / stop loss lines of each exit level: "<parent>:tp:<level>". */
+  const levelBrackets = (parent: string, symbol: string, side: Side, levels: ExitLevel[] | undefined): TradingOrder[] =>
+    (levels ?? []).flatMap((l) => [
+      ...(l.takeProfit !== null ? [{ ...bracket(`${parent}:tp:${l.id}`, symbol, side, l.qty, "tp", l.takeProfit, parent), levelId: l.id }] : []),
+      ...(l.stopLoss !== null ? [{ ...bracket(`${parent}:sl:${l.id}`, symbol, side, l.qty, "sl", l.stopLoss, parent), levelId: l.id }] : []),
+    ]);
   const bracket = (id: string, symbol: string, side: Side, qty: number, kind: "tp" | "sl", price: number, parentId: string): TradingOrder => ({
     id,
     symbol,
@@ -249,11 +273,13 @@ export const pluginBroker = createRoot(() => {
       out.push(w);
       if (w.takeProfit !== null) out.push(bracket(`${w.id}:tp`, symbol, exitSide(w.side), w.qty, "tp", w.takeProfit, w.id));
       if (w.stopLoss !== null) out.push(bracket(`${w.id}:sl`, symbol, exitSide(w.side), w.qty, "sl", w.stopLoss, w.id));
+      out.push(...levelBrackets(w.id, symbol, exitSide(w.side), w.exitLevels));
     }
     const p = position(paneId);
     if (p && !p.id.startsWith("net:")) {
       if (p.takeProfit !== null) out.push(bracket(`${POSITION_ID}:tp`, symbol, exitSide(p.side), p.qty, "tp", p.takeProfit, POSITION_ID));
       if (p.stopLoss !== null) out.push(bracket(`${POSITION_ID}:sl`, symbol, exitSide(p.side), p.qty, "sl", p.stopLoss, POSITION_ID));
+      out.push(...levelBrackets(POSITION_ID, symbol, exitSide(p.side), p.exitLevels));
     }
     return out;
   };
@@ -339,6 +365,8 @@ export const pluginBroker = createRoot(() => {
     // Left out when the broker declares none: it keeps its own.
     ...(duration ? { duration } : {}),
     ...(req.confirmId ? { confirmId: req.confirmId } : {}),
+    // The plugin's level ids stay its own: the app sends quantities and prices only.
+    ...(req.exitLevels?.length ? { exitLevels: req.exitLevels.map((l) => ({ qty: l.qty, takeProfit: l.takeProfit, stopLoss: l.stopLoss })) } : {}),
   });
 
   /** An order quantity the broker would refuse (not whole lots…): refused here, with the quantities it takes. */
@@ -513,8 +541,22 @@ export const pluginBroker = createRoot(() => {
     cancel(id: string, paneId = activePane() ?? undefined): string | null {
       const pane = paneId ?? null;
       const symbol = symbolOf(pane) ?? "";
-      // A bracket line: its order's or the position's take profit / stop loss goes.
-      const [base, leg] = id.split(":");
+      // A bracket line: its order's or the position's take profit / stop loss goes; a level's line, its whole level.
+      const [base, leg, level] = id.split(":");
+      if ((leg === "tp" || leg === "sl") && level) {
+        const rest = (list: ExitLevel[] | undefined) => (list ?? []).filter((l) => l.id !== level);
+        if (base === POSITION_ID) {
+          const p = pane !== null ? position(pane) : null;
+          if (p) api.setPositionExitLevels(rest(p.exitLevels), paneId);
+          return "sent";
+        }
+        const o = findOrder(base);
+        if (o && pane !== null) {
+          const w = toOrder(o, symbol);
+          api.modify(o.id, { symbol, side: w.side, type: w.type, qty: w.qty, limitPrice: w.limitPrice, stopPrice: w.stopPrice, takeProfit: null, stopLoss: null, exitLevels: rest(w.exitLevels) }, paneId);
+        }
+        return "sent";
+      }
       if (leg === "tp" || leg === "sl") {
         if (base === POSITION_ID) {
           const p = pane !== null ? position(pane) : null;
@@ -558,7 +600,17 @@ export const pluginBroker = createRoot(() => {
       const list = positionsOf(paneId);
       if (list.length !== 1) return null;
       const p = list[0];
-      report(commands.brokerSetPositionBrackets(p.id, tp, sl), { symbol: symbolOf(paneId) ?? p.ticker, side: exitSide(p.side), type: tp !== null ? "limit" : "stop", qty: p.qty, price: tp ?? sl });
+      report(commands.brokerSetPositionBrackets(p.id, tp, sl, null), { symbol: symbolOf(paneId) ?? p.ticker, side: exitSide(p.side), type: tp !== null ? "limit" : "stop", qty: p.qty, price: tp ?? sl });
+      return "sent";
+    },
+    /** The position's exit levels (#330), in place of its take profit / stop loss; none: no exits. */
+    setPositionExitLevels(levels: ExitLevel[], paneId = activePane() ?? undefined): string | null {
+      if (paneId === undefined) return null;
+      const list = positionsOf(paneId);
+      if (list.length !== 1) return null;
+      const p = list[0];
+      const wire = levels.map((l) => ({ qty: l.qty, takeProfit: l.takeProfit, stopLoss: l.stopLoss }));
+      report(commands.brokerSetPositionBrackets(p.id, null, null, wire), { symbol: symbolOf(paneId) ?? p.ticker, side: exitSide(p.side), type: "limit", qty: p.qty, price: null });
       return "sent";
     },
     onEvent(fn: (e: TradingEvent) => void): () => void {

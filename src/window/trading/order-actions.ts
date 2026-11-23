@@ -30,6 +30,19 @@ export function moveOrder(o: TradingOrder, price: number, limit: boolean, paneId
     return true;
   }
   const pos = broker.position(paneId);
+  // A level's line: that level's take profit / stop loss (#330).
+  if (o.levelId) {
+    const levels = o.parentId === "position" ? pos?.exitLevels : broker.orders(paneId).find((x) => x.id === o.parentId)?.exitLevels;
+    if (!levels) return false;
+    const next = levels.map((l) => (l.id === o.levelId ? { ...l, ...(o.kind === "tp" ? { takeProfit: price } : { stopLoss: price }) } : l));
+    if (o.parentId === "position") broker.setPositionExitLevels(next, paneId);
+    else {
+      const parent = broker.orders(paneId).find((x) => x.id === o.parentId);
+      if (!parent) return false;
+      broker.modify(parent.id, requestWithPrice(parent, null, { exitLevels: next }), paneId);
+    }
+    return true;
+  }
   if (o.parentId === "position" && pos) {
     broker.setPositionBrackets(o.kind === "tp" ? price : pos.takeProfit, o.kind === "sl" ? price : pos.stopLoss, paneId);
     return true;
