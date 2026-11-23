@@ -268,6 +268,130 @@ pub struct BrokerState {
     pub positions: Vec<Position>,
     pub orders: Vec<Order>,
     pub executions: Vec<Execution>,
+    /// The broker's own tabs of the account manager (holdings, funds…), after Trade history. A page that doesn't read
+    /// is left out, not the whole state.
+    #[serde(deserialize_with = "pages_that_read")]
+    #[specta(type = Vec<AccountPage>)]
+    pub pages: Vec<AccountPage>,
+}
+
+/// A tab of the broker's own (`pages`): one or more tables whose columns the broker defines.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPage {
+    pub id: String,
+    pub title: String,
+    /// The tab shows its number of rows, as Positions and Orders do.
+    #[serde(default)]
+    pub counter: bool,
+    pub tables: Vec<AccountPageTable>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPageTable {
+    pub id: String,
+    /// Shown above the table when the page has several.
+    #[serde(default)]
+    pub title: Option<String>,
+    pub columns: Vec<AccountPageColumn>,
+    /// The sort before the user picks one.
+    #[serde(default)]
+    pub sort: Option<AccountPageSort>,
+    /// Each row: column id → value (null: empty); `id` keys the row when present.
+    #[serde(default)]
+    pub rows: Vec<BTreeMap<String, Option<PageCell>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPageColumn {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub format: ColumnFormat,
+    /// Shown once the user picks it in Column setup.
+    #[serde(default)]
+    pub hidden: bool,
+}
+
+/// How a column's values show. An unknown format shows as text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ColumnFormat {
+    /// The broker's ticker: a row click shows it on the chart.
+    Symbol,
+    /// "buy" / "sell", shown as Buy / Sell.
+    Side,
+    Qty,
+    /// On the tick of the row's symbol.
+    Price,
+    /// An amount of the account's currency.
+    Money,
+    /// A signed amount, green or red.
+    Pnl,
+    Percent,
+    /// A signed percent, green or red.
+    PnlPercent,
+    Number,
+    /// UNIX milliseconds, shown as a local date and time.
+    Time,
+    #[default]
+    Text,
+}
+
+impl<'de> Deserialize<'de> for ColumnFormat {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)?.as_str().unwrap_or_default() {
+            "symbol" => Self::Symbol,
+            "side" => Self::Side,
+            "qty" => Self::Qty,
+            "price" => Self::Price,
+            "money" => Self::Money,
+            "pnl" => Self::Pnl,
+            "percent" => Self::Percent,
+            "pnlPercent" => Self::PnlPercent,
+            "number" => Self::Number,
+            "time" => Self::Time,
+            _ => Self::Text,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPageSort {
+    pub column: String,
+    #[serde(default = "yes")]
+    pub asc: bool,
+}
+
+const fn yes() -> bool {
+    true
+}
+
+/// A value of a page's table: a number or a text. A true / false reads as text, a list or an object as an empty text.
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
+#[serde(untagged)]
+pub enum PageCell {
+    Number(f64),
+    Text(String),
+}
+
+impl<'de> Deserialize<'de> for PageCell {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)? {
+            serde_json::Value::Number(n) => n.as_f64().map_or(PageCell::Text(String::new()), PageCell::Number),
+            serde_json::Value::String(s) => PageCell::Text(s),
+            serde_json::Value::Bool(b) => PageCell::Text(b.to_string()),
+            _ => PageCell::Text(String::new()),
+        })
+    }
+}
+
+fn pages_that_read<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<AccountPage>, D::Error> {
+    let pages = Option::<Vec<serde_json::Value>>::deserialize(d)?.unwrap_or_default();
+    Ok(pages.into_iter().filter_map(|p| serde_json::from_value(p).ok()).collect())
 }
 
 /// An order notification (`broker.event`): the toasts.
@@ -327,6 +451,43 @@ mod tests {
         assert!(s.capabilities.brackets);
         assert!(s.capabilities.ticket_fields.is_empty());
         assert!(s.orders[0].fields.is_empty());
+        assert!(s.pages.is_empty());
+    }
+
+    #[test]
+    fn broker_pages_read_and_a_broken_one_is_left_out() {
+        let s: BrokerState = serde_json::from_value(serde_json::json!({
+            "connected": true,
+            "pages": [
+                { "id": "holdings", "title": "Holdings", "counter": true, "tables": [{
+                    "id": "main",
+                    "columns": [{ "id": "symbol", "label": "Symbol", "format": "symbol" }, { "id": "qty", "label": "Quantity", "format": "qty" },
+                                { "id": "isin", "label": "ISIN", "format": "barcode", "hidden": true }],
+                    "sort": { "column": "qty", "asc": false },
+                    "rows": [{ "id": "1", "symbol": "RELIANCE", "qty": 10, "isin": "INE002A01018", "pledged": true, "extra": [1], "none": null }]
+                }] },
+                { "id": "broken", "tables": "nope" }
+            ]
+        }))
+        .unwrap();
+        assert!(s.connected);
+        assert_eq!(s.pages.len(), 1);
+        let t = &s.pages[0].tables[0];
+        assert_eq!((t.columns[0].format, t.columns[2].format), (ColumnFormat::Symbol, ColumnFormat::Text));
+        assert!(t.columns[2].hidden && !t.sort.as_ref().unwrap().asc);
+        assert_eq!(t.rows[0]["qty"], Some(PageCell::Number(10.0)));
+        assert_eq!(t.rows[0]["pledged"], Some(PageCell::Text("true".into())));
+        assert_eq!((&t.rows[0]["extra"], &t.rows[0]["none"]), (&Some(PageCell::Text(String::new())), &None));
+        // To the window: numbers, texts and null.
+        let v = serde_json::to_value(&t.rows[0]).unwrap();
+        assert_eq!((v["qty"].as_f64(), v["extra"].as_str(), v["none"].is_null()), (Some(10.0), Some(""), true));
+        // Each format reads back as it is written (the window's status goes both ways).
+        for f in [ColumnFormat::Symbol, ColumnFormat::Side, ColumnFormat::Qty, ColumnFormat::Price, ColumnFormat::Money, ColumnFormat::Pnl] {
+            assert_eq!(serde_json::from_value::<ColumnFormat>(serde_json::to_value(f).unwrap()).unwrap(), f);
+        }
+        for f in [ColumnFormat::Percent, ColumnFormat::PnlPercent, ColumnFormat::Number, ColumnFormat::Time, ColumnFormat::Text] {
+            assert_eq!(serde_json::from_value::<ColumnFormat>(serde_json::to_value(f).unwrap()).unwrap(), f);
+        }
     }
 
     #[test]

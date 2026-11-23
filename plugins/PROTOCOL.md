@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **6**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). A plugin of an earlier version works unchanged.
+Plugin API version **7**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -371,6 +371,46 @@ The whole account. Send it once after `hello`, then whenever any part changes: a
 | `orders[].takeProfit`, `stopLoss` | The brackets an order opens its position with. |
 | `orders[].fields` | The ticket fields' values the order was placed with (`{"product":"CNC"}`): `broker.modify` sends them back. |
 | `positions[].takeProfit`, `stopLoss` | A position's brackets. |
+| `pages` | Optional (Plugin API 7). The broker's own tabs in the account manager, such as Holdings. See [Broker pages](#broker-pages). |
+
+### Broker pages
+
+A broker with account data the app's tabs don't hold (holdings, funds, a margin breakdown) sends it as its own tabs in `pages`, part of `broker.state`. They show after Trade history, in the order sent, with the same tables as the app's own tabs: sorting, Column setup, Download data. Send the whole page again with each `broker.state`, as for orders; the app asks for the state when the account manager opens, so the user sees the broker's latest values there.
+
+```json
+"pages": [{
+  "id": "holdings", "title": "Holdings", "counter": true,
+  "tables": [{
+    "id": "main",
+    "columns": [
+      { "id": "symbol", "label": "Symbol", "format": "symbol" },
+      { "id": "qty", "label": "Quantity", "format": "qty" },
+      { "id": "avgPrice", "label": "Avg price", "format": "price" },
+      { "id": "last", "label": "Last price", "format": "price" },
+      { "id": "invested", "label": "Invested", "format": "money" },
+      { "id": "value", "label": "Current value", "format": "money" },
+      { "id": "pnl", "label": "Unrealized P&L", "format": "pnl" },
+      { "id": "pnlPct", "label": "Unrealized P&L %", "format": "pnlPercent" },
+      { "id": "isin", "label": "ISIN", "hidden": true }
+    ],
+    "sort": { "column": "value", "asc": false },
+    "rows": [{ "id": "RELIANCE", "symbol": "NSE:RELIANCE", "qty": 10, "avgPrice": 2450.5, "last": 2512.3,
+               "invested": 24505, "value": 25123, "pnl": 618, "pnlPct": 2.52, "isin": "INE002A01018" }]
+  }]
+}]
+```
+
+| Field | Meaning |
+|---|---|
+| `id`, `title` | The page's id (kept with the user's column choices) and its tab's title, shown as written. |
+| `counter` | The tab shows its number of rows, as Positions does. |
+| `tables` | One table, or several: each is then shown under its `title`. A table's `id` keeps the user's column order, shown columns and sort. |
+| `columns[].format` | How the values show: `text` (when left out), `symbol` (a ticker of the broker's, as in `positions[].ticker`: the row click shows it on the chart and the table's prices take its tick), `side` (`buy` / `sell`), `qty`, `price`, `money` (the account's currency), `pnl` (signed, green or red), `percent`, `pnlPercent` (signed, green or red), `number` or `time` (UNIX milliseconds). The first `symbol` column stays first. |
+| `columns[].hidden` | Shown only once the user picks it in Column setup. |
+| `sort` | The rows' order until the user sorts the table: `column` and `asc` (`true` when left out). |
+| `rows` | One object per row: a column `id` to a number or a text, `null` or left out when empty. A text in a number column shows as it is. `id` keys the row. |
+
+The labels and texts are shown as the plugin writes them, not translated. A page that doesn't read (a missing `id`, `title` or `tables`) is left out; the rest of the state still reads.
 
 ### `broker.event` (plugin → app, notification)
 

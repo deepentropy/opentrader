@@ -1765,3 +1765,11 @@ html.theme-light {
   gap: 16px;
   padding: 4px 0 8px;
 }
+
+/* A broker page with several tables (#384): each under its title. */
+.trd-am-table-title {
+  margin: 0;
+  padding: 12px 12px 4px;
+  font: 600 14px/18px var(--trd-font);
+  color: var(--color-text-primary);
+}

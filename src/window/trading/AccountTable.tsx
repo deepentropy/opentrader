@@ -10,7 +10,7 @@ import { CheckMarkBox } from "../../components/form";
 import { Tooltip } from "../../components/Tooltip";
 import { translate } from "../../i18n/translator";
 import { Popover, PopDivider, PopItem } from "../screener/Popover";
-import { isShown, ordered, saveState, sortedRows, tableState, type Column, type Sort } from "./account-table-model";
+import { isShown, ordered, saveState, sortOf, sortedRows, tableState, type Column, type Sort } from "./account-table-model";
 
 export { tableCsv, type Column } from "./account-table-model";
 
@@ -55,7 +55,7 @@ export function AccountTable<T>(props: {
   let menuAnchor: HTMLDivElement | undefined;
 
   const cycleSort = (id: string) => {
-    const s = state().sort;
+    const s = sortOf(props.id);
     const next: Sort | null = s?.id !== id ? { id, dir: "asc" } : s.dir === "asc" ? { id, dir: "desc" } : null;
     saveState(props.id, { ...state(), sort: next });
   };
@@ -85,7 +85,10 @@ export function AccountTable<T>(props: {
           <tr>
             <For each={shown()}>
               {(c) => {
-                const sorted = () => (state().sort?.id === c.id ? state().sort!.dir : null);
+                const sorted = () => {
+                  const s = sortOf(props.id);
+                  return s?.id === c.id ? s.dir : null;
+                };
                 return (
                   <th
                     classList={{ "is-num": c.num, "is-fixed": c.fixed, "is-sorted": !!sorted(), "is-drop": dropOn() === c.id && dragging() !== c.id }}
@@ -116,7 +119,7 @@ export function AccountTable<T>(props: {
                     }}
                   >
                     <span class="trd-th-label">
-                      {c.title()}
+                      <span data-no-translate={c.brokerText || undefined}>{c.title()}</span>
                       <Show when={sorted()}>{(d) => <SortArrow dir={d()} />}</Show>
                     </span>
                   </th>
@@ -186,7 +189,9 @@ export function AccountTable<T>(props: {
                     onClick={() => !locked() && toggleColumn(c.id)}
                   >
                     <CheckMarkBox checked={on()} variant="menu" />
-                    <span class="scr-item-title">{c.title()}</span>
+                    <span class="scr-item-title" data-no-translate={c.brokerText || undefined}>
+                      {c.title()}
+                    </span>
                   </div>
                 );
               }}

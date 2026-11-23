@@ -1,10 +1,11 @@
 /*
  * Account manager (#315): the connected broker plugin's account under the charts, a tab of the bottom panel. The
- * account header (account selector, balance, equity, P&L, margin), the pages (Positions, Orders, Trade history,
- * Account summary, Notifications log) and their tables. A row click shows its symbol on the chart.
+ * account header (account selector, balance, equity, P&L, margin), the pages (Positions, Orders, Trade history, the
+ * broker's own pages such as Holdings, Account summary, Notifications log) and their tables. A row click shows its
+ * symbol on the chart.
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
-import type { BrokerNotice } from "../../bindings";
+import type { AccountPage, BrokerNotice } from "../../bindings";
 import { showConfirm } from "../../components/Dialogs";
 import { CheckField, NumberField } from "../../components/form";
 import { Tooltip } from "../../components/Tooltip";
@@ -14,19 +15,15 @@ import { emitAppEvent } from "../../data/app-events";
 import * as kv from "../../data/kv";
 import { translate } from "../../i18n/translator";
 import { Popover, PopItem, PopSectionTitle } from "../screener/Popover";
-import { cachedSymbolSessions } from "../../data/session";
-import { fmtMoney, fmtPct, fmtPnl, fmtPrice as fmtAnyPrice, fmtQty, fmtTime, pnlClass } from "./format";
+import { fmtMoney, fmtPct, fmtPnl, fmtQty, fmtTime, pnlClass } from "./format";
 import { AccountTable, tableCsv, type Column, type RowMenuItem } from "./AccountTable";
 import { DownloadTradingDataDialog } from "./DownloadTradingDataDialog";
 import { CloseIcon, PencilIcon } from "./icons";
+import { BrokerPageView, brokerPageCsv, pageCount, tickerPrice as fmtPrice } from "./broker-pages";
 
-/** A price of `ticker` on its symbol's tick (once the chart symbol's sessions are known). */
-const fmtPrice = (v: number | null | undefined, ticker?: string) => {
-  const sym = ticker ? pluginBroker.chartSymbolFor(ticker) : null;
-  return fmtAnyPrice(v, sym ? cachedSymbolSessions(sym)?.mintick : null);
-};
-
-type Page = "positions" | "orders" | "history" | "summary" | "notifications";
+/** The app's pages, and the broker's own (`broker:<id>`, #384). */
+type Page = "positions" | "orders" | "history" | "summary" | "notifications" | `broker:${string}`;
+type PageTab = { id: Page; title: () => string; broker?: AccountPage };
 type Filter = "all" | "working" | "inactive" | "filled" | "cancelled" | "rejected";
 
 const isActiveOrder = (o: BrokerOrder) => o.status === "placing" || o.status === "working" || o.status === "inactive" || !o.status;
@@ -149,13 +146,25 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
     if (s) props.onSymbol(s);
   };
   const counts = createMemo(() => ({ positions: st()?.positions.length ?? 0, orders: (st()?.orders ?? []).filter(isActiveOrder).length }));
-  const pages: [Page, () => string][] = [
-    ["positions", () => translate("Positions")],
-    ["orders", () => translate("Orders")],
-    ["history", () => translate("Trade history")],
-    ["summary", () => translate("Account summary")],
-    ["notifications", () => translate("Notifications log")],
-  ];
+  const brokerId = () => pluginBroker.status()?.active ?? "";
+  /** The broker's pages, as the plugin last sent them: after Trade history, as the reference app places them. */
+  const brokerPages = () => st()?.pages ?? [];
+  const brokerPage = (id: Page) => brokerPages().find((p) => `broker:${p.id}` === id);
+  const own = (id: Page, title: () => string): PageTab => ({ id, title });
+  const pages = createMemo((): PageTab[] => [
+    own("positions", () => translate("Positions")),
+    own("orders", () => translate("Orders")),
+    own("history", () => translate("Trade history")),
+    ...brokerPages().map((p) => ({ id: `broker:${p.id}` as Page, title: () => brokerPage(`broker:${p.id}`)?.title ?? p.title, broker: p })),
+    own("summary", () => translate("Account summary")),
+    own("notifications", () => translate("Notifications log")),
+  ]);
+  /** The page shown: a broker page the plugin no longer sends falls back to Positions. */
+  const current = () => (page().startsWith("broker:") && !brokerPage(page()) ? "positions" : page());
+  const csvOf = (id: Page) => {
+    const p = brokerPage(id);
+    return p ? brokerPageCsv(brokerId(), p) : pageCsv(id);
+  };
   const filters: [Filter, () => string][] = [
     ["all", () => translate("All")],
     ["working", () => translate("Working")],
@@ -181,12 +190,18 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
       >
         <AccountHeader />
         <div class="trd-am-tabs" role="tablist">
-          <For each={pages}>
-            {([id, title]) => {
-              const count = () => (id === "positions" ? counts().positions : id === "orders" ? counts().orders : 0);
+          <For each={pages().map((p) => p.id)}>
+            {(id) => {
+              const title = () => pages().find((p) => p.id === id)?.title() ?? "";
+              const count = () => {
+                const p = brokerPage(id);
+                return p ? pageCount(p) : id === "positions" ? counts().positions : id === "orders" ? counts().orders : 0;
+              };
               return (
-                <button type="button" role="tab" class="trd-pill" classList={{ "is-selected": page() === id }} aria-selected={page() === id} onClick={() => setPage(id)}>
-                  {title()}
+                <button type="button" role="tab" class="trd-pill" classList={{ "is-selected": current() === id }} aria-selected={current() === id} onClick={() => setPage(id)}>
+                  <Show when={id.startsWith("broker:")} fallback={title()}>
+                    <span data-no-translate>{title()}</span>
+                  </Show>
                   <Show when={count() > 0}>
                     <span class="trd-pill-count ot-value"> {count()}</span>
                   </Show>
@@ -203,11 +218,11 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
         <Show when={exporting()}>
           <DownloadTradingDataDialog
             broker={pluginBroker.status()?.activeName ?? translate("Broker")}
-            tabs={pages.map(([id, title]) => ({ id, title, csv: () => pageCsv(id) }))}
+            tabs={pages().map((p) => ({ id: p.id, title: p.title, csv: () => csvOf(p.id) }))}
             onClose={() => setExporting(false)}
           />
         </Show>
-        <Show when={page() === "orders"}>
+        <Show when={current() === "orders"}>
           <div class="trd-am-filters" role="tablist">
             <For each={filters}>
               {([id, title]) => {
@@ -225,19 +240,26 @@ export function AccountManager(props: { onSymbol: (symbol: string) => void; heig
           </div>
         </Show>
         <div class="trd-am-content">
-          <Show when={page() === "positions"}>
+          <Show when={current() === "positions"}>
             <PositionsTable onRow={show} />
           </Show>
-          <Show when={page() === "orders"}>
+          <Show when={current() === "orders"}>
             <OrdersTable filter={filter()} onRow={show} />
           </Show>
-          <Show when={page() === "history"}>
+          <Show when={current() === "history"}>
             <HistoryTable onRow={show} />
           </Show>
-          <Show when={page() === "summary"}>
+          <For each={brokerPages().map((p) => `broker:${p.id}` as Page)}>
+            {(id) => (
+              <Show when={current() === id && brokerPage(id)}>
+                {(p) => <BrokerPageView broker={brokerId()} page={p()} onRow={show} />}
+              </Show>
+            )}
+          </For>
+          <Show when={current() === "summary"}>
             <SummaryTable />
           </Show>
-          <Show when={page() === "notifications"}>
+          <Show when={current() === "notifications"}>
             <NotificationsTable />
           </Show>
         </div>
@@ -490,8 +512,8 @@ const summaryRows = (): SummaryRow[] => {
 };
 const noticeRows = () => pluginBroker.status()?.notices ?? [];
 
-/** The CSV of a page ("Download data"); Orders: all of them. */
-export function pageCsv(page: Page): string {
+/** The CSV of one of the app's pages ("Download data"); Orders: all of them. */
+function pageCsv(page: Page): string {
   switch (page) {
     case "positions":
       return tableCsv("positions", POSITION_COLUMNS, positionRows());

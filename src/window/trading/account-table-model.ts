@@ -14,6 +14,8 @@ export type Column<T> = {
   hidden?: boolean;
   /** Always shown, first, not dragged (Symbol). */
   fixed?: boolean;
+  /** The title is the broker's text (#384): not translated. */
+  brokerText?: boolean;
   cell: (row: T) => JSX.Element;
   /** The sort and CSV value (text as shown for text columns, the raw number for numbers). */
   value: (row: T) => string | number | null | undefined;
@@ -24,6 +26,19 @@ export type TableState = { order?: string[]; shown?: string[]; sort?: Sort | nul
 
 const keyOf = (id: string) => `ot:trading:table:${id}`;
 const states = new Map<string, ReturnType<typeof createSignal<TableState>>>();
+/** The sort a broker gives its own table (#384), until the user picks one (none included). */
+const initialSorts = new Map<string, Sort>();
+
+export function setInitialSort(id: string, sort: Sort | null | undefined) {
+  if (sort) initialSorts.set(id, sort);
+  else initialSorts.delete(id);
+}
+
+/** The table's sort: the user's, else the broker's. */
+export function sortOf(id: string): Sort | null {
+  const s = tableState(id)[0]().sort;
+  return s === undefined ? (initialSorts.get(id) ?? null) : s;
+}
 
 /** The kept state of a table, one signal per table id (shared by its views and its CSV). */
 export function tableState(id: string) {
@@ -74,7 +89,7 @@ function compare(a: unknown, b: unknown): number {
 
 /** The rows in the table's sort (empty values last); unsorted: as given. */
 export function sortedRows<T>(id: string, cols: Column<T>[], rows: T[]): T[] {
-  const sort = tableState(id)[0]().sort;
+  const sort = sortOf(id);
   const col = sort ? cols.find((c) => c.id === sort.id) : undefined;
   if (!sort || !col) return rows;
   const sign = sort.dir === "asc" ? 1 : -1;
