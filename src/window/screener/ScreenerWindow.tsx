@@ -11,6 +11,8 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { createAppTheme } from "../shell/app-theme";
 import { currentWindowLabel } from "../shell/window-bridge";
 import { DialogHost } from "../../components/Dialogs";
+import { onListFull } from "../../data/watchlist-limit";
+import { warnListFull } from "../right-rail/watchlist/list-full";
 import { SavedFileToast } from "../shell/SavedFileToast";
 import { ScreenerPanel } from "./ScreenerPanel";
 
@@ -20,6 +22,8 @@ export const SCREENER_PICK_EVENT = "screener-symbol-picked";
 export function ScreenerWindow() {
   const { observeTheme } = createAppTheme();
   onMount(observeTheme);
+  // "Save as watchlist" past the list size limit: its warning shows here (#358).
+  onListFull(warnListFull);
   return (
     <div class="screener-window">
       <ScreenerPanel

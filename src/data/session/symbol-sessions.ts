@@ -170,6 +170,11 @@ const resolved = new Map<string, SymbolSessions>();
 /** What each data plugin symbol's session was read from, to tell when its plugin answers otherwise. */
 const pluginInfos = new Map<string, string>();
 const pending = new Map<string, Promise<SymbolSessions>>();
+/** When each symbol's last lookup failed. A reactive look asks again only after FAILED_WAIT_MS: each resolve re-runs
+ *  every look, and a long watchlist whose lookups were refused (the web server's rate limit) asked for them all again
+ *  at each, thousands of calls a second (#358). */
+const failedAt = new Map<string, number>();
+export const FAILED_WAIT_MS = 30_000;
 const [version, setVersion] = createSignal(0);
 
 /** Bumped each time a symbol's session resolves (reactive). */
@@ -206,6 +211,10 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
       setVersion((v) => v + 1);
       return s;
     });
+    p.then(
+      () => failedAt.delete(key),
+      () => failedAt.set(key, Date.now()),
+    );
     p.finally(() => pending.delete(key)).catch(() => undefined);
     pending.set(key, p);
   }
@@ -244,7 +253,9 @@ export function cachedSymbolSessions(symbol: string): SymbolSessions | null {
   const { key } = keyOf(symbol);
   const done = resolved.get(key);
   if (done) return done;
-  // A symbol that doesn't exist is not asked for at every look.
+  // A symbol that doesn't exist is not asked for at every look, nor one whose lookup just failed.
+  const failed = failedAt.get(key);
+  if (failed != null && Date.now() - failed < FAILED_WAIT_MS) return null;
   if (!isUnknownSymbol(key)) void symbolSessions(symbol).catch(() => undefined);
   return null;
 }

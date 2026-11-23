@@ -47,6 +47,8 @@ export interface WatchlistCore {
   active: () => WatchList | undefined;
   addAnchor: Accessor<AddAnchor>;
   allRows: () => Row[];
+  /** Close the Add symbol dialog. */
+  closeAdd: () => void;
   extras: () => Row[];
   groups: () => Group[];
   inDeleted: () => boolean;

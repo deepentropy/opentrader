@@ -22,7 +22,7 @@ export interface AddSymbolsApi {
 }
 
 export function createAddSymbols(cx: WatchlistCx): AddSymbolsApi {
-  const { addAnchor, groups, isCollapsed, scrollToItem, setAddAnchor, setCollapse } = cx;
+  const { addAnchor, closeAdd, groups, isCollapsed, scrollToItem, setAddAnchor, setCollapse } = cx;
   // ── Added / found rows: highlighted for 500 ms, and the last one scrolls
   // into view.
   const [highlighted, setHighlighted] = createSignal<Set<string>>(new Set());
@@ -37,15 +37,21 @@ export function createAddSymbols(cx: WatchlistCx): AddSymbolsApi {
   };
   const isHighlighted = (r: Row) => highlighted().has(r.ticker);
 
+  // What an add did: the new rows are highlighted; refused (the list is
+  // full, the store showed its warning), the dialog closes, as in the
+  // reference.
+  const afterAdd = (added: string[] | null) => {
+    if (!added) closeAdd();
+    else if (added.length) highlightRows(added);
+  };
   // Add a symbol from the search dialog at the current anchor (deduped). The
   // chart symbol and the dialog stay as they are.
   const addSymbol = (name: string) => {
     const short = name.split(":").pop() || name;
-    const added = watchlistStore.addSymbols(
+    afterAdd(watchlistStore.addSymbols(
       [{ ticker: name, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }],
       addAnchor(),
-    );
-    if (added.length) highlightRows(added);
+    ));
   };
   // Comma mode: resolve each bare name to "EXCHANGE:TICKER" (a name that
   // does not resolve is kept as typed), then insert them all, in order, at
@@ -55,13 +61,12 @@ export function createAddSymbols(cx: WatchlistCx): AddSymbolsApi {
     void Promise.all(
       names.map((n) => (n.includes(":") ? Promise.resolve(n) : resolveSymbol(n).then((i) => i.fullName).catch(() => n))),
     ).then((full) => {
-      const added = watchlistStore.addSymbols(
+      afterAdd(watchlistStore.addSymbols(
         full.map((name) => ({
           ticker: name, short: name.split(":").pop() || name, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null,
         })),
         anchor,
-      );
-      if (added.length) highlightRows(added);
+      ));
     });
   };
   // Remove from the dialog. Removing the anchor row sends later adds to the

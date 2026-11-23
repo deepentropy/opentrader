@@ -6,7 +6,7 @@ const getSymbolSession = vi.hoisted(() => vi.fn());
 vi.mock("../../../bindings", () => ({ commands: { getSymbolSession } }));
 vi.mock("../../providers", () => ({ defaultExchange: () => "NASDAQ" }));
 
-import { SymbolSessions, type ScriptSession, cachedSymbolSessions, displayTimeZone, sessionsVersion, symbolSessions } from "../symbol-sessions";
+import { FAILED_WAIT_MS, SymbolSessions, type ScriptSession, cachedSymbolSessions, displayTimeZone, sessionsVersion, symbolSessions } from "../symbol-sessions";
 
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000;
 
@@ -171,6 +171,25 @@ describe("symbolSessions cache", () => {
     getSymbolSession.mockResolvedValueOnce({ status: "ok", data: usStock() });
     await expect(symbolSessions("NYSE:NOPE")).resolves.toBeInstanceOf(SymbolSessions);
     expect(getSymbolSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("a look does not ask again for a lookup that just failed, until FAILED_WAIT_MS later (#358)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      getSymbolSession.mockResolvedValue({ status: "error", error: "too many requests" });
+      expect(cachedSymbolSessions("NYSE:BUSY")).toBeNull();
+      await expect(symbolSessions("NYSE:BUSY")).rejects.toThrow();
+      for (let i = 0; i < 5; i++) expect(cachedSymbolSessions("NYSE:BUSY")).toBeNull();
+      expect(getSymbolSession).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(Date.now() + FAILED_WAIT_MS + 1);
+      getSymbolSession.mockResolvedValue({ status: "ok", data: usStock() });
+      expect(cachedSymbolSessions("NYSE:BUSY")).toBeNull();
+      expect(getSymbolSession).toHaveBeenCalledTimes(2);
+      await symbolSessions("NYSE:BUSY");
+      expect(cachedSymbolSessions("NYSE:BUSY")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns null for an empty symbol", () => {

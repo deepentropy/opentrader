@@ -31,7 +31,7 @@ import * as kv from "../../data/kv";
 import { FLAG_HEX, FLAG_SORT_ORDER, type FlagColor } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { FILTER_OPS, INDEXES } from "../../data/screener-catalog";
-import { allFlags, clearAllFlags, lastFlagColor, setFlag } from "../../data/symbol-flags";
+import { allFlags, clearAllFlags, flagSymbols, lastFlagColor } from "../../data/symbol-flags";
 import {
   PRICE_TARGETS,
   INTRADAY_MAX_SYMBOLS,
@@ -472,7 +472,7 @@ export function ScriptScreener(props: Props) {
   };
   const toggleFlag = (symbol: string) => {
     const t = bareTicker(symbol);
-    setFlag(flagKey(symbol), props.flagOf(t) ? null : lastFlagColor());
+    flagSymbols([flagKey(symbol)], props.flagOf(t) ? null : lastFlagColor());
   };
   const rowMenuNodes = (symbol: string): CtxNode[] => {
     const t = bareTicker(symbol);

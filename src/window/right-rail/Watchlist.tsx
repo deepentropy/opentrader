@@ -49,6 +49,7 @@ import { createSections } from "./watchlist/sections";
 import { createDrag } from "./watchlist/drag";
 import { createAddSymbols } from "./watchlist/add-symbols";
 import { createListActions } from "./watchlist/list-actions";
+import { createLiveRows } from "./watchlist/live-rows";
 import { createKeyboard } from "./watchlist/keyboard";
 import { createRowMenus } from "./watchlist/row-menus";
 import { createRows } from "./watchlist/rows";
@@ -86,6 +87,7 @@ export function Watchlist(props: WatchlistProps) {
   const inDeleted = () => isDeletedList(watchlistStore.activeId());
   const locked = () => isLockedList(watchlistStore.activeId());
   const noAdd = () => inDeleted() || locked();
+  const closeAdd = (): void => void setAddOpen(false);
   const openAdd = (anchor: AddAnchor) => {
     if (noAdd()) return;
     setAddAnchor(anchor);
@@ -163,6 +165,7 @@ export function Watchlist(props: WatchlistProps) {
     get active() { return active; },
     get addAnchor() { return addAnchor; },
     get allRows() { return allRows; },
+    get closeAdd() { return closeAdd; },
     get extras() { return extras; },
     get groups() { return groups; },
     get inDeleted() { return inDeleted; },
@@ -207,6 +210,7 @@ export function Watchlist(props: WatchlistProps) {
     uploadList,
   } = attach(cx, createListActions(cx));
   const { onListKeyDown } = attach(cx, createKeyboard(cx));
+  const onRowsScroll = createLiveRows(cx);
   const {
     createListWithItems,
     ctxIds,
@@ -357,6 +361,7 @@ export function Watchlist(props: WatchlistProps) {
             role="grid"
             tabindex={0}
             ref={cx.rowsEl}
+            onScroll={onRowsScroll}
             onKeyDown={onListKeyDown}
             onDragOver={onRowsDragOver}
             onDrop={onRowsDrop}
@@ -388,6 +393,7 @@ export function Watchlist(props: WatchlistProps) {
           role="grid"
           tabindex={0}
           ref={cx.rowsEl}
+          onScroll={onRowsScroll}
           onKeyDown={onListKeyDown}
           onDragOver={onRowsDragOver}
           onDrop={onRowsDrop}
@@ -469,7 +475,7 @@ export function Watchlist(props: WatchlistProps) {
             lists={ctxLists()}
             listHas={(listId, ticker) => watchlistStore.listHas(listId, ticker)}
             onToggleFlag={(rows) => toggleFlags(rows, m().selected != null)}
-            onSetFlag={(rows, flag) => rows.forEach((r) => watchlistStore.setRowFlag(r.ticker, flag))}
+            onSetFlag={(rows, flag) => watchlistStore.setRowsFlag(rows.map((r) => r.ticker), flag)}
             onUnflagAll={() =>
               showConfirm({
                 title: "Unflag all symbols?",

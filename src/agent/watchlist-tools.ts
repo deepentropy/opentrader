@@ -7,6 +7,7 @@ import { resolveSymbol } from "../data/datafeed";
 import type { Row } from "../data/watchlist";
 import { isDeletedList, isPluginList, watchlistStore, type WatchList } from "../data/watchlist-store";
 import { allFlags, FLAG_COLORS as FLAGS } from "../data/symbol-flags";
+import { MAX_LIST_ITEMS, listItemCount } from "../data/watchlist-limit";
 import { setActiveRailTab } from "../window/shell/app-dialogs";
 import { AgentError, type AgentTool } from "./mcp";
 
@@ -36,6 +37,14 @@ async function fullNames(raw: unknown): Promise<{ full: string[]; unknown: strin
     }),
   );
   return { full: [...new Set(out.flatMap((o) => (o.full ? [o.full] : [])))], unknown: out.filter((o) => !o.full).map((o) => o.t) };
+}
+
+/** A list may hold MAX_LIST_ITEMS symbols and sections: a change past it is refused whole, before the store would
+ *  show the user its warning. */
+function checkRoom(have: number, adding: number, what: string): void {
+  if (have + adding > MAX_LIST_ITEMS) {
+    throw new AgentError(`${what} would hold ${have + adding} symbols and sections: a watchlist holds at most ${MAX_LIST_ITEMS}. Nothing was changed.`);
+  }
 }
 
 const rowOf = (ticker: string): Row => ({ ticker, short: ticker.split(":").pop() || ticker, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
@@ -89,7 +98,7 @@ export function createWatchlistTools(): AgentTool[] {
       name: "create_watchlist",
       title: "Create watchlist",
       description:
-        "Create a watchlist and show it. symbols: put with no section; sections: [{name, symbols}] (section names are upper-cased, as in the app). A name already in use takes \" 2\".",
+        "Create a watchlist and show it. symbols: put with no section; sections: [{name, symbols}] (section names are upper-cased, as in the app). A name already in use takes \" 2\". A list holds at most 1000 symbols and sections.",
       inputSchema: {
         type: "object",
         properties: {
@@ -125,7 +134,10 @@ export function createWatchlistTools(): AgentTool[] {
             }
           }
         }
+        // Counted as the store counts: every row, each section name once.
+        checkRoom(0, items.filter((it) => typeof it !== "string").length + new Set(items.filter((it) => typeof it === "string")).size, `"${name}"`);
         const made = watchlistStore.createListWith(items, name);
+        if (!made) throw new AgentError(`"${name}" was not created.`);
         const l = listNamed(made);
         show(l);
         return { ...describe(l), ...(unknown.length ? { unknownSymbols: unknown } : {}) };
@@ -135,7 +147,7 @@ export function createWatchlistTools(): AgentTool[] {
       name: "add_to_watchlist",
       title: "Add to watchlist",
       description:
-        "Add symbols to a watchlist (default: the one shown) and show it: at the end of the list, or at the end of a section (made when the list has none of that name). Symbols already in the list are skipped.",
+        "Add symbols to a watchlist (default: the one shown) and show it: at the end of the list, or at the end of a section (made when the list has none of that name). Symbols already in the list are skipped. A list holds at most 1000 symbols and sections: symbols that would pass it are refused, none added.",
       inputSchema: {
         type: "object",
         properties: {
@@ -150,13 +162,15 @@ export function createWatchlistTools(): AgentTool[] {
         if (isDeletedList(l.id)) throw new AgentError('"Deleted symbols" only takes the symbols removed from the other lists.');
         if (isPluginList(l)) throw new AgentError(`"${l.name}" is a data plugin's list: the plugin keeps it up to date. Make a copy to change it.`);
         const { full, unknown } = await fullNames(args.symbols);
-        show(l);
         const sec = typeof args.section === "string" ? args.section.trim().toUpperCase() : "";
+        const newSection = sec && !l.groups.some((g) => g.name === sec) ? 1 : 0;
+        checkRoom(listItemCount(l), full.filter((s) => !watchlistStore.listHas(l.id, s)).length + newSection, `"${l.name}"`);
+        show(l);
         if (sec) watchlistStore.addSectionTo(l.id, sec);
         const cur = listNamed(l.name);
         const rows = sec ? cur.groups.find((g) => g.name === sec)?.rows : null;
         const last = rows?.[rows.length - 1]?.ticker;
-        const added = watchlistStore.addSymbols(full.map(rowOf), sec ? (last ? { section: sec, after: last } : { section: sec }) : null);
+        const added = watchlistStore.addSymbols(full.map(rowOf), sec ? (last ? { section: sec, after: last } : { section: sec }) : null) ?? [];
         return {
           watchlist: cur.name,
           added,
@@ -249,7 +263,12 @@ export function createWatchlistTools(): AgentTool[] {
         const color = args.color === null ? null : FLAGS.find((c) => c === args.color);
         if (color === undefined) throw new AgentError(`"color": one of ${FLAGS.join(", ")}, or null to remove the flag.`);
         const { full, unknown } = await fullNames(args.symbols);
-        for (const s of full) watchlistStore.setRowFlag(s, color);
+        if (color) {
+          const flags = allFlags();
+          const have = Object.values(flags).filter((c) => c === color).length;
+          checkRoom(have, full.filter((s) => flags[s] !== color).length, `The ${color} list`);
+        }
+        watchlistStore.setRowsFlag(full, color);
         return { flagged: full, color, ...(unknown.length ? { unknownSymbols: unknown } : {}) };
       },
     },

@@ -26,7 +26,8 @@ import {
   shownItems,
   watchlistStore as wl,
 } from "../watchlist-store";
-import { flagOf } from "../symbol-flags";
+import { flagOf, flagSymbols } from "../symbol-flags";
+import { MAX_LIST_ITEMS, listItemCount, onListFull, type ListFullKind } from "../watchlist-limit";
 
 const row = (ticker: string): Row => ({ ticker, short: ticker.slice(ticker.indexOf(":") + 1), last: "—", changePercent: "", prePostChange: "" });
 const items = () => listItems(wl.active()!);
@@ -38,7 +39,7 @@ function fresh(spec: string[]): string {
     if (s.startsWith("#")) groups.push({ name: s.slice(1), rows: [] });
     else (groups.length ? groups[groups.length - 1].rows : extras).push(row(s));
   }
-  if (groups.length) return wl.importList("Test", groups, extras);
+  if (groups.length) return wl.importList("Test", groups, extras)!;
   // A list with no section (an import would put the rows under "IMPORTED").
   const id = wl.createList("Test");
   wl.addSymbols(extras, null);
@@ -436,5 +437,97 @@ describe("watchlistStore: other lists", () => {
   it("adding to a colour list flags the symbol in the last colour order kept by symbol-flags", () => {
     wl.addRowTo("color-pink", row("NYSE:PNK"));
     expect(kv.store.get("ot:symbol-flag-last-color")).toBe("pink");
+  });
+});
+
+describe("watchlistStore: at most 1,000 symbols and sections per list (#358)", () => {
+  const warned: ListFullKind[] = [];
+  onListFull((kind) => warned.push(kind));
+  const many = (n: number, prefix = "T") => Array.from({ length: n }, (_, i) => row(`NASDAQ:${prefix}${i}`));
+  /** A fresh active list of `n` symbols with no section. */
+  const filled = (n: number, prefix = "T") => {
+    const id = wl.createList("Full");
+    expect(wl.addSymbols(many(n, prefix), null)).toHaveLength(n);
+    return id;
+  };
+  const count = (id: string) => listItemCount(wl.lists().find((l) => l.id === id)!);
+
+  it("Add symbol: fills the list up to the limit, then refuses with the warning", () => {
+    const id = filled(MAX_LIST_ITEMS - 1);
+    warned.length = 0;
+    expect(wl.addSymbols([row("NASDAQ:LAST")], null)).toEqual(["NASDAQ:LAST"]);
+    expect(count(id)).toBe(MAX_LIST_ITEMS);
+    expect(wl.addSymbols([row("NASDAQ:MORE")], null)).toBeNull();
+    expect(count(id)).toBe(MAX_LIST_ITEMS);
+    expect(warned).toEqual(["list"]);
+    // A symbol already in the full list is no addition: no warning.
+    expect(wl.addSymbols([row("NASDAQ:LAST")], null)).toEqual([]);
+    expect(warned).toEqual(["list"]);
+  });
+
+  it("several symbols that would pass the limit: none is added", () => {
+    const id = filled(MAX_LIST_ITEMS - 2);
+    warned.length = 0;
+    expect(wl.addSymbols(many(3, "X"), null)).toBeNull();
+    expect(count(id)).toBe(MAX_LIST_ITEMS - 2);
+    expect(wl.addSymbols(many(2, "X"), null)).toHaveLength(2);
+    expect(warned).toEqual(["list"]);
+  });
+
+  it("section headers count: no new section in a full list", () => {
+    const id = filled(MAX_LIST_ITEMS - 1);
+    warned.length = 0;
+    expect(wl.addSection(null)).toBe("SECTION 1");
+    expect(count(id)).toBe(MAX_LIST_ITEMS);
+    expect(wl.addSection(null)).toBe("");
+    expect(wl.addSectionTo(id, "MORE")).toBe(false);
+    expect(wl.lists().find((l) => l.id === id)!.groups.map((g) => g.name)).toEqual(["SECTION 1"]);
+    expect(warned).toEqual(["list", "list"]);
+  });
+
+  it("Add to another list: one row, or a selection all or none", () => {
+    const target = filled(MAX_LIST_ITEMS - 1);
+    fresh(["A"]);
+    warned.length = 0;
+    expect(wl.addItemsTo(target, [row("NASDAQ:N1"), "NEW", row("NASDAQ:N2")])).toBe(false);
+    expect(count(target)).toBe(MAX_LIST_ITEMS - 1);
+    // Rows the list already holds take no room.
+    expect(wl.addItemsTo(target, [row("NASDAQ:T0"), row("NASDAQ:N1")])).toBe(true);
+    expect(count(target)).toBe(MAX_LIST_ITEMS);
+    expect(wl.addRowTo(target, row("NASDAQ:N3"))).toBe(false);
+    expect(wl.listHas(target, "NASDAQ:N3")).toBe(false);
+    expect(warned).toEqual(["list", "list"]);
+  });
+
+  it("a new, imported or copied list over the limit is not made", () => {
+    const lists = wl.lists().length;
+    warned.length = 0;
+    expect(wl.createListWith(many(MAX_LIST_ITEMS + 1), "Too big")).toBeNull();
+    expect(wl.createListWith([...many(MAX_LIST_ITEMS - 1), "ONE"], "Just")).not.toBeNull();
+    const before = wl.lists().length;
+    expect(before).toBe(lists + 1);
+    expect(wl.importList("Too big", [{ name: "S", rows: many(MAX_LIST_ITEMS) }])).toBeNull();
+    // A plugin's list (cut to the limit when it arrives) is the only way to an older, longer list here.
+    const big = wl.setPluginList({ plugin: "p", list: "big" }, "Big", [], many(MAX_LIST_ITEMS + 5));
+    expect(wl.copyList(big, "Big copy")).toBeUndefined();
+    expect(wl.lists().length).toBe(before + 1);
+    expect(warned).toEqual(["list", "list", "list"]);
+  });
+
+  it("flags: a colour list holds at most 1,000 symbols too", () => {
+    warned.length = 0;
+    const syms = many(MAX_LIST_ITEMS, "F").map((r) => r.ticker);
+    expect(flagSymbols(syms.slice(0, MAX_LIST_ITEMS - 1), "purple")).toBe(true);
+    expect(flagSymbols([syms[0], syms[MAX_LIST_ITEMS - 1], "NASDAQ:ONEMORE"], "purple")).toBe(false);
+    expect(flagOf("NASDAQ:ONEMORE")).toBeNull();
+    expect(flagSymbols([syms[0], syms[MAX_LIST_ITEMS - 1]], "purple")).toBe(true);
+    expect(flagOf(syms[MAX_LIST_ITEMS - 1])).toBe("purple");
+    expect(wl.setRowsFlag(["NASDAQ:ONEMORE"], "purple")).toBe(false);
+    // Unflagging and another colour are always taken.
+    expect(wl.setRowsFlag([syms[0]], null)).toBe(true);
+    expect(flagOf(syms[0])).toBeNull();
+    expect(wl.setRowsFlag(["NASDAQ:ONEMORE"], "cyan")).toBe(true);
+    expect(warned).toEqual(["flags", "flags"]);
+    wl.setRowsFlag(syms, null);
   });
 });

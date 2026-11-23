@@ -8,7 +8,8 @@ import { showConfirm, showNotice } from "../../../components/Dialogs";
 import { formatted, translateWith } from "../../../i18n/translator";
 import { numberText } from "../../../i18n/format";
 import { promptCopyWatchlist, promptNewWatchlist } from "../watchlist-prompts";
-import { type ListFileError, MAX_LIST_FILE_ITEMS, MAX_LIST_FILE_KB, listFileTooBig, parseWatchlistFile } from "./list-file";
+import { type ListFileError, MAX_LIST_FILE_KB, listFileTooBig, parseWatchlistFile } from "./list-file";
+import { warnListFull } from "./list-full";
 import { type WatchlistCx } from "./context";
 
 /** What createListActions adds to the watchlist context. */
@@ -32,7 +33,7 @@ function refuseListFile(error: ListFileError): void {
   if (error === "size") {
     showNotice({ title: "File too big", text: formatted(translateWith("The file is larger than {0} KB.", numberText(MAX_LIST_FILE_KB))) });
   } else if (error === "count") {
-    showNotice({ title: "Too many symbols", text: formatted(translateWith("A watchlist holds at most {0} symbols and sections.", numberText(MAX_LIST_FILE_ITEMS))) });
+    warnListFull();
   } else {
     showNotice({
       title: "Invalid file",
@@ -58,7 +59,10 @@ export function createListActions(cx: WatchlistCx): ListActionsApi {
   // asked for it; from the list menu, the charted symbol's row), at the end
   // of the list when there is no such row. It is highlighted and scrolled to.
   const addSection = (before: string | null) => {
-    if (!inDeleted()) highlightRows([sectionId(watchlistStore.addSection(before))]);
+    if (inDeleted()) return;
+    // No name: the list is full (the store showed its warning).
+    const name = watchlistStore.addSection(before);
+    if (name) highlightRows([sectionId(name)]);
   };
   // "Clear list": remove every symbol from the active list (they join
   // "Deleted symbols").

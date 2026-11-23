@@ -8,10 +8,11 @@
  * takes the flags the watchlist rows carried (per row, per list) — first
  * colour found wins — see watchlist-store.
  */
-import { createStore, reconcile } from "solid-js/store";
+import { createStore, produce, reconcile } from "solid-js/store";
 import { createSignal } from "solid-js";
 import type { FlagColor } from "./watchlist";
 import * as kv from "./kv";
+import { MAX_LIST_ITEMS, listFull } from "./watchlist-limit";
 
 const KEY = "ot:symbol-flags";
 const LAST_KEY = "ot:symbol-flag-last-color";
@@ -78,6 +79,35 @@ export function setFlag(symbol: string, color: FlagColor | null): void {
     setFlags(symbol, undefined as unknown as FlagColor);
   }
   save();
+}
+
+/** Flag symbols with a colour (or unflag them with null), all or none: the
+ *  symbols of a colour make its colour list, which holds at most
+ *  MAX_LIST_ITEMS symbols. Returns false when the colour would pass it
+ *  (nothing changes). */
+export function flagSymbols(symbols: readonly string[], color: FlagColor | null): boolean {
+  if (color) {
+    const fresh = new Set(symbols.filter((s) => flags[s] !== color));
+    const have = Object.values(flags).filter((c) => c === color).length;
+    if (have + fresh.size > MAX_LIST_ITEMS) {
+      listFull("flags");
+      return false;
+    }
+  }
+  if (!symbols.length) return true;
+  // One save for the lot: a selection of a whole list flags hundreds at once.
+  setFlags(produce((f: Record<string, FlagColor>) => {
+    for (const s of symbols) {
+      if (color) f[s] = color;
+      else delete f[s];
+    }
+  }));
+  if (color) {
+    setLastColorSig(color);
+    kv.setItem(LAST_KEY, color);
+  }
+  save();
+  return true;
 }
 
 /** Every flag (symbol -> colour). Reactive. */

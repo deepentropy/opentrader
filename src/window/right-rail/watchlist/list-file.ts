@@ -3,11 +3,12 @@
  * ungrouped rows, with the reference app's checks (#355).
  */
 import type { Group, Row } from "../../../data/watchlist";
+import { MAX_LIST_ITEMS } from "../../../data/watchlist-limit";
 
 /** Largest file read, in KB. */
 export const MAX_LIST_FILE_KB = 250;
-/** Most symbols and sections a file may hold. */
-export const MAX_LIST_FILE_ITEMS = 1000;
+/** Most symbols and sections a file may hold: as many as a list. */
+export const MAX_LIST_FILE_ITEMS = MAX_LIST_ITEMS;
 
 /** Why a file was refused: too big, not a list of symbols, too many symbols. */
 export type ListFileError = "size" | "format" | "count";

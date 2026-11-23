@@ -20,6 +20,7 @@ vi.mock("../../window/shell/app-dialogs", () => ({ setActiveRailTab: (t: string)
 import { createWatchlistTools } from "../watchlist-tools";
 import { watchlistStore } from "../../data/watchlist-store";
 import { flagOf } from "../../data/symbol-flags";
+import { onListFull } from "../../data/watchlist-limit";
 
 const tools = createWatchlistTools();
 const run = (name: string, args: Record<string, unknown> = {}) => tools.find((t) => t.name === name)!.run(args) as Promise<Record<string, unknown>>;
@@ -58,5 +59,20 @@ describe("watchlist tools", () => {
     await expect(run("delete_watchlist", { name: "Red list" })).rejects.toThrow(/cannot be deleted/);
     expect(await run("delete_watchlist", { name: "Chips" })).toEqual({ deleted: "Chips" });
     await expect(run("get_watchlist", { name: "Chips" })).rejects.toThrow(/No watchlist named/);
+  });
+
+  it("refuses a change past 1000 symbols and sections whole, without the user's warning (#358)", async () => {
+    const warned: string[] = [];
+    onListFull((k) => warned.push(k));
+    const syms = (n: number, p: string) => Array.from({ length: n }, (_, i) => `${p}${i}`);
+    await expect(run("create_watchlist", { name: "Huge", symbols: syms(1001, "H") })).rejects.toThrow(/at most 1000/);
+    expect(watchlistStore.lists().some((l) => l.name === "Huge")).toBe(false);
+    await run("create_watchlist", { name: "Big", symbols: syms(999, "B") });
+    await expect(run("add_to_watchlist", { name: "Big", symbols: ["X1"], section: "NEW" })).rejects.toThrow(/would hold 1001/);
+    await expect(run("add_to_watchlist", { name: "Big", symbols: ["X1", "X2"] })).rejects.toThrow(/Nothing was changed/);
+    expect((await run("add_to_watchlist", { name: "Big", symbols: ["B0", "X1"] })).added).toEqual(["NASDAQ:X1"]);
+    await expect(run("flag_symbols", { symbols: syms(1001, "F"), color: "orange" })).rejects.toThrow(/orange list/);
+    expect(flagOf("NASDAQ:F0")).toBeNull();
+    expect(warned).toEqual([]);
   });
 });

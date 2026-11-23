@@ -75,6 +75,7 @@ import { ScriptScreener } from "./ScriptScreener";
 import { scriptScreenStore } from "../../data/script-screen-store";
 import { bareTicker, type ScriptColumn, type ScriptRow } from "../../data/script-screen";
 import { watchlistStore } from "../../data/watchlist-store";
+import { MAX_LIST_ITEMS, listFull } from "../../data/watchlist-limit";
 import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
 import { csvFileName } from "./screener-csv";
@@ -188,6 +189,8 @@ export function ScreenerPanel(props: Props) {
   const saveAsWatchlist = () => {
     trackScreener("screener_exported", { screener: "script", to: "watchlist" });
     const rows = scriptRows().filter((r) => !r.error);
+    // Too many results for one list: the warning before the name is asked.
+    if (rows.length > MAX_LIST_ITEMS) return listFull();
     promptNewWatchlist((name) =>
       watchlistStore.createListWith(
         rows.map((r) => ({ ticker: r.symbol, short: bareTicker(r.symbol), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null })),

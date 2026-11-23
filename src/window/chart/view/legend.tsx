@@ -18,7 +18,7 @@
  */
 import { For, Show } from "solid-js";
 import { reconcile } from "solid-js/store";
-import { flagOf, lastFlagColor, setFlag } from "../../../data/symbol-flags";
+import { flagOf, flagSymbols, lastFlagColor, setFlag } from "../../../data/symbol-flags";
 import { FlagColorPopup } from "../FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "../ChartSyncMenu";
 import { FLAG_HEX } from "../../../data/watchlist";
@@ -229,8 +229,8 @@ export function createLegend(cx: ChartCx): LegendApi {
               const sym = props.symbol;
               if (!sym) return;
               if (flagOf(sym)) { setFlag(sym, null); setFlagPopup(null); return; }
-              setFlag(sym, lastFlagColor());
-              setFlagPopup(btn);
+              // A full colour list refuses the flag (its warning shows): no popup then.
+              if (flagSymbols([sym], lastFlagColor())) setFlagPopup(btn);
             }}
             onChangeSymbol={props.onChangeSymbol}
             onChangeInterval={props.onChangeInterval}
@@ -253,7 +253,7 @@ export function createLegend(cx: ChartCx): LegendApi {
               <FlagColorPopup
                 anchor={btn()}
                 value={props.symbol ? flagOf(props.symbol) : null}
-                onPick={(c) => { if (props.symbol) setFlag(props.symbol, c); }}
+                onPick={(c) => { if (props.symbol) flagSymbols([props.symbol], c); }}
                 onClose={() => setFlagPopup(null)}
               />
             )}

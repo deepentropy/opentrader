@@ -63,6 +63,8 @@ import { tradeJournal } from "./data/trade-journal";
 import { chartFrame } from "./data/trade-journal-calc";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost, showNotice } from "./components/Dialogs";
+import { onListFull } from "./data/watchlist-limit";
+import { warnListFull } from "./window/right-rail/watchlist/list-full";
 import { startLocalFolderSync } from "./data/local-folders";
 import { installDialogDrag } from "./components/dialog-drag";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
@@ -246,6 +248,8 @@ function App() {
   onCleanup(() => disposeStorageCleanup());
 
   onCleanup(installDialogDrag());
+  // A watchlist change past the list size limit is refused with this warning (#358).
+  onListFull(warnListFull);
 
   // Tab-title parts (App Settings → Tabs).
   const [tabTitleParts, setTabTitlePartsRaw] = createSignal<TabTitlePartState[]>(loadTabTitleParts());

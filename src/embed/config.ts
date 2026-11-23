@@ -9,6 +9,7 @@
  * before any store loads.
  */
 import { LAYOUT_SPECS, type LayoutId } from "../window/chart/layouts";
+import { MAX_LIST_ITEMS } from "../data/watchlist-limit";
 
 /** Date ranges a chart can open on (the bottom bar's range tabs). */
 export const EMBED_RANGES = ["1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"] as const;
@@ -323,7 +324,8 @@ export function parseEmbedConfig(raw: unknown): EmbedConfig {
   for (const k of BOOL_KEYS) if (k in r) c[k] = boolOf(r[k]);
   c.studies = studiesOf(r.studies);
   c.compare = symbolsOf(r.compare);
-  c.watchlist = symbolsOf(r.watchlist);
+  // As many as a watchlist holds (#358): the rest is left out.
+  c.watchlist = symbolsOf(r.watchlist).slice(0, MAX_LIST_ITEMS);
   c.colors = colorsOf(r.colors);
   c.popupWidth = sizeOf(r.popupWidth, c.popupWidth);
   c.popupHeight = sizeOf(r.popupHeight, c.popupHeight);
