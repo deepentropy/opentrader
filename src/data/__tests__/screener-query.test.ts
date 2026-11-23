@@ -13,6 +13,7 @@ import {
   planScreen,
   presetFilter,
   presetTitle,
+  relativeDateRange,
 } from "../screener-query";
 import {
   COLUMN_BY_ID,
@@ -204,6 +205,24 @@ describe("filterClauses", () => {
     expect(filterClauses(box(C("Index"), ["SPX", "NDX"]))).toEqual([{ left: "indexes", operation: "in_range", right: ["SPX", "NDX"] }]);
     // A rating column is a number; its checkbox filter reads the bucket text.
     expect(filterClauses(box(C("TechnicalRating"), ["Buy", "StrongBuy"]))).toEqual([{ left: "TechRating_1D", operation: "in_range", right: ["Buy", "StrongBuy"] }]);
+  });
+
+  it("compiles a relative date filter to the range of its days (New York calendar days, weeks from Monday)", () => {
+    const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 1000;
+    const end = (d: string) => day(d) + 86399;
+    // Monday 23/11/2026, 14:30 New York (19:30 UTC); late evening New York is still that day (03:00 UTC the next day).
+    for (const now of [new Date("2026-11-23T19:30:00Z"), new Date("2026-11-24T03:00:00Z")]) {
+      expect(relativeDateRange("Today", now)).toEqual([day("2026-11-23"), end("2026-11-23")]);
+      expect(relativeDateRange("Yesterday", now)).toEqual([day("2026-11-22"), end("2026-11-22")]);
+      expect(relativeDateRange("Previous5Days", now)).toEqual([day("2026-11-18"), end("2026-11-22")]);
+      expect(relativeDateRange("ThisWeek", now)).toEqual([day("2026-11-23"), end("2026-11-29")]);
+      expect(relativeDateRange("PreviousWeek", now)).toEqual([day("2026-11-16"), end("2026-11-22")]);
+      expect(relativeDateRange("ThisMonth", now)).toEqual([day("2026-11-01"), end("2026-11-30")]);
+    }
+    expect(relativeDateRange("Nope")).toBeNull();
+    const [lo, hi] = relativeDateRange("ThisMonth")!;
+    expect(filterClauses(box(C("EarningsRecent"), ["ThisMonth"]))).toEqual([{ left: "f.earnings_recent", operation: "in_range", right: [lo, hi] }]);
+    expect(pillTexts(box(C("EarningsRecent"), ["Today"]))).toEqual({ primary: "Recent earnings date", value: "Current trading day" });
   });
 
   it("compiles ranges", () => {

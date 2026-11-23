@@ -132,6 +132,14 @@ const GROUPS: Record<string, string[]> = {
     "Untitled screen",
     "Untitled script",
   ],
+  "data/screener-catalog.ts EarningsRecent, the ranges of the recent earnings date filter (a tuple)": [
+    "Current trading day",
+    "Previous day",
+    "Previous 5 days",
+    "This week",
+    "Previous week",
+    "This month",
+  ],
   "window/right-rail/AlertsPanel.tsx, the Log tab (SegmentedControl sense)": ["Log|history"],
   "window/header/symbol-search/search-model.ts REGION_ORDER, the region headers of the Economy country panel": [
     "North America",

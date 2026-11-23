@@ -7,6 +7,7 @@ import { translate, translateWith } from "../i18n/translator";
 import type { Clause, Operand, ScanRequest } from "../bindings";
 import {
   COLUMN_BY_ID,
+  RELATIVE_DATES,
   columnSets,
   screenType,
   FILTER_OPS,
@@ -192,10 +193,41 @@ const OP: Record<Exclude<Operation, "between" | "outside">, Clause["operation"]>
   nequal: "nequal",
 };
 
+const DAY_SEC = 86400;
+
+/** UNIX seconds of the first and last second of a relative date range (RELATIVE_DATES) around `now`'s day in New
+ *  York; null for an unknown range. Days are UTC midnights, as the column holds them. */
+export function relativeDateRange(value: string, now = new Date()): [number, number] | null {
+  const r = RELATIVE_DATES[value];
+  if (!r) return null;
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(now).split("-").map(Number);
+  const today = Date.UTC(y, m - 1, d) / 1000;
+  let lo: number;
+  let hi: number;
+  if (r.unit === "day") {
+    lo = today + r.from * DAY_SEC;
+    hi = today + r.to * DAY_SEC;
+  } else if (r.unit === "week") {
+    const monday = today - ((new Date(today * 1000).getUTCDay() + 6) % 7) * DAY_SEC;
+    lo = monday + r.from * 7 * DAY_SEC;
+    hi = monday + (r.to * 7 + 6) * DAY_SEC;
+  } else {
+    lo = Date.UTC(y, m - 1 + r.from, 1) / 1000;
+    hi = Date.UTC(y, m + r.to, 1) / 1000 - DAY_SEC;
+  }
+  return [lo, hi + DAY_SEC - 1];
+}
+
 /** Clauses of one active filter; null when a field is missing. */
 export function filterClauses(f: Filter): Clause[] | null {
   const left = fieldOf(f.left);
   if (!left) return null;
+  const cfg = COLUMN_BY_ID[f.left.id]?.filter;
+  if (f.type === "CheckboxGroup" && cfg?.type === "CheckboxGroup" && cfg.relativeDate) {
+    const range = relativeDateRange(f.values[0]);
+    return range ? [{ left, operation: "in_range", right: range }] : [];
+  }
   if (f.type === "CheckboxGroup") return [{ left: COLUMN_BY_ID[f.left.id]?.filterField ?? left, operation: "in_range", right: f.values }];
   const r = f.right;
   let right: Operand;

@@ -107,7 +107,10 @@ export type ColumnDef = {
     | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data"; codes?: boolean; adaptive?: boolean;
         /** One value at a time (the reference app RadioGroup filter): a plain list, a click picks the value, the
          *  active pill shows it. */
-        single?: boolean };
+        single?: boolean;
+        /** The values are day ranges relative to today (the reference app Date filter, see RELATIVE_DATES): the
+         *  column holds days as UNIX seconds. */
+        relativeDate?: boolean };
   /** Text shown for a raw cell value (a list of codes shown as names). */
   cellText?: (raw: string) => string;
   /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
@@ -278,8 +281,22 @@ const fund = (id: string, title: string, short: string, category: Category, fmt:
   ...(typeof source === "string" ? { field: source } : { params: source }),
   ...(fmt === "text" || fmt === "date" ? {} : { filter: NUM_FILTER }),
 });
+/** The reference app Date filter of the recent earnings date: day ranges relative to today in New York, calendar
+ *  days, weeks from Monday (its scanner's in_day_range / in_week_range / in_month_range, measured 23/11/2026). */
+export const RELATIVE_DATES: Record<string, { unit: "day" | "week" | "month"; from: number; to: number }> = {
+  Today: { unit: "day", from: 0, to: 0 },
+  Yesterday: { unit: "day", from: -1, to: -1 },
+  Previous5Days: { unit: "day", from: -5, to: -1 },
+  ThisWeek: { unit: "week", from: 0, to: 0 },
+  PreviousWeek: { unit: "week", from: -1, to: -1 },
+  ThisMonth: { unit: "month", from: 0, to: 0 },
+};
 const FUNDAMENTALS: ColumnDef[] = [
   // Security info
+  { id: "EarningsRecent", title: "Recent earnings date", short: "Recent earnings date", category: "securityInfo", align: "right", fmt: "date",
+    width: 90, field: "f.earnings_recent", filter: { type: "CheckboxGroup", single: true, relativeDate: true, options: [
+      ["Today", "Current trading day"], ["Yesterday", "Previous day"], ["Previous5Days", "Previous 5 days"], ["ThisWeek", "This week"],
+      ["PreviousWeek", "Previous week"], ["ThisMonth", "This month"]] } },
   fund("RecentFiscalPeriod", "Recent fiscal period", "Fiscal period", "securityInfo", "text", FP(["current", "f.fiscal_period"])),
   fund("FiscalPeriodEndDate", "Fiscal period end date", "Fiscal period end", "securityInfo", "date", FP(["current", "f.fiscal_period_end"])),
   // Financials: income statement, balance sheet, cash flow
@@ -433,6 +450,7 @@ export const COLUMNS: ColumnDef[] = [
       { value: "Interval1Y", label: "1 year", short: "1Y", field: "Perf.Y" },
       { value: "Interval5Y", label: "5 years", short: "5Y", field: "Perf.5Y" },
       { value: "Interval10Y", label: "10 years", short: "10Y", field: "Perf.10Y" },
+      { value: "IntervalAll", label: "All Time", short: "All Time", field: "Perf.All" },
     ] }],
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: BANDS } },
   { id: "Price", title: "Price", short: "Price", category: "marketData", align: "right", fmt: "price", width: 99, field: "close",
@@ -911,7 +929,7 @@ export function emptyFilter(col: ColumnRef): Filter | null {
 
 /** Pills of a new screen: the reference app default pills, in its order, that have a
  *  data source (a pill whose column the backend does not hold is not shown). Left out:
- *  Analyst rating, Recent and Upcoming earnings date. */
+ *  Analyst rating and Upcoming earnings date. */
 const DEFAULT_PILLS: ColumnRef[] = [
   C("Index"),
   C("Price"),
@@ -926,14 +944,16 @@ const DEFAULT_PILLS: ColumnRef[] = [
   C("PriceToEarningsToGrowth", TTM),
   C("ReturnOnEquity", TTM),
   C("Beta", { interval: "Interval5Y" }),
+  C("EarningsRecent"),
 ];
 /** Default pills of earlier versions (before dividend yield and beta, then
- *  before Index, then before the fundamentals). A stored screen still equal to
- *  one of those defaults moves to the current one. */
+ *  before Index, then before the fundamentals, then before the recent earnings date). A stored screen still equal
+ *  to one of those defaults moves to the current one. */
 export const LEGACY_DEFAULT_PILLS: ColumnRef[][] = [
   [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })],
   [C("Price"), C("Change", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector"), C("Performance", { interval: "IntervalYTD" }), C("Beta", { interval: "Interval5Y" })],
   [C("Index"), C("Price"), C("Change", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector"), C("Performance", { interval: "IntervalYTD" }), C("Beta", { interval: "Interval5Y" })],
+  DEFAULT_PILLS.slice(0, -1),
 ];
 
 /** The reference app default screen ("Untitled screen") restricted to the catalog:
@@ -971,7 +991,7 @@ export const newScreen = (type: ScreenerType, title?: string): Screen => (type =
 /** The reference app "Popular screens" (03/11/2026, in its order) whose filters, columns and sort the backend can
  *  serve. Left out: "Healthy growth technology stocks" (the reference sector names; ours are the industry
  *  classification's divisions), "Dividend princes" and "Dividend kings" (25 to 40+ years of dividends; the dividend
- *  history starts in 2003). Each one = the default pills with the screen's own values, its extra filters after them,
+ *  history starts in 2003, the reference's about 1980). Each one = the default pills with the screen's own values, its extra filters after them,
  *  its column set and its sort (descending). */
 export type PopularScreen = { id: string; title: string; description: string; screen: (pills?: ColumnRef[]) => Screen };
 

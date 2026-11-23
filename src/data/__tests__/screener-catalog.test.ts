@@ -169,12 +169,12 @@ describe("filters and screens", () => {
     expect(ids.size).toBe(50);
   });
 
-  it("the default screen: 13 pills, Overview columns, market cap descending", () => {
+  it("the default screen: 14 pills, Overview columns, market cap descending", () => {
     const s = defaultScreen();
     expect(s.title).toBe(DEFAULT_SCREEN_TITLE);
     expect(s.filters.map((f) => f.left.id)).toEqual([
       "Index", "Price", "Change", "MarketCap", "PriceToEarnings", "EpsDilutedGrowth", "DividendsYield", "Sector", "Performance", "RevenueGrowth",
-      "PriceToEarningsToGrowth", "ReturnOnEquity", "Beta",
+      "PriceToEarningsToGrowth", "ReturnOnEquity", "Beta", "EarningsRecent",
     ]);
     expect(s.activeColumnSetId).toBe("overview");
     expect(s.customColumns).toBeNull();
