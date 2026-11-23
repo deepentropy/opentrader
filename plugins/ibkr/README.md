@@ -61,6 +61,8 @@ Not served yet: other countries' stocks, options, indexes, tick charts.
   - Exit orders are found again as the position's take profit and stop loss when they are bracket legs or in a one-cancels-all group. Plain opposite orders are listed as orders.
   - Closing a position cancels its exit orders once IB takes the closing order; a partial close cuts them to what is left.
 - **Durations.** Market orders are day orders; the others are good till cancelled. Stops trigger in regular hours only.
+- **Outside RTH.** The order ticket's Extra settings tick an order (limit and stop orders) and its take profit or stop loss to fill outside regular trading hours, as IB's Outside RTH.
+- **Order confirmation.** Before sending an order, the order ticket shows IB's what-if answer: the commission, and the equity with loan, initial and maintenance margin now, the change and after (its take profit and stop loss left out). Turn it off with "Show order confirmation" in the ticket's menu.
 - **Prices** are rounded to the contract's price step.
 - **Orders placed elsewhere** (TWS, another API program) are shown but cannot be changed or cancelled from OpenTrader: IB lets only the program that placed an order change it.
 - **One account at a time.** With several accounts under one login, pick the account in the account manager.
