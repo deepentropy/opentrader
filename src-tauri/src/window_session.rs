@@ -202,6 +202,41 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
     }
 }
 
+/// Windows minimised now (their page told it is hidden), by label.
+#[cfg(windows)]
+static MINIMIZED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// A minimised window's page is told it is hidden, as a browser tab in the background: it stops its animation frames
+/// and slows its timers, and the chart draws again once shown. The webview does not learn it by itself: its page stayed
+/// visible and drew every live update while the window was minimised (#249). Shown again when the window is restored.
+#[cfg(windows)]
+pub fn follow_minimized(window: &Window, event: &WindowEvent) {
+    if !matches!(event, WindowEvent::Resized(_)) {
+        return;
+    }
+    let Ok(minimized) = window.is_minimized() else { return };
+    let label = window.label().to_string();
+    {
+        let mut list = MINIMIZED.locked();
+        let was = list.contains(&label);
+        if was == minimized {
+            return;
+        }
+        if minimized {
+            list.push(label.clone());
+        } else {
+            list.retain(|l| *l != label);
+        }
+    }
+    let Some(webview) = window.app_handle().get_webview_window(&label) else { return };
+    let _ = webview.with_webview(move |w| unsafe {
+        let _ = w.controller().SetIsVisible(!minimized);
+    });
+}
+
+#[cfg(not(windows))]
+pub fn follow_minimized(_window: &Window, _event: &WindowEvent) {}
+
 /// True when the saved outer rectangle overlaps a monitor enough to be seen.
 fn on_screen(win: &WebviewWindow, st: &WindowState) -> bool {
     let Ok(monitors) = win.available_monitors() else { return false };

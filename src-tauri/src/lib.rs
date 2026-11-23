@@ -228,6 +228,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Window bounds / maximized / focus for the restart (window_session).
             window_session::on_window_event(window, event);
+            window_session::follow_minimized(window, event);
             if let tauri::WindowEvent::Destroyed = event {
                 use tauri::Manager;
                 let owner = window.label().to_string();
