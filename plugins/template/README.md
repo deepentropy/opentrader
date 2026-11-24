@@ -102,7 +102,8 @@ anywhere else install as *not verified*.
 - [ ] Errors reach the user: raise `PluginError("…")` with a message a trader understands, never let a request go
       unanswered.
 - [ ] A slow request (long history) does not block the others: the template answers each request on its own thread.
-- [ ] Losing your source's connection shows: send `"connected": false` in the broker state, and `log` a warning.
+- [ ] Losing your source's connection shows: send `"connected": false` in the broker state, and `log` a warning (or
+  `toast` it, Plugin API 8, for the user to see at once).
       Getting it back shows too: send the state again as soon as you are logged in, not only on the next order.
 - [ ] A symbol you don't know (expired, renamed) answers `PluginError("…", -32004)`.
 - [ ] A broker that only takes whole lots answers `broker.instrument` with its `qtyStep`; a broker that needs a choice

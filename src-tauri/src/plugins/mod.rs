@@ -133,6 +133,37 @@ pub struct PluginPrompt {
     pub image: Option<String>,
 }
 
+/// A plugin's short message that goes away by itself (`plugin.toast`).
+#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginToast {
+    pub plugin: String,
+    /// The plugin's name, the toast's title.
+    pub plugin_name: String,
+    /// "info", "warn" or "error".
+    pub level: String,
+    pub message: String,
+    /// Play the notification sound.
+    pub sound: bool,
+}
+
+/// The toast of a `plugin.toast`: none without a message. Unknown levels read as info; a long text is cut, a toast is
+/// a short message.
+fn plugin_toast(plugin: String, plugin_name: String, params: &serde_json::Value) -> Option<PluginToast> {
+    const MAX_CHARS: usize = 300;
+    let message = params.get("message").and_then(|v| v.as_str()).map(str::trim).filter(|m| !m.is_empty())?;
+    let message = match message.char_indices().nth(MAX_CHARS) {
+        Some((cut, _)) => format!("{}…", &message[..cut]),
+        None => message.to_string(),
+    };
+    let level = match params.get("level").and_then(|v| v.as_str()) {
+        Some(l @ ("warn" | "error")) => l,
+        _ => "info",
+    };
+    let sound = params.get("sound").and_then(|v| v.as_bool()).unwrap_or(false);
+    Some(PluginToast { plugin, plugin_name, level: level.to_string(), message, sound })
+}
+
 /// The plugin closed its prompt (`plugin.promptDone`).
 #[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
 pub struct PluginPromptDone {
@@ -334,6 +365,16 @@ pub fn init(app: &AppHandle) {
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "plugin.promptDone" => {
                     if let Some(id) = params.get("id").and_then(|v| v.as_str()) {
                         let _ = PluginPromptDone { plugin, id: id.to_string() }.emit(&handle);
+                    }
+                }
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "plugin.toast" => {
+                    let plugin_name = installed_manifest(&handle, &plugin).map(|m| m.name).unwrap_or_else(|| plugin.clone());
+                    match plugin_toast(plugin.clone(), plugin_name, &params) {
+                        Some(t) => {
+                            log(&handle, &plugin, format!("[toast {}] {}", t.level, t.message));
+                            let _ = t.emit(&handle);
+                        }
+                        None => log(&handle, &plugin, "[error] plugin.toast: no message"),
                     }
                 }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "log" => {
@@ -947,4 +988,31 @@ pub fn plugin_copy_files(app: AppHandle, id: String, step: u32, folders: Vec<Str
 #[specta::specta]
 pub fn plugin_logs(app: AppHandle, id: String) -> Vec<String> {
     app.state::<Plugins>().logs.locked().get(&id).map(|r| r.iter().cloned().collect()).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plugin_toast;
+    use serde_json::json;
+
+    fn toast(params: serde_json::Value) -> Option<super::PluginToast> {
+        plugin_toast("p".into(), "P".into(), &params)
+    }
+
+    #[test]
+    fn toast_reads_level_message_and_sound() {
+        let t = toast(json!({"level":"error","message":" Halted ","sound":true})).unwrap();
+        assert_eq!((t.level.as_str(), t.message.as_str(), t.sound, t.plugin_name.as_str()), ("error", "Halted", true, "P"));
+        let t = toast(json!({"level":"loud","message":"x"})).unwrap();
+        assert_eq!((t.level.as_str(), t.sound), ("info", false));
+    }
+
+    #[test]
+    fn toast_needs_a_message_and_cuts_a_long_one() {
+        assert!(toast(json!({"level":"info"})).is_none());
+        assert!(toast(json!({"message":"   "})).is_none());
+        let t = toast(json!({"message":"é".repeat(400)})).unwrap();
+        assert_eq!(t.message.chars().count(), 301);
+        assert!(t.message.ends_with('…'));
+    }
 }

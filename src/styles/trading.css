@@ -638,6 +638,32 @@ html.theme-light {
   background: rgba(140, 140, 140, 0.15);
   color: var(--color-cold-gray-450);
 }
+/* A plugin's message (plugin.toast): blue info, orange warning (as a rejection), red error. */
+.trd-toast.is-plugin-info .trd-toast-icon {
+  background: rgba(130, 177, 255, 0.15);
+  color: var(--color-ot-blue-a100);
+}
+.trd-toast.is-plugin-warn .trd-toast-icon {
+  background: rgba(255, 183, 77, 0.15);
+  color: var(--color-tan-orange-300);
+}
+.trd-toast.is-plugin-error .trd-toast-icon {
+  background: var(--ot-tint-red-15);
+  color: var(--trd-sell);
+}
+.trd-toast-repeat {
+  margin-inline-start: 8px;
+  vertical-align: 1px;
+}
+.trd-toast.is-plugin-info .trd-toast-text,
+.trd-toast.is-plugin-warn .trd-toast-text,
+.trd-toast.is-plugin-error .trd-toast-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
 
 /* ─── Header "Trade" button (replay) ─── */
 .trd-trade-btn {

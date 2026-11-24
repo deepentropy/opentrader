@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **7**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). A plugin of an earlier version works unchanged.
+Plugin API version **8**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). Version 8 adds a data plugin's word that its symbols' info changed (`data.symbolInfoChanged`) and short messages that go away by themselves (`plugin.toast`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -117,6 +117,7 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 | plugin → app | `plugin.prompt` | notification | A dialog for the user (Plugin API 3), see below. |
 | app → plugin | `plugin.promptAnswer` | notification | `{"id":"…","value":"…"}`: the user's answer to a prompt with an `input`; `value` is `null` when they cancelled. |
 | plugin → app | `plugin.promptDone` | notification | `{"id":"…"}`: closes the prompt (what it waited for happened). |
+| plugin → app | `plugin.toast` | notification | A short message that goes away by itself (Plugin API 8), see below. |
 
 ### Prompts
 
@@ -127,6 +128,18 @@ A plugin that needs the user, a login code for example, sends `plugin.prompt`:
 ```
 
 The app shows it as a dialog in its main window. `id` is the plugin's own. `input` is `"text"` or `"password"` for an answer field, or `null` for a message alone, with a Close button (a wait the user ends elsewhere, such as approving a login on a phone). `image` is an optional PNG, base64, shown above the field. The answer comes back in `plugin.promptAnswer`; a message alone gets none. The app closes a prompt on `plugin.promptDone`, and all of a plugin's prompts when it disconnects. The texts are shown as given: the app doesn't translate them.
+
+### Toasts
+
+A plugin tells the user that something happened, without stopping them, with `plugin.toast`:
+
+```json
+{"level":"info","message":"Instrument list reloaded","sound":false}
+```
+
+The app shows it in its chart windows, with the order toasts, under the plugin's name, and keeps it 10 seconds (25 for an `error`); nothing comes back. `level` is `info`, `warn` or `error` and picks the toast's colour (`info` when left out or unknown). `message` is a short text, shown as given and not translated, on 4 lines at most (the whole text when pointed at); a text over 300 characters is cut. With `"sound": true` the main window plays the alert sound (Thin), unless the sound of alerts is off in Settings > Alerts, at their volume. Any plugin may send it, data or broker, connected to a broker or not. The message is also written to the plugin's log.
+
+The same message (same level and text) sent again within 10 seconds counts on the toast shown ("×2") instead of adding one, and a plugin shows 5 new toasts of each level a minute at most: the others are only in its log. For an order use `broker.event`, for a line in the account manager's notifications `broker.notice`, and for a question `plugin.prompt`.
 
 ## Data plugins (`datafeed`)
 

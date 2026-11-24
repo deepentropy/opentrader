@@ -176,6 +176,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::PluginsChanged,
             plugins::PluginPrompt,
             plugins::PluginPromptDone,
+            plugins::PluginToast,
             plugins::broker::BrokerStatus,
             plugins::broker::BrokerOrderEvent,
             plugins::broker::BrokerQuote,
