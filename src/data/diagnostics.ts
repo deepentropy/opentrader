@@ -10,6 +10,7 @@ import { chartBars } from "./chart-state-registry";
 import { isEconomicSymbol } from "./datafeed";
 import { recentErrors, type LoggedError } from "./error-reports";
 import { replayStarted, replayTiming, replayUpdateInterval } from "./replay";
+import { appUpdateStatus } from "./app-update";
 import { zoom } from "./app-zoom";
 import { currentLanguage } from "../i18n/language";
 import { getIndicatorEntry, indicatorName, loadIndicatorLibrary } from "../window/chart/indicators/registry";
@@ -52,6 +53,8 @@ export type Diagnostics = {
   charts: ChartInfo[];
   replay: { on: boolean; timing?: string; update?: string };
   plugins: { name: string; version: string; provides: string[]; enabled: boolean; connected: boolean }[];
+  /** Desktop: the proxy's type only (no server or credentials) and the update state with its error. */
+  network?: { proxy: string; update: string };
   errors: LoggedError[];
   at: number;
 };
@@ -113,6 +116,8 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
         commands.pluginsStatus().catch(() => null),
       ])
     : [null, null, null];
+  const proxy = desktop ? await commands.getProxySettings().catch(() => null) : null;
+  const update = appUpdateStatus();
   const plugins = status?.plugins ?? [];
   await loadIndicatorLibrary().catch(() => undefined);
   const tab = host?.tabs.activeTab();
@@ -141,6 +146,14 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
       enabled: p.enabled,
       connected: p.connected,
     })),
+    ...(desktop
+      ? {
+          network: {
+            proxy: proxy?.enabled && proxy.host?.trim() ? (proxy.protocol ?? "http") : "none",
+            update: update.state + (update.state === "error" && update.error ? ` (${update.error.reason}: ${update.error.detail})` : ""),
+          },
+        }
+      : {}),
     errors: recentErrors(),
     at: Date.now(),
   };
@@ -191,6 +204,7 @@ export function formatDiagnostics(d: Diagnostics): string {
       }`,
     );
   }
+  if (d.network) lines.push(`- Proxy: ${d.network.proxy}; app update: ${d.network.update.replace(/\n/g, " ")}`);
   if (d.errors.length) {
     lines.push(`- Recent errors (oldest first):`);
     for (const e of d.errors) lines.push(`  - ${stamp(e.at)} ${e.kind}${e.count > 1 ? ` ×${e.count}` : ""}: ${e.text.replace(/\n/g, " ")}`);

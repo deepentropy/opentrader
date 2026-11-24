@@ -10,7 +10,7 @@ import { createEffect, createRoot, createSignal } from "solid-js";
 import { commands, events, type AppUpdateStatus, type BuildInfo } from "../bindings";
 import { flushKv } from "./kv";
 
-const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null, updateRequired: false, disabled: null });
+const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null, updateRequired: false, disabled: null, error: null });
 
 /** Current update state (same in every window). */
 export const appUpdateStatus = status;

@@ -517,6 +517,14 @@
   font-size: 14px;
   line-height: 18px;
 }
+/* Why the check failed, under the status (ours). */
+.update-app-status { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.update-app-status-reason {
+  color: var(--color-content-secondary-neutral);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
 /* Downloading: the arrow bobs (the reference app download-icon.css). */
 .update-app-status-icon .download-icon-arrow {
   animation: update-app-download-arrow 1.1s linear infinite;

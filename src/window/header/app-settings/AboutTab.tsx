@@ -4,7 +4,7 @@
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Icon } from "../../../components/Icon";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../../data/app-update";
-import type { BuildInfo } from "../../../bindings";
+import type { BuildInfo, UpdateFailure } from "../../../bindings";
 import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../../data/community/api";
 import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../../data/economic-notice";
 import { diagnosticsText } from "../../../data/diagnostics";
@@ -118,11 +118,20 @@ function SuggestLink() {
   );
 }
 
+/** Why the update check failed, under "Couldn't check for updates" (not in the reference app: a
+ *  proxy that the update can't use was invisible, #399). Other: the error itself. */
+const FAILURE_TEXT: Record<Exclude<UpdateFailure, "other">, string> = {
+  proxy: "The proxy of Settings > Network couldn't reach the update server",
+  connection: "No connection to the update server",
+  timeout: "The update server didn't answer in time",
+  server: "The update server didn't send the update",
+};
+
 /** The reference app's About update status block (`update-app`): one row per update state,
- *  "Relaunch" once the new version is downloaded. Error shows as up to date,
- *  like the reference app. */
+ *  "Relaunch" once the new version is downloaded. */
 function UpdateAppBlock() {
   const state = () => appUpdateStatus().state;
+  const failure = () => (state() === "error" ? appUpdateStatus().error : null);
   const view = (): { text: string; icon: JSX.Element } => {
     switch (state()) {
       case "checking":
@@ -145,7 +154,16 @@ function UpdateAppBlock() {
     <div class={`update-app ${state()}`}>
       <div class="update-app-text-container">
         <div class="update-app-status-icon">{view().icon}</div>
-        <span class="update-app-status-text">{view().text}</span>
+        <div class="update-app-status">
+          <span class="update-app-status-text">{view().text}</span>
+          <Show when={failure()}>
+            {(f) => (
+              <Show when={f().reason !== "other"} fallback={<span class="update-app-status-reason" data-no-translate>{f().detail}</span>}>
+                <span class="update-app-status-reason">{FAILURE_TEXT[f().reason as keyof typeof FAILURE_TEXT]}</span>
+              </Show>
+            )}
+          </Show>
+        </div>
       </div>
       <Show when={state() === "installing"}>
         <UpdateSpinner />

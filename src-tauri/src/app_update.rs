@@ -66,6 +66,61 @@ pub struct AppUpdateStatus {
     /// The gateway disabled this copy (gateway#16): its code (install id) to
     /// quote to support. Market data has stopped.
     pub disabled: Option<String>,
+    /// Why the last check or download failed (state `error`).
+    pub error: Option<UpdateError>,
+}
+
+/// What stopped the update, told apart for the user (Settings > About) with the
+/// error itself for a bug report (#399).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateError {
+    pub reason: UpdateFailure,
+    pub detail: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpdateFailure {
+    /// The proxy of Settings > Network refused or could not be used.
+    Proxy,
+    /// No connection to the update server.
+    Connection,
+    /// The update server did not answer in time.
+    Timeout,
+    /// The update server answered without a usable release.
+    Server,
+    Other,
+}
+
+impl UpdateError {
+    fn other(detail: impl Into<String>) -> Self {
+        Self { reason: UpdateFailure::Other, detail: detail.into() }
+    }
+
+    fn from_updater(e: &tauri_plugin_updater::Error, through_proxy: bool) -> Self {
+        use tauri_plugin_updater::Error as E;
+        let reason = match e {
+            // A connection error with a proxy set: the proxy is what the app reached (or failed to).
+            E::Reqwest(r) if through_proxy && (r.is_builder() || r.is_connect()) => UpdateFailure::Proxy,
+            E::Reqwest(r) if r.is_timeout() => UpdateFailure::Timeout,
+            E::Reqwest(r) if r.is_status() || r.is_decode() => UpdateFailure::Server,
+            E::Reqwest(_) | E::Network(_) => UpdateFailure::Connection,
+            E::ReleaseNotFound | E::Serialization(_) | E::TargetNotFound(_) | E::TargetsNotFound(_) => UpdateFailure::Server,
+            _ => UpdateFailure::Other,
+        };
+        // The chain names the actual cause ("unknown proxy scheme", "connection refused").
+        let mut detail = e.to_string();
+        let mut source = std::error::Error::source(e);
+        while let Some(s) = source {
+            let text = s.to_string();
+            if !detail.contains(&text) {
+                detail = format!("{detail}: {text}");
+            }
+            source = s.source();
+        }
+        Self { reason, detail }
+    }
 }
 
 /// Sent to every window right before the app exits (an update installs, or
@@ -105,7 +160,7 @@ pub struct AppUpdate {
 impl Default for AppUpdate {
     fn default() -> Self {
         Self {
-            status: Mutex::new(AppUpdateStatus { state: UpdateState::UpToDate, version: None, update_required: false, disabled: None }),
+            status: Mutex::new(AppUpdateStatus { state: UpdateState::UpToDate, version: None, update_required: false, disabled: None, error: None }),
             ready: Mutex::new(None),
             flushed: Mutex::new(HashSet::new()),
             flushed_notify: tokio::sync::Notify::new(),
@@ -139,24 +194,28 @@ fn enabled() -> bool {
     !cfg!(debug_assertions) || std::env::var_os("OPENTRADER_DEV_UPDATE").is_some()
 }
 
-fn updater(app: &AppHandle) -> Result<Updater, String> {
+fn updater(app: &AppHandle) -> Result<Updater, UpdateError> {
     #[allow(unused_mut)]
     let mut builder = app.updater_builder();
     // Dev builds may point at a local latest.json (the reference app's dev-app-update.yml).
     #[cfg(debug_assertions)]
     if let Ok(url) = std::env::var("OPENTRADER_UPDATE_ENDPOINT") {
-        let url = url.parse().map_err(|e| format!("OPENTRADER_UPDATE_ENDPOINT: {e}"))?;
-        builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
+        let url = url.parse().map_err(|e| UpdateError::other(format!("OPENTRADER_UPDATE_ENDPOINT: {e}")))?;
+        builder = builder.endpoints(vec![url]).map_err(|e| UpdateError::other(e.to_string()))?;
     }
     if let Some(proxy) = opentrader_core::net::proxy_url() {
         builder = builder.proxy(proxy);
     }
-    builder.build().map_err(|e| e.to_string())
+    builder.build().map_err(|e| UpdateError::other(e.to_string()))
 }
 
 fn set_status(app: &AppHandle, state: UpdateState, version: Option<String>) {
+    set_status_with(app, state, version, None);
+}
+
+fn set_status_with(app: &AppHandle, state: UpdateState, version: Option<String>, error: Option<UpdateError>) {
     let update = app.state::<AppUpdate>();
-    let status = AppUpdateStatus { state, version, update_required: update.required.load(Ordering::Relaxed), disabled: update.disabled.locked().clone() };
+    let status = AppUpdateStatus { state, version, update_required: update.required.load(Ordering::Relaxed), disabled: update.disabled.locked().clone(), error };
     *update.status.locked() = status.clone();
     let _ = status.emit(app);
 }
@@ -258,18 +317,19 @@ fn check(app: &AppHandle) {
         st.state = UpdateState::Checking;
         prev
     };
-    let _ = AppUpdateStatus { state: UpdateState::Checking, version: prev.version, update_required: prev.update_required, disabled: prev.disabled }.emit(app);
+    let _ = AppUpdateStatus { state: UpdateState::Checking, version: prev.version, update_required: prev.update_required, disabled: prev.disabled, error: None }.emit(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = check_and_download(&app).await {
-            eprintln!("[app-update] {e}");
-            set_status(&app, UpdateState::Error, None);
+            eprintln!("[app-update] {:?}: {}", e.reason, e.detail);
+            set_status_with(&app, UpdateState::Error, None, Some(e));
         }
     });
 }
 
-async fn check_and_download(app: &AppHandle) -> Result<(), String> {
-    let found = updater(app)?.check().await.map_err(|e| format!("check: {e}"))?;
+async fn check_and_download(app: &AppHandle) -> Result<(), UpdateError> {
+    let through_proxy = opentrader_core::net::proxy_url().is_some();
+    let found = updater(app)?.check().await.map_err(|e| UpdateError::from_updater(&e, through_proxy))?;
     let state = app.state::<AppUpdate>();
     let Some(update) = found else {
         *state.ready.locked() = None;
@@ -284,7 +344,11 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
             Some(bytes) => bytes,
             None => {
                 set_status(app, UpdateState::Downloading, Some(version.clone()));
-                let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| format!("download {version}: {e}"))?;
+                let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| {
+                    let mut e = UpdateError::from_updater(&e, through_proxy);
+                    e.detail = format!("download {version}: {}", e.detail);
+                    e
+                })?;
                 keep_download(app, &update, &bytes);
                 bytes
             }
@@ -494,7 +558,7 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
     let version = update.version.clone();
     let required = state.required.load(Ordering::Relaxed);
     let disabled = state.disabled.locked().clone();
-    let _ = AppUpdateStatus { state: UpdateState::Installing, version: Some(version.clone()), update_required: required, disabled }.emit(&app);
+    let _ = AppUpdateStatus { state: UpdateState::Installing, version: Some(version.clone()), update_required: required, disabled, error: None }.emit(&app);
 
     // 1-2. Every window's pending settings, the settings store and the window session to disk.
     save_before_exit(&app, Some(version.clone())).await;
@@ -594,6 +658,29 @@ mod tests {
     fn a_version_no_longer_served_only_waits_for_idle() {
         assert!(due(Duration::ZERO, 3 * H, true, true));
         assert!(!due(Duration::ZERO, H, true, true));
+    }
+
+    /// The updater plugin has its own HTTP client: it must speak SOCKS5 to a
+    /// SOCKS5 proxy like the rest of the app, not send it HTTP (#399).
+    #[tokio::test]
+    async fn the_updater_client_speaks_socks5_to_a_socks5_proxy() {
+        use tokio::io::AsyncReadExt;
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // The scheme opentrader_core::net gives a SOCKS5 proxy (its tests check it).
+        let proxy = reqwest_updater::Proxy::all(format!("socks5h://127.0.0.1:{port}")).unwrap();
+        let client = reqwest_updater::Client::builder().proxy(proxy).build().unwrap();
+        let request = tokio::spawn(async move { client.get("http://updates.example/latest.json").send().await });
+        // Without SOCKS support the client ignores the proxy: nothing comes.
+        let (mut conn, _) = tokio::time::timeout(Duration::from_secs(10), listener.accept())
+            .await
+            .expect("the updater's HTTP client did not go through the SOCKS5 proxy")
+            .unwrap();
+        let mut first = [0u8; 1];
+        conn.read_exact(&mut first).await.unwrap();
+        request.abort();
+        assert_eq!(first[0], 5, "the updater's HTTP client did not greet the proxy in SOCKS5");
     }
 
     #[test]
