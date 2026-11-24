@@ -26,6 +26,8 @@ use tokio::net::TcpStream;
 use wire::OrderTicket;
 
 pub const API: u32 = 3;
+/// The app's Plugin API that has toasts. Older apps do without: the plugin needs only `API`.
+const TOASTS_API: u64 = 8;
 /// The exchange of the plugin's chart symbols (`IBKR:AAPL`), as in the manifest.
 pub const EXCHANGE: &str = "IBKR";
 const HELLO_TIMEOUT: Duration = Duration::from_secs(15);
@@ -67,6 +69,8 @@ pub async fn run_session(addr: &str, plugin: &str, token: &str) -> Result<(), St
     println!("[info] connected to OpenTrader at {addr}");
 
     let ib = Ibkr::new(out.clone());
+    let app_api = answer.pointer("/result/api").and_then(Value::as_u64).unwrap_or(0);
+    ib.store.update(|t| t.toasts = app_api >= TOASTS_API);
     tokio::spawn(state::push_states(ib.store.clone()));
     tokio::spawn(ib.clone().supervise());
 

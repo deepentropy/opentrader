@@ -24,13 +24,19 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.3.0"
+#define PLUGIN_VERSION "0.4.0"
+#define TOASTS_API 8             // the app's Plugin API that has toasts; older apps do without
 #define RECONNECT_MS 3000
+#define LOST_MS 5000             // the trade server away this long: said to the user
 #define MAX_BARS 50000
 
 //--- Connection
 int      g_sock = INVALID_HANDLE;
 bool     g_ready = false;          // hello answered
+bool     g_toasts = false;         // the app shows toasts
+bool     g_serverSeen = false;     // the terminal was connected to its trade server
+ulong    g_serverDown = 0;         // since when it is not
+bool     g_serverLost = false;     // the user was told
 uchar    g_in[];                   // bytes read, not yet a whole line
 ulong    g_lastTry = 0;
 string   g_plugin = "mt5";
@@ -298,6 +304,36 @@ void Log(const string level, const string message)
       Notify("log", "{\"level\":" + JQ(level) + ",\"message\":" + JQ(message) + "}");
   }
 
+//--- A short message on the user's screen. Orders have their own (broker.event).
+void Toast(const string level, const string message, const bool sound)
+  {
+   if(g_ready && g_toasts)
+      Notify("plugin.toast", "{\"level\":" + JQ(level) + ",\"message\":" + JQ(message) + ",\"sound\":" + (sound ? "true" : "false") + "}");
+  }
+
+//--- The terminal's link to its trade server: said when it is lost for a few seconds, and when it is back.
+void WatchServer(void)
+  {
+   if(TerminalInfoInteger(TERMINAL_CONNECTED))
+     {
+      if(g_serverLost)
+         Toast("info", "The connection to " + AccountInfoString(ACCOUNT_SERVER) + " is back", false);
+      g_serverLost = false;
+      g_serverSeen = true;
+      g_serverDown = 0;
+      return;
+     }
+   if(!g_serverSeen || g_serverLost)
+      return;
+   ulong now = GetTickCount64();
+   if(g_serverDown == 0)
+      g_serverDown = now;
+   if(now - g_serverDown < LOST_MS)
+      return;
+   g_serverLost = true;
+   Toast("error", "MetaTrader 5 lost the connection to " + AccountInfoString(ACCOUNT_SERVER), true);
+  }
+
 void TryConnect(void)
   {
    ulong now = GetTickCount64();
@@ -407,6 +443,9 @@ void OnMessage(const string line)
          else
            {
             g_ready = true;
+            CJ *answer = m.Get("result");
+            CJ *api = answer == NULL ? NULL : answer.Get("api");
+            g_toasts = api != NULL && api.type == J_NUM && api.num >= TOASTS_API;
             g_stateDirty = true;
             // The orders already working were announced before: their updates are modifications.
             ArrayResize(g_placed, 0);
@@ -1840,6 +1879,7 @@ void OnTimer(void)
    ReadSocket();
    if(!g_ready)
       return;
+   WatchServer();
    StreamQuotes();
    StreamTicks();
    StreamDepth();

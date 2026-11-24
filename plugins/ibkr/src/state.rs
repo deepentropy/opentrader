@@ -131,6 +131,10 @@ pub struct Tables {
     pub executions: HashMap<String, ExecRow>,
     /// Orders a request is waiting on: their rejection is the request's error answer, not a notification.
     pub awaiting: HashSet<String>,
+    /// The app shows toasts (`plugin.toast`, Plugin API 8).
+    pub toasts: bool,
+    /// The user was told the connection is lost; the next one that comes back says so.
+    lost: bool,
     outbox: Vec<(&'static str, Value)>,
 }
 
@@ -139,6 +143,47 @@ impl Tables {
         let message = message.into();
         println!("[{level}] {message}");
         self.outbox.push(("broker.notice", json!({ "level": level, "message": message })));
+    }
+
+    /// A short message on the user's screen: what they would want to know while they watch a chart. Orders have their
+    /// own (`event`).
+    fn toast(&mut self, level: &str, message: &str, sound: bool) {
+        if self.toasts {
+            self.outbox.push(("plugin.toast", json!({ "level": level, "message": message, "sound": sound })));
+        }
+    }
+
+    /// The connection is lost: a notice each time, one toast until it is back.
+    pub fn link_lost(&mut self, level: &str, message: impl Into<String>) {
+        let message = message.into();
+        self.notice(level, message.clone());
+        if !self.lost {
+            self.lost = true;
+            self.toast("error", &message, true);
+        }
+    }
+
+    /// The connection is back: a toast when it was said to be lost (not on the first connection, nor after a drop too
+    /// short to be said).
+    pub fn link_back(&mut self, target: &str) {
+        if std::mem::take(&mut self.lost) {
+            self.toast("info", &format!("The connection to {target} is back"), false);
+        }
+    }
+
+    /// New settings: what was lost is not what comes next.
+    pub fn link_changed(&mut self) {
+        self.lost = false;
+    }
+
+    /// Something stopped or an order that protects a position was not updated: a notice and, unless the lost connection
+    /// explains it, a toast.
+    pub fn alarm(&mut self, level: &str, message: impl Into<String>) {
+        let message = message.into();
+        self.notice(level, message.clone());
+        if !self.lost {
+            self.toast(level, &message, true);
+        }
     }
 
     pub fn event(&mut self, e: BrokerEvent) {
@@ -751,5 +796,38 @@ mod tests {
         assert_eq!(v("Cushion").as_deref(), Some("95.0%"));
         assert_eq!(v("Day trades left").as_deref(), Some("Unlimited"));
         assert_eq!(v("Available funds").as_deref(), Some("950.50"));
+    }
+
+    #[test]
+    fn a_lost_connection_is_one_toast_until_it_is_back() {
+        let toasts = |t: &mut Tables| -> Vec<(String, bool)> {
+            std::mem::take(&mut t.outbox)
+                .into_iter()
+                .filter(|(m, _)| *m == "plugin.toast")
+                .map(|(_, v)| (v["level"].as_str().unwrap().to_string(), v["sound"].as_bool().unwrap()))
+                .collect()
+        };
+        let mut t = Tables { toasts: true, ..Tables::default() };
+        t.link_back("IB");
+        assert!(toasts(&mut t).is_empty(), "the first connection is no news");
+        t.link_lost("warn", "dropped");
+        t.link_lost("error", "lost");
+        t.alarm("error", "account updates stopped");
+        assert_eq!(toasts(&mut t), [("error".to_string(), true)]);
+        t.link_back("IB");
+        t.link_back("IB");
+        assert_eq!(toasts(&mut t), [("info".to_string(), false)]);
+        t.alarm("warn", "exit order not updated");
+        assert_eq!(toasts(&mut t), [("warn".to_string(), true)]);
+        // New settings end an outage quietly.
+        t.link_lost("error", "lost");
+        toasts(&mut t);
+        t.link_changed();
+        t.link_back("IB");
+        assert!(toasts(&mut t).is_empty());
+        // An app without toasts is sent none, the notices stay.
+        t.toasts = false;
+        t.link_lost("error", "lost");
+        assert_eq!(t.outbox.iter().map(|(m, _)| *m).collect::<Vec<_>>(), ["broker.notice"]);
     }
 }

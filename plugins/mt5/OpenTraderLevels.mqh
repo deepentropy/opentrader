@@ -826,6 +826,9 @@ void Notice(const string level, const string message)
    Print("OpenTrader: ", message);
    if(g_ready)
       Notify("broker.notice", "{\"level\":" + JQ(level) + ",\"message\":" + JQ(message) + "}");
+   // An exit level is missing: the position is less protected than the user thinks.
+   if(level == "error")
+      Toast(level, message, true);
   }
 
 //--- The position's levels in broker.state: id = the level's magic number, which stays when its legs are sent again.

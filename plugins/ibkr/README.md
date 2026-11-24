@@ -6,6 +6,7 @@ Connects OpenTrader to your Interactive Brokers account, through IB Gateway or T
 - **Trading**: market, limit, stop and stop-limit orders with take profit and stop loss; modify, cancel; close a position in whole or in part; add, move or remove a position's take profit and stop loss.
 - **Order ticket prices**: bid, ask and last of the ticket's symbol (delayed when the account has no market data subscription for it).
 - **Order book**: the DOM tab's bid and ask sizes, up to 10 levels a side. Stocks get IB's smart depth: the venues the account has depth permissions for, added up by price. Without permissions IB sends no book and the DOM shows no sizes; the account manager's notifications say why.
+- **Messages**: a short message on the charts, with a sound, when the connection to the broker is lost, the account or order updates stop or an exit order could not be updated, and one when the connection is back (OpenTrader releases after 0.4.32).
 
 Through IB Gateway or TWS, the login stays there and OpenTrader keeps no password. With a direct login, the password is kept in your computer's credential store. 
 ## Install

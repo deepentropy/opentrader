@@ -43,6 +43,10 @@ use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Notice codes of IB Gateway / TWS about its own link to the broker's servers.
+const SERVERS_LOST: i32 = 1100;
+const SERVERS_BACK: i32 = 1101;
+const SERVERS_BACK_DATA_KEPT: i32 = 1102;
 const RETRY_MIN: Duration = Duration::from_secs(2);
 const RETRY_MAX: Duration = Duration::from_secs(30);
 /// How long a request waits for the broker to accept or refuse an order before answering anyway.
@@ -270,12 +274,12 @@ impl Ibkr {
                             self.store.update(|t| {
                                 t.connected = false;
                                 t.clear_account();
-                                t.notice("error", format!("Lost the connection to {}. Reconnecting.", cfg.target()));
+                                t.link_lost("error", format!("Lost the connection to {}. Reconnecting.", cfg.target()));
                             });
                         }
                         _ = rx.changed() => {
                             self.drop_connection().await;
-                            self.store.update(|t| { t.connected = false; t.clear_account(); });
+                            self.store.update(|t| { t.connected = false; t.clear_account(); t.link_changed(); });
                             return;
                         }
                     }
@@ -293,7 +297,10 @@ impl Ibkr {
             }
             tokio::select! {
                 _ = tokio::time::sleep(delay) => {}
-                _ = rx.changed() => return,
+                _ = rx.changed() => {
+                    self.store.update(|t| t.link_changed());
+                    return;
+                }
             }
             delay = (delay * 2).min(RETRY_MAX);
         }
@@ -363,6 +370,7 @@ impl Ibkr {
             t.account = account.clone();
             let kind = if account.as_deref().is_some_and(|a| a.starts_with('D')) { "paper" } else { "live" };
             t.notice("info", format!("Connected to {target} ({kind} account {})", account.clone().unwrap_or_default()));
+            t.link_back(&target);
             account
         });
 
@@ -410,7 +418,7 @@ impl Ibkr {
                 self.store.update(|t| {
                     t.connected = up;
                     if !up {
-                        t.notice("warn", format!("The connection to {} dropped. Retrying.", conn.target));
+                        t.link_lost("warn", format!("The connection to {} dropped. Retrying.", conn.target));
                     }
                 });
             }
@@ -427,6 +435,7 @@ impl Ibkr {
                 self.store.update(|t| {
                     t.connected = true;
                     t.notice("info", format!("The connection to {} is back", conn.target));
+                    t.link_back(&conn.target);
                 });
                 conn.client.prefer_delayed().await;
                 if let Some(a) = self.store.read(|t| t.account.clone()) {
@@ -445,7 +454,15 @@ impl Ibkr {
             if n.connectivity_status().is_some() || n.is_data_advisory() {
                 continue;
             }
-            self.log_notice(&n);
+            match n.code {
+                // IB Gateway / TWS itself lost the broker's servers, then has them again.
+                SERVERS_LOST => self.store.update(|t| t.link_lost("error", format!("{} (code {})", n.message, n.code))),
+                SERVERS_BACK | SERVERS_BACK_DATA_KEPT => {
+                    self.log_notice(&n);
+                    self.store.update(|t| t.link_back("Interactive Brokers"));
+                }
+                _ => self.log_notice(&n),
+            }
         }
         // The client gave up retrying the socket.
         let _ = ended.send(());
@@ -586,7 +603,7 @@ impl Ibkr {
 
     fn account_error(&self, conn: &Conn, e: &str) {
         if self.is_current(conn.generation) {
-            self.store.update(|t| t.notice("error", format!("Account updates stopped: {e}")));
+            self.store.update(|t| t.alarm("error", format!("Account updates stopped: {e}")));
         }
     }
 
@@ -689,7 +706,7 @@ impl Ibkr {
                 }
                 Err(_) if !conn.client.is_connected() => continue,
                 Err(e) => {
-                    self.store.update(|t| t.notice("error", format!("Order updates stopped: {e}")));
+                    self.store.update(|t| t.alarm("error", format!("Order updates stopped: {e}")));
                     return;
                 }
             }
@@ -1179,7 +1196,7 @@ impl Ibkr {
                 self.resubmit(&conn, &contract, &exit, |o| o.total_quantity = left).await
             };
             if let Err(e) = done {
-                self.store.update(|t| t.notice("warn", format!("{}: the exit order {} was not updated: {e}", p.ticker, exit.key)));
+                self.store.update(|t| t.alarm("warn", format!("{}: the exit order {} was not updated: {e}", p.ticker, exit.key)));
             }
         }
         Ok(())
