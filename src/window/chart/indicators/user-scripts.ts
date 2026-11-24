@@ -333,7 +333,30 @@ export function dropUserScriptRuntime(scriptId: string): void {
 // charts showing it refresh their studies, window-events.ts).
 onPluginScriptsChanged((ids) => {
   for (const id of ids) runtimes.delete(id);
+  void compilePluginScripts(ids);
 });
+
+/** Compile the scripts a plugin sent: a stored script has the meta of its last compile, a plugin's has none yet, and
+ *  without its plots an alert or the screener cannot use a script that is on no chart. */
+async function compilePluginScripts(ids: Iterable<string>): Promise<void> {
+  for (const id of ids) {
+    const script = scripts.loadScript(id);
+    if (!script || script.meta) continue;
+    try {
+      const meta = await getOakEngine().compile(id, script.source);
+      // Sent again meanwhile: that one is compiled in its turn.
+      if (scripts.loadScript(id)?.source !== script.source) continue;
+      scripts.saveCompiledMeta(id, meta);
+      const rt = runtimes.get(id);
+      if (!rt) continue;
+      const structural = (rt.entry.overlay ?? true) !== meta.overlay;
+      applyMeta(rt.entry, script.name, meta);
+      dispatchUpdated(id, structural);
+    } catch {
+      // Its run on a chart shows the error.
+    }
+  }
+}
 
 /** Editor-side hook: the panel compiled `scriptId` (after a save). Persists
  *  the fresh meta, invalidates the cached result and tells charts to redraw

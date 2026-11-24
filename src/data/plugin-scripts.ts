@@ -104,7 +104,11 @@ export function pluginScriptMeta(id: string): OakCompiledMeta | undefined {
 
 export function setPluginScriptMeta(id: string, meta: OakCompiledMeta): void {
   const s = byId.get(id);
-  if (s) metas.set(id, { source: s.source, meta });
+  if (!s) return;
+  const first = !pluginScriptMeta(id);
+  metas.set(id, { source: s.source, meta });
+  // What the lists say of it (a strategy, whether the screener can run it) comes from the compile.
+  if (first) setSets((l) => [...l]);
 }
 
 /** Whether plugin script `id` goes on a chart as a strategy: its compile says so, else the plugin or its source. */
