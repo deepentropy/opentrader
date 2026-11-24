@@ -7,6 +7,7 @@ import { diagnosticsText } from "../data/diagnostics";
 import { chartBars, chartComparesFor } from "../data/chart-state-registry";
 import { isChartableResolution, supportedResolutions, toFullSymbol } from "../data/datafeed";
 import * as scripts from "../data/oakscript-store";
+import { isPluginScriptId, isPluginStrategy, pluginScriptList } from "../data/plugin-scripts";
 import { strategyTester } from "../data/strategy-tester-store";
 import { exportableCharts } from "../window/chart/chart-export";
 import { layoutSnapshot, snapshotTheme } from "../window/chart/layout-snapshot";
@@ -357,6 +358,10 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
             const strategy = !!scripts.loadScript(s.id)?.meta?.strategy;
             return { id: strategy ? userStrategyId(s.id) : userIndicatorId(s.id), name: s.name, group: strategy ? "my strategy" : "my script" };
           }),
+          ...pluginScriptList().map((s) => {
+            const strategy = isPluginStrategy(s.id);
+            return { id: strategy ? userStrategyId(s.id) : userIndicatorId(s.id), name: s.name, group: `${s.pluginName} ${strategy ? "strategy" : "script"}` };
+          }),
         ].filter((r) => !r.id.startsWith("tool:"));
         const hits = rows.filter((r) => words.every((w) => r.name.toLowerCase().includes(w) || r.id.toLowerCase().includes(w)));
         return { total: hits.length, indicators: hits.slice(0, limit) };
@@ -491,20 +496,32 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     {
       name: "list_scripts",
       title: "List scripts",
-      description: "The user's scripts (OakScript editor): id, name, indicator or strategy, and whether the focused chart shows it.",
+      description:
+        "The scripts (OakScript editor): the user's own (group \"mine\") and the data plugins' (group \"plugin: <name>\", read-only: write_script refuses them, copy the source into a new script to change one). Each with id, name, indicator or strategy, and whether the focused chart shows it.",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true },
       run: async () => {
         const on = new Set(pane().indicators.map(typeIdOf));
-        return scripts.listScripts().map((s) => {
+        const onChart = (id: string) => on.has(userIndicatorId(id)) || on.has(userStrategyId(id));
+        const mine = scripts.listScripts().map((s) => {
           const meta = scripts.loadScript(s.id)?.meta;
           return {
             id: s.id,
             name: s.name,
+            group: "mine",
             kind: meta ? (meta.strategy ? "strategy" : "indicator") : "not compiled",
-            onChart: on.has(userIndicatorId(s.id)) || on.has(userStrategyId(s.id)),
+            onChart: onChart(s.id),
           };
         });
+        const plugins = pluginScriptList().map((s) => ({
+          id: s.id,
+          name: s.name,
+          group: `plugin: ${s.pluginName}`,
+          readOnly: true,
+          kind: isPluginStrategy(s.id) ? "strategy" : "indicator",
+          onChart: onChart(s.id),
+        }));
+        return [...mine, ...plugins];
       },
     },
     {
@@ -539,6 +556,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
         const name = str(args, "name", false);
         let id = str(args, "scriptId", false);
         if (id) {
+          if (isPluginScriptId(id)) throw new AgentError(`"${id}" is a plugin's script, read-only. Omit scriptId to save the source as a new script.`);
           if (!scripts.loadScript(id)) throw new AgentError(`No script "${id}". Call list_scripts, or omit scriptId for a new one.`);
           scripts.saveSource(id, source);
           if (name) scripts.renameScript(id, name);

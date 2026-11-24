@@ -33,6 +33,7 @@ import { BUILTIN_SOURCES, externalSource } from "oakscriptjs";
 import type { StudyCalcContext } from "./indicator-layer";
 import { typeIdOf } from "./study-id";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
+import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
 
 export const USER_INDICATOR_PREFIX = "user:";
 export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated" as const;
@@ -327,6 +328,12 @@ export function userScriptFullRunReason(scriptId: string): string | null {
 export function dropUserScriptRuntime(scriptId: string): void {
   runtimes.delete(scriptId);
 }
+
+// A plugin sent another version of its script, or took it back: its entry is built again from the new source (the
+// charts showing it refresh their studies, window-events.ts).
+onPluginScriptsChanged((ids) => {
+  for (const id of ids) runtimes.delete(id);
+});
 
 /** Editor-side hook: the panel compiled `scriptId` (after a save). Persists
  *  the fresh meta, invalidates the cached result and tells charts to redraw

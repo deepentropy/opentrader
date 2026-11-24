@@ -38,6 +38,7 @@ import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import { typeIdOf } from "./study-id";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 import type { OakCompiledMeta } from "../../oakscript/engine-types";
+import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
 
 export const STRATEGY_PREFIX = "strategy:";
 /** Study input key holding the strategy() property overrides (initial capital...). */
@@ -322,6 +323,11 @@ export function dropUserStrategy(scriptId: string): void {
   entries.delete(userStrategyId(scriptId));
   compiledGen.delete(scriptId);
 }
+
+// A plugin sent another version of its script, or took it back: its strategy entry is built again from the new source.
+onPluginScriptsChanged((ids) => {
+  for (const id of ids) dropUserStrategy(id);
+});
 
 // ── Built-in OakScript strategies ────────────────────────────────────────────
 

@@ -102,8 +102,8 @@ export type IndicatorRow = {
   metricKey?: string;
   periods?: MetricPeriod[];
 };
-/** A section title inside a list (Patterns tab, search results). */
-export type SectionTitle = { section: string };
+/** A section title inside a list (Patterns tab, search results); `verbatim`: a name, not interface text (a plugin's). */
+export type SectionTitle = { section: string; verbatim?: boolean };
 export type ListItem = IndicatorRow | SectionTitle;
 export const isSection = (item: ListItem): item is SectionTitle => 'section' in item;
 

@@ -31,6 +31,7 @@ import {
   type ListItem,
   type FundamentalMetric,
   type FundamentalSubtab,
+  type SidebarGroup,
   type TabContent,
 } from "../../data/indicators-dialog";
 import type { MetricPeriod } from "../../data/fundamental-metrics";
@@ -43,6 +44,7 @@ import {
 } from "../../data/indicator-favorites";
 import { getIndicatorEntry, indicatorName } from "../../window/chart/indicators/registry";
 import { listScripts, loadScript } from "../../data/oakscript-store";
+import { isPluginStrategy, pluginScriptList, pluginScriptSets } from "../../data/plugin-scripts";
 import { userIndicatorId } from "../../window/chart/indicators/user-scripts";
 import { isStrategyId, strategyRows, userStrategyId } from "../../window/chart/indicators/strategy-entries";
 import { typeIdOf } from "../../window/chart/indicators/study-id";
@@ -76,9 +78,12 @@ const TAB_TITLES: Record<string, string> = Object.fromEntries(
   SIDEBAR.flatMap((g) => g.items.map((i) => [i.id, i.label])),
 );
 
-/** Render the FontIcon glyph for a sidebar item. */
+/** Sidebar tab of a data plugin's scripts (#402): `plugin:<plugin id>`. */
+const PLUGIN_TAB_PREFIX = "plugin:";
+
+/** Render the FontIcon glyph for a sidebar item (a plugin's tab: the glyph of scripts from others). */
 function Glyph(props: { id: string }) {
-  const def = () => SIDEBAR_ICONS[props.id];
+  const def = () => SIDEBAR_ICONS[props.id.startsWith(PLUGIN_TAB_PREFIX) ? "invite-only-scripts" : props.id];
   return (
     <Show when={def()}>
       {(d) => (
@@ -204,8 +209,17 @@ function tabRows(c: TabContent | undefined): IndicatorRow[] {
 
 export function IndicatorsDialog(props: Props) {
   const hasFavorites = () => favoriteIndicators().length > 0;
-  // Favorites is listed only once something is starred (reference rule).
-  const isVisibleTab = (id: string) => id !== "favorites" || hasFavorites();
+  // The data plugins that send scripts: a tab each, under "Plugins" (none: the group is not listed).
+  const pluginTabs = createMemo(() =>
+    pluginScriptSets()
+      .filter((p) => p.scripts.length > 0)
+      .map((p) => ({ id: PLUGIN_TAB_PREFIX + p.plugin, label: p.pluginName })),
+  );
+  const sidebar = (): SidebarGroup[] => (pluginTabs().length ? [...SIDEBAR, { key: "plugins", title: "Plugins", items: pluginTabs() }] : SIDEBAR);
+  const tabTitle = (tab: string) => TAB_TITLES[tab] ?? pluginTabs().find((t) => t.id === tab)?.label ?? tab;
+  // Favorites is listed only once something is starred (reference rule); a plugin's tab while it sends scripts.
+  const isVisibleTab = (id: string) =>
+    id.startsWith(PLUGIN_TAB_PREFIX) ? pluginTabs().some((t) => t.id === id) : id !== "favorites" || hasFavorites();
   const firstTab = () => (lastTab && isVisibleTab(lastTab) ? lastTab : hasFavorites() ? DEFAULT_SIDEBAR_ITEM : FALLBACK_SIDEBAR_ITEM);
 
   // null while searching: the search spans every tab.
@@ -252,6 +266,18 @@ export function IndicatorsDialog(props: Props) {
       });
       if (mine.length) return { kind: "filtered", filters: typeFilters(mine) };
     }
+    // A plugin's scripts, read-only: added like the user's own.
+    if (tab.startsWith(PLUGIN_TAB_PREFIX)) {
+      const plugin = tab.slice(PLUGIN_TAB_PREFIX.length);
+      const rows: IndicatorRow[] = pluginScriptList()
+        .filter((s) => s.plugin === plugin)
+        .map((s) =>
+          isPluginStrategy(s.id)
+            ? { name: s.name, indicatorId: userStrategyId(s.id), scriptType: "strategy" as const, authored: true }
+            : { name: s.name, indicatorId: userIndicatorId(s.id), authored: true },
+        );
+      return rows.length ? { kind: "filtered", filters: typeFilters(rows) } : undefined;
+    }
     return TAB_CONTENT[tab];
   };
 
@@ -273,10 +299,10 @@ export function IndicatorsDialog(props: Props) {
     const q = query().trim();
     if (!q) return [];
     const out: ListItem[] = [];
-    for (const tab of SEARCH_TABS) {
+    for (const tab of [...SEARCH_TABS, ...pluginTabs().map((t) => t.id)]) {
       if (!isVisibleTab(tab)) continue;
       const found = rankRows(tabRows(content(tab)), q);
-      if (found.length) out.push({ section: TAB_TITLES[tab] ?? tab }, ...found);
+      if (found.length) out.push({ section: tabTitle(tab), verbatim: tab.startsWith(PLUGIN_TAB_PREFIX) || undefined }, ...found);
     }
     return out;
   });
@@ -403,7 +429,7 @@ export function IndicatorsDialog(props: Props) {
       {/* ─── Content: sidebar + list ─── */}
       <div class="indicators-content">
         <nav class="indicators-sidebar" data-qa-id="indicator-sidebar" aria-label="Indicator categories">
-          <For each={SIDEBAR}>
+          <For each={sidebar()}>
             {(group) => (
               <div class="indicators-sidebar-group" data-qa-id={`indicator-sidebar-group-${group.key}`}>
                 <div class="indicators-sidebar-title">{group.title}</div>
@@ -419,7 +445,9 @@ export function IndicatorsDialog(props: Props) {
                       onClick={() => { if (!item.disabled) openTab(item.id); }}
                     >
                       <Glyph id={item.id} />
-                      <span class="indicators-sidebar-label">{item.label}</span>
+                      <span class="indicators-sidebar-label" data-no-translate={item.id.startsWith(PLUGIN_TAB_PREFIX) || undefined}>
+                        {item.label}
+                      </span>
                     </button>
                   )}
                 </For>
@@ -496,7 +524,11 @@ export function IndicatorsDialog(props: Props) {
                   <For each={items()}>
                     {(item, i) => {
                       if (isSection(item)) {
-                        return <div class="indicators-section-title" role="presentation">{item.section}</div>;
+                        return (
+                          <div class="indicators-section-title" role="presentation" data-no-translate={item.verbatim}>
+                            {item.section}
+                          </div>
+                        );
                       }
                       const row = item;
                       const unsupported = () => !!row.indicatorId && !!props.supported && !props.supported(row.indicatorId);

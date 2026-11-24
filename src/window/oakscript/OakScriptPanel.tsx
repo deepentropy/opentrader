@@ -56,6 +56,7 @@ import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
 import { showConfirm, showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
+import { isPluginScriptId, isPluginStrategy, onPluginScriptsChanged, pluginScript } from "../../data/plugin-scripts";
 import { setOpenedScript, setShownScriptName } from "./editor-state";
 import type { DetachMode } from "./detached-editor";
 import { isTauri } from "../shell/window-bridge";
@@ -124,11 +125,13 @@ export function OakScriptPanel(props: Props) {
   let rootRef: HTMLElement | undefined;
 
   // ── Script store state ────────────────────────────────────────────────────
-  // The editor's current item: a built-in shown read-only, else the stored
-  // script `currentScript` (kept as the one to come back to).
+  // The editor's current item: a built-in or a plugin's script shown read-only, else the stored script
+  // `currentScript` (kept as the one to come back to).
   const startBuiltin = builtinTypeOf(scripts.currentScriptId() ?? "");
-  const [currentScript, setCurrentScript] = createSignal(startBuiltin ? storedFallback() : scripts.ensureCurrentScript());
-  const [builtin, setBuiltin] = createSignal<{ typeId: string; name: string; source: string } | null>(null);
+  const startPlugin = isPluginScriptId(scripts.currentScriptId() ?? "") ? scripts.currentScriptId() : null;
+  const [currentScript, setCurrentScript] = createSignal(startBuiltin || startPlugin ? storedFallback() : scripts.ensureCurrentScript());
+  /** The read-only item shown: `typeId` is what Add to chart adds; `script`, a plugin's script id (#402). */
+  const [builtin, setBuiltin] = createSignal<{ typeId: string; name: string; source: string; script?: string } | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
   let nameBtn!: HTMLButtonElement;
   const [renaming, setRenaming] = createSignal(false);
@@ -150,13 +153,17 @@ export function OakScriptPanel(props: Props) {
   const shownName = () => builtin()?.name ?? currentScript().name;
   const shownId = () => {
     const b = builtin();
-    return b ? builtinScriptId(b.typeId) : currentScript().id;
+    return b ? (b.script ?? builtinScriptId(b.typeId)) : currentScript().id;
   };
 
   function openScript(id: string): void {
     const typeId = builtinTypeOf(id);
     if (typeId) {
       void openBuiltin(typeId);
+      return;
+    }
+    if (isPluginScriptId(id)) {
+      openPluginScript(id);
       return;
     }
     const s = scripts.loadScript(id);
@@ -187,6 +194,30 @@ export function OakScriptPanel(props: Props) {
     if (was?.typeId !== typeId) log("info", translateWith("\"{0}\" opened", name));
   }
   if (startBuiltin) onMount(() => void openBuiltin(startBuiltin));
+
+  /** Show a data plugin's script read-only: Add to chart adds it as the Indicators dialog does. */
+  function openPluginScript(id: string): void {
+    const s = scripts.loadScript(id);
+    if (!s) return;
+    scripts.setCurrentScriptId(id);
+    const was = builtin();
+    setBuiltin({ typeId: isPluginStrategy(id) ? userStrategyId(id) : userIndicatorId(id), name: s.name, source: s.source, script: id });
+    setIsStrategy(false);
+    applyProfiler(null);
+    setProfile(null);
+    if (was?.script !== id) log("info", translateWith("\"{0}\" opened", s.name));
+  }
+  if (startPlugin) onMount(() => openPluginScript(startPlugin));
+  // The plugin sent another version of the shown script (shown then), or took it back (the held script is shown).
+  onCleanup(
+    onPluginScriptsChanged((ids) => {
+      const id = builtin()?.script;
+      if (!id || !ids.has(id)) return;
+      if (scripts.loadScript(id)) openPluginScript(id);
+      else if (currentScript().id) openScript(currentScript().id);
+      else setBuiltin(null);
+    }),
+  );
 
   // The legends show "Opened in OakScript Editor" on the studies of the shown script; its name titles an editor tab
   // or window.
@@ -567,7 +598,7 @@ export function OakScriptPanel(props: Props) {
               anchor={nameBtn}
               scriptsList={scripts.recentScripts((id) => {
                 const t = builtinTypeOf(id);
-                return t ? builtinName(t) : undefined;
+                return t ? builtinName(t) : pluginScript(id)?.name;
               })}
               currentId={shownId()}
               readOnly={builtin() !== null}
@@ -743,7 +774,7 @@ export function OakScriptPanel(props: Props) {
             <OakScriptEditor
               theme={props.theme}
               scriptId={currentScript().id}
-              readOnly={builtin() ? { id: builtinScriptId(builtin()!.typeId), source: builtin()!.source } : null}
+              readOnly={builtin() ? { id: shownId(), source: builtin()!.source } : null}
               onCursor={(line, col) => setCursor({ line, col })}
               onSaved={(scriptId, source) => void compileScript(scriptId, source)}
               profile={profiler() && !builtin() ? profile() : null}

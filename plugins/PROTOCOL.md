@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **8**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). Version 8 adds a data plugin's word that its symbols' info changed (`data.symbolInfoChanged`) and short messages that go away by themselves (`plugin.toast`). A plugin of an earlier version works unchanged.
+Plugin API version **8**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). Version 8 adds a data plugin's word that its symbols' info changed (`data.symbolInfoChanged`), short messages that go away by themselves (`plugin.toast`) and a data plugin's scripts (`data.scripts`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -281,6 +281,29 @@ Send the whole set once you know it (after `plugin.configure`, or once logged in
 Symbols are whole (`NSE:RELIANCE`); a one-exchange plugin may give bare tickers. A symbol of an exchange the plugin does not serve is dropped, and so is a symbol already in the list. A list holds at most 1000 symbols and sections, a set 100 lists.
 
 The Watchlists dialog (Open list…) shows the lists under the plugin's name. A list the user opens appears in the watchlist panel, read-only: the app brings it up to date from each set you send, and removes it when a set no longer holds it. The user changes a copy of it ("Make a copy").
+
+### `data.scripts` (plugin → app, notification)
+
+OakScript studies and strategies of the plugin, with their source (Plugin API 8): the user adds them to a chart from the Indicators dialog, where they are listed under the plugin's name.
+
+```json
+{"scripts":[
+  {"id":"pivot-study","name":"Pivot levels","kind":"indicator","source":"indicator(\"Pivot levels\", { overlay: true });
+…"},
+  {"id":"flow","name":"Flow","kind":"strategy","source":"strategy(\"Flow\");
+…"}]}
+```
+
+Send the whole set once you know it (after `plugin.configure`, or once logged in), and again whenever it changes: it replaces the set sent before. The app keeps the last set while the plugin reconnects and forgets it when the plugin is turned off or stops serving chart data.
+
+| Field | Meaning |
+|---|---|
+| `id` | Your id of the script: letters, digits, `.`, `_` and `-`, up to 64 characters. The same id sent again is the same script: a chart showing it runs the new source. A chart keeps the script by this id, so keep it when you change the source. |
+| `name` | Shown in the Indicators dialog and the editor (the id when left out). |
+| `kind` | `indicator` or `strategy`: how it goes on a chart before it was ever compiled (left out: a script whose line starts with `strategy(` is a strategy). |
+| `source` | The script, as the OakScript editor takes it, up to 512 KB. |
+
+A set holds at most 50 scripts; a script without an id or a source, or with an id already in the set, is dropped. A script runs like the user's own: on charts, in alerts, in the Strategy Tester and the screener. It is read-only: the editor shows its source (Source code… on its study) and offers "Make a copy" to change a copy. Studies of a script the plugin no longer sends stay in the user's layouts and draw nothing until it is sent again. Coding agents read the scripts through `list_scripts` and `read_script`.
 
 ### `data.events` (app → plugin, request)
 

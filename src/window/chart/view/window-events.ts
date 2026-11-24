@@ -11,7 +11,8 @@ import { isIntradayResolution, isSecondResolution } from "../../../data/datafeed
 import { layoutSync } from "../layout-sync";
 import { utcToWall, wallTimeToUtc, type WallDate, type WallTime } from "../day-key";
 import type { GotoQuery } from "../goto-query";
-import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "../indicators/user-scripts";
+import { OAKSCRIPT_UPDATED_EVENT, scriptIdOfStudy, userIndicatorId, type OakScriptUpdatedDetail } from "../indicators/user-scripts";
+import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
 import { STRATEGY_UPDATED_EVENT, type StrategyUpdatedDetail } from "../indicators/strategy-entries";
 import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
 import { startReplayAt } from "../../../data/replay";
@@ -310,6 +311,26 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
         refreshIndicatorLegend();
       };
       onCleanup(onAppEvent(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated));
+    });
+    // A plugin's scripts came (a layout restored before the plugin connected), changed or went: their studies are
+    // drawn again from the new source, or no longer drawn (the layout keeps them, as for a deleted script).
+    onMount(() => {
+      onCleanup(
+        onPluginScriptsChanged((changed) => {
+          const all = props.indicators ?? [];
+          const ids = all.filter((id) => changed.has(scriptIdOfStudy(id) ?? ""));
+          const controller = cx.controller;
+          if (!ids.length || !controller || props.indicatorsHidden) return;
+          controller.keepView(() => {
+            for (const id of ids) controller.refresh(id);
+          });
+          controller.sync(all);
+          // Study panes added / removed: the drawing panes follow (as study-sync.ts does).
+          cx.setPaneEpoch((n) => n + 1);
+          queueMicrotask(cx.refreshPaneBoxes);
+          refreshIndicatorLegend();
+        }),
+      );
     });
     // Strategy Tester requests for the active chart: open a study's Settings
     // dialog, or merge input values into a study (strategy properties).

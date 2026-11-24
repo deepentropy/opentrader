@@ -7,8 +7,12 @@
  * lightweight-charts-indicators file convention (metadata / inputConfig /
  * plotConfig / defaultInputs / calculate) so a saved script can be fed to the
  * existing indicator pipeline unchanged (phase 6).
+ *
+ * A data plugin's script (`plugin:<plugin>:<id>`, plugin-scripts.ts) loads here too, so every reader runs it as it
+ * runs a stored one; it is read-only (saving, renaming and deleting skip it) and not listed with the user's scripts.
  */
 import * as kv from "./kv";
+import { isPluginScriptId, pluginScript, pluginScriptMeta, setPluginScriptMeta } from "./plugin-scripts";
 
 export type OakScript = {
   id: string;
@@ -81,6 +85,10 @@ export function listScripts(): OakScriptMeta[] {
 }
 
 export function loadScript(id: string): OakScript | null {
+  if (isPluginScriptId(id)) {
+    const p = pluginScript(id);
+    return p ? { id, name: p.name, source: p.source, createdAt: 0, updatedAt: 0, meta: pluginScriptMeta(id) } : null;
+  }
   const raw = kv.getItem(SCRIPT_PREFIX + id);
   if (!raw) return null;
   try {
@@ -92,6 +100,7 @@ export function loadScript(id: string): OakScript | null {
 }
 
 export function saveScript(script: OakScript): void {
+  if (isPluginScriptId(script.id)) return;
   kv.setItem(SCRIPT_PREFIX + script.id, JSON.stringify(script));
   const index = readIndex();
   const entry = index.find((m) => m.id === script.id);
@@ -160,7 +169,7 @@ export function recentScripts(other?: (id: string) => string | undefined): OakSc
  *  in the index, else a fresh template script. */
 export function ensureCurrentScript(): OakScript {
   const id = currentScriptId();
-  if (id) {
+  if (id && !isPluginScriptId(id)) {
     const s = loadScript(id);
     if (s) return s;
   }
@@ -182,6 +191,10 @@ export function saveCompiledMeta(
   id: string,
   meta: NonNullable<OakScript["meta"]>,
 ): void {
+  if (isPluginScriptId(id)) {
+    setPluginScriptMeta(id, meta);
+    return;
+  }
   const script = loadScript(id);
   if (!script) return;
   script.meta = meta;
@@ -226,6 +239,7 @@ export function duplicateScript(id: string, name?: string): OakScript | null {
 }
 
 export function deleteScript(id: string): void {
+  if (isPluginScriptId(id)) return;
   kv.removeItem(SCRIPT_PREFIX + id);
   writeIndex(readIndex().filter((m) => m.id !== id));
   if (currentScriptId() === id) kv.removeItem(CURRENT_KEY);

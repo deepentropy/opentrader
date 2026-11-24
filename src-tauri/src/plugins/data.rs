@@ -14,6 +14,8 @@
  *
  * A plugin may also send ready-made watchlists of its symbols (`data.watchlists`, #381): the index members, the
  * contracts of the month. They are kept here and offered in the Watchlists dialog under the plugin's name.
+ * Its scripts too (`data.scripts`, #402): OakScript studies and strategies with their source, listed in the Indicators
+ * dialog under the plugin's name and run like the user's own.
  */
 use super::Plugins;
 use crate::data::calendar::SessionCalendar;
@@ -226,6 +228,8 @@ pub struct PluginData {
     tick_streaming: Mutex<HashMap<String, BTreeSet<String>>>,
     /// Each data plugin's watchlists, as it last sent them (kept while it reconnects).
     watchlists: Mutex<BTreeMap<String, Vec<PluginWatchlist>>>,
+    /// Each data plugin's scripts, as it last sent them (kept while it reconnects).
+    scripts: Mutex<BTreeMap<String, Vec<PluginScript>>>,
 }
 
 /// A plugin symbol: the plugin, the full symbol and its ticker.
@@ -302,6 +306,15 @@ pub fn set_exchanges(app: &AppHandle, map: HashMap<String, String>, whole: HashS
     if gone {
         let _ = PluginWatchlistsChanged.emit(app);
     }
+    let gone = {
+        let mut scripts = s.scripts.locked();
+        let before = scripts.len();
+        scripts.retain(|p, _| serving.contains(p));
+        scripts.len() != before
+    };
+    if gone {
+        let _ = PluginScriptsChanged.emit(app);
+    }
 }
 
 /// Settings > Service > "Clear cache": the plugins' series kept in memory.
@@ -339,6 +352,7 @@ pub fn init(app: &AppHandle) {
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.quote" => on_quote(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.tick" => on_ticks(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.watchlists" => on_watchlists(&app, &plugin, params),
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "data.scripts" => on_scripts(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.eventsChanged" => super::events::on_changed(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.symbolInfoChanged" => on_info_changed(&app, &plugin, params),
                 Ok(_) => {}
@@ -1284,8 +1298,120 @@ pub fn plugin_watchlists(app: AppHandle) -> Vec<PluginWatchlists> {
     out
 }
 
+// ── Scripts (#402) ───────────────────────────────────────────────────────────
+
+/// Scripts a plugin may send, and the size of one script's source (bytes).
+const MAX_SCRIPTS: usize = 50;
+const MAX_SCRIPT_BYTES: usize = 512 * 1024;
+
+/// An OakScript study or strategy of a data plugin, with its source.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginScript {
+    /// The plugin's own id of the script (letters, digits, `.`, `_`, `-`): the same script sent again replaces it.
+    pub id: String,
+    pub name: String,
+    /// "indicator" or "strategy" as the plugin says; none: read from the source.
+    pub kind: Option<String>,
+    pub source: String,
+}
+
+/// The scripts of one data plugin.
+#[derive(Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginScripts {
+    pub plugin: String,
+    pub plugin_name: String,
+    pub scripts: Vec<PluginScript>,
+}
+
+/// A plugin sent its scripts, or a plugin's went away: read `plugin_scripts` again.
+#[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct PluginScriptsChanged;
+
+/// `{"scripts":[{id, name, kind, source}]}` as the app keeps it: scripts with an id it can put in a study's id, each id
+/// once, a source of at most `MAX_SCRIPT_BYTES`, at most `MAX_SCRIPTS` scripts.
+fn parse_scripts(params: &Value) -> Vec<PluginScript> {
+    let sent = params.get("scripts").and_then(Value::as_array).cloned().unwrap_or_default();
+    let text = |v: Option<&Value>| v.and_then(Value::as_str).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let mut ids = HashSet::new();
+    let mut out = Vec::new();
+    for s in &sent {
+        let Some(id) = text(s.get("id")).filter(|id| {
+            id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) && !ids.contains(id)
+        }) else {
+            continue;
+        };
+        let Some(source) = s.get("source").and_then(Value::as_str).filter(|src| !src.trim().is_empty() && src.len() <= MAX_SCRIPT_BYTES) else { continue };
+        ids.insert(id.clone());
+        let name: String = text(s.get("name")).unwrap_or_else(|| id.clone()).chars().take(100).collect();
+        let kind = text(s.get("kind")).filter(|k| k == "indicator" || k == "strategy");
+        out.push(PluginScript { id, name, kind, source: source.to_string() });
+        if out.len() >= MAX_SCRIPTS {
+            break;
+        }
+    }
+    out
+}
+
+/// A data plugin's whole set of scripts (`data.scripts`): it replaces the one it sent before. An empty set is kept too:
+/// the scripts it held are gone. A plugin that serves no data is not heard.
+fn on_scripts(app: &AppHandle, plugin: &str, params: Value) {
+    let s = state(app);
+    if !s.exchanges.locked().values().any(|p| p == plugin) {
+        return;
+    }
+    let scripts = parse_scripts(&params);
+    let changed = {
+        let mut all = s.scripts.locked();
+        all.get(plugin) != Some(&scripts) && {
+            all.insert(plugin.to_string(), scripts);
+            true
+        }
+    };
+    if changed {
+        let _ = PluginScriptsChanged.emit(app);
+    }
+}
+
+/// The data plugins' scripts, by plugin name.
+#[tauri::command]
+#[specta::specta]
+pub fn plugin_scripts(app: AppHandle) -> Vec<PluginScripts> {
+    let all = state(&app).scripts.locked().clone();
+    let mut out: Vec<PluginScripts> = all
+        .into_iter()
+        .map(|(plugin, scripts)| {
+            let plugin_name = super::installed_manifest(&app, &plugin).map(|m| m.name).unwrap_or_else(|| plugin.clone());
+            PluginScripts { plugin, plugin_name, scripts }
+        })
+        .collect();
+    out.sort_by_key(|p| p.plugin_name.to_lowercase());
+    out
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn keeps_a_plugins_scripts_with_usable_ids() {
+        use serde_json::json;
+        let big = "x".repeat(super::MAX_SCRIPT_BYTES + 1);
+        let scripts = super::parse_scripts(&json!({ "scripts": [
+            { "id": "pivot-study", "name": " Pivot ", "kind": "indicator", "source": "indicator(\"P\")" },
+            { "id": "pivot-study", "name": "Again", "source": "x" },
+            { "id": "a b", "name": "Space", "source": "x" },
+            { "id": "a#2", "name": "Hash", "source": "x" },
+            { "id": "flow", "kind": "other", "source": "strategy(\"F\")" },
+            { "id": "empty", "source": "  " },
+            { "id": "big", "source": big },
+            { "name": "No id", "source": "x" }
+        ] }));
+        assert_eq!(scripts.len(), 2);
+        assert_eq!((scripts[0].id.as_str(), scripts[0].name.as_str(), scripts[0].kind.as_deref()), ("pivot-study", "Pivot", Some("indicator")));
+        assert_eq!((scripts[1].id.as_str(), scripts[1].name.as_str(), scripts[1].kind.as_deref()), ("flow", "flow", None));
+        assert!(super::parse_scripts(&json!({ "scripts": "no" })).is_empty());
+    }
+
     #[test]
     fn info_changed_covers_the_named_symbols_and_their_series_or_the_plugins_exchanges() {
         let prefixes = ["NSE:".to_string(), "NFO:".to_string()];

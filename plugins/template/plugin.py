@@ -90,6 +90,12 @@ class Source:
             ]},
         ]
 
+    def scripts(self):
+        """Your OakScript studies and strategies (optional, Plugin API 8, set "api": 8 in the manifest): listed in the
+        Indicators dialog under the plugin's name. Sent after connecting; send data.scripts again when they change.
+        Return [] to offer none."""
+        return []
+
     def events(self, ticker):
         """The dividends, splits and earnings the chart marks (optional, Plugin API 5): dates are calendar days in the
         symbol's time zone. A bonus issue is a split (1:1 bonus = from 1 to 2). Send `data.eventsChanged` when they
@@ -483,6 +489,10 @@ class Plugin:
             lists = self.source.watchlists()
         if lists:
             self.notify("data.watchlists", {"watchlists": lists})
+        with self.source.lock:
+            scripts = self.source.scripts()
+        if scripts:
+            self.notify("data.scripts", {"scripts": scripts})
         threading.Thread(target=self.stream, daemon=True).start()
         for line in reader:
             if not line.strip():

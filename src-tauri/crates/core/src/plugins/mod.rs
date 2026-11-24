@@ -14,5 +14,6 @@ pub mod manifest;
 /// settings, settings shown for another's value (`when`), prompts to the user (`plugin.prompt`) and a data folder.
 /// 4: ready-made watchlists. 5: symbol events. 6: a symbol's extra series (`series`, open interest) and fields.
 /// 7: the broker's own account manager tabs (`pages`: holdings…). 8: a data plugin says its symbols' info changed
-/// (`data.symbolInfoChanged`); short messages that go away by themselves (`plugin.toast`).
+/// (`data.symbolInfoChanged`); short messages that go away by themselves (`plugin.toast`); a data
+/// plugin's scripts (`data.scripts`).
 pub const API_VERSION: u32 = 8;
