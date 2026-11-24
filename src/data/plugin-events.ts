@@ -3,9 +3,10 @@
  * scripts that show those symbols read them again.
  */
 import { createSignal } from "solid-js";
-import { events, type PluginEventsChanged } from "../bindings";
+import { events } from "../bindings";
 
-type Affects = (symbol: string) => boolean;
+/** A test of the symbols a plugin's change concerns. */
+export type Affects = (symbol: string) => boolean;
 
 const [revision, setRevision] = createSignal(0);
 const bySymbol = new Map<string, number>();
@@ -14,7 +15,8 @@ const listeners = new Set<(affects: Affects) => void>();
 
 const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
 
-function affects(e: PluginEventsChanged): Affects {
+/** The symbols a plugin's change names (`symbols`), or all those of its `exchanges` (`symbols` null). */
+export function affects(e: { exchanges: string[]; symbols: string[] | null }): Affects {
   const symbols = e.symbols ? new Set(e.symbols.map((s) => s.toUpperCase())) : null;
   const exchanges = new Set(e.exchanges.map((x) => x.toUpperCase()));
   return (symbol) => {

@@ -228,12 +228,13 @@ export function forgetSymbolSessions(symbol: string): void {
 }
 
 /** Ask the data plugins' symbols already resolved for their sessions again (a plugin connected, maybe as another
- *  version: #340's bar grid came with an update) and keep the new answers. True when one changed: the charts must
- *  load their bars again. A plugin that does not answer (disconnected) keeps what it said. */
-export async function refreshPluginSessions(): Promise<boolean> {
+ *  version: #340's bar grid came with an update), or those `which` names (a plugin reloaded them, #400), and keep the
+ *  new answers. True when one changed: the charts must load their bars again. A plugin that does not answer
+ *  (disconnected) keeps what it said. */
+export async function refreshPluginSessions(which?: (symbol: string) => boolean): Promise<boolean> {
   let changed = false;
   await Promise.all(
-    [...pluginInfos].map(async ([key, before]) => {
+    [...pluginInfos].filter(([key]) => !which || which(key)).map(async ([key, before]) => {
       const r = await commands.getSymbolSession(key).catch(() => null);
       if (r?.status !== "ok" || JSON.stringify(r.data) === before) return;
       resolved.set(key, new SymbolSessions(r.data));

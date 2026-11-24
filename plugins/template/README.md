@@ -51,7 +51,7 @@ Everything the app asks goes through `Source`. Keep the return shapes; change wh
 | Method | Called for | Return |
 |---|---|---|
 | `search(query)` | the symbol search | up to 50 `{ticker, description, type}`; `type` picks the search tab (`stock`, `fund`, `index`, `forex`, `crypto`, `futures`, `cfd`, `bond`) |
-| `symbol_info(ticker)` | opening a symbol | description, type, currency, `timezone` (IANA), `session` (`"0930-1600"`, `"24x7"`…), `pricescale` and `minmov` (one tick = minmov / pricescale), the `intervals` you serve |
+| `symbol_info(ticker)` | opening a symbol | description, type, currency, `timezone` (IANA), `session` (`"0930-1600"`, `"24x7"`…), `pricescale` and `minmov` (one tick = minmov / pricescale), the `intervals` you serve; kept until the plugin connects again, send `data.symbolInfoChanged` when your symbols change |
 | `bars(ticker, resolution, from, to, count_back)` | history | `[time, open, high, low, close, volume]` oldest first, `time` = the bar's start in UNIX seconds; at most the newest `count_back`; an empty list means no more history |
 | `quote(ticker)` | every second, for the symbols on screen | the last price, `prevClose`, and the forming `minute` and `day` bars |
 | `watchlists()` | once connected (optional) | ready-made lists of your symbols, `{id, name, symbols, sections}`; send `data.watchlists` again when they change |

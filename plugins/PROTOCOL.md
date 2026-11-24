@@ -172,6 +172,10 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 
 **Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment.
 
+### `data.symbolInfoChanged` (plugin → app, notification)
+
+Plugin API 8. The app keeps each symbol's info, and the symbols you answered unknown, until the plugin connects again. Send this when your reference data changed while connected (the day's instrument list reloaded, a setting that changes the symbols): `{}` for all of your symbols, or `{"tickers":["NIFTY26NOVFUT"]}` for some, with the tickers as the app asks them. The app drops what it kept of them, with their extra series, and asks `data.symbolInfo` again for the ones on screen; the symbols of other plugins are kept.
+
 ### Extra series
 
 Data your source has besides a symbol's prices, as a time series: the open interest of a future or an option, a provider's own numbers. Each one is a symbol of its own, the symbol's name followed by `_` and the series name: the open interest of `NFO:NIFTY26NOVFUT` is `NFO:NIFTY26NOVFUT_OI`. List the names in the symbol's `series`:

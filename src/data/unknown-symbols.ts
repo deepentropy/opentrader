@@ -26,7 +26,9 @@ export function noteSymbolError(symbol: string, error: unknown): void {
   setUnknown(new Set([...unknown(), key]));
 }
 
-/** Ask for every symbol again (the data plugins changed). */
-export function forgetUnknownSymbols(): void {
-  if (unknown().size) setUnknown(new Set<string>());
+/** Ask for every symbol again (the data plugins changed), or for those `which` names (a plugin reloaded them). */
+export function forgetUnknownSymbols(which?: (symbol: string) => boolean): void {
+  if (!unknown().size) return;
+  if (!which) setUnknown(new Set<string>());
+  else if ([...unknown()].some(which)) setUnknown(new Set([...unknown()].filter((s) => !which(s))));
 }

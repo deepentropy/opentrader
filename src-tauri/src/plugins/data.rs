@@ -340,6 +340,7 @@ pub fn init(app: &AppHandle) {
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.tick" => on_ticks(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.watchlists" => on_watchlists(&app, &plugin, params),
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "data.eventsChanged" => super::events::on_changed(&app, &plugin, params),
+                Ok(HubEvent::Notification { plugin, method, params }) if method == "data.symbolInfoChanged" => on_info_changed(&app, &plugin, params),
                 Ok(_) => {}
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                 Err(_) => break,
@@ -367,6 +368,51 @@ fn forget(app: &AppHandle, plugin: &str) {
     s.recent.locked().retain(|(sym, _, _), _| !exchanges.iter().any(|e| sym.starts_with(e)));
     s.pages.locked().retain(|(sym, ..), _| !exchanges.iter().any(|e| sym.starts_with(e)));
     super::fields::forget(app, &exchanges);
+}
+
+/// A plugin reloaded its reference data (`data.symbolInfoChanged`, #400): `{"tickers":[…]}` names the symbols whose
+/// info changed; without it, all of them did. Their infos and "unknown symbol" answers are dropped, then the windows
+/// forget theirs and ask again.
+fn on_info_changed(app: &AppHandle, plugin: &str, params: Value) {
+    let exchanges = exchanges_of(app, plugin);
+    if exchanges.is_empty() {
+        return;
+    }
+    let mut symbols: Option<Vec<String>> = params
+        .get("tickers")
+        .and_then(Value::as_array)
+        .map(|t| t.iter().filter_map(Value::as_str).filter_map(|t| symbol_of_plugin(app, plugin, t)).collect());
+    let prefixes: Vec<String> = exchanges.iter().map(|e| format!("{e}:")).collect();
+    let s = state(app);
+    s.infos.locked().retain(|sym, _| {
+        let changed = info_changed(sym, &prefixes, symbols.as_deref());
+        // The windows forget the extra series of a symbol named too.
+        if let Some(list) = symbols.as_mut().filter(|l| changed && !l.contains(sym)) {
+            list.push(sym.clone());
+        }
+        !changed
+    });
+    s.unknown.locked().retain(|sym| !info_changed(sym, &prefixes, symbols.as_deref()));
+    // A symbol unknown until now is streamed again.
+    push_subscriptions(app);
+    let _ = PluginSymbolInfoChanged { exchanges, symbols }.emit(app);
+}
+
+/// Whether `symbol`'s info changed: it is one of `symbols` or an extra series of one (`NFO:NIFTY26NOVFUT_OI`), or,
+/// without a list, it is of the plugin's exchanges (`prefixes`, `"NSE:"`).
+fn info_changed(symbol: &str, prefixes: &[String], symbols: Option<&[String]>) -> bool {
+    match symbols {
+        Some(list) => list.iter().any(|s| symbol == s || symbol.strip_prefix(s.as_str()).is_some_and(|rest| rest.starts_with('_'))),
+        None => prefixes.iter().any(|p| symbol.starts_with(p)),
+    }
+}
+
+/// A plugin changed the info of some of its symbols (`symbols`), or of all those of its `exchanges` (`symbols` null):
+/// the windows forget what they kept of them and ask again.
+#[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct PluginSymbolInfoChanged {
+    pub exchanges: Vec<String>,
+    pub symbols: Option<Vec<String>>,
 }
 
 /// The error of a symbol its plugin doesn't know: final, like the gateway's (the window doesn't retry it).
@@ -1240,6 +1286,19 @@ pub fn plugin_watchlists(app: AppHandle) -> Vec<PluginWatchlists> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn info_changed_covers_the_named_symbols_and_their_series_or_the_plugins_exchanges() {
+        let prefixes = ["NSE:".to_string(), "NFO:".to_string()];
+        let list = ["NFO:NIFTY26NOVFUT".to_string()];
+        let changed = |s: &str, l: Option<&[String]>| super::info_changed(s, &prefixes, l);
+        assert!(changed("NFO:NIFTY26NOVFUT", Some(&list)));
+        assert!(changed("NFO:NIFTY26NOVFUT_OI", Some(&list)));
+        assert!(!changed("NFO:NIFTY26NOVFUT2", Some(&list)));
+        assert!(!changed("NSE:RELIANCE", Some(&list)));
+        assert!(changed("NSE:RELIANCE", None));
+        assert!(!changed("NASDAQ:AAPL", None));
+    }
+
     #[test]
     fn parses_ticks_in_time_order() {
         let v = serde_json::json!([[2000.0, 1.5, 1.0], [1000.0, 1.4], [1500.0, -1.0, 1.0], ["x", 1.0, 1.0], [1000.0, 1.45, 2.0]]);

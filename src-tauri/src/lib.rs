@@ -182,6 +182,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             plugins::broker::BrokerDepth,
             plugins::data::PluginTicks,
             plugins::data::PluginWatchlistsChanged,
+            plugins::data::PluginSymbolInfoChanged,
             plugins::events::PluginEventsChanged,
             plugins::fields::PluginFieldsChanged,
         ])

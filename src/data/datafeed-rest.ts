@@ -90,7 +90,9 @@ export async function getDailyHistoryBefore(
   return unwrap(commands.getDailyHistoryBefore(symbol, beforeSec, spanDays, adjusted));
 }
 
-/** Reference data changes at most once a day: an answer is reused for an hour. */
+/** Reference data changes at most once a day: an answer is reused for an hour.
+ *  A data plugin's comes from the app's memory, kept until the plugin says it
+ *  changed (#400): asking again costs the plugin nothing. */
 const INFO_TTL_MS = 60 * 60_000;
 
 /** A request the server kept failing (see retryTransient) is not sent again
@@ -134,10 +136,11 @@ export function getTickerInfo(symbol: string): Promise<TickerInfo> {
 
 /** Forget the answers kept (the data plugins changed, #371): a plugin that was
  *  starting or waiting for its settings answered "unknown symbol" or a bare
- *  row, which the plugin now serves in full. A request still waiting is kept:
- *  it gets the new answer. */
-export function forgetTickerInfo(): void {
-  for (const [symbol, entry] of infoCache) if (entry.done) infoCache.delete(symbol);
+ *  row, which the plugin now serves in full. With `which`, only those of the
+ *  symbols it names (a plugin reloaded its reference data, #400). A request
+ *  still waiting is kept: it gets the new answer. */
+export function forgetTickerInfo(which?: (symbol: string) => boolean): void {
+  for (const [symbol, entry] of infoCache) if (entry.done && (!which || which(symbol))) infoCache.delete(symbol);
   setInfoEpoch((n) => n + 1);
 }
 

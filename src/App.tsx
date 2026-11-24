@@ -105,6 +105,7 @@ import { pluginBroker } from "./data/trading/plugin-broker";
 import { events } from "./bindings";
 import { refreshPluginSessions } from "./data/session/symbol-sessions";
 import { forgetUnknownSymbols } from "./data/unknown-symbols";
+import { affects as pluginChangeAffects } from "./data/plugin-events";
 import { wakeRetries } from "./data/connection";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
@@ -475,6 +476,18 @@ function App() {
       forgetTickerInfo();
       wakeRetries();
       void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
+    });
+    onCleanup(() => void stop.then((f) => f()));
+  });
+
+  // A data plugin reloaded its reference data (#400): the windows forget what they kept of those symbols alone.
+  onMount(() => {
+    if (!isTauri()) return;
+    const stop = events.pluginSymbolInfoChanged.listen(({ payload }) => {
+      const which = pluginChangeAffects(payload);
+      forgetUnknownSymbols(which);
+      forgetTickerInfo(which);
+      void refreshPluginSessions(which).then((changed) => changed && emitAppEvent("chart-reload-data"));
     });
     onCleanup(() => void stop.then((f) => f()));
   });
