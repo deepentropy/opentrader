@@ -9,6 +9,7 @@ import type { CatalogEntry, InstallStep, PackagePreview, PluginInfo, PluginsStat
 import { translate, translateWith } from "../../../i18n/translator";
 import { openLink, plugins, type Result } from "./io";
 import { ConfirmButton, Section } from "./parts";
+import { PluginToastsSetting } from "./PluginToastsSetting";
 
 const PROTOCOL = "https://github.com/deepentropy/opentrader/blob/main/plugins/PROTOCOL.md";
 const capabilityLabel = (c: string) => (c === "broker" ? translate("Broker") : translate("Data"));
@@ -154,6 +155,7 @@ export function PluginsTab() {
               )}
             </Show>
             <Show when={error()}>{(e) => <span class="app-settings-field-error">{e()}</span>}</Show>
+            <PluginToastsSetting />
             <Section label="PLUGIN API">
               <div class="app-settings-note app-settings-local-note">
                 {s().listening

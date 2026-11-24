@@ -367,11 +367,12 @@ class Plugin:
         else:
             print(message, flush=True)
 
-    def toast(self, message, level="info", sound=False):
+    def toast(self, message, level="info", sound=False, position="bottom-left"):
         """A short message on the user's screen that goes away by itself: a reconnection, a reload done (Plugin API 8,
-        set "api": 8 in the manifest). level is info, warn or error; sound plays the alert sound."""
+        set "api": 8 in the manifest). level is info, warn or error; sound plays the alert sound; position is
+        top- or bottom-, left, center or right (the user may pick another)."""
         if self.alive:
-            self.notify("plugin.toast", {"level": level, "message": message, "sound": sound})
+            self.notify("plugin.toast", {"level": level, "message": message, "sound": sound, "position": position})
 
     def push_state(self):
         with self.source.lock:

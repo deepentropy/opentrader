@@ -17,6 +17,7 @@
 import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { tickerOf } from "../../data/symbol-name";
 import { stopAlertSound } from "../../data/alert-sounds";
+import { alertPile } from "../shell/toast-stack";
 
 export type AlertToastData = {
   /** One per fire. */
@@ -171,7 +172,7 @@ export function AlertToasts(props: {
 
   return (
     <Show when={props.toasts.length > 0}>
-      <div class="alert-toasts" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+      <div class="alert-toasts" ref={alertPile} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
         <div class="alert-toasts-controls" classList={{ "is-hidden": !hover() || shown().length < 2 }}>
           <button type="button" class="alert-toasts-btn" aria-expanded={expanded()} onClick={() => setExpanded(!expanded())}>
             <span>{expanded() ? "Show less" : "Show more"}</span>

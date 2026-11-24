@@ -145,6 +145,8 @@ pub struct PluginToast {
     pub message: String,
     /// Play the notification sound.
     pub sound: bool,
+    /// Where it asks to show ("top-right"…), as sent: the window reads it.
+    pub position: Option<String>,
 }
 
 /// The toast of a `plugin.toast`: none without a message. Unknown levels read as info; a long text is cut, a toast is
@@ -161,7 +163,8 @@ fn plugin_toast(plugin: String, plugin_name: String, params: &serde_json::Value)
         _ => "info",
     };
     let sound = params.get("sound").and_then(|v| v.as_bool()).unwrap_or(false);
-    Some(PluginToast { plugin, plugin_name, level: level.to_string(), message, sound })
+    let position = params.get("position").and_then(|v| v.as_str()).map(str::to_string);
+    Some(PluginToast { plugin, plugin_name, level: level.to_string(), message, sound, position })
 }
 
 /// The plugin closed its prompt (`plugin.promptDone`).
@@ -1004,7 +1007,8 @@ mod tests {
         let t = toast(json!({"level":"error","message":" Halted ","sound":true})).unwrap();
         assert_eq!((t.level.as_str(), t.message.as_str(), t.sound, t.plugin_name.as_str()), ("error", "Halted", true, "P"));
         let t = toast(json!({"level":"loud","message":"x"})).unwrap();
-        assert_eq!((t.level.as_str(), t.sound), ("info", false));
+        assert_eq!((t.level.as_str(), t.sound, t.position), ("info", false, None));
+        assert_eq!(toast(json!({"message":"x","position":"top-right"})).unwrap().position.as_deref(), Some("top-right"));
     }
 
     #[test]

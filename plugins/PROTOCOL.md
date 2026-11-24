@@ -134,10 +134,12 @@ The app shows it as a dialog in its main window. `id` is the plugin's own. `inpu
 A plugin tells the user that something happened, without stopping them, with `plugin.toast`:
 
 ```json
-{"level":"info","message":"Instrument list reloaded","sound":false}
+{"level":"info","message":"Instrument list reloaded","sound":false,"position":"top-right"}
 ```
 
-The app shows it in its chart windows, with the order toasts, under the plugin's name, and keeps it 10 seconds (25 for an `error`); nothing comes back. `level` is `info`, `warn` or `error` and picks the toast's colour (`info` when left out or unknown). `message` is a short text, shown as given and not translated, on 4 lines at most (the whole text when pointed at); a text over 300 characters is cut. With `"sound": true` the main window plays the alert sound (Thin), unless the sound of alerts is off in Settings > Alerts, at their volume. Any plugin may send it, data or broker, connected to a broker or not. The message is also written to the plugin's log.
+The app shows it in its chart windows, under the plugin's name, and keeps it 10 seconds (25 for an `error`); nothing comes back. `level` is `info`, `warn` or `error` and picks the toast's colour (`info` when left out or unknown). `message` is a short text, shown as given and not translated, on 4 lines at most (the whole text when pointed at); a text over 300 characters is cut. With `"sound": true` the main window plays the alert sound (Thin), unless the sound of alerts is off in Settings > Alerts, at their volume. Any plugin may send it, data or broker, connected to a broker or not. The message is also written to the plugin's log.
+
+`position` is where it shows: `top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center` or `bottom-right` (`bottom-left` when left out or unknown). The user may pick one place for every plugin's toasts, or show none, in Settings > Plugins: a plugin can't change that. Several toasts at one place fold into the newest one and the errors, which always stay in view; the rest is under "Show more".
 
 The same message (same level and text) sent again within 10 seconds counts on the toast shown ("×2") instead of adding one, and a plugin shows 5 new toasts of each level a minute at most: the others are only in its log. For an order use `broker.event`, for a line in the account manager's notifications `broker.notice`, and for a question `plugin.prompt`.
 

@@ -479,8 +479,7 @@ html.theme-light {
 .trd-toasts {
   position: fixed;
   left: 64px; /* physical: by the drawing toolbar, which stays left right to left (#290) */
-  bottom: 48px;
-  z-index: 250;
+  z-index: 250; /* its bottom: over the alerts' popups (shell/toast-stack.ts) */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -637,6 +636,45 @@ html.theme-light {
 .trd-toast.is-info .trd-toast-icon {
   background: rgba(140, 140, 140, 0.15);
   color: var(--color-cold-gray-450);
+}
+/* Plugins' toasts: a pile per place (physical: the places keep their side right to left), clear of the header, the
+   bottom bar and the right tool strip; a tall pile scrolls. */
+.plugin-toasts {
+  position: fixed;
+  z-index: 251;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 400px;
+  max-width: calc(100vw - 128px);
+  max-height: calc(100vh - 176px);
+  overflow-y: auto;
+}
+.plugin-toasts > * {
+  flex-shrink: 0;
+}
+.plugin-toasts.is-top-left,
+.plugin-toasts.is-top-center,
+.plugin-toasts.is-top-right {
+  top: 88px;
+}
+.plugin-toasts.is-top-left,
+.plugin-toasts.is-bottom-left {
+  left: 64px;
+}
+.plugin-toasts.is-top-center,
+.plugin-toasts.is-bottom-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.plugin-toasts.is-top-right,
+.plugin-toasts.is-bottom-right {
+  right: 56px;
+}
+.plugin-toasts.is-bottom-center,
+.plugin-toasts.is-bottom-right {
+  bottom: 72px;
 }
 /* A plugin's message (plugin.toast): blue info, orange warning (as a rejection), red error. */
 .trd-toast.is-plugin-info .trd-toast-icon {
