@@ -29,3 +29,12 @@ export function legendTitleParts(width: number | undefined, multiChart: boolean)
 export function legendHidesMinorValues(width: number | undefined): boolean {
   return width !== undefined && width <= 272;
 }
+
+/** Study rows a short pane shows before its "+K" row (reference legend): 80 % of the pane's height, less what sits
+ *  above the studies (series row, Buy/Sell buttons), in study rows, minus one for the "+K" row and at least one.
+ *  Null when every row shows: two studies or fewer, or they fit. */
+export function shownStudyRows(count: number, paneHeight: number, aboveHeight: number, rowHeight: number): number | null {
+  if (count <= 2 || paneHeight <= 0 || rowHeight <= 0) return null;
+  const n = Math.max(Math.floor((0.8 * paneHeight - aboveHeight) / rowHeight), 2) - 1;
+  return count > n + 1 ? n : null;
+}

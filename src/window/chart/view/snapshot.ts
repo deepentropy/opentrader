@@ -105,7 +105,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
       add(cx.mainPane(), legendLine(title, [...item.querySelectorAll(".ot-legend-values > *")].map(valueOf)));
     }
     // Studies and compared symbols: the shown ones, values without titles.
-    for (const row of cx.paneRoot.querySelectorAll<HTMLElement>(".ot-ind-legend-row")) {
+    for (const row of cx.paneRoot.querySelectorAll<HTMLElement>(".ot-ind-legend-row[data-entity-id]")) {
       if (row.classList.contains("is-hidden")) continue;
       const pane = indLegend().find((r) => r.id === row.dataset.entityId)?.pane ?? cx.mainPane();
       const title = row.querySelector(".ot-ind-legend-title")?.textContent?.trim() ?? "";

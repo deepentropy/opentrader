@@ -21,7 +21,7 @@
  * editor (reference legend status for a script open in its editor).
  */
 import { Icon } from "../../components/Icon";
-import { For, Show, createSignal, type JSX } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { createPopover } from "../../components/popover";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
@@ -29,7 +29,7 @@ import type { StudyError } from "./indicators/indicator-layer";
 import { formatStudyValue } from "../../data/study-format";
 import { localNumber } from "../../i18n/format";
 import { applyOpacity, parseColor } from "lightweight-charts-drawing/core/color";
-import { legendButtonsMode, legendTitleParts } from "./legend-widths";
+import { legendButtonsMode, legendTitleParts, shownStudyRows } from "./legend-widths";
 
 type Props = {
   rows: IndicatorLegendRow[];
@@ -75,12 +75,22 @@ type Props = {
   /** Width the legend may take (px): a narrow chart shows fewer buttons and
    *  no exchange after a compared symbol's name. */
   width?: number;
+  /** Height of the legend's pane (px): a short pane shows the first studies
+   *  and a "+K" row for the others (shownStudyRows). */
+  paneHeight?: number;
 };
 
 /** Split a study title into its name and trailing "(inputs)" portion. */
 export function splitTitle(title: string): { name: string; inputs: string } {
   const m = /^(.*?)\s*(\([^)]*\))\s*$/.exec(title);
   return m ? { name: m[1], inputs: m[2] } : { name: title, inputs: "" };
+}
+
+/** A study's title with its inputs, as its legend row writes it. */
+function fullTitle(row: IndicatorLegendRow): string {
+  const t = splitTitle(row.title);
+  const inputs = t.inputs || row.inputs;
+  return inputs ? `${t.name} ${inputs}` : t.name;
 }
 
 /** The chart background (hex or rgb/rgba) at `opacity` percent, its own alpha replaced. */
@@ -245,14 +255,44 @@ export function IndicatorLegend(props: Props) {
     const anchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setPanel((p) => (p?.id === id && p.kind === kind ? null : { id, kind, anchor }));
   };
+  // What sits above the studies in the legend's column (series row, Buy/Sell
+  // buttons) and a study row's height, measured whenever the column resizes.
+  const [box, setBox] = createSignal({ above: 0, row: 0 });
+  let root: HTMLDivElement | undefined;
+  const measure = () => {
+    if (!root) return;
+    const row = root.querySelector<HTMLElement>(".ot-ind-legend-row");
+    const next = { above: root.offsetTop, row: row?.offsetHeight ?? 0 };
+    const prev = box();
+    if (next.above !== prev.above || next.row !== prev.row) setBox(next);
+  };
+  const observer = new ResizeObserver(measure);
+  onCleanup(() => observer.disconnect());
+  const shownCount = createMemo(() => shownStudyRows(props.rows.length, props.paneHeight ?? 0, box().above, box().row));
+  const shownRows = () => {
+    if (props.collapsed) return [];
+    const n = shownCount();
+    return n === null ? props.rows : props.rows.slice(0, n);
+  };
+  const moreRows = () => {
+    const n = shownCount();
+    return props.collapsed || n === null ? [] : props.rows.slice(n);
+  };
   return (<>
     <Show when={props.rows.length > 0}>
       <div
+        ref={(el) => {
+          root = el;
+          observer.disconnect();
+          observer.observe(el);
+          if (el.parentElement) observer.observe(el.parentElement);
+          queueMicrotask(measure);
+        }}
         class="ot-ind-legend"
         classList={{ "is-collapsed": !!props.collapsed, "is-medium": legendButtonsMode(props.width) === "medium", "is-small": legendButtonsMode(props.width) === "small" }}
         data-name="legend-sources"
       >
-        <For each={props.collapsed ? [] : props.rows}>
+        <For each={shownRows()}>
           {(row) => (
             <div
               class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${row.eyeHidden ? " is-eye-hidden" : ""}${row.offInterval ? " is-off-interval" : ""}${props.selectedId === row.id ? " is-selected" : ""}${row.loading ? " is-loading" : ""}`}
@@ -378,6 +418,12 @@ export function IndicatorLegend(props: Props) {
             </div>
           )}
         </For>
+        {/* The studies a short pane has no room for: their count, their titles in the tooltip. */}
+        <Show when={moreRows().length > 0}>
+          <div class="ot-ind-legend-row ot-ind-legend-more" data-qa-id="legend-collapsed-sources" style={{ "background-color": bgAt(props.bgColor, props.bgOpacity) }}>
+            <span class="ot-ind-legend-title" title={moreRows().map(fullTitle).join(", ")}>+{moreRows().length}</span>
+          </div>
+        </Show>
         <Show when={props.onToggleCollapsed && (props.rows.length > 1 || props.mainPane)}>
           <LegendToggler count={props.rows.length} collapsed={!!props.collapsed} bgColor={props.bgColor} onToggle={() => props.onToggleCollapsed?.()} />
         </Show>

@@ -76,6 +76,7 @@ export function createLegend(cx: ChartCx): LegendApi {
     <IndicatorLegend
       rows={inSourceOrder(indLegend().filter((r) => r.pane === pane()), props.sourceOrder)}
       width={legendWidth()}
+      paneHeight={cx.paneBoxes().find((b) => b.index === pane())?.height ?? 0}
       collapsed={!!props.indicatorsLegendCollapsed}
       onToggleCollapsed={cx.edits.toggleIndicatorsLegend}
       mainPane={pane() === (void cx.mainPaneEpoch(), cx.mainPane())}
@@ -189,84 +190,93 @@ export function createLegend(cx: ChartCx): LegendApi {
     });
   }
 
-  /** Top of the price pane (the series legend sits at its top-left). */
-  const mainTop = () => {
+  /** Box of the price pane (the series legend sits at its top-left). */
+  const mainBox = () => {
     void cx.mainPaneEpoch();
     const m = cx.mainPane();
-    return cx.paneBoxes().find((b) => b.index === m)?.top ?? 0;
+    return cx.paneBoxes().find((b) => b.index === m);
   };
+  /** Each pane's legend is cut at the pane's bottom edge (reference): a short
+   *  pane shows the rows that fit, never over the pane below (#404). Before
+   *  the panes are measured it spans the chart. */
+  const paneClip = (b: { top: number; height: number } | undefined) =>
+    b ? { top: `${b.top}px`, height: `${b.height}px` } : { top: "0px", bottom: "0px" };
   function LegendStacks() {
     return (
       <>
-        <div class="ot-legend-stack" style={{ top: `${mainTop() + LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
-          <ChartLegend
-            ticker={splitSymbol(props.symbol ?? "").ticker}
-            interval={intervalLabel(props.interval ?? "1D")}
-            exchange={isEconomicSymbol(props.symbol) ? cx.legendSource() : splitSymbol(props.symbol ?? "").exchange}
-            logoUrl={isEconomicSymbol(props.symbol) ? flagUrl(economicCountry(props.symbol!)) : undefined}
-            values={legend()}
-            formatPrice={cx.legendPriceFormat()}
-            titleMode={appearance().legendTitleMode}
-            description={cx.legendDesc()}
-            showLogo={appearance().legendLogo}
-            showTitle={appearance().legendTitle}
-            showChartValues={appearance().legendChartValues}
-            showBarChange={appearance().legendBarChange}
-            showVolume={appearance().legendVolume}
-            showLastDayChange={appearance().legendLastDayChange}
-            marketStatus={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : cx.marketSession()}
-            showOpenStatus={appearance().legendMarketStatus ?? true}
-            replayStatus={cx.replayStatus()}
-            statusSymbol={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : props.symbol}
-            hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
-            seriesHidden={!!props.seriesHidden}
-            onToggleSeries={cx.edits.toggleSeriesHidden}
-            flagColor={(() => { const f = props.symbol ? flagOf(props.symbol) : null; return f ? FLAG_HEX[f] : null; })()}
-            onFlag={(btn) => {
-              // Reference marker click: an unflagged symbol is flagged in the
-              // last used colour and the colour popup opens; a flagged one is
-              // unflagged.
-              const sym = props.symbol;
-              if (!sym) return;
-              if (flagOf(sym)) { setFlag(sym, null); setFlagPopup(null); return; }
-              // A full colour list refuses the flag (its warning shows): no popup then.
-              if (flagSymbols([sym], lastFlagColor())) setFlagPopup(btn);
-            }}
-            onChangeSymbol={props.onChangeSymbol}
-            onChangeInterval={props.onChangeInterval}
-            onMore={cx.openSeriesMoreMenu}
-            width={legendWidth()}
-            multiChart={(props.layoutCount ?? 1) > 1}
-            linkVisible={!!props.linkSyncVisible}
-            linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
-            onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
-          />
-          {/* Buy / Sell buttons (replay trading), under the series row. */}
-          {cx.TradingButtons()}
-          <Show when={syncMenu()}>
-            {(r) => (
-              <ChartSyncMenu anchor={r()} group={props.linkGroup} onPick={(g) => cx.edits.setLinkGroup(g)} onClose={() => setSyncMenu(null)} />
-            )}
-          </Show>
-          <Show when={flagPopup()}>
-            {(btn) => (
-              <FlagColorPopup
-                anchor={btn()}
-                value={props.symbol ? flagOf(props.symbol) : null}
-                onPick={(c) => { if (props.symbol) flagSymbols([props.symbol], c); }}
-                onClose={() => setFlagPopup(null)}
-              />
-            )}
-          </Show>
-          {studyLegend(() => (void cx.mainPaneEpoch(), cx.mainPane()))}
+        <div class="ot-legend-pane" style={paneClip(mainBox())}>
+          <div class="ot-legend-stack" style={{ top: `${LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
+            <ChartLegend
+              ticker={splitSymbol(props.symbol ?? "").ticker}
+              interval={intervalLabel(props.interval ?? "1D")}
+              exchange={isEconomicSymbol(props.symbol) ? cx.legendSource() : splitSymbol(props.symbol ?? "").exchange}
+              logoUrl={isEconomicSymbol(props.symbol) ? flagUrl(economicCountry(props.symbol!)) : undefined}
+              values={legend()}
+              formatPrice={cx.legendPriceFormat()}
+              titleMode={appearance().legendTitleMode}
+              description={cx.legendDesc()}
+              showLogo={appearance().legendLogo}
+              showTitle={appearance().legendTitle}
+              showChartValues={appearance().legendChartValues}
+              showBarChange={appearance().legendBarChange}
+              showVolume={appearance().legendVolume}
+              showLastDayChange={appearance().legendLastDayChange}
+              marketStatus={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : cx.marketSession()}
+              showOpenStatus={appearance().legendMarketStatus ?? true}
+              replayStatus={cx.replayStatus()}
+              statusSymbol={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : props.symbol}
+              hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
+              seriesHidden={!!props.seriesHidden}
+              onToggleSeries={cx.edits.toggleSeriesHidden}
+              flagColor={(() => { const f = props.symbol ? flagOf(props.symbol) : null; return f ? FLAG_HEX[f] : null; })()}
+              onFlag={(btn) => {
+                // Reference marker click: an unflagged symbol is flagged in the
+                // last used colour and the colour popup opens; a flagged one is
+                // unflagged.
+                const sym = props.symbol;
+                if (!sym) return;
+                if (flagOf(sym)) { setFlag(sym, null); setFlagPopup(null); return; }
+                // A full colour list refuses the flag (its warning shows): no popup then.
+                if (flagSymbols([sym], lastFlagColor())) setFlagPopup(btn);
+              }}
+              onChangeSymbol={props.onChangeSymbol}
+              onChangeInterval={props.onChangeInterval}
+              onMore={cx.openSeriesMoreMenu}
+              width={legendWidth()}
+              multiChart={(props.layoutCount ?? 1) > 1}
+              linkVisible={!!props.linkSyncVisible}
+              linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
+              onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
+            />
+            {/* Buy / Sell buttons (replay trading), under the series row. */}
+            {cx.TradingButtons()}
+            <Show when={syncMenu()}>
+              {(r) => (
+                <ChartSyncMenu anchor={r()} group={props.linkGroup} onPick={(g) => cx.edits.setLinkGroup(g)} onClose={() => setSyncMenu(null)} />
+              )}
+            </Show>
+            <Show when={flagPopup()}>
+              {(btn) => (
+                <FlagColorPopup
+                  anchor={btn()}
+                  value={props.symbol ? flagOf(props.symbol) : null}
+                  onPick={(c) => { if (props.symbol) flagSymbols([props.symbol], c); }}
+                  onClose={() => setFlagPopup(null)}
+                />
+              )}
+            </Show>
+            {studyLegend(() => (void cx.mainPaneEpoch(), cx.mainPane()))}
+          </div>
         </div>
         {/* Study panes: each pane's legend at its own top-left, same offset
             as the main legend. */}
         <For each={cx.paneBoxes().filter((b) => (void cx.mainPaneEpoch(), b.index !== cx.mainPane()))}>
           {(b) => (
             <Show when={indLegend().some((r) => r.pane === b.index)}>
-              <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
-                {studyLegend(() => b.index)}
+              <div class="ot-legend-pane" style={paneClip(b)}>
+                <div class="ot-legend-stack" style={{ top: `${LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
+                  {studyLegend(() => b.index)}
+                </div>
               </div>
             </Show>
           )}

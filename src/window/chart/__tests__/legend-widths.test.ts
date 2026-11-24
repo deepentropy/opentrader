@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legendButtonsMode, legendHidesMinorValues, legendTitleParts } from "../legend-widths";
+import { legendButtonsMode, legendHidesMinorValues, legendTitleParts, shownStudyRows } from "../legend-widths";
 
 describe("legendButtonsMode", () => {
   it("drops study buttons on narrow charts (reference widths)", () => {
@@ -32,5 +32,22 @@ describe("legendHidesMinorValues", () => {
     expect(legendHidesMinorValues(273)).toBe(false);
     expect(legendHidesMinorValues(272)).toBe(true);
     expect(legendHidesMinorValues(undefined)).toBe(false);
+  });
+});
+
+describe("shownStudyRows", () => {
+  it("shows every row with two studies or fewer, or when they fit", () => {
+    expect(shownStudyRows(2, 30, 0, 24)).toBeNull();
+    expect(shownStudyRows(3, 300, 30, 24)).toBeNull();
+    expect(shownStudyRows(3, 0, 0, 24)).toBeNull();
+  });
+  it("keeps 80 % of the pane, less the rows above, for the studies and the +K row", () => {
+    // (0.8 * 150 - 30) / 24 = 3.75 -> 3 rows: 2 studies and "+3".
+    expect(shownStudyRows(5, 150, 30, 24)).toBe(2);
+    // Room for 4 rows and 4 studies: all show.
+    expect(shownStudyRows(4, 150, 0, 24)).toBeNull();
+  });
+  it("shows at least one study", () => {
+    expect(shownStudyRows(6, 40, 60, 24)).toBe(1);
   });
 });
