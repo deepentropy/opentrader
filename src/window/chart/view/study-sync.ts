@@ -10,6 +10,7 @@ import { IndicatorController } from "../indicators/indicator-controller";
 import { scriptChartContext } from "../indicators/script-chart";
 import { compareSource } from "../compare/compare-style";
 import { readChartTokens } from "../chart-tokens";
+import { scriptChartType } from "../chart-types";
 import { studyBars } from "./series";
 import { type ChartCx } from "./context";
 
@@ -112,10 +113,10 @@ export function createStudySync(cx: ChartCx): StudySyncApi {
   });
   const applyScriptChart = () => untrack(pushScriptChart);
 
-  // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars.
+  // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars; scripts read the chart type.
   createEffect(() => {
     chartReady();
-    cx.controller?.setHeikinAshi((props.chartType ?? "candle") === "ha");
+    cx.controller?.setChartType(scriptChartType(props.chartType ?? "candle"));
   });
 
   // Volume Candles: column plots (Volume) as wide as their candle.

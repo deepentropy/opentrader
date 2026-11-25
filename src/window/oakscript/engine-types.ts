@@ -75,6 +75,8 @@ export type OakCompiledMeta = {
   /** The indicator calls alert(): an alert can watch "Any alert() function call"; the run result's `alertCalls`
    *  gives the calls (bar time, message, frequency). */
   hasAlertFunction?: boolean;
+  /** The script reads the visible range of the chart: calculated again when the user scrolls or zooms. */
+  usesVisibleRange?: boolean;
 };
 
 /** A backtest failure: a script error, or a strategy runtime error (Pine

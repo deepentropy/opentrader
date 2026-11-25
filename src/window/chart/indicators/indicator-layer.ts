@@ -45,6 +45,7 @@ import { VbpPrimitive } from '../profiles/vbp-primitive';
 import type { VbpDraw } from '../profiles/vbp-studies';
 import { TpoPrimitive, type TpoBlockHit } from '../profiles/tpo-primitive';
 import type { TpoDraw } from '../profiles/tpo-engine';
+import type { ScriptChartType } from '../chart-types';
 import { uiTheme } from '../../header/chart-settings';
 import { studyScaleFormat } from '../price-format';
 import { cachedSymbolSessions } from '../../../data/session';
@@ -116,9 +117,10 @@ export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVis
    *  none. */
   fundamentals?: (symbol: string) => Fundamentals | null | undefined;
 };
-/** Chart type and state of the newest bar, read at each calculation. `realtime`: it is still forming;
+/** Chart type (`chartType`: as scripts name it, `chart.is_*`) and state of the newest bar, read at each calculation.
+ *  `realtime`: it is still forming;
  *  `lastBarNew`: this is its first update. */
-export type StudyChartState = () => { heikinAshi: boolean; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
+export type StudyChartState = () => { heikinAshi: boolean; chartType?: ScriptChartType; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
 /** Times (chart bar times) of the first and last bars visible on the chart; null = not known. */
 export type StudyVisibleRange = () => { from: number; to: number } | null;
 /** A study that failed, shown with it in the legend: another symbol it reads cannot be loaded (`invalidSymbol`), or
@@ -857,7 +859,9 @@ export class IndicatorLayer {
       // The workers restamp the library studies' and the user scripts' bars (and put their results back) themselves.
       const workerBars = offThread || isUserIndicatorId(entry.id);
       const seen = workerBars ? bars : restamp(bars);
-      const range = this.visibleRange();
+      // Only for a study that reads it: another one would calculate every bar again (a strategy, its whole backtest)
+      // after each scroll.
+      const range = entry.usesVisibleRange ? this.visibleRange() : null;
       if (range) {
         const left = barIndexAt(bars, range.from, true);
         const right = barIndexAt(bars, range.to, false);

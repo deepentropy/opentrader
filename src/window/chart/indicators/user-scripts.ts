@@ -135,6 +135,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.defaultInputs = meta?.defaultInputs ?? {};
   e.alertConditions = meta?.alertConditions;
   e.hasAlertFunction = meta?.hasAlertFunction;
+  e.usesVisibleRange = meta?.usesVisibleRange;
 }
 
 async function runInWorker(
@@ -151,6 +152,8 @@ async function runInWorker(
 ): Promise<void> {
   const engine = getOakEngine();
   const requests = run.requests.list;
+  // The first compile of the script may move its study to or from a pane of its own.
+  let structural = false;
   try {
     if (rt.compiledGen !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -158,6 +161,7 @@ async function runInWorker(
       const meta = await engine.compile(scriptId, script.source);
       rt.compiledGen = engine.generation;
       scripts.saveCompiledMeta(scriptId, meta);
+      structural = (rt.entry.overlay ?? true) !== meta.overlay;
       applyMeta(rt.entry, script.name, meta);
     }
     // Daily and longer bars: put at the session open in the worker, as scripts read them; the result comes back on the
@@ -190,9 +194,10 @@ async function runInWorker(
     run.queued = null;
     if (next && next.key !== run.key) {
       run.running = true;
+      if (structural) dispatchUpdated(scriptId, true);
       void runInWorker(rt, run, runKey, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key, next.sources);
     } else {
-      dispatchUpdated(scriptId, false);
+      dispatchUpdated(scriptId, structural);
     }
   }
 }

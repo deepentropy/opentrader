@@ -22,6 +22,8 @@ import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { isStrategyId } from './strategy-entries';
+import { isUserIndicatorId } from './user-scripts';
+import type { ScriptChartType } from '../chart-types';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides, type StudyError } from './indicator-layer';
 import { OtherSymbolBars } from './other-symbols';
 import type { TpoBlockHit } from '../profiles/tpo-primitive';
@@ -44,7 +46,7 @@ import type { StudyFormat } from "../../../data/study-format";
 import { type ScaleKey, type ScaleUse } from "../scales/scale-layout";
 import { PaneAllocator } from './pane-allocator';
 import { StudyScales } from './study-scales';
-import { alignToBars, parentsOf, parseSourceRef, sourceInputIds, SOURCES_KEY, type SourceSpec } from "./study-sources";
+import { alignToBars, parentsOf, parseSourceRef, sourceInputIds, SOURCES_KEY, VISIBLE_RANGE_KEY, type SourceSpec } from "./study-sources";
 
 /** Quiet time after a scroll or zoom before the studies that read the visible range calculate again. */
 const VISIBLE_RANGE_DELAY_MS = 120;
@@ -193,14 +195,14 @@ export class IndicatorController {
 
   /** Chart context of the studies (timeframe, session...). */
   private scriptChart: StudyChart | undefined;
-  /** The chart shows Heikin Ashi bars (strategies run on them). */
-  private heikinAshi = false;
+  /** The chart type as scripts name it (Heikin Ashi: strategies run on its bars). */
+  private chartType: ScriptChartType = "standard";
   /** The newest bar as it was first seen: until it moves, a calculation is its first update. */
   private firstSeen: { time: unknown; sig: string } | null = null;
   private readonly chartState = () => {
     const open = this.host.lastBarOpen();
     const isNew = this.lastBarNew();
-    return { heikinAshi: this.heikinAshi, realtime: open, lastBarConfirmed: !open, lastBarNew: !open || isNew };
+    return { heikinAshi: this.chartType === "heikinashi", chartType: this.chartType, realtime: open, lastBarConfirmed: !open, lastBarNew: !open || isNew };
   };
 
   /** Chart bar times of the first and last visible bars (studies that read the visible range). */
@@ -570,13 +572,14 @@ export class IndicatorController {
     this.redrawAll();
   }
 
-  /** The chart type changed: strategies rerun on Heikin Ashi bars or back on the standard bars. */
-  setHeikinAshi(on: boolean): void {
-    if (on === this.heikinAshi) return;
-    this.heikinAshi = on;
+  /** The chart type changed: strategies rerun on Heikin Ashi bars or back on the standard bars, and the scripts read
+   *  the new type (`chart.is_renko`...). */
+  setChartType(type: ScriptChartType): void {
+    if (type === this.chartType) return;
+    this.chartType = type;
     const bars = this.host.bars();
     for (const [id, inst] of this.instances) {
-      if (inst.owner || !isStrategyId(id)) continue;
+      if (inst.owner || !(isStrategyId(id) || isUserIndicatorId(id))) continue;
       const entry = getIndicatorEntry(id);
       if (entry) this.renderOne(id, inst, entry, bars);
     }
@@ -668,8 +671,8 @@ export class IndicatorController {
     const ext = this.host.externalSource(r.id);
     return ext ? alignToBars(ext, bars) : null;
   };
-  /** A study's inputs with the description of the other sources its source inputs read (an alert on it
-   *  calculates them first). */
+  /** A study's inputs with the description of the other sources its source inputs read (an alert on it calculates them
+   *  first), and the bars in view when it reads them. */
   inputsWithSources(id: string, entry: IndicatorRegistryEntry, seen: ReadonlySet<string> = new Set()): Record<string, unknown> {
     const inputs = this.effectiveInputs(id, entry);
     const specs: Record<string, SourceSpec> = {};
@@ -687,7 +690,9 @@ export class IndicatorController {
       const symbol = this.host.externalSpec(r.id);
       if (symbol) specs[v] = { label, symbol };
     }
-    return Object.keys(specs).length ? { ...inputs, [SOURCES_KEY]: specs } : inputs;
+    const range = entry.usesVisibleRange ? this.visibleRange() : null;
+    if (!range && !Object.keys(specs).length) return inputs;
+    return { ...inputs, ...(Object.keys(specs).length ? { [SOURCES_KEY]: specs } : {}), ...(range ? { [VISIBLE_RANGE_KEY]: range } : {}) };
   }
 
   /** The studies `id` reads (directly or through others) that skipped their calculation calculate it. */
