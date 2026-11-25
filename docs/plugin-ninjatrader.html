@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NinjaTrader 8 plugin: setup guide · OpenTrader</title>
-  <meta name="description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data on OpenTrader charts, with live prices and tick charts.">
+  <meta name="description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data and order book on OpenTrader charts, and your account, read only.">
   <link rel="canonical" href="https://opentrader.markets/plugin-ninjatrader.html">
   <meta name="theme-color" content="#0f0f0f">
   <meta property="og:site_name" content="OpenTrader">
   <meta property="og:title" content="NinjaTrader 8 plugin: setup guide · OpenTrader">
-  <meta property="og:description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data on OpenTrader charts, with live prices and tick charts.">
+  <meta property="og:description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data and order book on OpenTrader charts, and your account, read only.">
   <meta property="og:url" content="https://opentrader.markets/plugin-ninjatrader.html">
   <meta property="og:image" content="https://opentrader.markets/assets/screenshot.png">
   <meta property="og:type" content="website">
@@ -48,10 +48,10 @@
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb"><a href="./">OpenTrader</a> / <a href="plugins.html">Plugins</a> / <span aria-current="page">NinjaTrader 8</span></nav>
     <h1>NinjaTrader 8 setup</h1>
-    <p>NinjaTrader 8's futures data in OpenTrader: history, tick charts and live prices. It reads no account and sends no order. For Windows.</p>
+    <p>NinjaTrader 8 in OpenTrader: futures history, tick charts, live prices and order book, and your account, read only. It sends no order. For Windows.</p>
 
     <div class="guide-note">
-      <p><strong>Read this first.</strong> This plugin is not made, reviewed or approved by NinjaTrader, and OpenTrader is not affiliated with NinjaTrader. NinjaTrader's terms, and those of your data provider and the exchanges, may not allow using their data in another application. Read the terms of your account and use the plugin only if they allow it: you are responsible for that use.</p>
+      <p><strong>Read this first.</strong> This plugin is not made, reviewed or approved by NinjaTrader, and OpenTrader is not affiliated with NinjaTrader. NinjaTrader's terms, and those of your data provider and the exchanges, may not allow using their data, the order book included, in another application. Read the terms of your account and use the plugin only if they allow it: you are responsible for that use.</p>
     </div>
 
     <h2>Set up</h2>
@@ -71,6 +71,22 @@
     </ul>
     <p>What you see depends on the data NinjaTrader is connected to.</p>
 
+    <h2>Your account</h2>
+    <p>Choose <strong>Trade &gt; Connect broker… &gt; NinjaTrader 8</strong>. The account manager shows your balances, positions, orders and fills, and the charts show your positions and orders. Pick another account in the account manager.</p>
+    <ul>
+      <li>The plugin reads your accounts only once you connect NinjaTrader as the broker. It passes them to OpenTrader on this computer and nowhere else.</li>
+      <li><strong>It does not trade:</strong> every order, change, cancel and close is refused with a message. Use NinjaTrader to trade.</li>
+      <li><strong>DEMO</strong> shows for NinjaTrader's own simulator and playback only. Every other account shows as <strong>LIVE</strong>, a NinjaTrader demo account or a prop firm's evaluation included.</li>
+      <li>With OpenTrader 0.4.33 and earlier, positions show on the contract's chart (<code>NT8:ESZ2026</code>) only. Later releases show them on the front contract's chart (<code>NT8:ES1!</code>) too.</li>
+    </ul>
+
+    <h2>Order book</h2>
+    <ol>
+      <li>Connect NinjaTrader as the broker, as above.</li>
+      <li>Choose <strong>Trade &gt; Turn trading on</strong>: the DOM needs it, though the plugin refuses every order.</li>
+      <li>Open the order ticket and its <strong>DOM</strong> tab.</li>
+    </ol>
+
     <h2>After an update</h2>
     <p>Press <strong>F5</strong> in the NinjaScript Editor again. If you remove the plugin, press F5 once more.</p>
 
@@ -79,7 +95,8 @@
       <li><strong>It does not compile:</strong> an error in another script of yours stops it. Fix or remove that script, then press F5.</li>
       <li><strong>A daily chart shows only the last years:</strong> NinjaTrader is still loading the rest the first time. Load the chart again a minute later.</li>
       <li><strong>No tick history:</strong> it goes back only as far as NinjaTrader gives it.</li>
-      <li><strong>A chart stays empty:</strong> it was opened before the plugin was turned on. Change its interval to load it.</li>
+      <li><strong>A chart stays empty</strong> (OpenTrader 0.4.33 and earlier): it was opened before the plugin was turned on. Change its interval to load it.</li>
+      <li><strong>A market-if-touched order</strong> shows as a limit order.</li>
     </ul>
   </div>
 </section>
@@ -95,7 +112,7 @@
       <a href="https://github.com/deepentropy/opentrader">GitHub</a>
       <a href="https://community.opentrader.markets/">Community</a>
       <a href="community-rules.html">Community rules</a>
-      <a href="terms.html" aria-current="page">Terms</a>
+      <a href="terms.html">Terms</a>
       <a href="privacy.html">Privacy</a>
       <a href="legal.html">Legal notice</a>
     </nav>
