@@ -4,7 +4,8 @@
 // Secrets (`wrangler secret put`): GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET,
 // DISCORD_CLIENT_SECRET (a provider without its id and secret is not offered),
 // TURNSTILE_SECRET, GATEWAY_TOKEN, GITHUB_ISSUES_TOKEN (fine-grained, Issues
-// read and write on the project: suggestions promoted to issues). Paid tier (#252, off until set):
+// read and write on the project: suggestions promoted to issues), GITHUB_WEBHOOK_SECRET (the repository's webhook,
+// issues events, to <PUBLIC_URL>/github/webhook), BOT_TOKEN (scripts/bot.mjs). Paid tier (#252, off until set):
 // PASS_PRIVATE_KEY (scripts/pass-keys.mjs), GATEWAY_ADMIN_TOKEN (the gateway's
 // REALTIME_ADMIN_TOKEN), STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID;
 // webhook URL <PUBLIC_URL>/billing/webhook.

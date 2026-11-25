@@ -114,6 +114,20 @@ export const LIMITS = {
 } as const;
 
 /** SHA-256 of the sender's IP address and the day: daily limits per connection without keeping the address. */
+/** HMAC-SHA256 of `text`, hex. */
+export async function hmacHex(secret: string, text: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text)));
+  return [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export async function senderHash(request: Request): Promise<string> {
   return sha256Hex(`${request.headers.get("CF-Connecting-IP") ?? "unknown"}:${Math.floor(Date.now() / 86_400_000)}`);
 }

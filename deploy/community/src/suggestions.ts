@@ -7,8 +7,8 @@
  * Administrators set its status (under review, planned, in progress, shipped,
  * declined) with a note, promote it to a GitHub issue of the project, or bring
  * an existing issue in. A linked issue that closes moves the suggestion to
- * shipped (completed) or declined (not planned); its author and supporters
- * hear of each new status.
+ * shipped (completed) or declined (not planned), when GitHub's webhook says so
+ * or at the hourly check; its author and supporters hear of each new status.
  */
 import { Env } from "./env";
 import { User } from "./auth";
@@ -16,7 +16,7 @@ import { SUGGESTION_STATUSES, type SuggestionStatus, type SuggestionsView } from
 import { POST_SELECT, createComment, createPost, getPost, postRow, postsOut, requireUser, writer } from "./api";
 import { notBannedIn } from "./members";
 import { notifyStatement } from "./notify";
-import { GITHUB_REPO, HttpError, LIMITS, SUGGESTIONS, hotRank, json, newId, now, str } from "./util";
+import { GITHUB_REPO, HttpError, LIMITS, SUGGESTIONS, hmacHex, hotRank, json, newId, now, str, timingSafeEqual } from "./util";
 
 /** A database row: the columns its query selects (the answers sent are typed by the API contract). */
 type Row = Record<string, any>;
@@ -239,26 +239,55 @@ export async function importIssue(env: Env, user: User | null, body: any): Promi
   return get(env, user, id, 201);
 }
 
-/** Linked issues of open suggestions closed on GitHub: shipped or declined (the cron, hourly). */
+/** The open suggestion linked to an issue that closed: shipped or declined. True when there was one. */
+async function applyIssue(env: Env, issue: Row): Promise<boolean> {
+  if (issue.state !== "closed") return false;
+  const row = await env.DB.prepare(
+    `SELECT id, title, author_id, sg_status, sg_note FROM posts WHERE issue_number = ? AND sg_status IN (${OPEN.map(() => "?").join(",")}) AND deleted = 0 AND removed = 0`,
+  )
+    .bind(issue.number, ...OPEN)
+    .first<Row>();
+  if (!row) return false;
+  const status = statusOfIssue(issue);
+  await env.DB.batch([
+    env.DB.prepare("UPDATE posts SET sg_status = ?, sg_updated_at = ? WHERE id = ?").bind(status, now(), row.id),
+    ...(await statusNotices(env, row, status, row.sg_note, null)),
+  ]);
+  return true;
+}
+
+/** POST /github/webhook — the project's issues events, signed by GitHub. A delivery sent twice changes nothing. */
+export async function webhook(env: Env, request: Request): Promise<Response> {
+  if (!env.GITHUB_WEBHOOK_SECRET) throw new HttpError(404, "Not available.");
+  const body = await request.text();
+  const expected = `sha256=${await hmacHex(env.GITHUB_WEBHOOK_SECRET, body)}`;
+  if (!timingSafeEqual(request.headers.get("x-hub-signature-256") ?? "", expected)) throw new HttpError(401, "Bad signature.");
+  let event: Row;
+  try {
+    event = JSON.parse(body);
+  } catch {
+    throw new HttpError(400, "The request is not valid JSON.");
+  }
+  const issue = event.issue;
+  if (request.headers.get("x-github-event") !== "issues" || event.action !== "closed" || event.repository?.full_name !== GITHUB_REPO || !Number.isInteger(issue?.number)) {
+    return json({ ok: true, updated: false });
+  }
+  return json({ ok: true, updated: await applyIssue(env, issue) });
+}
+
+/** The hourly check, for a delivery missed: linked issues of open suggestions closed on GitHub. */
 export async function syncIssues(env: Env): Promise<void> {
   const { results } = await env.DB.prepare(
-    `SELECT id, title, author_id, sg_status, sg_note, issue_number FROM posts WHERE issue_number IS NOT NULL AND sg_status IN (${OPEN.map(() => "?").join(",")}) AND deleted = 0 AND removed = 0`,
+    `SELECT issue_number FROM posts WHERE issue_number IS NOT NULL AND sg_status IN (${OPEN.map(() => "?").join(",")}) AND deleted = 0 AND removed = 0`,
   )
     .bind(...OPEN)
     .all<Row>();
   for (const row of results) {
-    let issue: Row;
     try {
-      issue = await github(env, `/repos/${GITHUB_REPO}/issues/${row.issue_number}`);
+      await applyIssue(env, await github(env, `/repos/${GITHUB_REPO}/issues/${row.issue_number}`));
     } catch (e) {
-      console.error("[suggestions] issue", row.issue_number, e);
-      continue;
+      // Without a token, GitHub counts the calls of every Worker at this address together and often refuses.
+      console.error(`[suggestions] issue ${row.issue_number}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    if (issue.state !== "closed") continue;
-    const status = statusOfIssue(issue);
-    await env.DB.batch([
-      env.DB.prepare("UPDATE posts SET sg_status = ?, sg_updated_at = ? WHERE id = ?").bind(status, now(), row.id),
-      ...(await statusNotices(env, row, status, row.sg_note, null)),
-    ]);
   }
 }

@@ -168,6 +168,7 @@ export function PostView(props: Props) {
         <div class="cm-comment-head">
           <button type="button" class="cm-collapse" aria-label={isCollapsed() ? "Expand" : "Collapse"} onClick={flip}>{isCollapsed() ? "+" : "−"}</button>
           <Author name={c().author} />
+          <BotBadge show={c().author_bot} />
           <Show when={c().by_op}><span class="cm-type is-idea">Author</span></Show>
           <Show when={c().kind}><span class="cm-type" data-i18n-sense="post">{KIND_LABEL[c().kind!]}</span></Show>
           <Show when={post.p?.answer_id === c().id}><span class="cm-type is-answer">Answer</span></Show>

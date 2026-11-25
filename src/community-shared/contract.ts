@@ -136,6 +136,8 @@ export type Comment = {
   parent_id: string | null;
   author: string | null;
   author_record: TrackRecord | null;
+  /** Posted by the automatic account (OpenTrader-bot). */
+  author_bot?: boolean;
   /** Written by the post's author. */
   by_op: boolean;
   kind: ReplyKind | null;

@@ -21,6 +21,7 @@ import * as snapshots from "./snapshots";
 import * as views from "./views";
 import * as billing from "./billing";
 import * as suggestions from "./suggestions";
+import * as botApi from "./bot-api";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -91,6 +92,12 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/check\/start$/, ({ env, user }) => check.startCheck(env, user)],
   ["GET", /^\/check$/, ({ env, url }) => check.checkPage(env, url)],
   ["POST", /^\/check\/verify$/, ({ env, request }) => check.verifyCheck(env, request)],
+  // OpenTrader-bot's own posts and replies (its key, not a sign-in).
+  ["POST", /^\/bot\/posts\/([a-z0-9]+)\/comments$/, ({ env, request, params, body, ctx }) => botApi.comment(env, request, params[0], body, ctx)],
+  ["POST", /^\/bot\/communities\/([^/]+)\/posts$/, ({ env, request, params, body }) => botApi.post(env, request, params[0], body)],
+  ["PATCH", /^\/bot\/(comments|posts)\/([a-z0-9]+)$/, ({ env, request, params, body }) => botApi.change(env, request, params[0], params[1], body)],
+  ["DELETE", /^\/bot\/(comments|posts)\/([a-z0-9]+)$/, ({ env, request, params }) => botApi.change(env, request, params[0], params[1], null)],
+  ["POST", /^\/github\/webhook$/, ({ env, request }) => suggestions.webhook(env, request)],
   ["POST", /^\/mod\/bot$/, ({ env, user, body }) => bot.runJob(env, user, body)],
   ["POST", /^\/mod\/community-ban$/, ({ env, user, body }) => members.communityBan(env, user, body)],
   ["PATCH", /^\/me$/, ({ env, user, body }) => api.rename(env, user, body)],
@@ -192,10 +199,10 @@ export default {
         return file.status === 404 && !isFile(url.pathname) ? notFound(env, url) : file;
       }
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
-      // The payment provider's deliveries come in bursts from a few addresses.
-      const raw = path === "/billing/webhook";
+      // The payment provider's and GitHub's deliveries come in bursts from a few addresses.
+      const raw = path === "/billing/webhook" || path === "/github/webhook";
       if (!raw) await burstLimit(env, request, path);
-      // The bot check's form and the webhook's signed body are read by their handlers.
+      // The bot check's form and the webhooks' signed bodies are read by their handlers.
       const body = raw || path === "/auth/verify" || path === "/check/verify" ? null : await readBody(request, path);
       const user = await auth.currentUser(env, request);
       res = await handler({ env, request, url, params, body, user, ctx });
