@@ -55,7 +55,7 @@ const mock = http.createServer(async (req, res) => {
     openSessions = openSessions.filter((s) => s.id !== expire[1]);
     return send({ id: expire[1] });
   }
-  if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") return send({ url: "https://checkout.test/session" });
+  if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") return send({ client_secret: "cs_test_a_secret_b" });
   const charge = /^\/v1\/charges\/(.+)$/.exec(url.pathname);
   if (charge) return send({ id: charge[1], customer: charges.get(charge[1]) });
   if (req.method === "POST" && url.pathname === "/v1/billing_portal/sessions") return send({ url: "https://portal.test/session" });
@@ -65,6 +65,10 @@ const mock = http.createServer(async (req, res) => {
     return send({ data: [...(sub ? [sub] : []), ...(older.get(customer) ?? [])] });
   }
   const del = /^\/v1\/subscriptions\/(.+)$/.exec(url.pathname);
+  if (req.method === "POST" && del) {
+    for (const sub of subs.values()) if (sub.id === del[1]) sub.cancel_at_period_end = form.cancel_at_period_end === "true";
+    return send({ id: del[1] });
+  }
   if (req.method === "DELETE" && del) {
     for (const sub of [...subs.values(), ...[...older.values()].flat()]) if (sub.id === del[1]) sub.status = "canceled";
     return send({ id: del[1], status: "canceled" });
@@ -77,7 +81,7 @@ await new Promise((r) => mock.listen(MOCK_PORT, r));
 const persist = mkdtempSync(join(tmpdir(), "billing-e2e-"));
 execSync(`npx wrangler d1 migrations apply opentrader-community --env local --local --persist-to "${persist}"`, { stdio: "ignore", input: "y\n" });
 const vars = {
-  STRIPE_API_URL: `http://127.0.0.1:${MOCK_PORT}`, STRIPE_SECRET_KEY: "sk_test", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
+  STRIPE_API_URL: `http://127.0.0.1:${MOCK_PORT}`, STRIPE_SECRET_KEY: "sk_test", STRIPE_PUBLISHABLE_KEY: "pk_test_abc", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
   STRIPE_PRICE_ID: "price_test,price_old", STRIPE_PORTAL_CONFIG: "bpc_test", PAID_OPEN: "1", PASS_PRIVATE_KEY: PRIVATE, GATEWAY_URL: `http://127.0.0.1:${MOCK_PORT}`, GATEWAY_ADMIN_TOKEN: ADMIN,
   // The sign-in without the bot check.
   TURNSTILE_SITE_KEY: "",
@@ -156,7 +160,8 @@ try {
 
   // 2. checkout
   r = await owner("POST", "/billing/checkout");
-  assert.equal(r.data.url, "https://checkout.test/session");
+  assert.ok(r.data.page.endsWith("/billing/pay"));
+  assert.equal(r.data.secret, "cs_test_a_secret_b");
   const session = calls.find((c) => c.method === "POST" && c.path === "/v1/checkout/sessions").form;
   assert.equal(session["line_items[0][price]"], "price_test");
   assert.equal(session.mode, "subscription");
@@ -164,6 +169,8 @@ try {
   assert.equal(session.client_reference_id, userId);
   assert.equal(session["payment_method_types[0]"], "card");
   assert.equal(session["managed_payments[enabled]"], undefined);
+  assert.equal(session.ui_mode, "embedded_page");
+  assert.equal(session.redirect_on_completion, "never");
   openSessions = [{ id: "cs_old" }];
   await owner("POST", "/billing/checkout");
   assert.deepEqual(openSessions, [], "the page opened before is closed");
@@ -202,6 +209,17 @@ try {
   assert.equal((await owner("POST", "/billing/portal")).data.url, "https://portal.test/session");
   assert.equal(calls.findLast((c) => c.path === "/v1/billing_portal/sessions").form.configuration, "bpc_test");
   ok("a delivery sent again is skipped; no second checkout; portal link");
+
+  // 4b. cancelled and kept in the app
+  r = await owner("POST", "/billing/cancel");
+  assert.deepEqual([r.data.plan, r.data.cancel_at_period_end], ["rt", true]);
+  assert.ok(calls.some((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1" && c.form.cancel_at_period_end === "true"));
+  r = await owner("POST", "/billing/resume");
+  assert.equal(r.data.cancel_at_period_end, false);
+  const nobody = api(await login("nobody"));
+  assert.equal((await nobody("POST", "/billing/cancel")).status, 404);
+  assert.equal((await fetch(`${BASE}/billing/cancel`, { method: "POST" })).status, 401);
+  ok("cancelled and kept in the app, its own subscription only");
 
   // 5. cancellation in the portal, then an older event arriving late
   subs.get("cus_1").status = "canceled";
@@ -306,8 +324,14 @@ try {
 
   // 9. return pages
   assert.equal((await fetch(`${BASE}/billing/done`)).status, 200);
-  assert.equal((await fetch(`${BASE}/billing/cancelled`)).status, 200);
-  ok("checkout return pages");
+  const pay = await fetch(`${BASE}/billing/pay`);
+  const csp = pay.headers.get("content-security-policy");
+  assert.match(csp, /frame-ancestors http:\/\/tauri\.localhost https:\/\/tauri\.localhost tauri:\/\/localhost/);
+  assert.match(csp, /default-src 'none'/);
+  const html = await pay.text();
+  assert.ok(html.includes("pk_test_abc") && !html.includes("sk_test"));
+  assert.equal((await fetch(`${BASE}/billing/pay.js`)).headers.get("content-type"), "text/javascript; charset=utf-8");
+  ok("payment page: the app alone may frame it, no secret key in it");
 
   console.log("\nall billing tests passed");
 } catch (err) {

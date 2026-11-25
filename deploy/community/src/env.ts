@@ -39,8 +39,9 @@ export interface Env {
   PASS_PRIVATE_KEY?: string;
   /** The gateway's admin token: closes an account's real-time stream when it loses its plan. */
   GATEWAY_ADMIN_TOKEN?: string;
-  /** Payment provider: secret key, webhook signing secret, the monthly price's id. Unset = no checkout. */
+  /** Payment provider: secret and publishable keys, webhook signing secret, the monthly price's id. Unset = no checkout. */
   STRIPE_SECRET_KEY?: string;
+  STRIPE_PUBLISHABLE_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
   /** Portal configuration (scripts/stripe-setup.mjs): cancel, card and invoices, no change of plan. Unset = the account's default. */

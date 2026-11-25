@@ -35,7 +35,7 @@ describe("planOf", () => {
 });
 
 describe("openTo", () => {
-  const env = (PAID_OPEN?: string, STRIPE_SECRET_KEY: string | undefined = "sk") => ({ PAID_OPEN, STRIPE_SECRET_KEY, STRIPE_PRICE_ID: "price" }) as any;
+  const env = (PAID_OPEN?: string, STRIPE_SECRET_KEY: string | undefined = "sk") => ({ PAID_OPEN, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY: "pk", STRIPE_PRICE_ID: "price" }) as any;
   it("is nobody until opened, the accounts listed, or everyone", () => {
     expect(openTo(env(), "u1")).toBe(false);
     expect(openTo(env("0"), "u1")).toBe(false);

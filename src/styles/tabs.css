@@ -304,6 +304,37 @@ html.theme-dark .data-delay-badge.is-realtime {
   background-color: rgba(8, 153, 129, 0.2);
   color: var(--color-minty-green-400);
 }
+.plan-payment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+/* The provider's form is light, whatever the app's theme. */
+.plan-payment-frame {
+  width: 100%;
+  height: min(560px, calc(100vh - 320px));
+  min-height: 280px;
+  border: none;
+  border-radius: 6px;
+  background: #fff;
+  color-scheme: light;
+}
+.plan-payment-note {
+  font-size: 13px;
+}
+.plan-link {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .plan-signin {
   display: flex;
   flex-direction: column;

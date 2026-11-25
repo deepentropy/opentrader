@@ -21,8 +21,8 @@ import { PASS_TTL, Plan, signPass } from "./pass";
 import { HttpError, json, now } from "./util";
 
 const API = "https://api.stripe.com";
-/** The API version the calls below are written for (the period is on the subscription's items). */
-const API_VERSION = "2025-03-31.basil";
+/** The API version the calls below are written for (the period is on the subscription's items; `embedded_page`). */
+const API_VERSION = "2026-03-25.dahlia";
 /** Webhook signatures older than this are refused (replays). */
 const SIGNATURE_TOLERANCE = 300;
 const GATEWAY_TIMEOUT_MS = 5_000;
@@ -79,9 +79,9 @@ export function offer(env: Env, user: User | null): Response {
   return json({ open: !!env.PASS_PRIVATE_KEY && openTo(env, user?.id ?? null), price: env.PAID_PRICE || "$10" });
 }
 
-/** True when the provider is set up: secret key and price. */
+/** True when the provider is set up: its keys and the price. */
 function billingOn(env: Env): boolean {
-  return !!(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID);
+  return !!(env.STRIPE_SECRET_KEY && env.STRIPE_PUBLISHABLE_KEY && env.STRIPE_PRICE_ID);
 }
 
 async function row(env: Env, userId: string): Promise<SubscriptionRow | null> {
@@ -118,7 +118,7 @@ export async function myPlan(env: Env, user: User | null): Promise<Response> {
 
 // ── Checkout and customer portal ────────────────────────────────────────
 
-/** POST /billing/checkout → {url}: the provider's checkout page for the subscription. */
+/** POST /billing/checkout → {page, secret}: the payment page (pay-page.ts) and the secret it opens the checkout with. */
 export async function checkout(env: Env, user: User | null): Promise<Response> {
   const u = requireUser(user);
   if (!openTo(env, u.id)) throw new HttpError(404, "Not available.");
@@ -146,12 +146,24 @@ export async function checkout(env: Env, user: User | null): Promise<Response> {
     "line_items[0][price]": env.STRIPE_PRICE_ID!.split(",")[0].trim(),
     "line_items[0][quantity]": "1",
     "subscription_data[metadata][user_id]": u.id,
-    success_url: `${env.PUBLIC_URL}/billing/done`,
-    cancel_url: `${env.PUBLIC_URL}/billing/cancelled`,
+    // In the app's dialog; payment methods that leave the page are off.
+    ui_mode: "embedded_page",
+    redirect_on_completion: "never",
     ...(env.STRIPE_TAX === "1" && env.STRIPE_MANAGED !== "1" ? { "automatic_tax[enabled]": "true", "customer_update[address]": "auto" } : {}),
     ...(env.STRIPE_TERMS === "1" ? { "consent_collection[terms_of_service]": "required" } : {}),
   });
-  return json({ url: session.url });
+  return json({ page: `${env.PUBLIC_URL}/billing/pay`, secret: session.client_secret });
+}
+
+/** POST /billing/cancel, /billing/resume → the plan: the subscription ends with its paid period, or goes on again. */
+export async function setCancelled(env: Env, user: User | null, cancelled: boolean): Promise<Response> {
+  const u = requireUser(user);
+  if (!billingOn(env)) throw new HttpError(404, "Not available.");
+  const r = await row(env, u.id);
+  if (!r?.subscription_id || !LIVE.includes(r.status)) throw new HttpError(404, "No subscription.");
+  await stripe(env, "POST", `/v1/subscriptions/${encodeURIComponent(r.subscription_id)}`, { cancel_at_period_end: String(cancelled) });
+  await syncCustomer(env, r.customer_id);
+  return myPlan(env, u);
 }
 
 /** POST /billing/portal → {url}: the provider's page to change card, cancel, see invoices. */
@@ -176,11 +188,9 @@ export async function refresh(env: Env, user: User | null): Promise<Response> {
   return myPlan(env, u);
 }
 
-/** The pages checkout and the portal come back to; the app reads the new plan by itself. */
-export function returnPage(done: boolean): Response {
-  return done
-    ? page("Subscription", "<h1>Thank you</h1><p>You can go back to OpenTrader. Real-time data starts within a minute of a new subscription.</p>")
-    : page("Subscription", "<h1>No change</h1><p>Nothing was charged. You can go back to OpenTrader.</p>");
+/** The page the portal comes back to; the app reads the plan by itself. */
+export function returnPage(): Response {
+  return page("Subscription", "<p>You can go back to OpenTrader.</p>");
 }
 
 // ── Webhook ─────────────────────────────────────────────────────────────

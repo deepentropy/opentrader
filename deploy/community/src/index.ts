@@ -20,6 +20,7 @@ import * as ideas from "./ideas";
 import * as snapshots from "./snapshots";
 import * as views from "./views";
 import * as billing from "./billing";
+import { payPage, payScript } from "./pay-page";
 import * as suggestions from "./suggestions";
 
 export { PostRoom } from "./live";
@@ -84,7 +85,10 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/billing\/refresh$/, ({ env, user }) => billing.refresh(env, user)],
   ["POST", /^\/billing\/portal$/, ({ env, user }) => billing.portal(env, user)],
   ["POST", /^\/billing\/webhook$/, ({ env, request }) => billing.webhook(env, request)],
-  ["GET", /^\/billing\/(done|cancelled)$/, async ({ params }) => billing.returnPage(params[0] === "done")],
+  ["POST", /^\/billing\/(cancel|resume)$/, ({ env, user, params }) => billing.setCancelled(env, user, params[0] === "cancel")],
+  ["GET", /^\/billing\/pay$/, async ({ env }) => payPage(env)],
+  ["GET", /^\/billing\/pay\.js$/, async () => payScript()],
+  ["GET", /^\/billing\/done$/, async () => billing.returnPage()],
 
   ["GET", /^\/me$/, ({ env, user }) => api.me(env, user)],
   ["GET", /^\/me\/unread$/, ({ env, user }) => notices.unread(env, user)],

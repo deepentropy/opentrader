@@ -1,14 +1,18 @@
 /*
  * Live data (#252), opened from the title bar's data badge: one line and one
- * button — upgrade, manage the subscription, or take the live data back from
- * another device. Signed out, the upgrade starts with the sign-in and goes on
- * to the payment page. Built on the shared confirm dialog.
+ * button — upgrade, the subscription, or take the live data back from another
+ * device. Signed out, the upgrade starts with the sign-in and goes on to the
+ * payment. The payment is made here: a frame of the accounts server's payment
+ * page (deploy/community/src/pay-page.ts), which holds the payment provider's
+ * own form. Built on the shared confirm dialog.
  */
-import { For, createResource } from "solid-js";
+import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { showConfirm, showNotice } from "../../components/Dialogs";
 import { PROVIDER_LABELS, me, signIn } from "../../data/community/session";
 import { request } from "../../data/community/api";
-import { openPortal, paidOffer, planInfo, realtimeElsewhere, refreshPass, startCheckout, useRealtimeHere, type PlanInfo } from "../../data/paid/plan";
+import {
+  awaitPlan, openPortal, paidOffer, payInBrowser, planInfo, realtimeElsewhere, refreshPass, setCancelled, startCheckout, useRealtimeHere, type PlanInfo,
+} from "../../data/paid/plan";
 import { translateAs, translateWith } from "../../i18n/translator";
 
 /** dd/mm/yyyy of a UNIX time. */
@@ -27,8 +31,66 @@ const offerText = () => translateWith("Prices without the 15-minute delay, for {
 async function goOn(): Promise<void> {
   await refreshPass();
   const plan = await request<PlanInfo>("GET", "/me/plan").catch(() => null);
-  if (plan && plan.plan === "free" && plan.status !== "past_due" && plan.billing) await startCheckout();
+  if (plan && plan.plan === "free" && plan.status !== "past_due" && plan.billing) await showPayment();
   else showPlanDialog();
+}
+
+/** The payment page in a frame; tells when it is paid, or could not be loaded. */
+function PaymentFrame(props: { address: string; onPaid: () => void; onBrowser: () => void }) {
+  let frame!: HTMLIFrameElement;
+  const [state, setState] = createSignal<"loading" | "ready" | "failed">("loading");
+  onMount(() => {
+    const origin = new URL(props.address).origin;
+    const onMessage = (e: MessageEvent) => {
+      // Of this frame and its server only.
+      if (e.source !== frame.contentWindow || e.origin !== origin || e.data?.type !== "opentrader-billing") return;
+      if (e.data.event === "complete") props.onPaid();
+      else if (e.data.event === "ready" || e.data.event === "failed") setState(e.data.event);
+    };
+    window.addEventListener("message", onMessage);
+    const late = setTimeout(() => state() === "loading" && setState("failed"), 20_000);
+    onCleanup(() => {
+      window.removeEventListener("message", onMessage);
+      clearTimeout(late);
+    });
+  });
+  return (
+    <div class="plan-payment" data-qa-id="plan-payment">
+      <iframe ref={frame} class="plan-payment-frame" src={props.address} title="Payment" allow="payment" referrerpolicy="no-referrer" />
+      <Show when={state() === "failed"}><div class="plan-payment-note">The payment form could not be loaded here.</div></Show>
+      <button type="button" class="plan-link" onClick={() => props.onBrowser()}>Pay in the browser instead</button>
+    </div>
+  );
+}
+
+/** On Linux the app's commands cannot tell a frame's calls from the app's own: no other site's page is framed there. */
+const FRAMED = !/Linux/.test(navigator.userAgent);
+
+/** Pay in the app, then wait for the plan. */
+async function showPayment(): Promise<void> {
+  const address = await startCheckout();
+  if (!FRAMED) return payInBrowser(address);
+  const close = showConfirm({
+    title: "Upgrade to live data",
+    text: offerText(),
+    mainText: translateAs("Close", "action"),
+    cancelText: null,
+    intent: "neutral",
+    body: () => (
+      <PaymentFrame
+        address={address}
+        onPaid={() => {
+          close();
+          void awaitPlan().then((ok) => showNotice({ title: "Live data", text: ok ? "Payment received. Live data is on." : "Payment received. Live data starts in a few minutes." }));
+        }}
+        onBrowser={() => {
+          close();
+          void payInBrowser(address).catch(failed);
+        }}
+      />
+    ),
+    onConfirm: () => {},
+  });
 }
 
 function SignInButtons(props: { onDone: () => void }) {
@@ -61,6 +123,17 @@ function state(info: PlanInfo): string {
   return translateWith("Your subscription is active.");
 }
 
+function confirmCancel(info: PlanInfo): void {
+  showConfirm({
+    title: "Cancel subscription",
+    text: info.renews_at ? translateWith("Live data stays on until {0}, then prices are delayed again. Nothing more is charged.", day(info.renews_at)) : translateWith("Nothing more is charged."),
+    mainText: "Cancel subscription",
+    cancelText: "Keep my subscription",
+    intent: "danger",
+    onConfirm: () => void setCancelled(true).then(showPlanDialog, failed),
+  });
+}
+
 export function showPlanDialog(): void {
   const info = planInfo();
   if (me() && realtimeElsewhere()) {
@@ -74,12 +147,26 @@ export function showPlanDialog(): void {
     return;
   }
   if (me() && info && (info.plan === "rt" || info.status === "past_due")) {
-    showConfirm({
+    const close = showConfirm({
       title: "Live data",
       text: state(info),
-      mainText: "Manage subscription",
+      mainText: "Card and invoices",
       cancelText: translateAs("Close", "action"),
       intent: "neutral",
+      body: () => (
+        <button
+          type="button"
+          class="plan-link"
+          data-qa-id="plan-cancel"
+          onClick={() => {
+            close();
+            if (info.cancel_at_period_end) void setCancelled(false).then(showPlanDialog, failed);
+            else confirmCancel(info);
+          }}
+        >
+          {info.cancel_at_period_end ? "Keep my subscription" : "Cancel subscription"}
+        </button>
+      ),
       onConfirm: () => void openPortal().catch(failed),
     });
     return;
@@ -101,6 +188,6 @@ export function showPlanDialog(): void {
     text: offerText(),
     mainText: "Upgrade",
     cancelText: "Not now",
-    onConfirm: () => void startCheckout().catch(failed),
+    onConfirm: () => void showPayment().catch(failed),
   });
 }

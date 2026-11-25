@@ -6,7 +6,7 @@
 // TURNSTILE_SECRET, GATEWAY_TOKEN, GITHUB_ISSUES_TOKEN (fine-grained, Issues
 // read and write on the project: suggestions promoted to issues). Paid tier (#252, off until set):
 // PASS_PRIVATE_KEY (scripts/pass-keys.mjs), GATEWAY_ADMIN_TOKEN (the gateway's
-// REALTIME_ADMIN_TOKEN), STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID,
+// REALTIME_ADMIN_TOKEN), STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID,
 // STRIPE_PORTAL_CONFIG (all four from scripts/stripe-setup.mjs), PAID_OPEN ("1" = everyone,
 // account ids = those only); webhook URL <PUBLIC_URL>/billing/webhook.
 {

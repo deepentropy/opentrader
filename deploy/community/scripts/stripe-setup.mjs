@@ -26,7 +26,7 @@ const EVENTS = [
 async function call(method, path, params) {
   const res = await fetch(API + path, {
     method,
-    headers: { Authorization: `Bearer ${key}`, "Stripe-Version": "2025-03-31.basil", "content-type": "application/x-www-form-urlencoded" },
+    headers: { Authorization: `Bearer ${key}`, "Stripe-Version": "2026-03-25.dahlia", "content-type": "application/x-www-form-urlencoded" },
     body: params && new URLSearchParams(params).toString(),
   });
   const data = await res.json();

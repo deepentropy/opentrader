@@ -61,8 +61,10 @@ const OFFER_EVERY = 6 * 3_600_000;
 /** Charts load again this long after the tier changed (ms): the gateway keeps
  *  an account's "no session" answer up to 1 s. */
 const RELOAD_AFTER_TIER_MS = 1_500;
-/** After a checkout: look for the new plan this often, this long (ms). */
+/** While a payment page is open in the browser: look for the new plan this often, this long (ms). */
 const CHECKOUT_POLL = 10_000;
+/** The dialog said it is paid: sooner. */
+const PAID_POLL = 2_500;
 /** A connection lost for less than this changes nothing on screen (ms). */
 const RECONNECT_WITHIN = 5_000;
 const CHECKOUT_POLL_FOR = 10 * 60_000;
@@ -221,21 +223,41 @@ export function initPaid(): void {
   });
 }
 
-/** The provider's checkout page in the browser; the new plan is picked up within seconds of the payment. */
-export async function startCheckout(): Promise<void> {
-  const { url } = await request<{ url: string }>("POST", "/billing/checkout");
-  await openUrl(url);
-  const until = Date.now() + CHECKOUT_POLL_FOR;
-  const poll = async () => {
-    // The plan as the payment provider has it, whether or not it told the server yet.
-    const plan = await request<PlanInfo>("POST", "/billing/refresh").catch(() => null);
-    if (plan?.plan === "rt") return refreshPass();
-    if (Date.now() < until) setTimeout(() => void poll(), CHECKOUT_POLL);
-  };
-  setTimeout(() => void poll(), CHECKOUT_POLL);
+/** A payment page to show: its address, with the secret it opens the checkout with. */
+export async function startCheckout(): Promise<string> {
+  const { page, secret } = await request<{ page: string; secret: string }>("POST", "/billing/checkout");
+  return `${page}#${encodeURIComponent(secret)}`;
 }
 
-/** The provider's page to change the card, cancel, or see the invoices. */
+/** Look for the plan just paid; true once it is there. The server asks the payment provider, told of it or not. */
+export function awaitPlan(every = PAID_POLL, during = CHECKOUT_POLL_FOR): Promise<boolean> {
+  const until = Date.now() + during;
+  return new Promise((done) => {
+    const poll = async () => {
+      const plan = await request<PlanInfo>("POST", "/billing/refresh").catch(() => null);
+      if (plan?.plan === "rt") {
+        await refreshPass();
+        return done(true);
+      }
+      if (Date.now() < until) setTimeout(() => void poll(), every);
+      else done(false);
+    };
+    setTimeout(() => void poll(), every);
+  });
+}
+
+/** The payment page in the browser instead of the dialog. */
+export async function payInBrowser(address: string): Promise<void> {
+  await openUrl(address);
+  void awaitPlan(CHECKOUT_POLL);
+}
+
+/** End the subscription with its paid period, or keep it after all. */
+export async function setCancelled(cancelled: boolean): Promise<void> {
+  setInfo(await request<PlanInfo>("POST", cancelled ? "/billing/cancel" : "/billing/resume"));
+}
+
+/** The provider's page to change the card or see the invoices. */
 export async function openPortal(): Promise<void> {
   const { url } = await request<{ url: string }>("POST", "/billing/portal");
   // Back from it, the focus reads the plan again.

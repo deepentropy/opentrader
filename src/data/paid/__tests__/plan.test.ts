@@ -33,7 +33,7 @@ const session = vi.hoisted(() => ({ me: null as unknown }));
 vi.mock("../../community/session", () => ({ me: () => session.me, ready: () => true, initSession: async () => undefined }));
 
 import { CommunityError } from "../../community/api";
-import { onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, refreshOffer, refreshPass, startCheckout } from "../plan";
+import { onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, awaitPlan, refreshOffer, refreshPass, setCancelled, startCheckout } from "../plan";
 
 const exp = () => Math.floor(Date.now() / 1000) + 900;
 const plan = (p: "free" | "rt") => ({ plan: p, status: p === "rt" ? "active" : "none", renews_at: null, cancel_at_period_end: false, billing: true });
@@ -200,17 +200,30 @@ describe("the offer", () => {
   });
 
   it("after the checkout the plan is read until it is paid", async () => {
-    server.answers["/billing/checkout"] = { url: "https://pay.test" };
+    server.answers["/billing/checkout"] = { page: "https://pay.test/billing/pay", secret: "cs_a_secret_b/c" };
     server.answers["/billing/refresh"] = plan("free");
     server.answers["/auth/pass"] = { pass: "otp1.p.q", plan: "rt", exp: exp() };
     server.answers["/me/plan"] = plan("rt");
-    await startCheckout();
+    expect(await startCheckout()).toBe("https://pay.test/billing/pay#cs_a_secret_b%2Fc");
+    const paid = awaitPlan(10_000);
     await vi.advanceTimersByTimeAsync(20_000);
     expect(server.calls.filter((c) => c === "POST /billing/refresh")).toHaveLength(2);
     server.answers["/billing/refresh"] = plan("rt");
     await vi.advanceTimersByTimeAsync(10_000);
+    expect(await paid).toBe(true);
     expect(rust.passes[rust.passes.length - 1]).toBe("otp1.p.q");
     await vi.advanceTimersByTimeAsync(60_000);
     expect(server.calls.filter((c) => c === "POST /billing/refresh")).toHaveLength(3);
+  });
+});
+
+describe("cancelling", () => {
+  it("shows the plan the server answers", async () => {
+    server.answers["/billing/cancel"] = { ...plan("rt"), cancel_at_period_end: true };
+    server.answers["/billing/resume"] = plan("rt");
+    await setCancelled(true);
+    expect(planInfo()?.cancel_at_period_end).toBe(true);
+    await setCancelled(false);
+    expect(planInfo()?.cancel_at_period_end).toBe(false);
   });
 });
