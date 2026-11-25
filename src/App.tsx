@@ -104,7 +104,8 @@ import { tradingUi } from "./data/trading/trading-ui";
 import { replayBroker } from "./data/trading/replay-broker";
 import { pluginBroker } from "./data/trading/plugin-broker";
 import { events } from "./bindings";
-import { refreshPluginSessions } from "./data/session/symbol-sessions";
+import { recoverPluginSymbols, refreshPluginSessions } from "./data/session/symbol-sessions";
+import { servedExchanges } from "./data/plugin-exchanges";
 import { forgetUnknownSymbols } from "./data/unknown-symbols";
 import { affects as pluginChangeAffects } from "./data/plugin-events";
 import { wakeRetries } from "./data/connection";
@@ -469,14 +470,17 @@ function App() {
 
   // A data plugin that connects again may describe its symbols otherwise (an update: #340's bar grid): each window
   // reads their sessions again and reloads its charts when one changed. The requests waiting for a plugin that was
-  // not connected yet (restored charts and watchlists at start, #371) are asked again at once.
+  // not connected yet (restored charts and watchlists at start, #371) are asked again at once, and the symbols asked
+  // for before their plugin served them are read from it (#409).
+  const reloadCharts = () => emitAppEvent("chart-reload-data");
   onMount(() => {
     if (!isTauri()) return;
     const stop = events.pluginsChanged.listen(() => {
       forgetUnknownSymbols();
       forgetTickerInfo();
       wakeRetries();
-      void refreshPluginSessions().then((changed) => changed && emitAppEvent("chart-reload-data"));
+      void refreshPluginSessions().then((changed) => changed && reloadCharts());
+      void recoverPluginSymbols(servedExchanges, reloadCharts);
     });
     onCleanup(() => void stop.then((f) => f()));
   });
@@ -488,7 +492,8 @@ function App() {
       const which = pluginChangeAffects(payload);
       forgetUnknownSymbols(which);
       forgetTickerInfo(which);
-      void refreshPluginSessions(which).then((changed) => changed && emitAppEvent("chart-reload-data"));
+      void refreshPluginSessions(which).then((changed) => changed && reloadCharts());
+      void recoverPluginSymbols(servedExchanges, reloadCharts, which);
     });
     onCleanup(() => void stop.then((f) => f()));
   });

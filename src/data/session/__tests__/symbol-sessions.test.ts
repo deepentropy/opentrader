@@ -6,7 +6,7 @@ const getSymbolSession = vi.hoisted(() => vi.fn());
 vi.mock("../../../bindings", () => ({ commands: { getSymbolSession } }));
 vi.mock("../../providers", () => ({ defaultExchange: () => "NASDAQ" }));
 
-import { FAILED_WAIT_MS, SymbolSessions, type ScriptSession, cachedSymbolSessions, displayTimeZone, sessionsVersion, symbolSessions } from "../symbol-sessions";
+import { FAILED_WAIT_MS, SymbolSessions, type ScriptSession, cachedSymbolSessions, displayTimeZone, recoverPluginSymbols, sessionsVersion, symbolSessions } from "../symbol-sessions";
 
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000;
 
@@ -195,6 +195,68 @@ describe("symbolSessions cache", () => {
   it("returns null for an empty symbol", () => {
     expect(cachedSymbolSessions("")).toBeNull();
     expect(getSymbolSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("recoverPluginSymbols (#409)", () => {
+  const served = async () => new Set(["NSE_INDEX"]);
+  const nifty = () => usStock({ timezone: "Asia/Kolkata", session: "0915-1530", subsessions: [], holidays: "", intervals: ["1", "15", "1D"] });
+  beforeEach(() => getSymbolSession.mockReset());
+
+  it("reads a symbol given the built-in hours from the plugin that serves it now", async () => {
+    getSymbolSession.mockResolvedValue({ status: "ok", data: usStock() });
+    await symbolSessions("NSE_INDEX:NIFTY");
+    await symbolSessions("NYSE:KO");
+    getSymbolSession.mockClear();
+    getSymbolSession.mockResolvedValue({ status: "ok", data: nifty() });
+    const onRecovered = vi.fn();
+    await recoverPluginSymbols(served, onRecovered);
+    expect(getSymbolSession.mock.calls).toEqual([["NSE_INDEX:NIFTY"]]); // not the stock
+    expect(onRecovered).toHaveBeenCalledTimes(1);
+    expect(cachedSymbolSessions("NSE_INDEX:NIFTY")!.timeZone).toBe("Asia/Kolkata");
+    await recoverPluginSymbols(served, onRecovered);
+    expect(onRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a refused symbol, even when a look asked for it first", async () => {
+    getSymbolSession.mockResolvedValue({ status: "error", error: "NSE_INDEX:BANK: unknown symbol (NOT_FOUND)" });
+    await expect(symbolSessions("NSE_INDEX:BANK")).rejects.toThrow();
+    const onRecovered = vi.fn();
+    await recoverPluginSymbols(async () => new Set(), onRecovered); // not served yet
+    expect(onRecovered).not.toHaveBeenCalled();
+    getSymbolSession.mockResolvedValue({ status: "ok", data: nifty() });
+    await symbolSessions("NSE_INDEX:BANK");
+    await recoverPluginSymbols(served, onRecovered);
+    expect(onRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the symbols that wait for a plugin not connected yet to their own retries", async () => {
+    getSymbolSession.mockResolvedValue({ status: "error", error: "The plugin x is not connected (PLUGIN_OFFLINE)" });
+    await expect(symbolSessions("NSE_INDEX:WAIT")).rejects.toThrow();
+    getSymbolSession.mockClear();
+    await recoverPluginSymbols(served, () => undefined);
+    expect(getSymbolSession).not.toHaveBeenCalled();
+  });
+
+  it("asks again while the plugin loads its symbols, and stops when it knows none", async () => {
+    vi.useFakeTimers();
+    try {
+      getSymbolSession.mockResolvedValue({ status: "ok", data: usStock() });
+      await symbolSessions("NSE_INDEX:SLOW");
+      getSymbolSession.mockReset();
+      getSymbolSession.mockResolvedValueOnce({ status: "error", error: "instruments are loading" });
+      getSymbolSession.mockResolvedValue({ status: "ok", data: nifty() });
+      const onRecovered = vi.fn();
+      const done = recoverPluginSymbols(served, onRecovered);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onRecovered).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(3_000);
+      await done;
+      expect(onRecovered).toHaveBeenCalledTimes(1);
+      expect(getSymbolSession).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
