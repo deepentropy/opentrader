@@ -1,5 +1,5 @@
-// OpenTrader bridge for NinjaTrader 8: serves NinjaTrader's futures data to OpenTrader on the same computer
-// (OpenTrader Plugin API, see PROTOCOL.md). Data only: it reads no account and sends no order.
+// OpenTrader bridge for NinjaTrader 8: serves NinjaTrader's futures data, order book and accounts to OpenTrader on the
+// same computer (OpenTrader Plugin API, see PROTOCOL.md). It sends no order and changes nothing in NinjaTrader.
 //
 // It connects by itself once the add-on is compiled, with the file OpenTrader writes while the plugin is enabled.
 #region Using declarations
@@ -31,7 +31,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             if (State == State.SetDefaults)
             {
                 Name = "OpenTraderBridge";
-                Description = "Serves NinjaTrader's futures data to OpenTrader on this computer.";
+                Description = "Serves NinjaTrader's futures data, order book and accounts (read only) to OpenTrader on this computer.";
             }
             else if (State == State.Terminated) End();
         }
@@ -66,16 +66,21 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private class Bridge
         {
-            private const string Version = "0.1.0";
+            private const string Version = "0.2.0";
             private const string RunningKey = "OpenTraderBridge.running";
             private readonly string id = Guid.NewGuid().ToString("N");
             private readonly object sending = new object();
             private readonly Feed feed;
+            private readonly Broker broker;
             private volatile bool stopped;
             private TcpClient client;
             private StreamWriter writer;
 
-            public Bridge() { feed = new Feed(Notify); }
+            public Bridge()
+            {
+                feed = new Feed(Notify);
+                broker = new Broker(Notify);
+            }
 
             public void Start()
             {
@@ -111,6 +116,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     finally
                     {
                         feed.Clear();
+                        broker.Clear();
                         lock (sending) { writer = null; }
                         Close();
                         client = null;
@@ -138,7 +144,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 Dictionary<string, object> answer = Json.Parse(first) as Dictionary<string, object>;
                 if (answer == null || answer.ContainsKey("error")) return 10000;
                 Notify("data.watchlists", feed.Watchlists());
-                using (new Timer(delegate { try { if (Running) feed.Flush(); else Close(); } catch (Exception) { } }, null, 200, 200))
+                using (new Timer(delegate { try { if (!Running) Close(); else { feed.Flush(); broker.Flush(); } } catch (Exception) { } }, null, 200, 200))
+                using (new Timer(delegate { try { if (Running) broker.Refresh(); } catch (Exception) { } }, null, 1000, 1000))
                 using (new Timer(delegate { Send("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\",\"params\":{}}"); }, null, 15000, 15000))
                 using (new Timer(delegate { try { feed.FollowRolls(); } catch (Exception) { } }, null, 600000, 600000))
                 {
@@ -160,6 +167,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 {
                     if (method == "data.subscribe") feed.Subscribe(Json.Strings(p, "tickers"));
                     else if (method == "data.watchTicks") feed.WatchTicks(Json.Strings(p, "tickers"));
+                    else if (method == "broker.watchDepth") broker.WatchDepth(Json.Strings(p, "tickers"));
+                    else if (method == "broker.watchQuote") broker.WatchQuote(Json.Strings(p, "tickers"));
                     return;
                 }
                 string requestId = Json.Write(message["id"]);
@@ -181,6 +190,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             private string Answer(string method, Dictionary<string, object> p)
             {
                 string ticker = Json.Text(p, "ticker", "");
+                if (method.StartsWith("broker.", StringComparison.Ordinal)) return broker.Answer(method, p);
                 switch (method)
                 {
                     case "ping": return "{}";
@@ -298,7 +308,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 return new DateTime(month.Year, month.Month, 1);
             }
 
-            private static Symbol Resolve(string ticker)
+            public static Symbol Resolve(string ticker)
             {
                 string root;
                 DateTime? month;
@@ -366,7 +376,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 return "{\"description\":" + Json.Quote(description) + ",\"type\":\"futures\",\"currency\":" + Json.Quote(Zones.Currency(m.Currency.ToString()))
                     + ",\"timezone\":" + Json.Quote(zone ?? "Etc/UTC") + ",\"session\":" + Json.Quote(session) + ",\"extended\":null,\"holidays\":" + Json.Quote(holidays)
                     + ",\"pricescale\":" + scale + ",\"minmov\":" + minmov + ",\"pointValue\":" + Json.Number(m.PointValue)
-                    + ",\"intervals\":[\"1T\",\"1\",\"5\",\"15\",\"1D\"]"
+                    + ",\"intervals\":[\"1T\",\"1\",\"5\",\"15\",\"1D\"]" + (s.Continuous ? ",\"tradeTicker\":" + Json.Quote(Names.Contract(m.Name, s.Instrument.Expiry)) : "")
                     + ",\"fields\":[{\"name\":\"Contract\",\"value\":" + Json.Quote(Names.Contract(m.Name, s.Instrument.Expiry)) + "},{\"name\":\"Tick value\",\"value\":" + Json.Number(m.TickSize * m.PointValue) + "}]}";
             }
 
@@ -390,7 +400,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             /// NinjaTrader gives its times in the time zone of its options.
             private static TimeZoneInfo Zone { get { return NinjaTrader.Core.Globals.GeneralOptions.TimeZoneInfo; } }
 
-            private static long Ms(DateTime local) { return Times.ToUnixMs(local, Zone); }
+            public static long Ms(DateTime local) { return Times.ToUnixMs(local, Zone); }
 
             private static DateTime Local(long seconds) { return TimeZoneInfo.ConvertTimeFromUtc(Epoch.AddSeconds(seconds), Zone); }
 
@@ -843,6 +853,287 @@ namespace NinjaTrader.NinjaScript.AddOns
             }
         }
 
+        // ── NinjaTrader's accounts and order book, read only ────────────────────────────────────────────────────
+
+        /// The accounts, positions, orders and fills, and the order book, as OpenTrader's broker. It sends no order and
+        /// changes nothing. The accounts are read once OpenTrader asks for them: after the user picked NinjaTrader as
+        /// the broker.
+        private class Broker
+        {
+            private const string ReadOnly = "This plugin shows your NinjaTrader account and does not trade yet: use NinjaTrader to trade.";
+            private readonly Action<string, string> notify;
+            private readonly object gate = new object();
+            private readonly Dictionary<string, Book> books = new Dictionary<string, Book>();
+            private HashSet<string> depthWanted = new HashSet<string>(), quoteWanted = new HashSet<string>();
+            private volatile bool asked;
+            private string selected;
+            private string lastState;
+
+            /// The order book and the best prices of a ticker the app shows.
+            private class Book
+            {
+                public Symbol Symbol;
+                public EventHandler<MarketDepthEventArgs> OnDepth;
+                public EventHandler<MarketDataEventArgs> OnQuote;
+                public volatile bool DepthChanged, QuoteChanged;
+                public int Crossed;
+            }
+
+            public Broker(Action<string, string> notify) { this.notify = notify; }
+
+            public string Answer(string method, Dictionary<string, object> p)
+            {
+                asked = true;
+                switch (method)
+                {
+                    case "broker.getState": return State();
+                    case "broker.selectAccount":
+                        string id = Json.Text(p, "account", "");
+                        if (!Accounts().Any(a => a.Name == id)) throw new RpcException(-32602, "Unknown account");
+                        selected = id;
+                        Send(State());
+                        return "{}";
+                    case "broker.resolveSymbol": return "{\"ticker\":null}";
+                    case "broker.instrument":
+                        return "{\"qtyMin\":1,\"qtyStep\":1,\"pointValue\":" + Json.Number(Feed.Resolve(Json.Text(p, "ticker", "")).Master.PointValue) + "}";
+                    case "broker.place":
+                    case "broker.modify":
+                    case "broker.cancel":
+                    case "broker.closePosition":
+                    case "broker.setPositionBrackets": throw new RpcException(-32000, ReadOnly);
+                    default: throw new RpcException(-32601, "Unknown method " + method);
+                }
+            }
+
+            // The account
+
+            private static List<Account> Accounts()
+            {
+                Account[] all;
+                lock (Account.All) all = Account.All.ToArray();
+                return all.Where(a => a != null && a.ConnectionStatus == ConnectionStatus.Connected && a.Name != Account.BackTestAccountName)
+                    .OrderBy(a => IsDemo(a) ? 0 : 1).ThenBy(a => a.Name, StringComparer.Ordinal).ToList();
+            }
+
+            /// NinjaTrader's own simulator and playback. Every other account, a prop firm's evaluation too, shows as live.
+            private static bool IsDemo(Account a)
+            {
+                return a.Provider == Provider.Simulator || a.Provider == Provider.Playback;
+            }
+
+            private string State()
+            {
+                List<Account> all = Accounts();
+                Account a = all.FirstOrDefault(x => x.Name == selected) ?? all.FirstOrDefault();
+                StringBuilder b = new StringBuilder("{\"connected\":").Append(a != null ? "true" : "false").Append(",\"accounts\":[")
+                    .Append(string.Join(",", all.Select(x => "{\"id\":" + Json.Quote(x.Name) + ",\"name\":" + Json.Quote(Name(x)) + "}"))).Append(']');
+                b.Append(",\"positionMode\":\"netting\",\"capabilities\":{\"brackets\":false,\"positionBrackets\":false,\"partialClose\":false,\"modifyOrders\":false}");
+                if (a == null) return b.Append(",\"account\":null,\"positions\":[],\"orders\":[],\"executions\":[]}").ToString();
+                b.Append(",\"account\":{\"id\":").Append(Json.Quote(a.Name)).Append(",\"name\":").Append(Json.Quote(Name(a)))
+                    .Append(",\"currency\":").Append(Json.Quote(Zones.Currency(a.Denomination.ToString()))).Append(",\"isDemo\":").Append(IsDemo(a) ? "true" : "false")
+                    .Append(",\"balance\":").Append(Item(a, AccountItem.CashValue)).Append(",\"equity\":").Append(Item(a, AccountItem.NetLiquidation))
+                    .Append(",\"unrealizedPnl\":").Append(Item(a, AccountItem.UnrealizedProfitLoss)).Append(",\"realizedPnl\":").Append(Item(a, AccountItem.RealizedProfitLoss))
+                    .Append(",\"marginUsed\":").Append(Item(a, AccountItem.InitialMargin)).Append(",\"marginFree\":").Append(Item(a, AccountItem.ExcessInitialMargin))
+                    .Append(",\"values\":[]}");
+                b.Append(",\"positions\":[").Append(string.Join(",", Copy(a.Positions).Where(p => p.MarketPosition != MarketPosition.Flat && p.Quantity > 0).Select(Position))).Append(']');
+                b.Append(",\"orders\":[").Append(string.Join(",", Copy(a.Orders).OrderBy(o => o.Time).Skip(Math.Max(0, a.Orders.Count - 200)).Select(Order))).Append(']');
+                b.Append(",\"executions\":[").Append(string.Join(",", Copy(a.Executions).Where(e => !e.IsSod).OrderBy(e => e.Time).Reverse().Take(200).Reverse().Select(Execution))).Append("]}");
+                return b.ToString();
+            }
+
+            private static T[] Copy<T>(ICollection<T> items) where T : class
+            {
+                lock (items) return items.Where(x => x != null).ToArray();
+            }
+
+            private static string Name(Account a) { return string.IsNullOrEmpty(a.DisplayName) ? a.Name : a.DisplayName; }
+
+            private static string Item(Account a, AccountItem item)
+            {
+                return Json.NumberOrNull(a.Get(item, a.Denomination));
+            }
+
+            /// A future's contract as the plugin names it (ESZ2026), another instrument by NinjaTrader's name.
+            private static string Ticker(Instrument i)
+            {
+                return i.MasterInstrument.InstrumentType == InstrumentType.Future ? Names.Contract(i.MasterInstrument.Name, i.Expiry) : i.FullName;
+            }
+
+            private static string Position(Position p)
+            {
+                double last = p.GetMarketPrice();
+                string ticker = Ticker(p.Instrument);
+                return "{\"id\":" + Json.Quote("pos-" + ticker) + ",\"ticker\":" + Json.Quote(ticker) + ",\"side\":\"" + (p.MarketPosition == MarketPosition.Long ? "buy" : "sell") + "\",\"qty\":" + p.Quantity
+                    + ",\"avgPrice\":" + Json.NumberOrNull(p.AveragePrice) + ",\"last\":" + (last > 0 ? Json.NumberOrNull(last) : "null")
+                    + ",\"unrealizedPnl\":" + (last > 0 ? Json.NumberOrNull(p.GetUnrealizedProfitLoss(PerformanceUnit.Currency, last)) : "null") + ",\"takeProfit\":null,\"stopLoss\":null}";
+            }
+
+            private static string Order(Order o)
+            {
+                bool limit = o.IsLimit || o.IsStopLimit, stop = o.IsStopMarket || o.IsStopLimit;
+                // A market-if-touched order waits at its price as a limit does.
+                string type = o.IsStopLimit ? "stopLimit" : o.IsStopMarket ? "stop" : o.IsLimit || o.IsMarketIfTouched ? "limit" : "market";
+                return "{\"id\":" + Json.Quote(o.Id.ToString(CultureInfo.InvariantCulture)) + ",\"ticker\":" + Json.Quote(Ticker(o.Instrument)) + ",\"side\":\"" + (o.IsLong ? "buy" : "sell")
+                    + "\",\"type\":\"" + type + "\",\"qty\":" + o.Quantity + ",\"filledQty\":" + o.Filled + (o.Filled > 0 ? ",\"avgFillPrice\":" + Json.NumberOrNull(o.AverageFillPrice) : "")
+                    + ",\"limitPrice\":" + (limit ? Json.NumberOrNull(o.LimitPrice) : o.IsMarketIfTouched ? Json.NumberOrNull(o.StopPrice) : "null") + ",\"stopPrice\":" + (stop ? Json.NumberOrNull(o.StopPrice) : "null")
+                    + ",\"takeProfit\":null,\"stopLoss\":null,\"status\":\"" + States.Of(o.OrderState.ToString()) + "\",\"updatedMs\":" + Feed.Ms(o.Time) + "}";
+            }
+
+            private static string Execution(Execution e)
+            {
+                return "{\"id\":" + Json.Quote(e.ExecutionId) + ",\"orderId\":" + Json.Quote(e.Order != null ? e.Order.Id.ToString(CultureInfo.InvariantCulture) : e.OrderId) + ",\"ticker\":" + Json.Quote(Ticker(e.Instrument))
+                    + ",\"side\":\"" + (e.MarketPosition == MarketPosition.Long ? "buy" : "sell") + "\",\"qty\":" + e.Quantity + ",\"price\":" + Json.NumberOrNull(e.Price)
+                    + ",\"timeMs\":" + Feed.Ms(e.Time) + ",\"commission\":" + Json.NumberOrNull(e.Commission + e.Fee) + "}";
+            }
+
+            private void Send(string state)
+            {
+                lastState = state;
+                notify("broker.state", state);
+            }
+
+            /// The account, when it changed (once a second).
+            public void Refresh()
+            {
+                if (!asked) return;
+                string state = State();
+                if (state != lastState) Send(state);
+            }
+
+            // The order book
+
+            public void WatchDepth(List<string> tickers)
+            {
+                asked = true;
+                lock (gate) depthWanted = new HashSet<string>(tickers);
+                Task.Run((Action)Reconcile);
+            }
+
+            public void WatchQuote(List<string> tickers)
+            {
+                asked = true;
+                lock (gate) quoteWanted = new HashSet<string>(tickers);
+                Task.Run((Action)Reconcile);
+            }
+
+            public void Clear()
+            {
+                lock (gate)
+                {
+                    depthWanted.Clear();
+                    quoteWanted.Clear();
+                    foreach (Book b in books.Values) End(b);
+                    books.Clear();
+                    asked = false;
+                    lastState = null;
+                }
+            }
+
+            private void Reconcile()
+            {
+                lock (gate)
+                {
+                    HashSet<string> want = new HashSet<string>(depthWanted.Concat(quoteWanted));
+                    foreach (string t in books.Keys.Where(k => !want.Contains(k)).ToList())
+                    {
+                        End(books[t]);
+                        books.Remove(t);
+                    }
+                    foreach (string t in want.Where(k => !books.ContainsKey(k)).ToList())
+                    {
+                        try { books[t] = Begin(Feed.Resolve(t)); }
+                        catch (Exception) { }
+                    }
+                    foreach (Book b in books.Values) b.DepthChanged = b.QuoteChanged = true;
+                }
+            }
+
+            private static Book Begin(Symbol s)
+            {
+                Book b = new Book { Symbol = s };
+                b.OnDepth = (o, e) => b.DepthChanged = true;
+                b.OnQuote = (o, e) => b.QuoteChanged = true;
+                s.Instrument.Dispatcher.InvokeAsync(() =>
+                {
+                    s.Instrument.MarketDepth.Update += b.OnDepth;
+                    s.Instrument.MarketData.Update += b.OnQuote;
+                });
+                return b;
+            }
+
+            private static void End(Book b)
+            {
+                Instrument i = b.Symbol.Instrument;
+                i.Dispatcher.InvokeAsync(() =>
+                {
+                    i.MarketDepth.Update -= b.OnDepth;
+                    i.MarketData.Update -= b.OnQuote;
+                });
+            }
+
+            /// The books and prices that changed, read on the thread that writes them.
+            public void Flush()
+            {
+                KeyValuePair<string, Book>[] all;
+                HashSet<string> depth, quotes;
+                lock (gate)
+                {
+                    all = books.ToArray();
+                    depth = new HashSet<string>(depthWanted);
+                    quotes = new HashSet<string>(quoteWanted);
+                }
+                foreach (KeyValuePair<string, Book> pair in all)
+                {
+                    Book b = pair.Value;
+                    string ticker = pair.Key;
+                    bool sendDepth = b.DepthChanged && depth.Contains(ticker), sendQuote = b.QuoteChanged && quotes.Contains(ticker);
+                    if (!sendDepth && !sendQuote) continue;
+                    if (sendDepth) b.DepthChanged = false;
+                    if (sendQuote) b.QuoteChanged = false;
+                    b.Symbol.Instrument.Dispatcher.InvokeAsync(() =>
+                    {
+                        try
+                        {
+                            int decimals = Prices.Decimals(b.Symbol.Master.TickSize);
+                            // Read between the two halves of a move, the bid is at the ask: the next read has both.
+                            // A market that stays crossed (an auction) is sent.
+                            if (sendDepth && Crossed(b.Symbol.Instrument.MarketDepth) && ++b.Crossed <= 3) b.DepthChanged = true;
+                            else if (sendDepth)
+                            {
+                                b.Crossed = 0;
+                                notify("broker.depth", "{\"ticker\":" + Json.Quote(ticker) + ",\"snapshot\":true,\"bids\":[" + Levels(b.Symbol.Instrument.MarketDepth.Bids, decimals)
+                                    + "],\"asks\":[" + Levels(b.Symbol.Instrument.MarketDepth.Asks, decimals) + "]}");
+                            }
+                            if (sendQuote)
+                            {
+                                MarketData m = b.Symbol.Instrument.MarketData;
+                                notify("broker.quote", "{\"ticker\":" + Json.Quote(ticker) + ",\"bid\":" + Price(m.Bid, decimals) + ",\"ask\":" + Price(m.Ask, decimals) + ",\"last\":" + Price(m.Last, decimals) + "}");
+                            }
+                        }
+                        catch (Exception) { }
+                    });
+                }
+            }
+
+            private static bool Crossed(MarketDepth<MarketDepthRow> d)
+            {
+                List<MarketDepthRow> bids = d.Bids.Where(r => r != null && r.Volume > 0).ToList(), asks = d.Asks.Where(r => r != null && r.Volume > 0).ToList();
+                return bids.Count > 0 && asks.Count > 0 && bids.Max(r => r.Price) >= asks.Min(r => r.Price);
+            }
+
+            private static string Price(MarketDataEventArgs e, int decimals)
+            {
+                return e != null && e.Price > 0 ? Json.NumberOrNull(Math.Round(e.Price, decimals)) : "null";
+            }
+
+            private static string Levels(List<MarketDepthRow> rows, int decimals)
+            {
+                // Several market makers may quote one price.
+                return string.Join(",", rows.Where(r => r != null && r.Volume > 0 && r.Price > 0).GroupBy(r => Math.Round(r.Price, decimals))
+                    .Select(g => "{\"price\":" + Json.Number(g.Key) + ",\"qty\":" + g.Sum(r => r.Volume) + "}"));
+            }
+        }
+
         // ── Pure helpers ────────────────────────────────────────────────────────────────────────────────────────
 
         internal static class Names
@@ -993,9 +1284,35 @@ namespace NinjaTrader.NinjaScript.AddOns
             }
         }
 
+        internal static class States
+        {
+            /// The app's word for a NinjaTrader order state.
+            public static string Of(string state)
+            {
+                switch (state)
+                {
+                    case "Initialized":
+                    case "Submitted":
+                    case "AcceptedByRisk": return "placing";
+                    case "Filled": return "filled";
+                    case "Cancelled": return "cancelled";
+                    case "Rejected": return "rejected";
+                    case "Suspended":
+                    case "Unknown": return "inactive";
+                    default: return "working";
+                }
+            }
+        }
+
         internal static class Json
         {
             public static string Number(double v) { return v.ToString("R", CultureInfo.InvariantCulture); }
+
+            /// A value NinjaTrader doesn't know is not a number, or its smallest one.
+            public static string NumberOrNull(double v)
+            {
+                return double.IsNaN(v) || double.IsInfinity(v) || Math.Abs(v) > 1e15 ? "null" : Number(Math.Round(v, 10));
+            }
 
             public static string Quote(string s)
             {

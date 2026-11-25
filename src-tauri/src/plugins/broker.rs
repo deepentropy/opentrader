@@ -410,7 +410,9 @@ pub async fn broker_resolve_symbol(app: AppHandle, symbol: String) -> Result<Opt
         return Ok(Some(t));
     }
     if let Some(r) = super::data::route(&app, &symbol).filter(|r| r.plugin == id) {
-        return Ok(Some(r.ticker));
+        // A continuous future trades as its contract.
+        let info = super::data::info(&app, &r).await.ok();
+        return Ok(Some(info.and_then(|i| i.trade_ticker.clone()).filter(|t| !t.is_empty()).unwrap_or(r.ticker)));
     }
     if let Some(known) = state(&app).resolved.locked().get(&symbol) {
         return Ok(known.clone());

@@ -75,6 +75,11 @@ export const pluginBroker = createRoot(() => {
   if (HAS_TAURI) {
     void events.brokerStatus.listen((e) => take(e.payload));
     void commands.brokerStatus().then(take);
+    // Its symbols changed: a continuous future may trade as its next contract.
+    void events.pluginSymbolInfoChanged.listen(() => {
+      tickers.clear();
+      bump();
+    });
     void events.brokerOrderEvent.listen((e) => {
       const ev = e.payload.event;
       emit({

@@ -1,11 +1,11 @@
 {
   "id": "ninjatrader",
   "name": "NinjaTrader 8",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "OpenTrader",
-  "description": "NinjaTrader 8's futures data in OpenTrader: front contracts and single contracts, history, tick charts and live prices. Data only, no trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
+  "description": "NinjaTrader 8 in OpenTrader: futures history, tick charts, live prices and order book, and your account, positions and orders, read only. No trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
   "api": 4,
-  "provides": ["datafeed"],
+  "provides": ["datafeed", "broker"],
   "exchange": "NT8",
   "runtime": { "type": "external", "connectionFile": "{localAppData}/OpenTraderPlugins/ninjatrader.json" },
   "install": [

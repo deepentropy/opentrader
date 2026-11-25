@@ -91,6 +91,9 @@ pub struct Info {
     /// Values of the instrument shown with it (#383): circuit limits, price bands. `[{"name":…, "value":…}]`.
     #[serde(default)]
     pub fields: Vec<Value>,
+    /// The plugin's ticker the symbol trades as: a continuous future's contract. None: its own.
+    #[serde(default)]
+    pub trade_ticker: Option<String>,
 }
 
 /// An extra series of a symbol (`series` of `data.symbolInfo`): its name alone (`"OI"`), or with what differs from
