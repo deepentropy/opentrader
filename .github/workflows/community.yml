@@ -1,13 +1,31 @@
 name: Community
 
 # The Community API and website (deploy/community, src/community-site):
-# Worker + D1 database at community.opentrader.markets. Deployed on demand.
+# Worker + D1 database at community.opentrader.markets. Run on demand.
+#
+# As it is, it builds and checks everything and changes nothing: the website,
+# the types, the tests, the Worker's bundle, and that the Cloudflare token
+# reads the database and the Worker. "Deploy" then migrates the database and
+# deploys. "Sign-in secrets" writes the sign-in secrets again (below).
 #
 # One-time setup: `wrangler d1 create opentrader-community` (its id goes in
 # deploy/community/wrangler.jsonc), the sign-in apps' client ids in the
-# wrangler.jsonc vars, their secrets as repository secrets (below).
+# wrangler.jsonc vars, their secrets as repository secrets (below). The other
+# secrets are put by hand (wrangler.jsonc lists them).
 on:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy (unticked, check only)
+        type: boolean
+        default: false
+      secrets:
+        description: Sign-in secrets, written again with the deploy
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -18,33 +36,69 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     defaults:
       run:
-        working-directory: deploy/community
+        working-directory: opentrader/deploy/community
     steps:
-      - uses: actions/checkout@v7
+      # Two checkouts side by side, the layout vite.config.ts expects:
+      #   opentrader/                  this repo
+      #   lightweight-charts-drawing/  the drawing core (shared charts are drawn with it)
+      - name: Checkout OpenTrader
+        uses: actions/checkout@v7
+        with:
+          path: opentrader
+
+      # Same drawing core release as the release build: package.json
+      # config.drawingRef.
+      - name: Read drawing core ref
+        id: refs
+        working-directory: opentrader
+        run: echo "drawing=$(node -p "require('./package.json').config.drawingRef")" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout drawing core
+        uses: actions/checkout@v7
+        with:
+          repository: deepentropy/lightweight-charts-drawing
+          ref: ${{ steps.refs.outputs.drawing }}
+          path: lightweight-charts-drawing
 
       - name: Install Node
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: 'npm'
-          cache-dependency-path: deploy/community/package-lock.json
+          cache-dependency-path: |
+            opentrader/package-lock.json
+            opentrader/deploy/community/package-lock.json
 
       - name: Install
         run: npm ci
 
       # The website (src/community-site) into deploy/community/site.
       - name: Build the website
-        working-directory: .
+        working-directory: opentrader
         run: npm ci && npm run build:community
 
       - name: Check
         run: npm run check && npm test
 
+      - name: Bundle the Worker
+        run: npx wrangler deploy --dry-run
+
+      - name: Check the Cloudflare token
+        run: |
+          npx wrangler d1 migrations list opentrader-community --remote
+          npx wrangler deployments list
+
       - name: Migrate the database
+        if: inputs.deploy
         run: npx wrangler d1 migrations apply opentrader-community --remote
+
+      - name: Deploy
+        if: inputs.deploy
+        run: npx wrangler deploy
 
       # Only the sign-in methods whose secret is set.
       - name: Sign-in secrets
+        if: inputs.deploy && inputs.secrets
         run: |
           for name in GITHUB_CLIENT_SECRET GOOGLE_CLIENT_SECRET DISCORD_CLIENT_SECRET; do
             value="${!name}"
@@ -54,6 +108,3 @@ jobs:
           GITHUB_CLIENT_SECRET: ${{ secrets.COMMUNITY_GITHUB_CLIENT_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.COMMUNITY_GOOGLE_CLIENT_SECRET }}
           DISCORD_CLIENT_SECRET: ${{ secrets.COMMUNITY_DISCORD_CLIENT_SECRET }}
-
-      - name: Deploy
-        run: npx wrangler deploy
