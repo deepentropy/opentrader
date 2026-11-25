@@ -26,7 +26,7 @@ const EVENTS = [
 async function call(method, path, params) {
   const res = await fetch(API + path, {
     method,
-    headers: { Authorization: `Bearer ${key}`, "content-type": "application/x-www-form-urlencoded" },
+    headers: { Authorization: `Bearer ${key}`, "Stripe-Version": "2025-03-31.basil", "content-type": "application/x-www-form-urlencoded" },
     body: params && new URLSearchParams(params).toString(),
   });
   const data = await res.json();
@@ -37,7 +37,11 @@ async function call(method, path, params) {
 // One price per amount: a new amount is a new price, sold from then on; subscribers keep theirs.
 let price = (await call("GET", `/v1/prices?lookup_keys[]=${LOOKUP}&active=true`)).data[0];
 if (!price) {
-  const product = await call("POST", "/v1/products", { name: "OpenTrader real-time data", "metadata[app]": "opentrader" });
+  const product = await call("POST", "/v1/products", {
+    name: "OpenTrader live data", "metadata[app]": "opentrader",
+    // General, electronically supplied services: a code the provider's managed payments take.
+    tax_code: "txcd_10000000",
+  });
   price = await call("POST", "/v1/prices", {
     product: product.id, unit_amount: String(amount), currency, "recurring[interval]": "month", lookup_key: LOOKUP,
   });

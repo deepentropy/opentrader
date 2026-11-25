@@ -304,43 +304,6 @@ html.theme-dark .data-delay-badge.is-realtime {
   background-color: rgba(8, 153, 129, 0.2);
   color: var(--color-minty-green-400);
 }
-.plan-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 16px;
-}
-.plan-card {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  border: 1px solid var(--color-border-primary-neutral-extra-light);
-  border-radius: 6px;
-  font-size: 14px;
-  line-height: 20px;
-}
-.plan-card.is-current {
-  border-color: var(--color-minty-green-500);
-}
-.plan-card-title {
-  font-weight: 600;
-}
-.plan-card-price {
-  margin-top: 2px;
-  font-size: 18px;
-  line-height: 26px;
-}
-.plan-card ul {
-  flex: 1;
-  margin: 8px 0 0;
-  padding-inline-start: 18px;
-  list-style: disc;
-}
-.plan-card-current {
-  margin-top: 10px;
-  color: var(--color-minty-green-500);
-  font-size: 12px;
-}
 .plan-signin {
   display: flex;
   flex-direction: column;

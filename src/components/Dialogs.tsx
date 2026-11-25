@@ -83,8 +83,11 @@ const [stack, setStack] = createSignal<Entry[]>([]);
 let nextId = 1;
 const close = (id: number) => setStack((s) => s.filter((e) => e.id !== id));
 
-export function showConfirm(opts: ConfirmOptions): void {
-  setStack((s) => [...s, { id: nextId++, kind: "confirm", opts }]);
+/** Opens a confirmation; returns a function that closes it without an answer. */
+export function showConfirm(opts: ConfirmOptions): () => void {
+  const id = nextId++;
+  setStack((s) => [...s, { id, kind: "confirm", opts }]);
+  return () => close(id);
 }
 
 export function showRename(opts: RenameOptions): void {

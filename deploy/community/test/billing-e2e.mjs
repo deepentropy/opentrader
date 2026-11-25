@@ -163,6 +163,7 @@ try {
   assert.equal(session.customer, "cus_1");
   assert.equal(session.client_reference_id, userId);
   assert.equal(session["payment_method_types[0]"], "card");
+  assert.equal(session["managed_payments[enabled]"], undefined);
   openSessions = [{ id: "cs_old" }];
   await owner("POST", "/billing/checkout");
   assert.deepEqual(openSessions, [], "the page opened before is closed");
@@ -239,9 +240,11 @@ try {
   // 7b. a webhook that never came: the app back from the checkout has the plan read
   subs.set("cus_1", subscription({ id: "sub_4", customer: "cus_1", status: "active" }));
   assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
-  await until(async () => (await owner("POST", "/billing/refresh")).data.plan === "rt", "plan read on refresh", 12_000);
+  // Read at most every 8 s; the calls above and these are under the server's limit of writes per minute.
+  await sleep(9_000);
+  assert.equal((await owner("POST", "/billing/refresh")).data.plan, "rt");
   const reads = calls.filter((c) => c.path === "/v1/subscriptions").length;
-  for (let i = 0; i < 5; i++) await owner("POST", "/billing/refresh");
+  for (let i = 0; i < 2; i++) await owner("POST", "/billing/refresh");
   assert.equal(calls.filter((c) => c.path === "/v1/subscriptions").length, reads, "not read again at once");
   ok("refresh: the plan read from the provider without its webhook, a few times a minute at most");
 

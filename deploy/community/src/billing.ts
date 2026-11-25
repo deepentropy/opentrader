@@ -21,6 +21,8 @@ import { PASS_TTL, Plan, signPass } from "./pass";
 import { HttpError, json, now } from "./util";
 
 const API = "https://api.stripe.com";
+/** The API version the calls below are written for (the period is on the subscription's items). */
+const API_VERSION = "2025-03-31.basil";
 /** Webhook signatures older than this are refused (replays). */
 const SIGNATURE_TOLERANCE = 300;
 const GATEWAY_TIMEOUT_MS = 5_000;
@@ -137,15 +139,16 @@ export async function checkout(env: Env, user: User | null): Promise<Response> {
     mode: "subscription",
     customer: r.customer_id,
     client_reference_id: u.id,
-    // Cards only: a bank debit starts the subscription days before it is paid, or not.
-    "payment_method_types[0]": "card",
+    // The provider sells (it owes the tax in every country), or this account does. Cards only then: a bank debit
+    // starts the subscription days before it is paid, or not.
+    ...(env.STRIPE_MANAGED === "1" ? { "managed_payments[enabled]": "true" } : { "payment_method_types[0]": "card" }),
     expires_at: String(now() + CHECKOUT_TTL),
     "line_items[0][price]": env.STRIPE_PRICE_ID!.split(",")[0].trim(),
     "line_items[0][quantity]": "1",
     "subscription_data[metadata][user_id]": u.id,
     success_url: `${env.PUBLIC_URL}/billing/done`,
     cancel_url: `${env.PUBLIC_URL}/billing/cancelled`,
-    ...(env.STRIPE_TAX === "1" ? { "automatic_tax[enabled]": "true", "customer_update[address]": "auto" } : {}),
+    ...(env.STRIPE_TAX === "1" && env.STRIPE_MANAGED !== "1" ? { "automatic_tax[enabled]": "true", "customer_update[address]": "auto" } : {}),
     ...(env.STRIPE_TERMS === "1" ? { "consent_collection[terms_of_service]": "required" } : {}),
   });
   return json({ url: session.url });
@@ -374,6 +377,7 @@ async function stripe(env: Env, method: "GET" | "POST" | "DELETE", path: string,
     method,
     headers: {
       Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Stripe-Version": API_VERSION,
       ...(params ? { "content-type": "application/x-www-form-urlencoded" } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },

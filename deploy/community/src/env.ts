@@ -45,7 +45,9 @@ export interface Env {
   STRIPE_PRICE_ID?: string;
   /** Portal configuration (scripts/stripe-setup.mjs): cancel, card and invoices, no change of plan. Unset = the account's default. */
   STRIPE_PORTAL_CONFIG?: string;
-  /** "1": sales tax worked out by the provider at checkout. */
+  /** "1": the provider is the seller ("managed payments"): it collects and pays VAT and sales taxes. */
+  STRIPE_MANAGED?: string;
+  /** "1": sales tax worked out by the provider at checkout (this account is the seller). */
   STRIPE_TAX?: string;
   /** "1": the terms of service are accepted at checkout (their address is set at the provider). */
   STRIPE_TERMS?: string;

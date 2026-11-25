@@ -16,6 +16,7 @@ import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
 import { initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
 import { showPlanDialog } from "../paid/PlanDialog";
+import { translateAs } from "../../i18n/translator";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
 const WEB_BUILD = import.meta.env.MODE === "web";
@@ -45,10 +46,10 @@ export function TabPanelActions(props: Props) {
   onMount(initPaid);
   const badgeTip = () =>
     realtimeActive()
-      ? "Market data is real-time."
+      ? "Market data is live."
       : realtimeElsewhere()
-        ? "Real-time data is in use on another device. Click to use it here."
-        : "Market data is delayed by 15 minutes. Click for real-time data.";
+        ? "Live data is in use on another device. Click to use it here."
+        : "Market data is delayed by 15 minutes. Click to upgrade to live data.";
 
   return (
     <div class="tab-panel-actions">
@@ -70,7 +71,7 @@ export function TabPanelActions(props: Props) {
             data-qa-id="data-delay-badge"
             onClick={() => showPlanDialog()}
           >
-            {realtimeActive() ? "Real-time" : realtimeElsewhere() ? "Real-time elsewhere" : "Delayed 15 min"}
+            {realtimeActive() ? translateAs("Live", "market data") : realtimeElsewhere() ? "Live elsewhere" : "Delayed 15 min"}
           </button>
         </Tooltip>
       </Show>
