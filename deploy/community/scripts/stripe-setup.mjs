@@ -2,7 +2,7 @@
 // then live): the monthly price, the webhook, the customer portal (cancel, card and
 // invoices; no change of plan). Run again, it finds what it made and changes
 // nothing but the portal's settings. Prints the values of this Worker's secrets.
-// Run: STRIPE_SECRET_KEY=sk_... node scripts/stripe-setup.mjs [--price 10] [--currency usd] [--url https://community.opentrader.markets]
+// Run: STRIPE_SECRET_KEY=sk_... node scripts/stripe-setup.mjs [--price 10] [--currency usd] [--url https://community.opentrader.markets] [--no-webhook]
 const key = process.env.STRIPE_SECRET_KEY;
 if (!key) {
   console.error("STRIPE_SECRET_KEY is not set.");
@@ -44,14 +44,21 @@ if (!price) {
   });
   price = await call("POST", "/v1/prices", {
     product: product.id, unit_amount: String(amount), currency, "recurring[interval]": "month", lookup_key: LOOKUP,
+    // The price the app shows is what the customer pays: VAT and sales taxes are inside it.
+    tax_behavior: "inclusive",
   });
 }
+// Set once, on a price made without it.
+if (price.tax_behavior === "unspecified") price = await call("POST", `/v1/prices/${price.id}`, { tax_behavior: "inclusive" });
+if (price.tax_behavior !== "inclusive") throw new Error(`price ${price.id} adds the tax to what the app shows`);
 
 const endpoint = `${url}/billing/webhook`;
-const hooks = (await call("GET", "/v1/webhook_endpoints?limit=100")).data.filter((h) => h.url === endpoint);
 let secret = null;
 const events = Object.fromEntries(EVENTS.map((e, i) => [`enabled_events[${i}]`, e]));
-if (hooks.length) await call("POST", `/v1/webhook_endpoints/${hooks[0].id}`, events);
+// --no-webhook: a local try, with nothing deployed to receive the events.
+const hooks = process.argv.includes("--no-webhook") ? null : (await call("GET", "/v1/webhook_endpoints?limit=100")).data.filter((h) => h.url === endpoint);
+if (!hooks) secret = null;
+else if (hooks.length) await call("POST", `/v1/webhook_endpoints/${hooks[0].id}`, events);
 else secret = (await call("POST", "/v1/webhook_endpoints", { url: endpoint, ...events })).secret;
 
 const portalSettings = {
@@ -73,4 +80,4 @@ const portal = portals.length
 console.log(`mode: ${price.livemode ? "live" : "test"}`);
 console.log(`STRIPE_PRICE_ID=${price.id}`);
 console.log(`STRIPE_PORTAL_CONFIG=${portal.id}`);
-console.log(secret ? `STRIPE_WEBHOOK_SECRET=${secret}` : "STRIPE_WEBHOOK_SECRET: made before; read it in the provider's dashboard (it is shown once here)");
+if (hooks) console.log(secret ? `STRIPE_WEBHOOK_SECRET=${secret}` : "STRIPE_WEBHOOK_SECRET: made before; read it in the provider's dashboard (it is shown once here)");
