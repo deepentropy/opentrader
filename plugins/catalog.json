@@ -3,7 +3,7 @@
     {
       "id": "mt5",
       "name": "MetaTrader 5",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "publisher": "OpenTrader",
       "description": "Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account and trading from the charts.",
       "provides": [
@@ -15,14 +15,14 @@
         "windows"
       ],
       "homepage": "https://opentrader.markets/plugin-metatrader.html",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.4.0/mt5-0.4.0.zip",
-      "sha256": "d2080cd5911ebb82927be8d2a9b2f037c30bed1af83aae4e99e06bccd5e3938d",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3Zmb0tLTzJjbDVuaWRaZ2QxWVdzMmhPNkkzYzJnMEtGVkZWTkJzN2dhSFEzYTc4RFlPQ1FQc0x3a1RXZHFSYUI4MUh3V01QMEl4SklXWHU4SlpZdHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTUyMzk4CWZpbGU6bXQ1LTAuNC4wLnppcApTUHVtS1NXbGhiZDRQdGdEbzd2dElhRWtRTVZVa1g3YzlRdjk2OGp3ME1vdUV4a2dXdHVnb1JxSmFVbUpocitGckQyd3M0VFNCcDQzcUtCWjdGQ3JDdz09Cg=="
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.4.1/mt5-0.4.1.zip",
+      "sha256": "7d994769dbd7e24d3b3f12111d3527a45ab08c12cc6d4254dc3a7a4c0abf5578",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3RESEtBbUZ0dnpwOGpkdUFzbnRFY09uMFEvSWp5UHJ3a3M2ay9mZXlGcm04Y3ZmUFZjRktOTHo5dHNyZ3Radm12eUJBM2ZLSDN3eUc1K21zOFZObFFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjI2MTc0CWZpbGU6bXQ1LTAuNC4xLnppcAo2bXFQUDh2bnAvN0h6cVQvb0wxNEhvdjUzd2dsTmlBYUFDZ21KK0hjSXAzaHF3MzJQeEZSZGdZNDBXMFV1eEFtUzZ6MkExVmx2clpEOElwMnd6eFhDQT09Cg=="
     },
     {
       "id": "ibkr",
       "name": "Interactive Brokers",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "publisher": "OpenTrader",
       "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly (beta): balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
       "provides": [
@@ -34,9 +34,9 @@
         "windows"
       ],
       "homepage": "https://opentrader.markets/plugin-interactive-brokers.html",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.6.0/ibkr-0.6.0.zip",
-      "sha256": "ae90569fcea06578fe3a60fa7257f2d435aea90a1105f49f7bcdbcdfbe5170f7",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2hIY3VHVVZ2Q0FxMmdpTlgzbnpTNzlSNVBNL2puK1NRY1E3cnJHcmNFR1NXcFN3WmYwSVlTWlN5Yk9qbmtiQUpoOWdvMzV2bisvOUVFd1Q3MnpoS1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTUyNDE2CWZpbGU6aWJrci0wLjYuMC56aXAKeUhIa0JFb0hkVEI4UDc0bGVHSHNDNXhHYUdCMlc2My92Yk9xaDBJdDhFakV3ZG50V0JKcC9wZ3dkT05RakpvdklZeE5sVFRBVDA5UHNhVFBUYm9HQkE9PQo="
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.6.1/ibkr-0.6.1.zip",
+      "sha256": "f135156de3db9cc4561412f772b6a25c8bb9320dfe3f23a5f1a133ad0784d15a",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM25Fc09UbkNTQnltQStzanptb2dzOVVRZ1J2amRWUHZRbmVRMms4SXF4dW96TXBlQ0FBSk11Y3NGNVB3cUZ3OG5sTmdvclduUEptYjBNSUZIMytrTEE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjI2MjAwCWZpbGU6aWJrci0wLjYuMS56aXAKZTZrNlpMZVhReUllSHdEWHhIWXhhUjhjeXF1bVRKWDdybzAzRHRZTWxJWHVGa25mcmRYY2dQQzJyUDJqTnRNYVFkVzAxL0hkOG9XYnZZOEoveGVNRFE9PQo="
     },
     {
       "id": "ninjatrader",
