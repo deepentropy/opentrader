@@ -1,7 +1,7 @@
 {
   "id": "ibkr",
   "name": "Interactive Brokers",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "OpenTrader",
   "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly (beta): balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
   "api": 3,
