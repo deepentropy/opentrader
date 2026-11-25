@@ -44,7 +44,7 @@ export async function list(env: Env, user: User | null, url: URL): Promise<Respo
   const sort = url.searchParams.get("sort") === "new" ? "new" : "top";
   const offset = Math.max(0, Math.min(10_000, Number(url.searchParams.get("offset")) || 0));
   const terms = str(url.searchParams.get("q")).trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[%_\\]/g, "").slice(0, 40)).filter(Boolean).slice(0, 8);
-  const where = ["p.community_id = ?", "p.removed = 0", "p.deleted = 0"];
+  const where = ["p.community_id = ?", "p.sg_status IS NOT NULL", "p.removed = 0", "p.deleted = 0"];
   const binds: unknown[] = [SUGGESTIONS];
   for (const t of terms) {
     where.push("(p.title LIKE ? OR p.body LIKE ?)");
