@@ -14,7 +14,7 @@
       "platforms": [
         "windows"
       ],
-      "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/mt5",
+      "homepage": "https://opentrader.markets/plugin-metatrader.html",
       "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-mt5-v0.4.0/mt5-0.4.0.zip",
       "sha256": "d2080cd5911ebb82927be8d2a9b2f037c30bed1af83aae4e99e06bccd5e3938d",
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM3Zmb0tLTzJjbDVuaWRaZ2QxWVdzMmhPNkkzYzJnMEtGVkZWTkJzN2dhSFEzYTc4RFlPQ1FQc0x3a1RXZHFSYUI4MUh3V01QMEl4SklXWHU4SlpZdHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTUyMzk4CWZpbGU6bXQ1LTAuNC4wLnppcApTUHVtS1NXbGhiZDRQdGdEbzd2dElhRWtRTVZVa1g3YzlRdjk2OGp3ME1vdUV4a2dXdHVnb1JxSmFVbUpocitGckQyd3M0VFNCcDQzcUtCWjdGQ3JDdz09Cg=="
@@ -33,10 +33,28 @@
       "platforms": [
         "windows"
       ],
-      "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
+      "homepage": "https://opentrader.markets/plugin-interactive-brokers.html",
       "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ibkr-v0.6.0/ibkr-0.6.0.zip",
       "sha256": "ae90569fcea06578fe3a60fa7257f2d435aea90a1105f49f7bcdbcdfbe5170f7",
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2hIY3VHVVZ2Q0FxMmdpTlgzbnpTNzlSNVBNL2puK1NRY1E3cnJHcmNFR1NXcFN3WmYwSVlTWlN5Yk9qbmtiQUpoOWdvMzV2bisvOUVFd1Q3MnpoS1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTUyNDE2CWZpbGU6aWJrci0wLjYuMC56aXAKeUhIa0JFb0hkVEI4UDc0bGVHSHNDNXhHYUdCMlc2My92Yk9xaDBJdDhFakV3ZG50V0JKcC9wZ3dkT05RakpvdklZeE5sVFRBVDA5UHNhVFBUYm9HQkE9PQo="
+    },
+    {
+      "id": "ninjatrader",
+      "name": "NinjaTrader 8",
+      "version": "0.1.0",
+      "publisher": "OpenTrader",
+      "description": "NinjaTrader 8's futures data in OpenTrader: front contracts and single contracts, history, tick charts and live prices. Data only, no trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
+      "provides": [
+        "datafeed"
+      ],
+      "api": 4,
+      "platforms": [
+        "windows"
+      ],
+      "homepage": "https://opentrader.markets/plugin-ninjatrader.html",
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ninjatrader-v0.1.0/ninjatrader-0.1.0.zip",
+      "sha256": "31213f7268dd3cb77b483fffadaa95bb5ebe1726879c5ddd23e2fc16de2910ba",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2hYeksxREk3bVBuZzNCRHd3M0FXNDhtMFhrVWR6SXhJbDVTWmpLZzFQWXltalVNdkdES2wxNkdvM01FM1JHVWtidUUzY2JQSWprT3ZBUitPNVNPQncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjI1MzU0CWZpbGU6bmluamF0cmFkZXItMC4xLjAuemlwCnk5dm01MmZ2ZXBnSUd0WEw0RWp1MUgvbFd0SlhoZTRoa01RTEdIT21tcUFhNkRraSt6VTFkS3F6QkJlaXdROEViQ3hSaXo1YjBGTXpEK1hGQTNJWUJ3PT0K"
     }
   ]
 }
