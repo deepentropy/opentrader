@@ -36,6 +36,11 @@
   height: auto;
 }
 /* Its own window: the whole window. */
+.screener-window {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
 .scr-split.is-window {
   flex: 1 1 auto;
   width: 100%;
