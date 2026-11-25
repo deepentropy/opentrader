@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NinjaTrader 8 plugin: setup guide · OpenTrader</title>
+  <meta name="description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data on OpenTrader charts, with live prices and tick charts.">
+  <link rel="canonical" href="https://opentrader.markets/plugin-ninjatrader.html">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta property="og:site_name" content="OpenTrader">
+  <meta property="og:title" content="NinjaTrader 8 plugin: setup guide · OpenTrader">
+  <meta property="og:description" content="Set up the NinjaTrader 8 plugin: NinjaTrader's futures data on OpenTrader charts, with live prices and tick charts.">
+  <meta property="og:url" content="https://opentrader.markets/plugin-ninjatrader.html">
+  <meta property="og:image" content="https://opentrader.markets/assets/screenshot.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/site/icon-64.png">
+  <link rel="apple-touch-icon" href="assets/site/apple-touch-icon.png">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="top-logo" href="./"><img src="assets/site/logo.png" alt="OpenTrader" width="190" height="53"></a>
+  <nav aria-label="Main">
+    <details class="menu">
+      <summary aria-current="true">Features</summary>
+      <div class="menu-list">
+        <a href="stock-screener.html">Stock screener</a>
+        <a href="backtesting.html">Backtesting</a>
+        <a href="bar-replay.html">Bar replay</a>
+        <a href="technical-indicators.html">Indicators</a>
+        <a href="drawing-tools.html">Drawing tools</a>
+        <a href="scripting.html">Scripting</a>
+        <a href="embed.html">Embed on your site</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="./#features">All features</a>
+      </div>
+    </details>
+    <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+    <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    <a class="btn btn-main" href="download.html">Download</a>
+  </nav>
+</header>
+
+<main>
+<section class="section privacy guide">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="./">OpenTrader</a> / <a href="plugins.html">Plugins</a> / <span aria-current="page">NinjaTrader 8</span></nav>
+    <h1>NinjaTrader 8 setup</h1>
+    <p>NinjaTrader 8's futures data in OpenTrader: history, tick charts and live prices. It reads no account and sends no order. For Windows.</p>
+
+    <div class="guide-note">
+      <p><strong>Read this first.</strong> This plugin is not made, reviewed or approved by NinjaTrader, and OpenTrader is not affiliated with NinjaTrader. NinjaTrader's terms, and those of your data provider and the exchanges, may not allow using their data in another application. Read the terms of your account and use the plugin only if they allow it: you are responsible for that use.</p>
+    </div>
+
+    <h2>Set up</h2>
+    <ol>
+      <li>In OpenTrader, open <strong>App settings</strong> from the account menu, then <strong>Plugins</strong>. Press <strong>Browse catalog</strong> and install <strong>NinjaTrader 8</strong>, then turn it on (<strong>Enabled</strong>).</li>
+      <li>Under the plugin, tick NinjaTrader's <strong>AddOns</strong> folder and press <strong>Copy OpenTraderBridge.cs</strong>.</li>
+      <li>In NinjaTrader, open <strong>New &gt; NinjaScript Editor</strong> and press <strong>F5</strong> to compile. No restart is needed.</li>
+      <li>Connect NinjaTrader to your data in <strong>Connections</strong>.</li>
+    </ol>
+    <p>The plugin shows <strong>Connected</strong> within a few seconds. Keep NinjaTrader open while you use it; no chart needs to be open.</p>
+
+    <h2>Symbols</h2>
+    <ul>
+      <li><code>NT8:ES1!</code> is the front contract, with the earlier contracts joined at their real prices (not back-adjusted). It moves to the next contract on NinjaTrader's rollover dates.</li>
+      <li><code>NT8:ESZ2026</code> is one contract.</li>
+      <li>The Watchlists dialog has a ready-made <strong>Futures</strong> list.</li>
+    </ul>
+    <p>What you see depends on the data NinjaTrader is connected to.</p>
+
+    <h2>After an update</h2>
+    <p>Press <strong>F5</strong> in the NinjaScript Editor again. If you remove the plugin, press F5 once more.</p>
+
+    <h2>If something looks wrong</h2>
+    <ul>
+      <li><strong>It does not compile:</strong> an error in another script of yours stops it. Fix or remove that script, then press F5.</li>
+      <li><strong>A daily chart shows only the last years:</strong> NinjaTrader is still loading the rest the first time. Load the chart again a minute later.</li>
+      <li><strong>No tick history:</strong> it goes back only as far as NinjaTrader gives it.</li>
+      <li><strong>A chart stays empty:</strong> it was opened before the plugin connected. Change its interval to load it.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>OpenTrader is an independent project, not affiliated with any trading platform or data provider. It is for charting and research only and is not financial advice. MIT license.</p>
+    <nav aria-label="Footer">
+      <a href="./">Home</a>
+      <a href="download.html">Download</a>
+      <a href="https://demo.opentrader.markets/">Online demo</a>
+      <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+      <a href="https://community.opentrader.markets/">Community</a>
+      <a href="community-rules.html">Community rules</a>
+      <a href="terms.html" aria-current="page">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="legal.html">Legal notice</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
