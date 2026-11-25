@@ -995,8 +995,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   }
 
   /** Buy / Sell buttons (Chart settings → Trading → Buy/sell buttons) while
-   *  the chart is in replay: Sell (bid) | spread | Buy (ask) at the last
-   *  replayed price. A click opens the order ticket on that side, or with
+   *  the chart trades: Sell (bid) | spread | Buy (ask), at the broker's quote
+   *  on the focused chart, else at the last price (replay quotes one price). A click opens the order ticket on that side, or with
    *  one-click trading sends the order at once (a market order of the next
    *  orders' quantity, shown in the pill under the spread). With order
    *  presets, a chevron picks the preset the buttons use (its title on them). */
@@ -1006,6 +1006,13 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       const last = cx.latestBar();
       return last ? snapToTick(last.close, tick()) : null;
     });
+    const quoted = createMemo(() => {
+      broker.version();
+      const q = broker.quote();
+      if (!q || q.bid == null || q.ask == null || q.symbol.toUpperCase() !== (cx.props.symbol ?? "").toUpperCase()) return null;
+      return { bid: q.bid, ask: q.ask };
+    });
+    const decimals = () => Math.max(2, String(tick()).split(".")[1]?.length ?? 2);
     const preset = () => tradingUi.activePreset();
     const go = (side: "buy" | "sell") => {
       focusPane(paneId);
@@ -1027,19 +1034,19 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         <div class="ot-trd-buysell" data-name="buy-sell-buttons" onMouseDown={stop} onPointerDown={stop}>
           <Tooltip text="Sell" side="bottom">
             <button type="button" class="ot-trd-buysell__btn is-sell" data-name="sell-order-button" onClick={() => go("sell")}>
-              <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
+              <span class="ot-trd-buysell__price">{fmtPrice(quoted()?.bid ?? price()!, tick())}</span>
               <span class="ot-trd-buysell__title">{preset()?.title ?? "Sell"}</span>
             </button>
           </Tooltip>
           <span class="ot-trd-buysell__mid">
-            <span class="ot-trd-buysell__spread">{(0).toFixed(Math.max(2, String(tick()).split(".")[1]?.length ?? 2))}</span>
+            <span class="ot-trd-buysell__spread">{(quoted() ? quoted()!.ask - quoted()!.bid : 0).toFixed(decimals())}</span>
             <Show when={oneClick()}>
               <QtyPill />
             </Show>
           </span>
           <Tooltip text="Buy" side="bottom">
             <button type="button" class="ot-trd-buysell__btn is-buy" data-name="buy-order-button" onClick={() => go("buy")}>
-              <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
+              <span class="ot-trd-buysell__price">{fmtPrice(quoted()?.ask ?? price()!, tick())}</span>
               <span class="ot-trd-buysell__title">{preset()?.title ?? "Buy"}</span>
             </button>
           </Tooltip>
