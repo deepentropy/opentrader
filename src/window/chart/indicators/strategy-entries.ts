@@ -36,6 +36,7 @@ import * as scripts from "../../../data/oakscript-store";
 import { strategyTester } from "../../../data/strategy-tester-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import { typeIdOf } from "./study-id";
+import { addRequests, enterScope, noRequests, readRequests, seriesOf, type SymbolRequests } from "./symbol-requests";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 import type { OakCompiledMeta } from "../../oakscript/engine-types";
 import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
@@ -78,8 +79,10 @@ type Runtime = {
   queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; heikinAshi: boolean; symbols: OtherSymbolData | undefined; key: string } | null;
   /** Drawing output of the last finished run (OakScript strategies), what calculate() returns. */
   visuals: unknown;
+  /** The series `visuals` was calculated on (seriesOf): on another one it is not drawn. */
+  visualsSeries: string | null;
   /** Bars of other symbols the script asked for (`request.security`): given with every run. */
-  requests: { symbol: string; timeframe: string }[];
+  requests: SymbolRequests;
   /** Why the last run calculated every bar instead of the newest ones (null: it did not, or not known). */
   fullRunReason: string | null;
 };
@@ -119,12 +122,14 @@ async function run(
   const { [PROPERTIES_INPUT]: properties, ...inputs } = allInputs;
   rt.running = true;
   rt.key = key;
+  const requests = rt.requests.list;
   const prev = strategyTester.run(chartId, strategyKey);
   strategyTester.setRun(chartId, strategyKey, { status: "running", report: prev?.report ?? null, error: null, bars: bars.length });
   try {
     const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart, heikinAshi, symbols);
     if (out) {
       rt.visuals = out.visuals ?? null;
+      rt.visualsSeries = seriesOf(chart);
       rt.fullRunReason = out.fullRunReason ?? null;
       strategyTester.setRun(chartId, strategyKey, { status: "done", report: out.report, error: null, bars: bars.length });
     }
@@ -134,9 +139,7 @@ async function run(
     if (error.missing?.length) {
       // The script reads other symbols: the chart loads them and the run starts again with them (the run stays
       // "running" meanwhile).
-      for (const m of error.missing) {
-        if (!rt.requests.some((r) => r.symbol === m.symbol && r.timeframe === m.timeframe)) rt.requests.push(m);
-      }
+      addRequests(requests, error.missing);
       rt.key = null;
       return;
     }
@@ -173,23 +176,14 @@ function makeCalculate(
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
     const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
-    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null, requests: [], fullRunReason: null }));
+    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null, visualsSeries: null, requests: noRequests(), fullRunReason: null }));
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps them
     // while a study reads them); one not loaded yet holds the run until it arrives.
-    let symbols: OtherSymbolData | undefined;
-    let symbolsKey = "";
-    if (rt.requests.length) {
-      symbols = { bars: {}, info: {} };
-      for (const r of rt.requests) {
-        const b = symbolBars?.(r.symbol, r.timeframe);
-        if (b === undefined) return rt.visuals ?? PENDING_RESULT;
-        symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
-        const info = symbolInfo?.(r.symbol);
-        if (info) symbols.info[r.symbol] = info;
-        const last = b[b.length - 1];
-        symbolsKey += `|${r.symbol}:${r.timeframe}:${b.length}:${b[0]?.time}:${last?.time}:${last?.close}:${last?.volume}`;
-      }
-    }
+    enterScope(rt.requests, `${seriesOf(chart)}|${JSON.stringify(typedInputs)}`);
+    const read = readRequests(rt.requests.list, symbolBars, symbolInfo);
+    const kept = rt.visualsSeries === seriesOf(chart) ? rt.visuals : null;
+    if (!read) return kept ?? PENDING_RESULT;
+    const { symbols, key: symbolsKey } = read;
     const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart)}:${heikinAshi}${symbolsKey}`;
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
@@ -200,7 +194,7 @@ function makeCalculate(
     // The last run for these bars and inputs stopped on an error: the chart shows it with the study.
     const last = strategyTester.run(chartId, runKey);
     if (!rt.running && rt.key === key && last?.status === "error" && last.error) throw new Error(last.error.message);
-    return rt.visuals ?? (rt.running || rt.key !== key ? PENDING_RESULT : EMPTY_RESULT);
+    return kept ?? (rt.running || rt.key !== key ? PENDING_RESULT : EMPTY_RESULT);
   }) as IndicatorRegistryEntry["calculate"];
 }
 

@@ -58,6 +58,7 @@ import { ACCESSORS, applyDelta, callKey, jobChanges, shareStrings, type SentStat
 import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 import { windowResult, type DrawWindow } from './draw-window';
 import { fromPost, packPlots, withField } from './packed-points';
+import { callAnswered, seriesOf } from './symbol-requests';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -151,6 +152,10 @@ type OffThreadRun = {
   running: boolean;
   queued: { job: StudyWork; key: string; series: string; live: boolean } | null;
   calls: StudyCall[];
+  /** Series and inputs `calls` were made on. */
+  scope: { series: string; inputs: string } | null;
+  /** Calls were dropped: the next job sends everything, the worker must not answer them with the data it holds. */
+  resend: boolean;
   /** Job id of the last whole result the worker gave, and that result (its next one may be the changes from it). */
   version: number | null;
   raw: unknown;
@@ -616,7 +621,7 @@ export class IndicatorLayer {
 
   // ── Off the window's thread (study-calc.ts) ───────────────────────────
   /** Run state of the worker calculations (library studies). */
-  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined, liveAfter: 0, liveTimer: null, sent: { stateId: null, bars: null, data: new Map() } };
+  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], scope: null, resend: false, version: null, raw: null, slot: undefined, liveAfter: 0, liveTimer: null, sent: { stateId: null, bars: null, data: new Map() } };
   /** The worker's result the last calculation gave (null: not a worker result), and the one drawn. */
   private workerResult: unknown = null;
   private drawnWorkerResult: unknown = null;
@@ -653,8 +658,21 @@ export class IndicatorLayer {
     for (const [k, v] of Object.entries(ctx)) if (typeof v !== 'function') plain[k] = v;
     const fns = ctx as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>;
     const accessors = ACCESSORS.filter((k) => typeof fns[k] === 'function');
+    const series = seriesOf(ctx);
+    const inputsKey = JSON.stringify(inputs);
+    // On another series or with other inputs the study asks again: a call kept from the symbol before went on failing
+    // the study (`<symbol>_OI` of a symbol without open interest, #411) and held that symbol's live updates. With
+    // other inputs the data at hand stays (the study is not emptied while a length is edited).
+    if (off.scope?.series !== series || off.scope.inputs !== inputsKey) {
+      const before = off.calls;
+      off.calls = off.scope?.series === series ? before.filter((c) => callAnswered(fns[c.kind], c.args)) : [];
+      // The reads above are not the ones of this calculation.
+      this.usedSymbols.clear();
+      off.resend ||= off.calls.length < before.length;
+      off.scope = { series, inputs: inputsKey };
+    }
     const data: Record<string, unknown> = {};
-    let key = `${barsSignature(bars)}|${JSON.stringify(inputs)}|${JSON.stringify(plain)}`;
+    let key = `${barsSignature(bars)}|${inputsKey}|${JSON.stringify(plain)}`;
     for (const c of off.calls) {
       const fn = fns[c.kind];
       if (!fn) continue;
@@ -679,7 +697,6 @@ export class IndicatorLayer {
         key += `|${v}=${valueSignature(arr)}`;
       }
     }
-    const series = `${ctx.tickerid}|${ctx.timeframe}|${ctx.sessionType}`;
     if (off.key === key) {
       this.workerResult = off.result;
       return off.error ? { error: off.error } : { result: off.result ?? PENDING_RESULT };
@@ -709,6 +726,10 @@ export class IndicatorLayer {
   private runOffThread(job: StudyWork, key: string, series: string, live: boolean): void {
     const off = this.off;
     off.running = true;
+    // This job's calls: another scope may replace the list meanwhile, what the job reports stays out of that one.
+    const calls = off.calls;
+    if (off.resend) off.sent.stateId = null;
+    off.resend = false;
     const sent = { ...job, ...jobChanges(off.sent, job.bars, job.data, valueSignature), base: off.version };
     void calculateInWorker(sent, off.slot).then(({ reply, slot }) => {
       if (this.off !== off) return;
@@ -732,7 +753,7 @@ export class IndicatorLayer {
         off.version = reply.id;
         off.raw = reply.result;
       }
-      for (const m of reply.missing) if (!off.calls.some((c) => c.kind === m.kind && callKey(c.kind, c.args) === callKey(m.kind, m.args))) off.calls.push(m);
+      for (const m of reply.missing) if (!calls.some((c) => c.kind === m.kind && callKey(c.kind, c.args) === callKey(m.kind, m.args))) calls.push(m);
       if (reply.retry) off.key = null;
       else if (reply.missing.length && !reply.error) {
         // It read data it was not given: the next calculation reads it and asks again (loading meanwhile).

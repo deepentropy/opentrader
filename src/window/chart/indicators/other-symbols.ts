@@ -47,6 +47,9 @@ import { intervalSeconds } from "../../../backtester/magnifier";
 
 /** Session of another symbol's bars. */
 const SESSION = "RTH";
+/** A symbol no study reads any more is kept this long: a study asks for its symbols again on another chart symbol or
+ *  with other inputs (a comparison with SPY), they are not fetched again for that. */
+const IDLE_MS = 10_000;
 
 type Entry = {
   symbol: string;
@@ -67,6 +70,8 @@ type Entry = {
   /** Per-day volume baseline of a forming week / month bar (live). */
   volBase: { barTime: number; dayTime: number; base: number } | null;
   stopLive: (() => void) | null;
+  /** Drops the entry once it is not read for IDLE_MS (null: it is in use). */
+  idle: ReturnType<typeof setTimeout> | null;
 };
 
 /** Timeframe of a script (`"D"`, `"60"`, `""`) as a chart interval id (`"1D"`, `"60"`). */
@@ -195,10 +200,11 @@ export class OtherSymbolBars {
     const key = keyOf(sym, resolution);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null };
+      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null, idle: null };
       this.entries.set(key, e);
       this.load(key, e);
     }
+    this.inUse(e);
     if (e.failed) return [];
     if (!e.bars) return undefined;
     if (!e.seen) e.seen = scriptBars(e.bars, scriptChartContext(e.symbol, e.resolution, SESSION));
@@ -217,13 +223,14 @@ export class OtherSymbolBars {
     const key = this.lowerKey(sym, resolution, session);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, session, lower: true, wantFrom: from, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null };
+      e = { symbol: sym, resolution, session, lower: true, wantFrom: from, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null, idle: null };
       this.entries.set(key, e);
       this.load(key, e);
     } else if (from < e.wantFrom) {
       e.wantFrom = from;
       this.extend(key, e);
     }
+    this.inUse(e);
     if (e.failed) return [];
     return e.bars ? this.cut(key, e.bars) : undefined;
   }
@@ -307,18 +314,35 @@ export class OtherSymbolBars {
     for (const [key, e] of this.entries) this.extend(key, e);
   }
 
-  /** Drop the symbols no study read in the last calculations (`used`: keys in use). */
+  /** Drop the symbols no study read in the last calculations (`used`: keys in use), after a while; one that could not
+   *  be loaded at once, so that it is tried again when a study asks for it again. */
   retain(used: Set<string>): void {
     for (const [key, e] of [...this.entries]) {
-      if (used.has(key) || !e.bars) continue;
-      e.stopLive?.();
-      this.entries.delete(key);
+      if (used.has(key)) this.inUse(e);
+      else if (e.failed) this.drop(key, e);
+      else if (e.bars) e.idle ??= setTimeout(() => this.drop(key, e), IDLE_MS);
     }
+  }
+
+  private inUse(e: Entry): void {
+    if (e.idle) clearTimeout(e.idle);
+    e.idle = null;
+  }
+
+  private drop(key: string, e: Entry): void {
+    if (this.entries.get(key) !== e) return;
+    this.release(e);
+    this.entries.delete(key);
+  }
+
+  private release(e: Entry): void {
+    this.inUse(e);
+    e.stopLive?.();
   }
 
   /** Symbol, interval or session of the chart changed, or the chart reloads: everything is fetched again. */
   clear(): void {
-    for (const e of this.entries.values()) e.stopLive?.();
+    for (const e of this.entries.values()) this.release(e);
     this.entries.clear();
     this.eventLists.clear();
     this.fundamentalSets.clear();
