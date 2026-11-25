@@ -21,6 +21,9 @@ use std::sync::Arc;
 struct SplitsAnswer {
     #[serde(default)]
     splits: Vec<SplitRow>,
+    /// When the corrections of the ticker's bars last changed, if it has any.
+    #[serde(default)]
+    corrected: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +43,23 @@ pub struct Split {
     pub execution_date: NaiveDate,
     pub from: f64,
     pub to: f64,
+}
+
+/// A ticker's executed splits (newest first), read as a slice, and the
+/// revision of the corrections of its bars.
+#[derive(Clone, Default)]
+pub struct Splits {
+    pub(super) list: Vec<Split>,
+    /// The gateway fixes a few wrong daily highs and lows; the cached sessions
+    /// of before a correction are no longer the served ones.
+    pub(super) corrected: Option<String>,
+}
+
+impl std::ops::Deref for Splits {
+    type Target = [Split];
+    fn deref(&self) -> &[Split] {
+        &self.list
+    }
 }
 
 // ── Chart event markers (Events tab: Dividends / Splits) ────────────────────
@@ -70,7 +90,7 @@ pub struct DividendEvent {
 
 /// Every already-executed split for `ticker`, newest-first, or the lookup
 /// error (the cache callers then bypass the REST cache rather than risk stale bars).
-async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Vec<Split>, ApiError> {
+async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Splits, ApiError> {
     let answer: SplitsAnswer = get_json(
         "splits",
         "splits",
@@ -78,8 +98,9 @@ async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Vec<Split>, ApiE
     )
     .await
     .inspect_err(|e| eprintln!("[market_rest] {e}"))?;
-    Ok(
-        answer
+    Ok(Splits {
+        corrected: answer.corrected,
+        list: answer
             .splits
             .into_iter()
             .filter_map(|r| {
@@ -89,22 +110,22 @@ async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Vec<Split>, ApiE
                 Some(Split { execution_date: date, from: r.from.unwrap_or(1.0), to: r.to.unwrap_or(1.0) })
             })
             .collect(),
-    )
+    })
 }
 
 /// Per-ticker, per-day memo of the splits list. One small REST call resolved at
 /// most once per ticker per calendar day; a transient failure simply retries on
 /// the next fetch. Shared by the REST cache epoch and the S3 adjustment.
-pub(super) static SPLITS: DayMemo<String, Vec<Split>> = DayMemo::new(TICKER_MEMO_CAP);
+pub(super) static SPLITS: DayMemo<String, Splits> = DayMemo::new(TICKER_MEMO_CAP);
 
 /// Memoised already-executed splits for `ticker` (newest-first), or `None` on a
 /// lookup failure.
-pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
+pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Splits>> {
     splits_cached(ticker).await.ok()
 }
 
 /// Memoised already-executed splits for `ticker` (newest-first), or the lookup error.
-async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
+async fn splits_cached(ticker: &str) -> Result<Arc<Splits>, ApiError> {
     let ticker = ticker.to_string();
     let today = Utc::now().date_naive();
     if let Some(splits) = SPLITS.get(&ticker, |as_of| *as_of == today) {
@@ -128,7 +149,7 @@ async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
 /// executes after the archive file was cached).
 #[cfg(test)]
 pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
-    SPLITS.insert(ticker.to_string(), Utc::now().date_naive(), Arc::new(splits));
+    SPLITS.insert(ticker.to_string(), Utc::now().date_naive(), Arc::new(Splits { list: splits, corrected: None }));
 }
 
 /// The executed splits of `ticker` (newest-first) for the chart markers and
@@ -203,12 +224,18 @@ async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Result<Vec<DividendE
 }
 
 /// The cache epoch implied by a splits list (newest-first): the latest executed
-/// split date, or `"none"` when the ticker has never split.
-pub(super) fn epoch_of(splits: &[Split]) -> String {
-    splits
+/// split date, or `"none"` when the ticker has never split, and the revision
+/// of the corrections of its bars when it has any.
+pub(super) fn epoch_of(splits: &Splits) -> String {
+    let split = splits
         .first()
         .map(|s| s.execution_date.format("%Y-%m-%d").to_string())
-        .unwrap_or_else(|| "none".to_string())
+        .unwrap_or_else(|| "none".to_string());
+    match &splits.corrected {
+        // A folder name: the digits of the time.
+        Some(rev) => format!("{split}_c{}", rev.chars().filter(char::is_ascii_digit).collect::<String>()),
+        None => split,
+    }
 }
 
 /// Remove stale split-epoch cache directories for a ticker, keeping only
@@ -232,9 +259,10 @@ async fn prune_stale_epochs(ticker: &str, current_epoch: &str) {
     }
 }
 
-/// Cache namespace for a ticker's current split-adjustment state — the latest
-/// executed split date, or `"none"`. Folding this into the REST cache path means
-/// a fresh split changes the namespace and invalidates prior cached sessions.
+/// Cache namespace for a ticker's current bars — the latest executed split
+/// date, or `"none"`, and the revision of its corrections. Folding this into
+/// the REST cache path means a fresh split or correction changes the namespace
+/// and invalidates prior cached sessions.
 /// `None` (lookup failed) → the caller bypasses the cache to avoid stale bars.
 pub(super) async fn split_epoch(ticker: &str) -> Option<String> {
     let splits = fetch_splits_cached(ticker).await?;

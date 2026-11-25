@@ -292,7 +292,7 @@ mod tests {
         let downloads = FULL_DOWNLOADS.load(Ordering::SeqCst);
 
         // A 2:1 split executed yesterday, on top of the real list.
-        let mut splits: Vec<Split> = (*market_rest::fetch_splits_cached(ticker).await.unwrap()).clone();
+        let mut splits: Vec<Split> = market_rest::fetch_splits_cached(ticker).await.unwrap().to_vec();
         let yesterday = trading_calendar::ny_today() - chrono::Duration::days(1);
         splits.insert(0, Split { execution_date: yesterday, from: 1.0, to: 2.0 });
         market_rest::set_splits_for_test(ticker, splits).await;

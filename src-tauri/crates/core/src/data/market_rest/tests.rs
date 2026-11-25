@@ -57,11 +57,17 @@ fn today_and_later_are_never_sentineled() {
 
 #[test]
 fn epoch_is_newest_split_or_none() {
-    assert_eq!(epoch_of(&[]), "none");
+    assert_eq!(epoch_of(&Splits::default()), "none");
     // fetch_splits returns newest-first, so the first entry is the epoch.
-    let splits = vec![
+    let list = vec![
         Split { execution_date: NaiveDate::from_ymd_opt(2022, 1, 3).unwrap(), from: 1.0, to: 1.0 },
         Split { execution_date: NaiveDate::from_ymd_opt(2018, 6, 1).unwrap(), from: 1.0, to: 1.0 },
     ];
-    assert_eq!(epoch_of(&splits), "2022-01-03");
+    assert_eq!(epoch_of(&Splits { list, corrected: None }), "2022-01-03");
+}
+
+#[test]
+fn a_correction_of_the_bars_is_a_new_epoch() {
+    let corrected = Some("2026-11-25T18:00:00Z".to_string());
+    assert_eq!(epoch_of(&Splits { list: Vec::new(), corrected }), "none_c20261125180000");
 }

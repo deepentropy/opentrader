@@ -41,7 +41,7 @@ pub use cache::clear_market_data_cache;
 pub use catalog::init as init_symbol_catalog;
 pub(crate) use cache::rest_cache_root;
 pub use corporate_actions::{
-    dividend_events, fetch_splits_cached, split_events, DividendEvent, Split, SplitEvent,
+    dividend_events, fetch_splits_cached, split_events, DividendEvent, Split, SplitEvent, Splits,
 };
 #[cfg(test)]
 pub(crate) use corporate_actions::set_splits_for_test;

@@ -29,6 +29,9 @@ use std::sync::OnceLock;
 // ALL historical bars when a split executes, so a fresh split changes the epoch
 // and transparently invalidates every prior cached session.
 //
+// The epoch also holds the revision of the corrections of the ticker's bars
+// (`corrected` of the splits answer), so a corrected session is read again.
+//
 // A ticker's pre-split epoch directory is reclaimed by `prune_stale_epochs` the
 // next time its splits are resolved (once per ticker per day).
 //
