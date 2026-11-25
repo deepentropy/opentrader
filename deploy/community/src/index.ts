@@ -80,6 +80,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   // Paid tier (#252).
   ["GET", /^\/me\/plan$/, ({ env, user }) => billing.myPlan(env, user)],
   ["POST", /^\/billing\/checkout$/, ({ env, user }) => billing.checkout(env, user)],
+  ["GET", /^\/paid$/, async ({ env, user }) => billing.offer(env, user)],
+  ["POST", /^\/billing\/refresh$/, ({ env, user }) => billing.refresh(env, user)],
   ["POST", /^\/billing\/portal$/, ({ env, user }) => billing.portal(env, user)],
   ["POST", /^\/billing\/webhook$/, ({ env, request }) => billing.webhook(env, request)],
   ["GET", /^\/billing\/(done|cancelled)$/, async ({ params }) => billing.returnPage(params[0] === "done")],

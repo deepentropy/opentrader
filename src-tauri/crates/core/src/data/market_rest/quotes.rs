@@ -40,6 +40,8 @@ pub struct LiveTick {
     /// bar). `time` is the snapshot's update stamp in UNIX seconds — the
     /// frontend re-buckets it to the daily-bar convention.
     pub day: Option<Candle>,
+    /// When the snapshot was last updated (Unix ms; 0 when not sent).
+    pub updated_ms: f64,
 }
 
 /// Fetch delayed snapshots for many tickers in a single request. Tickers
@@ -102,6 +104,7 @@ pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
                 source: s.source.to_string(),
                 minute,
                 day,
+                updated_ms: t.updated_ms,
             })
         })
         .collect())

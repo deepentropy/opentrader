@@ -1,7 +1,7 @@
 //! Owner-keyed desired subscriptions shared by the live transports.
 use crate::data::symbol::SymbolRef;
 use crate::data::ticker_case;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Sent by `commands/realtime.rs` to update what we're subscribed to.
 /// The connection task diffs each update against its previous state and
@@ -31,9 +31,21 @@ pub enum SubscribeMsg {
 #[derive(Debug, Default)]
 pub struct SubscriptionState {
     /// "<window>:<pane>" → charted symbol.
-    charts: std::collections::HashMap<String, String>,
+    charts: HashMap<String, String>,
     /// window label → that window's watchlist union.
-    watchlists: std::collections::HashMap<String, HashSet<String>>,
+    watchlists: HashMap<String, HashSet<String>>,
+    /// Vendor ticker → its full names, charted and in all: read on every
+    /// message of the stream.
+    charts_of: HashMap<String, Vec<String>>,
+    all_of: HashMap<String, Vec<String>>,
+}
+
+fn by_ticker(symbols: HashSet<String>) -> HashMap<String, Vec<String>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for s in symbols {
+        out.entry(ticker_of(&s)).or_default().push(s);
+    }
+    out
 }
 
 impl SubscriptionState {
@@ -60,6 +72,8 @@ impl SubscriptionState {
                 self.charts.retain(|k, _| !k.starts_with(&prefix));
             }
         }
+        self.charts_of = by_ticker(self.chart_symbols());
+        self.all_of = by_ticker(self.all_symbols());
     }
 
     /// Every currently-charted symbol (any window, any pane), deduped.
@@ -86,22 +100,22 @@ impl SubscriptionState {
 
     /// Vendor tickers of the charted symbols.
     pub fn chart_tickers(&self) -> HashSet<String> {
-        self.charts.values().map(|s| ticker_of(s)).collect()
+        self.charts_of.keys().cloned().collect()
     }
 
     /// Vendor tickers of everything subscribed.
     pub fn all_tickers(&self) -> HashSet<String> {
-        self.all_symbols().iter().map(|s| ticker_of(s)).collect()
+        self.all_of.keys().cloned().collect()
     }
 
     /// Charted full names whose vendor ticker is `ticker`.
-    pub fn chart_symbols_for(&self, ticker: &str) -> Vec<String> {
-        self.chart_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
+    pub fn chart_symbols_for(&self, ticker: &str) -> &[String] {
+        self.charts_of.get(ticker).map_or(&[], Vec::as_slice)
     }
 
     /// Subscribed full names (charts + watchlists) whose vendor ticker is `ticker`.
-    pub fn symbols_for(&self, ticker: &str) -> Vec<String> {
-        self.all_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
+    pub fn symbols_for(&self, ticker: &str) -> &[String] {
+        self.all_of.get(ticker).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -183,7 +197,7 @@ mod subscription_state_tests {
         set_chart(&mut s, "main:2", Some("BOATS:INTC"));
         set_watch(&mut s, "main", &["NYSE:IBM", "NASDAQ:INTC"]);
         assert_eq!(s.chart_tickers(), HashSet::from(["INTC".to_string()]));
-        let mut charts = s.chart_symbols_for("INTC");
+        let mut charts = s.chart_symbols_for("INTC").to_vec();
         charts.sort();
         assert_eq!(charts, vec!["BOATS:INTC", "NASDAQ:INTC"]);
         assert_eq!(s.symbols_for("IBM"), vec!["NYSE:IBM"]);

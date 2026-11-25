@@ -22,7 +22,13 @@ const PRIVATE = keys.privateKey.export({ format: "der", type: "pkcs8" }).toStrin
 
 // ------------------------------------------------------------ mock payment API + gateway
 const calls = []; // {method, path, form}
-const subs = new Map(); // customer -> subscription
+const subs = new Map(); // customer -> its newest subscription
+const older = new Map(); // customer -> other subscriptions
+const charges = new Map(); // charge -> customer
+let openSessions = [];
+/** A subscription as the provider sends it, for the plan's price and paid for real. */
+const subscription = (o) => ({ livemode: true, items: { data: [{ price: { id: "price_test" } }] }, current_period_start: nowSec(), current_period_end: future(), ...o });
+const nowSec = () => Math.floor(Date.now() / 1000);
 let customers = 0;
 const revokes = [];
 const mock = http.createServer(async (req, res) => {
@@ -43,15 +49,24 @@ const mock = http.createServer(async (req, res) => {
   }
   if (req.headers.authorization !== "Bearer sk_test") return send({ error: { message: "bad key" } }, 401);
   if (req.method === "POST" && url.pathname === "/v1/customers") return send({ id: `cus_${++customers}` });
+  if (req.method === "GET" && url.pathname === "/v1/checkout/sessions") return send({ data: openSessions });
+  const expire = /^\/v1\/checkout\/sessions\/(.+)\/expire$/.exec(url.pathname);
+  if (expire) {
+    openSessions = openSessions.filter((s) => s.id !== expire[1]);
+    return send({ id: expire[1] });
+  }
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") return send({ url: "https://checkout.test/session" });
+  const charge = /^\/v1\/charges\/(.+)$/.exec(url.pathname);
+  if (charge) return send({ id: charge[1], customer: charges.get(charge[1]) });
   if (req.method === "POST" && url.pathname === "/v1/billing_portal/sessions") return send({ url: "https://portal.test/session" });
   if (req.method === "GET" && url.pathname === "/v1/subscriptions") {
-    const sub = subs.get(url.searchParams.get("customer"));
-    return send({ data: sub ? [sub] : [] });
+    const customer = url.searchParams.get("customer");
+    const sub = subs.get(customer);
+    return send({ data: [...(sub ? [sub] : []), ...(older.get(customer) ?? [])] });
   }
   const del = /^\/v1\/subscriptions\/(.+)$/.exec(url.pathname);
   if (req.method === "DELETE" && del) {
-    for (const sub of subs.values()) if (sub.id === del[1]) sub.status = "canceled";
+    for (const sub of [...subs.values(), ...[...older.values()].flat()]) if (sub.id === del[1]) sub.status = "canceled";
     return send({ id: del[1], status: "canceled" });
   }
   send({ error: { message: "unknown" } }, 404);
@@ -63,7 +78,7 @@ const persist = mkdtempSync(join(tmpdir(), "billing-e2e-"));
 execSync(`npx wrangler d1 migrations apply opentrader-community --env local --local --persist-to "${persist}"`, { stdio: "ignore", input: "y\n" });
 const vars = {
   STRIPE_API_URL: `http://127.0.0.1:${MOCK_PORT}`, STRIPE_SECRET_KEY: "sk_test", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
-  STRIPE_PRICE_ID: "price_test", PASS_PRIVATE_KEY: PRIVATE, GATEWAY_URL: `http://127.0.0.1:${MOCK_PORT}`, GATEWAY_ADMIN_TOKEN: ADMIN,
+  STRIPE_PRICE_ID: "price_test,price_old", STRIPE_PORTAL_CONFIG: "bpc_test", PAID_OPEN: "1", PASS_PRIVATE_KEY: PRIVATE, GATEWAY_URL: `http://127.0.0.1:${MOCK_PORT}`, GATEWAY_ADMIN_TOKEN: ADMIN,
   // The sign-in without the bot check.
   TURNSTILE_SITE_KEY: "",
 };
@@ -142,16 +157,28 @@ try {
   // 2. checkout
   r = await owner("POST", "/billing/checkout");
   assert.equal(r.data.url, "https://checkout.test/session");
-  const session = calls.find((c) => c.path === "/v1/checkout/sessions").form;
+  const session = calls.find((c) => c.method === "POST" && c.path === "/v1/checkout/sessions").form;
   assert.equal(session["line_items[0][price]"], "price_test");
   assert.equal(session.mode, "subscription");
   assert.equal(session.customer, "cus_1");
   assert.equal(session.client_reference_id, userId);
+  assert.equal(session["payment_method_types[0]"], "card");
+  openSessions = [{ id: "cs_old" }];
+  await owner("POST", "/billing/checkout");
+  assert.deepEqual(openSessions, [], "the page opened before is closed");
+  assert.equal(calls.filter((c) => c.path === "/v1/customers").length, 1);
   ok("checkout: customer made once, subscription session for the price");
 
   // 3. webhook: bad signature, then the subscription
   assert.equal((await deliver("customer.subscription.created", { customer: "cus_1" }, { secret: "whsec_other" })).status, 400);
-  subs.set("cus_1", { id: "sub_1", customer: "cus_1", status: "active", cancel_at_period_end: false, items: { data: [{ current_period_end: future() }] } });
+  // Not the plan's price, as a change of plan or another product would be: no real-time.
+  subs.set("cus_1", subscription({ id: "sub_0", customer: "cus_1", status: "active", items: { data: [{ price: { id: "price_cheap" } }] } }));
+  await deliver("customer.subscription.created", { customer: "cus_1" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
+  subs.set("cus_1", {
+    id: "sub_1", customer: "cus_1", status: "active", livemode: true, cancel_at_period_end: false,
+    items: { data: [{ price: { id: "price_test" }, current_period_start: nowSec(), current_period_end: future() }] },
+  });
   r = await deliver("customer.subscription.created", { customer: "cus_1" }, { id: "evt_created" });
   assert.equal(r.status, 200);
   r = await owner("GET", "/me/plan");
@@ -159,6 +186,12 @@ try {
   assert.ok(r.data.renews_at > Date.now() / 1000);
   claims = passClaims((await owner("POST", "/auth/pass")).data.pass);
   assert.equal(claims.plan, "rt");
+  assert.equal(claims.test, undefined);
+  subs.get("cus_1").livemode = false;
+  await deliver("customer.subscription.updated", { customer: "cus_1" });
+  assert.equal(passClaims((await owner("POST", "/auth/pass")).data.pass).test, true, "a test card's pass says so");
+  subs.get("cus_1").livemode = true;
+  await deliver("customer.subscription.updated", { customer: "cus_1" });
   ok("signed webhook: plan rt, pass rt (period end read from the subscription's items); a bad signature is refused");
 
   // 4. duplicate and already subscribed
@@ -166,6 +199,7 @@ try {
   assert.equal(r.data.duplicate, true);
   assert.equal((await owner("POST", "/billing/checkout")).status, 409);
   assert.equal((await owner("POST", "/billing/portal")).data.url, "https://portal.test/session");
+  assert.equal(calls.findLast((c) => c.path === "/v1/billing_portal/sessions").form.configuration, "bpc_test");
   ok("a delivery sent again is skipped; no second checkout; portal link");
 
   // 5. cancellation in the portal, then an older event arriving late
@@ -179,17 +213,19 @@ try {
   ok("cancellation: plan free, the gateway told once; a late older event changes nothing (state read back)");
 
   // 6. renewal payment failing
-  subs.set("cus_1", { id: "sub_2", customer: "cus_1", status: "past_due", current_period_end: future() });
+  subs.set("cus_1", subscription({ id: "sub_2", customer: "cus_1", status: "past_due" }));
   await deliver("invoice.payment_failed", { customer: "cus_1" });
   assert.equal((await owner("GET", "/me/plan")).data.plan, "rt");
-  subs.get("cus_1").current_period_end = Math.floor(Date.now() / 1000) - 1;
+  assert.equal((await owner("POST", "/billing/checkout")).status, 409, "no second subscription while the first is retried");
+  // Three days later: the period the provider moved on to ends in weeks, but nobody paid it.
+  subs.get("cus_1").current_period_start = nowSec() - 3 * 86400;
   await deliver("invoice.payment_failed", { customer: "cus_1" });
   assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
   assert.equal(revokes.length, 2);
-  ok("past due: real-time kept until the paid period ends, then dropped");
+  ok("past due: real-time kept three days, then dropped, whatever the period's end");
 
   // 7. full refund
-  subs.set("cus_1", { id: "sub_3", customer: "cus_1", status: "active", current_period_end: future() });
+  subs.set("cus_1", subscription({ id: "sub_3", customer: "cus_1", status: "active", items: { data: [{ price: "price_old" }] } }));
   await deliver("invoice.paid", { customer: "cus_1" });
   assert.equal((await owner("GET", "/me/plan")).data.plan, "rt");
   await deliver("charge.refunded", { customer: "cus_1", refunded: false });
@@ -200,15 +236,70 @@ try {
   assert.equal(revokes.length, 3);
   ok("full refund: subscription ended, plan free, gateway told; a partial refund changes nothing");
 
+  // 7b. a webhook that never came: the app back from the checkout has the plan read
+  subs.set("cus_1", subscription({ id: "sub_4", customer: "cus_1", status: "active" }));
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
+  await until(async () => (await owner("POST", "/billing/refresh")).data.plan === "rt", "plan read on refresh", 12_000);
+  const reads = calls.filter((c) => c.path === "/v1/subscriptions").length;
+  for (let i = 0; i < 5; i++) await owner("POST", "/billing/refresh");
+  assert.equal(calls.filter((c) => c.path === "/v1/subscriptions").length, reads, "not read again at once");
+  ok("refresh: the plan read from the provider without its webhook, a few times a minute at most");
+
+  // 7c. paid twice: one subscription is kept
+  older.set("cus_1", [subscription({ id: "sub_5", customer: "cus_1", status: "active", created: 5 })]);
+  subs.get("cus_1").created = 10;
+  await deliver("customer.subscription.created", { customer: "cus_1" });
+  assert.equal(older.get("cus_1")[0].status, "canceled");
+  assert.equal(subs.get("cus_1").status, "active");
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "rt");
+  // the newest one ended, an older one still charged: the plan is the one in force
+  older.set("cus_1", [subscription({ id: "sub_6", customer: "cus_1", status: "active", created: 1 })]);
+  subs.get("cus_1").status = "canceled";
+  await deliver("customer.subscription.deleted", { customer: "cus_1" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "rt");
+  ok("two subscriptions: the second is ended and credited; the one in force makes the plan");
+
+  // 7d. a disputed payment
+  charges.set("ch_1", "cus_1");
+  const before = revokes.length;
+  await deliver("charge.dispute.created", { charge: "ch_1", status: "needs_response" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
+  assert.equal(older.get("cus_1")[0].status, "canceled");
+  assert.equal(revokes.length, before + 1);
+  assert.equal((await owner("POST", "/billing/checkout")).status, 403);
+  subs.set("cus_1", subscription({ id: "sub_7", customer: "cus_1", status: "active" }));
+  await deliver("customer.subscription.created", { customer: "cus_1" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "free", "blocked whatever is paid after");
+  await deliver("charge.dispute.closed", { charge: "ch_1", status: "lost" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "free");
+  await deliver("charge.dispute.closed", { charge: "ch_1", status: "won" });
+  assert.equal((await owner("GET", "/me/plan")).data.plan, "rt");
+  ok("a disputed payment: subscription ended, plan free, no new checkout until it is won");
+
   // 8. account deleted while subscribed
   const other = api(await login("pilot_other"));
   await other("POST", "/billing/checkout");
-  subs.set("cus_2", { id: "sub_9", customer: "cus_2", status: "active", current_period_end: future() });
+  subs.set("cus_2", subscription({ id: "sub_9", customer: "cus_2", status: "active" }));
   await deliver("checkout.session.completed", { customer: "cus_2" });
   assert.equal((await other("GET", "/me/plan")).data.plan, "rt");
   assert.equal((await other("DELETE", "/me")).status, 200);
   assert.ok(calls.some((c) => c.method === "DELETE" && c.path === "/v1/subscriptions/sub_9"));
   ok("account deleted: its subscription is ended first");
+
+  // the offer, for an app that is not signed in too
+  assert.deepEqual(await (await fetch(`${BASE}/paid`)).json(), { open: true, price: "$10" });
+  // nothing an app sends makes a plan
+  const thief = api(await login("thief"));
+  for (const [m, p, b] of [["POST", "/auth/pass", { plan: "rt", sub: userId }], ["GET", "/me/plan?plan=rt", undefined], ["POST", "/billing/refresh", { customer: "cus_1", plan: "rt" }]]) {
+    const x = await thief(m, p, b);
+    assert.equal(x.data.plan, "free", p);
+  }
+  const forged = JSON.stringify({ id: "evt_forged", type: "customer.subscription.created", data: { object: { customer: "cus_1", status: "active" } } });
+  for (const headers of [{}, { "stripe-signature": "t=1,v1=00" }, { "stripe-signature": `t=${nowSec()},v1=${"0".repeat(64)}` }, { "stripe-signature": `t=${nowSec()},v0=x` }]) {
+    assert.equal((await fetch(`${BASE}/billing/webhook`, { method: "POST", headers, body: forged })).status, 400);
+  }
+  assert.equal((await fetch(`${BASE}/billing/webhook`, { method: "POST", body: "x".repeat(600_000) })).status, 413);
+  ok("the offer; a plan asked for, and webhooks forged, give nothing");
 
   // 9. return pages
   assert.equal((await fetch(`${BASE}/billing/done`)).status, 200);

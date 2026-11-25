@@ -4,8 +4,9 @@
  * public key alone (no call back to this Worker), at connect and on renewal.
  *
  *   otp1.<payload>.<signature>        both base64url, no padding
- *   payload   JSON {sub, plan, sid, iat, exp}: account id, "free" | "rt",
- *             a short id of the sign-in session, issue and expiry (seconds)
+ *   payload   JSON {sub, plan, sid, iat, exp, test?}: account id, "free" | "rt",
+ *             a short id of the sign-in session, issue and expiry (seconds),
+ *             `test` when the plan was paid in the payment provider's test mode
  *   signature Ed25519 over "otp1.<payload>"
  *
  * `PASS_PRIVATE_KEY`: PKCS #8, base64url (scripts/pass-keys.mjs makes a pair).
@@ -23,6 +24,7 @@ export interface PassClaims {
   sid: string;
   iat: number;
   exp: number;
+  test?: true;
 }
 
 let cached: { raw: string; key: Promise<CryptoKey> } | null = null;

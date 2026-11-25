@@ -33,10 +33,9 @@
  * Mode (see `Mode`): SECOND_BARS, next to the REST poller: `bar1s:<T>` for
  * charted symbols, gated on the probed `StreamCaps.second_bars`, and connected
  * only while a chart is open. The watchlist and the minute bars stay with the
- * poller: trades carry every print (pre/post included) while the watchlist
- * shows the regular-session Last, and minute bars have no day bar. Which
- * channels the plan may use is measured by `probe_channels` (13/10/2026
- * through the gateway: bar1m / bar1s granted, trade / quote NOT_ENTITLED).
+ * poller. A real-time session streams the trades of the charts and the
+ * watchlists too (`desired`): charts above one second and quotes follow them
+ * (`data::live_quotes` puts them together with the poller's snapshots).
  *
  * Protocol (`gateway/doc/README.md`, "Market API (v2)"; every server message
  * is a JSON array of objects):
@@ -52,7 +51,9 @@
  *              {"type":"quote","ticker","t","bid","bidSize","ask","askSize"}
  */
 use crate::data::gateway::{self, STREAM_RT_URL, STREAM_URL};
+use crate::data::live_quotes;
 use crate::data::pass;
+use crate::data::symbol::could_be_ticker;
 use crate::host::Event;
 use crate::data::provider::capabilities::StreamCaps;
 use crate::data::provider::entitlements;
@@ -68,7 +69,7 @@ use tokio_tungstenite::tungstenite::Message;
 mod events;
 mod subscriptions;
 
-pub use events::{ChartAggregate, MarketTier, SecondAggregate, TradeTick};
+pub use events::{ChartAggregate, ChartTrade, MarketTier, SecondAggregate, TradeTick};
 use events::handle_text;
 pub use subscriptions::{ticker_of, SubscribeMsg, SubscriptionState};
 
@@ -78,6 +79,10 @@ const PROBE_REPLY_WAIT: Duration = Duration::from_secs(6);
 const AUTH_WAIT: Duration = Duration::from_secs(10);
 const BACKOFF_START: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
+/// Channel prefix of the trades.
+const TRADES: &str = "trade:";
+/// Channels a real-time session asks for: under the gateway's 500.
+const MAX_CHANNELS: usize = 490;
 /// Re-check this often while the build has no gateway token. A local read.
 const NO_KEY_RETRY: Duration = Duration::from_secs(2);
 
@@ -180,22 +185,24 @@ impl std::fmt::Display for AuthRefused {
 
 impl std::error::Error for AuthRefused {}
 
-/// `pass::live` while a real-time session runs.
+/// `pass::State::session` while a real-time session runs.
 struct LiveGuard(bool);
 
 impl LiveGuard {
-    fn new(realtime: bool) -> Self {
-        if realtime {
-            pass::set_live(true);
+    fn new(session: Option<String>) -> Self {
+        let on = session.is_some();
+        if on {
+            pass::set_session(session);
         }
-        LiveGuard(realtime)
+        LiveGuard(on)
     }
 }
 
 impl Drop for LiveGuard {
     fn drop(&mut self) {
         if self.0 {
-            pass::set_live(false);
+            pass::set_session(None);
+            live_quotes::clear();
         }
     }
 }
@@ -254,7 +261,12 @@ async fn run_connection(
             continue;
         };
 
-        match run_session(&app, &route, &mut rx, &mut state, mode, &mut ent_rx, &mut pass_rx).await {
+        let end = run_session(&app, &route, &mut rx, &mut state, mode, &mut ent_rx, &mut pass_rx).await;
+        // The connection was lost: delayed until the next one is up.
+        if route.realtime && (matches!(end, Ok(SessionExit::WsClosed)) || matches!(&end, Err(e) if e.downcast_ref::<AuthRefused>().is_none())) {
+            emit_tier(&app, false, None);
+        }
+        match end {
             Ok(SessionExit::ShuttingDown) => {
                 // mpsc closed — the app handle was dropped. Exit cleanly.
                 return Ok(());
@@ -301,17 +313,44 @@ enum SessionExit {
     Idle,
 }
 
-/// Channel list "<prefix><TICKER>" for a ticker set.
-fn channels(prefix: &str, syms: &HashSet<String>) -> Vec<String> {
-    syms.iter().map(|s| format!("{prefix}{s}")).collect()
+/// The channels of a session: the bars of the charted symbols; on a real-time
+/// one their trades too, then the watchlists' up to MAX_CHANNELS (the others
+/// keep the poller's quotes).
+fn desired(state: &SubscriptionState, mode: Mode, realtime: bool) -> HashSet<String> {
+    let charts = state.chart_tickers();
+    let mut out: HashSet<String> = charts.iter().map(|t| format!("{}{t}", mode.chart)).collect();
+    if realtime {
+        let mut rest: Vec<String> = state.all_tickers().into_iter().filter(|t| could_be_ticker(t)).collect();
+        // The charts' first; the same list gives the same channels.
+        rest.sort_by(|a, b| charts.contains(b).cmp(&charts.contains(a)).then_with(|| a.cmp(b)));
+        for t in rest {
+            if out.len() >= MAX_CHANNELS {
+                break;
+            }
+            out.insert(format!("{TRADES}{t}"));
+        }
+    }
+    out
+}
+
+/// Subscribe and unsubscribe what changed between two channel sets.
+async fn send_changes<W>(write: &mut W, prev: &HashSet<String>, next: &HashSet<String>) -> Result<()>
+where
+    W: futures_util::Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+    let drops: Vec<String> = prev.difference(next).cloned().collect();
+    let adds: Vec<String> = next.difference(prev).cloned().collect();
+    send_op(write, "unsubscribe", &drops).await?;
+    send_op(write, "subscribe", &adds).await
 }
 
 use crate::net::{self, WsStream};
 
 /// Connect and authenticate (the token as the first message, so it never
 /// rides in a URL). A `probe` gets subscribe replies only and never takes the
-/// account's real-time session.
-async fn connect_authed(url: &str, token: &str, probe: bool) -> Result<WsStream> {
+/// account's real-time session. With the socket, the key a real-time session
+/// was given.
+async fn connect_authed(url: &str, token: &str, probe: bool) -> Result<(WsStream, Option<String>)> {
     let mut ws = net::connect_ws(url).await.context("stream connect failed")?;
     let auth = if probe {
         serde_json::json!({ "op": "auth", "token": token, "probe": true })
@@ -319,10 +358,10 @@ async fn connect_authed(url: &str, token: &str, probe: bool) -> Result<WsStream>
         serde_json::json!({ "op": "auth", "token": token })
     };
     ws.send(Message::Text(auth.to_string())).await.context("stream send auth failed")?;
-    tokio::time::timeout(AUTH_WAIT, wait_for_auth(&mut ws))
+    let session = tokio::time::timeout(AUTH_WAIT, wait_for_auth(&mut ws))
         .await
         .map_err(|_| anyhow!("stream: no auth answer after {} s", AUTH_WAIT.as_secs()))??;
-    Ok(ws)
+    Ok((ws, session))
 }
 
 async fn run_session(
@@ -335,10 +374,10 @@ async fn run_session(
     pass_rx: &mut tokio::sync::watch::Receiver<pass::State>,
 ) -> Result<SessionExit> {
     let mut proxy_changes = net::proxy_changes();
-    let ws = connect_authed(route.url, &route.credential, false).await?;
+    let (ws, session) = connect_authed(route.url, &route.credential, false).await?;
     let (mut write, mut read) = ws.split();
     // Down again whichever way the session ends.
-    let _live = LiveGuard::new(route.realtime);
+    let _live = LiveGuard::new(session.filter(|_| route.realtime));
     let tier = if route.realtime { "real-time" } else { "delayed" };
     eprintln!("[market_stream] connected + authenticated ({}*, {tier})", mode.chart);
     emit_tier(app, route.realtime, None);
@@ -347,8 +386,8 @@ async fn run_session(
 
     // Replay desired subscription state. The frontend may have churned
     // the chart slots / watchlists while we were disconnected.
-    let replay = channels(mode.chart, &state.chart_tickers());
-    send_op(&mut write, "subscribe", &replay).await?;
+    let mut held = desired(state, mode, route.realtime);
+    send_changes(&mut write, &HashSet::new(), &held).await?;
 
     // The data messages wait here for the next flush (#261).
     let mut pending = events::Pending::new(app);
@@ -365,16 +404,13 @@ async fn run_session(
                 let Some(sub) = sub else { return Ok(SessionExit::ShuttingDown); };
                 // Diff the UNION view before/after applying — an owner update
                 // only touches the wire when it changes the merged set.
-                let prev = state.chart_tickers();
                 state.apply(sub);
                 if mode.lazy && !route.realtime && !has_work(state) {
                     return Ok(SessionExit::Idle);
                 }
-                let next = state.chart_tickers();
-                let drops = channels(mode.chart, &prev.difference(&next).cloned().collect());
-                let adds = channels(mode.chart, &next.difference(&prev).cloned().collect());
-                send_op(&mut write, "unsubscribe", &drops).await?;
-                send_op(&mut write, "subscribe", &adds).await?;
+                let next = desired(state, mode, route.realtime);
+                send_changes(&mut write, &held, &next).await?;
+                held = next;
             }
             // Connect again through the new proxy.
             _ = proxy_changes.changed() => return Ok(SessionExit::WsClosed),
@@ -398,7 +434,8 @@ async fn run_session(
                 if r.is_err() {
                     return Ok(SessionExit::ShuttingDown);
                 }
-                if let Some(gate) = mode.gate {
+                // A subscriber holds its session whatever the probe found.
+                if let Some(gate) = mode.gate.filter(|_| !route.realtime) {
                     if !ent_rx.borrow().stream_allows(gate) {
                         return Ok(SessionExit::Idle);
                     }
@@ -411,7 +448,8 @@ async fn run_session(
                     Message::Text(txt) => {
                         if let Some(reason) = tier_exit(&txt) {
                             eprintln!("[market_stream] real-time ended: {reason}");
-                            if reason == "signed_in_elsewhere" {
+                            if reason == "signed_in_elsewhere" || reason == "too_many_devices" {
+                                // Until the user takes it back: the devices would go on taking it from each other.
                                 pass::set_elsewhere(true);
                             } else {
                                 // The frontend asks a new pass; still subscribed, it brings real-time back.
@@ -485,13 +523,14 @@ fn tier_exit(txt: &str) -> Option<String> {
     })
 }
 
-async fn wait_for_auth(ws: &mut WsStream) -> Result<()> {
+/// The key of the session, when the gateway gave one (real-time).
+async fn wait_for_auth(ws: &mut WsStream) -> Result<Option<String>> {
     while let Some(frame) = ws.next().await {
         let frame = frame.context("stream closed before auth")?;
         let Message::Text(txt) = frame else { continue };
         for m in messages(&txt) {
             match field(&m, "type") {
-                Some("status") if field(&m, "status") == Some("authenticated") => return Ok(()),
+                Some("status") if field(&m, "status") == Some("authenticated") => return Ok(field(&m, "session").map(str::to_string)),
                 Some("error") => return Err(AuthRefused(error_text(&m)).into()),
                 _ => {}
             }
@@ -508,7 +547,7 @@ where
     if channels.is_empty() {
         return Ok(());
     }
-    eprintln!("[market_stream] -> {op} {}", channels.join(","));
+    eprintln!("[market_stream] -> {op} {} channels: {}", channels.len(), channels.iter().take(20).cloned().collect::<Vec<_>>().join(","));
     let msg = serde_json::json!({ "op": op, "channels": channels });
     write.send(Message::Text(msg.to_string())).await.context("stream send failed")?;
     Ok(())
@@ -521,7 +560,7 @@ where
 pub async fn probe_channels(channels: &[String]) -> Result<Vec<bool>> {
     crate::data::install_token::settle().await;
     let route = route().ok_or_else(|| anyhow!(gateway::NO_TOKEN))?;
-    let mut ws = connect_authed(route.url, &route.credential, true).await?;
+    let (mut ws, _) = connect_authed(route.url, &route.credential, true).await?;
     send_op(&mut ws, "subscribe", channels).await?;
     let mut granted: HashMap<&str, bool> = HashMap::new();
     let deadline = Instant::now() + PROBE_REPLY_WAIT;
@@ -593,6 +632,21 @@ mod gate_tests {
         let mut w = SubscriptionState::default();
         w.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: vec!["AAPL".into()] });
         assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &w, false));
+    }
+
+    #[test]
+    fn a_real_time_session_streams_trades_charts_first_within_its_channels() {
+        let mut state = SubscriptionState::default();
+        state.apply(SubscribeMsg::SetChart { owner: "main:0".into(), symbol: Some("NASDAQ:ZM".into()) });
+        state.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: vec!["NASDAQ:AAPL".into(), "NYMEX:CL1!".into()] });
+        let set = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<HashSet<_>>();
+        assert_eq!(desired(&state, SECOND_BARS, false), set(&["bar1s:ZM"]));
+        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:ZM", "trade:ZM", "trade:AAPL"]), "CL1! is no ticker of the source");
+        let many: Vec<String> = (0..1000).map(|i| format!("NYSE:A{i}X")).collect();
+        state.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: many });
+        let d = desired(&state, SECOND_BARS, true);
+        assert_eq!(d.len(), MAX_CHANNELS);
+        assert!(d.contains("trade:ZM"), "the chart's");
     }
 
     #[test]

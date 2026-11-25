@@ -184,7 +184,7 @@ export function ScreenerPanel(props: Props) {
         "columns and filters, its alert conditions and the marks it draws as signals. Built-in indicators and your own " +
         "OakScript indicators can be scanned; strategies cannot. Each symbol gets the newest 500 bars of the regular " +
         "session. Daily and longer intervals reuse the charts' cached history; intraday intervals load each symbol " +
-        "again on every scan, so they take 200 symbols at most. Market data is delayed by 15 minutes.",
+        "again on every scan, so they take 200 symbols at most.",
     });
   const saveAsWatchlist = () => {
     trackScreener("screener_exported", { screener: "script", to: "watchlist" });

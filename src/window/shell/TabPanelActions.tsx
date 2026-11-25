@@ -14,7 +14,7 @@ import { updateReady } from "../../data/app-update";
 import { zoom } from "../../data/app-zoom";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
-import { PAID_ENABLED, initPaid, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
+import { initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
 import { showPlanDialog } from "../paid/PlanDialog";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
@@ -42,7 +42,6 @@ export function TabPanelActions(props: Props) {
     const btn = document.querySelector<HTMLElement>(".tab-panel-actions .main-menu-button");
     if (anchor() && btn) setAnchor(btn.getBoundingClientRect());
   }, { defer: true }));
-  const paid = PAID_ENABLED && isTauri();
   onMount(initPaid);
   const badgeTip = () =>
     realtimeActive()
@@ -56,7 +55,7 @@ export function TabPanelActions(props: Props) {
       {/* Market data delay notice (the gateway serves 15-minute delayed data);
           with the paid tier (#252), the plan's state, which opens its dialog. */}
       <Show
-        when={paid}
+        when={paidShown()}
         fallback={
           <Tooltip text="Market data is delayed by 15 minutes." side="bottom">
             <span class="data-delay-badge" data-qa-id="data-delay-badge">Delayed 15 min</span>

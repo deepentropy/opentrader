@@ -28,6 +28,7 @@
  * stream (`market_stream::spawn_second_bars`) runs next to it for the
  * seconds charts only (see `provider/gateway.rs` spawn).
  */
+use crate::data::live_quotes;
 use crate::data::market_rest::{self, LiveTick};
 use crate::data::trading_calendar;
 use crate::data::symbol::could_be_ticker;
@@ -186,19 +187,21 @@ impl Poller {
 
         let app = &self.app;
         for t in ticks {
+            // A subscriber's streamed trades are ahead of the snapshot.
+            let t = live_quotes::polled(t);
             // Watchlist quote update (every polled symbol gets one).
             for symbol in self.state.symbols_for(&t.ticker) {
-                if let Some(e) = trade_tick(&symbol, &t) {
+                if let Some(e) = trade_tick(symbol, &t) {
                     // The host's alert rules read every quote, with the
                     // minute bar for what happened since the previous one.
-                    app.on_quote(&symbol, t.last, t.minute.as_ref());
+                    app.on_quote(symbol, t.last, t.minute.as_ref());
                     let _ = e.emit(app);
                 }
             }
             // Chart minute bar — for every full name some pane currently charts
             // with this ticker (any window; the frontend filters by symbol).
             for symbol in self.state.chart_symbols_for(&t.ticker) {
-                if let Some(e) = chart_aggregate(&symbol, &t) {
+                if let Some(e) = chart_aggregate(symbol, &t) {
                     let _ = e.emit(app);
                 }
             }
@@ -234,9 +237,11 @@ fn trade_tick(symbol: &str, t: &LiveTick) -> Option<TradeTick> {
 /// one, so daily-family charts keep updating. That fallback stamps `time: 0`
 /// so the frontend's intraday bucketing skips it (only the daily path, which
 /// reads `day` directly, consumes such a tick).
+/// A symbol whose trades are streamed takes its intraday bars from them
+/// (`ChartTrade`): its day bar only.
 fn chart_aggregate(symbol: &str, t: &LiveTick) -> Option<ChartAggregate> {
-    let day_only = t.minute.is_none();
-    let bar = t.minute.as_ref().or(t.day.as_ref())?;
+    let day_only = t.minute.is_none() || live_quotes::streamed(&t.ticker);
+    let bar = if day_only { t.day.as_ref()? } else { t.minute.as_ref()? };
     Some(ChartAggregate {
         symbol: symbol.to_string(),
         time: if day_only { 0.0 } else { bar.time },

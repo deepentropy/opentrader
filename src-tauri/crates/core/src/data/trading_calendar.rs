@@ -132,6 +132,11 @@ fn early_closes_for_year(year: i32, holidays: &HashSet<NaiveDate>) -> Vec<NaiveD
     out
 }
 
+/// The regular session of `day` closes at 13:00 New York.
+pub fn is_early_close(day: NaiveDate) -> bool {
+    early_closes_for_year(day.year(), &holidays_for_years(day.year(), day.year())).contains(&day)
+}
+
 /// Early-close days of `[from_year, to_year]` as a session date list
 /// ("YYYYMMDD,…", ascending).
 pub fn early_closes_spec(from_year: i32, to_year: i32) -> String {

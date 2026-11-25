@@ -30,6 +30,7 @@ mod tests {
         }
         same::<crate::data::types::ChartAggregate>();
         same::<crate::data::types::SecondAggregate>();
+        same::<crate::data::types::ChartTrade>();
         same::<crate::data::types::TradeTick>();
         same::<crate::data::types::MarketTier>();
         same::<crate::data::provider::capabilities::ProviderCapabilities>();

@@ -23,6 +23,8 @@ export type ChartAggregate = Finite<Omit<gen.ChartAggregate, "day">, BarField> &
 };
 /** One 1-second bar of a charted symbol. */
 export type SecondAggregate = Finite<gen.SecondAggregate, BarField>;
+/** The trades of a charted symbol over a tenth of a second (a subscriber's); `time` UNIX seconds. */
+export type ChartTrade = Finite<gen.ChartTrade, "time" | "price" | "high" | "low" | "volume">;
 /** A quote update; `source` is "live" (today's session traded) or "prev", null
  *  on the stream push path. */
 export type TradeTick = Omit<Finite<gen.TradeTick, "price">, "source"> & { source: "live" | "prev" | null };
@@ -50,6 +52,10 @@ export function onChartAggregate(fn: (ev: ChartAggregate) => void): Promise<Unli
 
 export function onSecondAggregate(fn: (ev: SecondAggregate) => void): Promise<UnlistenFn> {
   return events.secondAggregate.listen((e) => fn(e.payload as SecondAggregate));
+}
+
+export function onChartTrade(fn: (ev: ChartTrade) => void): Promise<UnlistenFn> {
+  return events.chartTrade.listen((e) => fn(e.payload as ChartTrade));
 }
 
 /** The live ticks of the data plugins' symbols on a tick chart (#376). */

@@ -95,8 +95,8 @@ async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Re
     loop {
         let mut req = http().get(&url).query(query).bearer_auth(token);
         // A subscriber's bars and snapshots come real-time (#252).
-        if let Some(pass) = crate::data::pass::current() {
-            req = req.header(crate::data::pass::HEADER, pass);
+        if let Some((pass, session)) = crate::data::pass::current_live() {
+            req = req.header(crate::data::pass::HEADER, pass).header(crate::data::pass::SESSION_HEADER, session);
         }
         let resp = req
             .send()

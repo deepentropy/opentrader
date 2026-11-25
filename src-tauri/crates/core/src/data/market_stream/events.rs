@@ -1,6 +1,7 @@
 //! The events re-emitted to the frontend and the parsing of the stream's
 //! text frames into them.
 use super::subscriptions::SubscriptionState;
+use crate::data::live_quotes;
 use crate::data::market_rest::Candle;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -45,6 +46,23 @@ pub struct SecondAggregate {
     pub low: f64,
     pub close: f64,
     pub volume: f64,
+}
+
+/// The trades of a charted symbol over a tenth of a second (`trade` channel, a
+/// subscriber's): what the forming bar of every interval above one second takes
+/// in. `time` is the last one's, UNIX seconds.
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[cfg_attr(feature = "tauri", derive(tauri_specta::Event))]
+pub struct ChartTrade {
+    pub symbol: String,
+    pub time: f64,
+    pub price: f64,
+    pub high: f64,
+    pub low: f64,
+    /// Shares traded: added to the bar's.
+    pub volume: f64,
+    /// In the regular session: daily and longer bars take no other.
+    pub regular: bool,
 }
 
 /// Trade (`trade` channel, or the polled snapshot) re-emitted to the
@@ -97,7 +115,8 @@ pub struct MarketTier {
     pub tier: String,
     /// Why real-time ended: "expired", "renewal_refused", "invalid", "revoked"
     /// (the gateway's `downgraded` reasons), "signed_in_elsewhere", or
-    /// "not_allowed" (the pass opens no real-time session).
+    /// "not_allowed" (the pass opens no real-time session). None: the connection
+    /// was lost, and is being made again.
     pub reason: Option<String>,
 }
 
@@ -105,6 +124,7 @@ event!(MarketTier, "market-tier");
 event!(ChartAggregate, "chart-aggregate");
 event!(SecondAggregate, "second-aggregate");
 event!(TradeTick, "trade-tick");
+event!(ChartTrade, "chart-trade");
 
 /// How often the bars of the stream go to the views: about one display frame.
 pub(super) const BAR_FLUSH: Duration = Duration::from_millis(16);
@@ -118,6 +138,8 @@ pub(super) struct Pending {
     app: HostRef,
     minute: HashMap<String, ChartAggregate>,
     second: HashMap<String, SecondAggregate>,
+    /// Every trade of the charts: each adds its volume.
+    chart_trades: Vec<ChartTrade>,
     trades: HashMap<String, TradeTick>,
     trades_sent: Instant,
     /// The trades of each symbol's current minute, as the bar the host's
@@ -127,11 +149,11 @@ pub(super) struct Pending {
 
 impl Pending {
     pub(super) fn new(app: &HostRef) -> Self {
-        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
+        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), chart_trades: Vec::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.minute.is_empty() && self.second.is_empty() && self.trades.is_empty()
+        self.minute.is_empty() && self.second.is_empty() && self.chart_trades.is_empty() && self.trades.is_empty()
     }
 
     fn minute(&mut self, agg: ChartAggregate) {
@@ -153,20 +175,24 @@ impl Pending {
     }
 
     /// The views get the newest trade per flush; the host's alert rules get
-    /// every trade (#265), with what its minute traded so far.
+    /// every trade (#265), with what its minute traded so far. `tick.price` is
+    /// the regular session's last, `trade_price` the trade's, `trade_high` and
+    /// `trade_low` its range.
     fn trade(&mut self, mut tick: TradeTick) {
-        let price = tick.price;
+        let price = tick.trade_price.unwrap_or(tick.price);
+        let (high, low) = (tick.trade_high.unwrap_or(price), tick.trade_low.unwrap_or(price));
         let bar = tick.trade_time.map(|time| {
-            let bar = self.trade_bars.entry(tick.symbol.clone()).or_insert(Candle { time, open: price, high: price, low: price, close: price, volume: 0.0 });
+            let new = Candle { time, open: price, high, low, close: price, volume: 0.0 };
+            let bar = self.trade_bars.entry(tick.symbol.clone()).or_insert_with(|| new.clone());
             if bar.time != time {
-                *bar = Candle { time, open: price, high: price, low: price, close: price, volume: 0.0 };
+                *bar = new;
             }
-            bar.high = bar.high.max(price);
-            bar.low = bar.low.min(price);
+            bar.high = bar.high.max(high);
+            bar.low = bar.low.min(low);
             bar.close = price;
             bar.clone()
         });
-        self.app.on_quote(&tick.symbol, price, bar.as_ref());
+        self.app.on_quote(&tick.symbol, tick.price, bar.as_ref());
         // The views get the newest trade only: it carries the minute's range.
         tick.trade_high = bar.as_ref().map(|b| b.high);
         tick.trade_low = bar.as_ref().map(|b| b.low);
@@ -180,6 +206,9 @@ impl Pending {
         }
         for (_, bar) in self.second.drain() {
             let _ = bar.emit(&self.app);
+        }
+        for trade in self.chart_trades.drain(..) {
+            let _ = trade.emit(&self.app);
         }
         if self.trades_sent.elapsed() >= TRADE_FLUSH {
             self.flush_trades();
@@ -211,27 +240,38 @@ pub(super) fn handle_text(pending: &mut Pending, state: &SubscriptionState, txt:
                 Some("1m") => {
                     if let Some(agg) = parse_minute(&m) {
                         for symbol in state.chart_symbols_for(&agg.symbol) {
-                            pending.minute(ChartAggregate { symbol, ..agg.clone() });
+                            pending.minute(ChartAggregate { symbol: symbol.clone(), ..agg.clone() });
                         }
                     }
                 }
                 Some("1s") => {
                     if let Some(bar) = parse_second(&m) {
                         for symbol in state.chart_symbols_for(&bar.symbol) {
-                            pending.second(SecondAggregate { symbol, ..bar.clone() });
+                            pending.second(SecondAggregate { symbol: symbol.clone(), ..bar.clone() });
                         }
                     }
                 }
                 _ => {}
             },
             "trade" => {
-                if let Some(tick) = parse_trade(&m) {
-                    for symbol in state.symbols_for(&tick.symbol) {
-                        pending.trade(TradeTick { symbol, ..tick.clone() });
+                if let Some(t) = parse_trade(&m) {
+                    let regular = live_quotes::regular_session(t.ms);
+                    for symbol in state.chart_symbols_for(&t.ticker) {
+                        pending.chart_trades.push(t.chart(symbol, regular));
+                    }
+                    // Its regular last, change and range: none until the symbol was polled once.
+                    if let Some(q) = live_quotes::traded(&t.ticker, t.ms, t.price, t.high, t.low) {
+                        for symbol in state.symbols_for(&t.ticker) {
+                            pending.trade(t.quote(symbol, &q));
+                        }
                     }
                 }
             }
-            "subscribed" | "unsubscribed" => {}
+            kind @ ("subscribed" | "unsubscribed") => {
+                if let Some(ticker) = m.get("channel").and_then(|v| v.as_str()).and_then(|c| c.strip_prefix(super::TRADES)) {
+                    live_quotes::set_streamed(ticker, kind == "subscribed");
+                }
+            }
             "error" => {
                 let channel = m.get("channel").and_then(|v| v.as_str()).unwrap_or("-");
                 eprintln!("[market_stream] {channel}: {}", super::error_text(&m));
@@ -267,24 +307,60 @@ fn parse_minute(m: &serde_json::Value) -> Option<ChartAggregate> {
     Some(ChartAggregate { symbol, time, open, high, low, close, volume, day: None })
 }
 
-fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
-    Some(TradeTick {
-        symbol: ev.get("ticker")?.as_str()?.to_string(),
-        price: ev.get("p")?.as_f64()?,
-        // A raw WS trade carries no session change / volume — the watchlist
-        // keeps whatever the snapshot poller last supplied.
-        change: None,
-        change_percent: None,
-        ext_change_percent: None,
-        volume: None,
-        source: None,
-        trade_price: ev.get("p").and_then(|v| v.as_f64()),
-        trade_time: ev.get("t").and_then(|v| v.as_f64()).map(|ms| (ms / 60_000.0).floor() * 60.0),
-        // Filled in from the minute's trades as they arrive (`Pending::trade`).
-        trade_high: None,
-        trade_low: None,
-        day_high: None,
-        day_low: None,
+/// One `trade` message: the last price, the range and the volume of its trades.
+struct StreamTrade {
+    ticker: String,
+    ms: f64,
+    price: f64,
+    high: f64,
+    low: f64,
+    volume: f64,
+}
+
+impl StreamTrade {
+    fn chart(&self, symbol: &str, regular: bool) -> ChartTrade {
+        ChartTrade {
+            symbol: symbol.to_string(),
+            time: (self.ms / 1000.0).floor(),
+            price: self.price,
+            high: self.high,
+            low: self.low,
+            volume: self.volume,
+            regular,
+        }
+    }
+
+    /// The watchlist quote; the session's volume stays the polled one.
+    fn quote(&self, symbol: &str, q: &live_quotes::Quote) -> TradeTick {
+        TradeTick {
+            symbol: symbol.to_string(),
+            price: q.last,
+            change: Some(q.change),
+            change_percent: Some(q.change_percent),
+            ext_change_percent: q.ext_change_percent,
+            volume: None,
+            source: Some(q.source.to_string()),
+            trade_price: Some(self.price),
+            trade_time: Some((self.ms / 60_000.0).floor() * 60.0),
+            // Made the minute's as they arrive (`Pending::trade`).
+            trade_high: Some(self.high),
+            trade_low: Some(self.low),
+            day_high: Some(q.day_high),
+            day_low: Some(q.day_low),
+        }
+    }
+}
+
+fn parse_trade(m: &serde_json::Value) -> Option<StreamTrade> {
+    let num = |k: &str| m.get(k).and_then(|v| v.as_f64());
+    let price = num("p").filter(|p| *p > 0.0)?;
+    Some(StreamTrade {
+        ticker: m.get("ticker")?.as_str()?.to_string(),
+        ms: num("t")?,
+        price,
+        high: num("h").unwrap_or(price).max(price),
+        low: num("l").filter(|l| *l > 0.0).unwrap_or(price).min(price),
+        volume: num("size").unwrap_or(0.0),
     })
 }
 
@@ -307,9 +383,13 @@ mod tests {
             serde_json::from_str(r#"{"type":"bar","tf":"1m","ticker":"SPY","t":1,"o":null,"h":1,"l":1,"c":1}"#).unwrap();
         assert!(parse_minute(&no_price).is_none());
         let trade: serde_json::Value =
-            serde_json::from_str(r#"{"type":"trade","ticker":"SPY","t":1792000061000,"p":601.5,"size":100}"#).unwrap();
+            serde_json::from_str(r#"{"type":"trade","ticker":"SPY","t":1792000061700,"p":601.5,"size":100,"h":602,"l":601}"#).unwrap();
         let t = parse_trade(&trade).unwrap();
-        assert_eq!((t.symbol.as_str(), t.price, t.trade_time), ("SPY", 601.5, Some(1_792_000_020.0)));
+        let c = t.chart("AMEX:SPY", true);
+        assert_eq!((c.symbol.as_str(), c.time, c.price, c.high, c.low, c.volume), ("AMEX:SPY", 1_792_000_061.0, 601.5, 602.0, 601.0, 100.0));
+        let one: serde_json::Value = serde_json::from_str(r#"{"type":"trade","ticker":"SPY","t":1,"p":601.5,"size":100}"#).unwrap();
+        let t = parse_trade(&one).unwrap();
+        assert_eq!((t.high, t.low), (601.5, 601.5));
     }
 
     /// The events sent, by name and with their payload.

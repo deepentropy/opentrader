@@ -10,8 +10,10 @@
  * on the open socket. No pass: the free tier, delayed data, as before.
  *
  * The gateway gives REST real-time answers only to the device holding the
- * account's real-time stream session (gateway#19), so the stream connects as
- * soon as there is a pass and `session_live` says when it is up.
+ * account's real-time stream session (gateway#19): the stream connects as soon
+ * as there is a pass, is given a key when it authenticates, and REST calls send
+ * both. The plan is decided by the accounts server and checked by the gateway
+ * on every connection: nothing in this process can make a pass.
  *
  * The gateway keeps one real-time session per account. When another device
  * takes it, this one is told "signed in elsewhere": it stays on delayed data
@@ -23,6 +25,8 @@ use tokio::sync::watch;
 
 /// The REST header of the pass (the gateway's `PASS_HEADER`).
 pub const HEADER: &str = "X-OpenTrader-Pass";
+/// The REST header of the stream session's key (the gateway's `SESSION_HEADER`).
+pub const SESSION_HEADER: &str = "X-OpenTrader-Session";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pass {
@@ -36,8 +40,8 @@ pub struct State {
     pub pass: Option<Pass>,
     /// Another device holds the account's real-time session.
     pub elsewhere: bool,
-    /// This device's real-time stream session is authenticated.
-    pub live: bool,
+    /// The key of this device's real-time stream session, while it is up.
+    pub session: Option<String>,
 }
 
 impl State {
@@ -77,11 +81,11 @@ pub fn set_elsewhere(elsewhere: bool) {
     });
 }
 
-/// The real-time stream session authenticated (`true`) or ended.
-pub fn set_live(live: bool) {
+/// The real-time stream session authenticated (its key) or ended (none).
+pub fn set_session(session: Option<String>) {
     cell().send_if_modified(|s| {
-        let changed = s.live != live;
-        s.live = live;
+        let changed = s.session != session;
+        s.session = session;
         changed
     });
 }
@@ -89,7 +93,7 @@ pub fn set_live(live: bool) {
 /// Wait until the real-time stream session is up, at most `timeout`. True when it is.
 pub async fn wait_live(timeout: std::time::Duration) -> bool {
     let mut rx = subscribe();
-    tokio::time::timeout(timeout, rx.wait_for(|s| s.live)).await.is_ok_and(|r| r.is_ok())
+    tokio::time::timeout(timeout, rx.wait_for(|s| s.session.is_some())).await.is_ok_and(|r| r.is_ok())
 }
 
 /// The pass the gateway calls send now, if any.
@@ -97,14 +101,12 @@ pub fn current() -> Option<String> {
     cell().borrow().usable(chrono::Utc::now().timestamp()).map(str::to_string)
 }
 
-/// The pass, once this device's real-time stream session is up: what the
-/// gateway's real-time screener feed takes (gateway#20).
-pub fn current_live() -> Option<String> {
+/// The pass and the session's key, once this device's real-time stream session
+/// is up: what the gateway's real-time answers and screener feed take.
+pub fn current_live() -> Option<(String, String)> {
     let s = cell().borrow();
-    if !s.live {
-        return None;
-    }
-    s.usable(chrono::Utc::now().timestamp()).map(str::to_string)
+    let session = s.session.clone()?;
+    s.usable(chrono::Utc::now().timestamp()).map(|p| (p.to_string(), session))
 }
 
 /// Real-time data is asked for (a usable pass): the tier the entitlements are probed for.
@@ -118,7 +120,7 @@ mod tests {
 
     #[test]
     fn a_pass_is_usable_until_it_expires_and_not_while_elsewhere() {
-        let mut s = State { pass: Some(Pass { token: "otp1.a.b".into(), exp: 100 }), elsewhere: false, live: false };
+        let mut s = State { pass: Some(Pass { token: "otp1.a.b".into(), exp: 100 }), elsewhere: false, session: None };
         assert_eq!(s.usable(99), Some("otp1.a.b"));
         assert_eq!(s.usable(100), None);
         s.elsewhere = true;

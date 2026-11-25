@@ -43,6 +43,16 @@ export interface Env {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
+  /** Portal configuration (scripts/stripe-setup.mjs): cancel, card and invoices, no change of plan. Unset = the account's default. */
+  STRIPE_PORTAL_CONFIG?: string;
+  /** "1": sales tax worked out by the provider at checkout. */
+  STRIPE_TAX?: string;
+  /** "1": the terms of service are accepted at checkout (their address is set at the provider). */
+  STRIPE_TERMS?: string;
+  /** Who may subscribe: "1" everyone, account ids (comma-separated) those only, unset nobody. Apps show the offer to them. */
+  PAID_OPEN?: string;
+  /** The price as shown in the app, "$10" when unset. The amount charged is the provider's price. */
+  PAID_PRICE?: string;
   /** Local test only: the provider API's base URL. */
   STRIPE_API_URL?: string;
 }

@@ -86,7 +86,7 @@ impl Subs {
             return false;
         }
         match ev.name {
-            "chart-aggregate" | "second-aggregate" | "trade-tick" => ev
+            "chart-aggregate" | "second-aggregate" | "chart-trade" | "trade-tick" => ev
                 .symbol
                 .as_ref()
                 .is_some_and(|s| self.watchlist.contains(s) || self.charts.values().any(|c| c == s)),

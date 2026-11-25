@@ -20,6 +20,7 @@ vi.mock("../../community/api", () => {
   }
   return {
     CommunityError,
+    COMMUNITY_ENABLED: true,
     request: async (method: string, path: string) => {
       server.calls.push(`${method} ${path}`);
       const a = server.answers[path];
@@ -29,10 +30,10 @@ vi.mock("../../community/api", () => {
   };
 });
 const session = vi.hoisted(() => ({ me: null as unknown }));
-vi.mock("../../community/session", () => ({ me: () => session.me, initSession: async () => undefined }));
+vi.mock("../../community/session", () => ({ me: () => session.me, ready: () => true, initSession: async () => undefined }));
 
 import { CommunityError } from "../../community/api";
-import { onMarketTier, planInfo, realtimeActive, refreshPass } from "../plan";
+import { onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, refreshOffer, refreshPass, startCheckout } from "../plan";
 
 const exp = () => Math.floor(Date.now() / 1000) + 900;
 const plan = (p: "free" | "rt") => ({ plan: p, status: p === "rt" ? "active" : "none", renews_at: null, cancel_at_period_end: false, billing: true });
@@ -82,6 +83,61 @@ describe("refreshPass", () => {
     expect(server.calls.filter((c) => c === "POST /auth/pass").length).toBe(before + 1);
   });
 
+  it("a session that devices keep taking from each other waits for the user", async () => {
+    server.answers["/auth/pass"] = { pass: "otp1.a.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await refreshPass();
+    onMarketTier({ tier: "realtime", reason: null });
+    const before = server.calls.length;
+    onMarketTier({ tier: "delayed", reason: "too_many_devices" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(realtimeActive()).toBe(false);
+    expect(server.calls.length).toBe(before);
+    onMarketTier({ tier: "realtime", reason: null });
+  });
+
+  it("a connection lost for a moment changes nothing, for longer it is delayed data", async () => {
+    server.answers["/auth/pass"] = { pass: "otp1.a.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await refreshPass();
+    onMarketTier({ tier: "realtime", reason: null });
+    onMarketTier({ tier: "delayed", reason: null });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(realtimeActive()).toBe(true);
+    onMarketTier({ tier: "realtime", reason: null });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(realtimeActive()).toBe(true);
+    onMarketTier({ tier: "delayed", reason: null });
+    await vi.advanceTimersByTimeAsync(3_000);
+    // a try to connect again failed
+    onMarketTier({ tier: "delayed", reason: null });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(realtimeActive()).toBe(false);
+  });
+
+  it("a refused pass: tried again later, and at once when the plan is paid again", async () => {
+    server.answers["/auth/pass"] = { pass: "otp1.a.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await refreshPass();
+    await vi.advanceTimersByTimeAsync(0);
+    onMarketTier({ tier: "delayed", reason: "not_allowed" });
+    await refreshPass();
+    expect(rust.passes[rust.passes.length - 1]).toBe(null);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(rust.passes[rust.passes.length - 1]).toBe("otp1.a.b");
+    // refused again, the plan ends, then is paid again
+    onMarketTier({ tier: "delayed", reason: "not_allowed" });
+    server.answers["/auth/pass"] = { pass: "otp1.x.y", plan: "free", exp: exp() };
+    server.answers["/me/plan"] = plan("free");
+    await refreshPass();
+    await vi.advanceTimersByTimeAsync(0);
+    server.answers["/auth/pass"] = { pass: "otp1.c.d", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await refreshPass();
+    expect(rust.passes[rust.passes.length - 1]).toBe("otp1.c.d");
+    onMarketTier({ tier: "realtime", reason: null });
+  });
+
   it("hands no pass on the free plan", async () => {
     server.answers["/auth/pass"] = { pass: "otp1.x.y", plan: "free", exp: exp() };
     server.answers["/me/plan"] = plan("free");
@@ -114,5 +170,47 @@ describe("refreshPass", () => {
     expect(rust.passes).toEqual(["otp1.a.b"]);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(server.calls.filter((c) => c === "POST /auth/pass")).toHaveLength(3);
+  });
+});
+
+describe("the offer", () => {
+  it("is shown when the server opens it, and to a subscriber when it is closed", async () => {
+    session.me = null;
+    await refreshPass();
+    server.answers["/paid"] = { open: false, price: "$10" };
+    await refreshOffer();
+    expect(paidShown()).toBe(false);
+    server.answers["/paid"] = { open: true, price: "$12" };
+    await refreshOffer();
+    expect(paidShown()).toBe(true);
+    expect(paidOffer()?.price).toBe("$12");
+    // unreachable: as it was; a server without the paid tier: nothing
+    server.answers["/paid"] = new CommunityError(0, "unreachable");
+    await refreshOffer();
+    expect(paidShown()).toBe(true);
+    server.answers["/paid"] = new CommunityError(404, "Not found.");
+    await refreshOffer();
+    expect(paidShown()).toBe(false);
+    session.me = { user: { name: "owner" } };
+    server.answers["/auth/pass"] = { pass: "otp1.a.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = { ...plan("rt"), billing: false };
+    await refreshPass();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(paidShown()).toBe(true);
+  });
+
+  it("after the checkout the plan is read until it is paid", async () => {
+    server.answers["/billing/checkout"] = { url: "https://pay.test" };
+    server.answers["/billing/refresh"] = plan("free");
+    server.answers["/auth/pass"] = { pass: "otp1.p.q", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await startCheckout();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(server.calls.filter((c) => c === "POST /billing/refresh")).toHaveLength(2);
+    server.answers["/billing/refresh"] = plan("rt");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(rust.passes[rust.passes.length - 1]).toBe("otp1.p.q");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(server.calls.filter((c) => c === "POST /billing/refresh")).toHaveLength(3);
   });
 });

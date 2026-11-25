@@ -29,8 +29,10 @@ import { getItem, setItem } from "./kv";
 import { isTransientError, retryTransient } from "./connection";
 import {
   onChartAggregate,
+  onChartTrade,
   onSecondAggregate,
   type ChartAggregate,
+  type ChartTrade,
   type SecondAggregate,
 } from "./datafeed-live";
 import { exchangeCode, exchangeName } from "./providers";
@@ -960,34 +962,56 @@ export function bucketLiveTick(
       dayTime,
     };
   }
-  const intra = minuteConfig(resolution);
-  if (!intra) return null;
   // Day-only fallback ticks (time=0) carry day OHLC, not a minute bar — they
   // must never form an intraday bucket.
   if (tick.time <= 0) return null;
-  const spec = sessions.spec(session);
-  // A tick outside the chosen session has no bar to extend (RTH: pre/post).
-  const iv = spec.at(tick.time);
-  if (!iv) return null;
-  const bucketSecs = intra.mins * 60;
-  // Re-aggregated sizes (US 1H/2H/4H RTH) take the history's buckets
-  // (sessionBucketStart); the others keep the provider's clock grid, which
-  // already breaks at the open; a source's own grid (barOrigin) is kept too.
-  const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions), sessions.barOrigin !== null);
-  const bucketTime =
-    sessions.barOrigin !== null
-      ? sessions.barGridStart(tick.time, bucketSecs)
-      : base !== null
-        ? sessionBucketStart(spec, iv, tick.time, bucketSecs, base)
-        : Math.floor(tick.time / bucketSecs) * bucketSecs;
+  const time = minuteBucket(sessions, resolution, tick.time, session);
+  if (time === null) return null;
   return {
-    time: bucketTime,
+    time,
     open: tick.open,
     high: tick.high,
     low: tick.low,
     close: tick.close,
     volume: tick.volume,
   };
+}
+
+/** Start of the minute-family bar of `resolution` that takes `timeSec`; null for another family, or a time outside
+ *  the chosen session (RTH: pre/post), which has no bar to extend. */
+function minuteBucket(sessions: SymbolSessions, resolution: string, timeSec: number, session: SessionId): number | null {
+  const intra = minuteConfig(resolution);
+  if (!intra) return null;
+  const spec = sessions.spec(session);
+  const iv = spec.at(timeSec);
+  if (!iv) return null;
+  const bucketSecs = intra.mins * 60;
+  // Re-aggregated sizes (US 1H/2H/4H RTH) take the history's buckets
+  // (sessionBucketStart); the others keep the provider's clock grid, which
+  // already breaks at the open; a source's own grid (barOrigin) is kept too.
+  const base = sessionBaseMinutes(spec, intra.mins, symbolMinutes(sessions), sessions.barOrigin !== null);
+  return sessions.barOrigin !== null
+    ? sessions.barGridStart(timeSec, bucketSecs)
+    : base !== null
+      ? sessionBucketStart(spec, iv, timeSec, bucketSecs, base)
+      : Math.floor(timeSec / bucketSecs) * bucketSecs;
+}
+
+/** Bucket a subscriber's streamed trades into a bar for `resolution`: minute bars take their price and add their
+ *  volume; daily, weekly and monthly bars take the price of the regular session's (their volume is the polled day
+ *  bar's). Null for the second family (the 1-second stream) and outside the chosen session. */
+export function bucketTrade(resolution: string, trade: ChartTrade, session: SessionId = "ETH"): LiveBar | null {
+  const sessions = cachedSymbolSessions(trade.symbol);
+  if (!sessions || !pluginBuilds(sessions, resolution)) return null;
+  const prices = { open: trade.price, high: trade.high, low: trade.low, close: trade.price, volumeIsIncrement: true };
+  const dailyCfg = dailyFamily(resolution);
+  if (dailyCfg) {
+    if (!trade.regular) return null;
+    const dayTime = dailyBarStamp(sessions.extended, trade.time);
+    return { time: dailyCfg.aggregate ? periodStart(dayTime, dailyCfg.aggregate, sessions.regular) : dayTime, ...prices, volume: 0, dayTime };
+  }
+  const time = minuteBucket(sessions, resolution, trade.time, session);
+  return time === null ? null : { time, ...prices, volume: trade.volume };
 }
 
 /** Bucket a 1-second stream bar into a bar for a second-family `resolution`
@@ -1016,11 +1040,12 @@ export function bucketSecondBar(
 
 /** Subscribe to live bars for the symbol/resolution given by the accessors,
  *  reading them per-tick so the same listener follows symbol/interval changes.
- *  Two sources: the per-minute aggregates (minute + daily families) and the
+ *  Three sources: the per-minute aggregates (minute + daily families), the
  *  1-second stream (second family; only flows when the key is entitled — see
- *  ./providers/capabilities). Ticks for other symbols and non-bucketable
+ *  ./providers/capabilities) and a subscriber's trades (minute + daily
+ *  families). Ticks for other symbols and non-bucketable
  *  resolutions are filtered out; `onBar` fires only with a resolution-bucketed
- *  {@link LiveBar}. Returns one unlisten handle for both. Declaring the symbol
+ *  {@link LiveBar}. Returns one unlisten handle for all. Declaring the symbol
  *  subscription on the backend is a separate concern — call
  *  {@link setLiveSymbol} for that. */
 export async function subscribeBars(
@@ -1033,7 +1058,7 @@ export async function subscribeBars(
     const sym = getSymbol();
     return !!sym && s.toUpperCase() === sym.toUpperCase();
   };
-  const [offMinute, offSecond] = await Promise.all([
+  const [offMinute, offSecond, offTrade] = await Promise.all([
     onChartAggregate((tick) => {
       if (!isCharted(tick.symbol)) return;
       const bar = bucketLiveTick(getResolution(), tick, getSession());
@@ -1044,9 +1069,15 @@ export async function subscribeBars(
       const bar = bucketSecondBar(getResolution(), tick, getSession());
       if (bar) onBar(bar);
     }),
+    onChartTrade((tick) => {
+      if (!isCharted(tick.symbol)) return;
+      const bar = bucketTrade(getResolution(), tick, getSession());
+      if (bar) onBar(bar);
+    }),
   ]);
   return () => {
     offMinute();
     offSecond();
+    offTrade();
   };
 }

@@ -226,8 +226,8 @@ impl Feed {
     /// the feed at `url`.
     pub async fn connect(url: &str) -> Result<Self> {
         if url == gateway::SCREENER_LIVE_URL {
-            if let Some(pass) = crate::data::pass::current_live() {
-                match Self::open(gateway::SCREENER_LIVE_RT_URL, Some(&pass)).await {
+            if let Some(live) = crate::data::pass::current_live() {
+                match Self::open(gateway::SCREENER_LIVE_RT_URL, Some(live)).await {
                     Ok(feed) => return Ok(feed),
                     Err(e) => eprintln!("[screener] real-time feed: {e:#}; the delayed one instead"),
                 }
@@ -236,19 +236,20 @@ impl Feed {
         Self::open(url, None).await
     }
 
-    async fn open(url: &str, pass: Option<&str>) -> Result<Self> {
+    /// `live`: the pass and the stream session's key of the real-time feed.
+    async fn open(url: &str, live: Option<(String, String)>) -> Result<Self> {
         let token = gateway::data_token().await.context(gateway::NO_TOKEN)?;
         let proxy_changes = crate::net::proxy_changes();
         let pass_changes = crate::data::pass::subscribe();
-        let address = match pass {
-            Some(p) => format!("{url}?token={token}&pass={p}"),
+        let address = match &live {
+            Some((pass, session)) => format!("{url}?token={token}&pass={pass}&session={session}"),
             None => format!("{url}?token={token}"),
         };
         let ws = tokio::time::timeout(CONNECT_TIMEOUT, crate::net::connect_ws(&address))
             .await
             .map_err(|_| anyhow!("screener feed: connection timed out"))?
             .context("screener feed: connection refused")?;
-        let mut feed = Self { ws, table: LiveTable::default(), proxy_changes, realtime: pass.is_some(), pass_changes };
+        let mut feed = Self { ws, table: LiveTable::default(), proxy_changes, realtime: live.is_some(), pass_changes };
         tokio::time::timeout(CONNECT_TIMEOUT, feed.next())
             .await
             .map_err(|_| anyhow!("screener feed: no table after {} s", CONNECT_TIMEOUT.as_secs()))??;
