@@ -87,6 +87,11 @@ export function showConfirm(opts: ConfirmOptions): void {
   setStack((s) => [...s, { id: nextId++, kind: "confirm", opts }]);
 }
 
+/** Asks before something is deleted for good. */
+export function confirmDelete(opts: Pick<ConfirmOptions, "title" | "text" | "mainText" | "onConfirm">): void {
+  showConfirm({ mainText: "Delete", cancelText: "Cancel", intent: "danger", ...opts });
+}
+
 export function showRename(opts: RenameOptions): void {
   setStack((s) => [...s, { id: nextId++, kind: "rename", opts }]);
 }

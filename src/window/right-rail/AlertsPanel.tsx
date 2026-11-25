@@ -24,12 +24,15 @@ import { PanelHeader } from "../../components/PanelHeader";
 import { IconButton } from "../../components/IconButton";
 import { TABS } from "../../data/alerts-panel";
 import { alertStore, type AlertFire, type AlertRule } from "../../data/alert-store";
-import { ruleDrawingMissing } from "../../data/alert-condition";
+import { ruleConditions, ruleDrawingMissing } from "../../data/alert-condition";
+import { onScriptDeleted } from "../../data/oakscript-store";
+import { ofDeletedScript } from "../chart/indicators/script-studies";
 import { intervalLabel } from "../../data/datafeed";
 import { csvFileName } from "../screener/screener-csv";
 import { saveFile } from "../../data/save-file";
 import { webhookStatus } from "../../data/webhook-status";
 import { AlertRulesList, AlertRulesToolbar, OptionsButton, RowLogo, isTechnical } from "./AlertRules";
+import { confirmDelete } from "../../components/Dialogs";
 import { GLYPH, MenuAction, MenuSection, MenuToggle } from "./alerts-menu";
 import * as kv from "../../data/kv";
 import { createPopover } from "../../components/popover";
@@ -61,6 +64,10 @@ function fireType(f: AlertFire, rules: Map<string, AlertRule>): "price" | "techn
   return r && isTechnical(r) ? "technicals" : "price";
 }
 
+/** An alert on a study of a deleted script: nothing left to calculate. */
+const ruleScriptDeleted = (r: AlertRule): boolean =>
+  ruleConditions(r).some((c) => [c.left, c.right].some((o) => o.kind === "indicator" && ofDeletedScript(o.indicatorId)));
+
 /** The log as CSV: one row per event, as the list shows them. */
 function logCsv(fires: AlertFire[]): string {
   const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
@@ -70,6 +77,14 @@ function logCsv(fires: AlertFire[]): string {
   });
   return ["Time,Symbol,Interval,Name,Message", ...rows].join("\n");
 }
+
+const askClearLog = () =>
+  confirmDelete({
+    title: "Clear log?",
+    text: "All events of the log will be deleted. This cannot be undone.",
+    mainText: "Clear",
+    onConfirm: () => alertStore.clearFires(),
+  });
 
 export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?: (symbol: string, interval: string) => void; onOpenSettings?: () => void }) {
   const [view, setView] = createSignal<string>("alerts");
@@ -83,9 +98,10 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
   // rule, never disables it.
   const [drawingsRev, setDrawingsRev] = createSignal(0);
   onCleanup(kv.onExternalChangePrefix("ot:drawings:", () => setDrawingsRev((n) => n + 1)));
-  const drawingMissing = (rule: AlertRule): boolean => {
+  onCleanup(onScriptDeleted(() => setDrawingsRev((n) => n + 1)));
+  const sourceMissing = (rule: AlertRule): "drawing" | "script" | null => {
     drawingsRev();
-    return ruleDrawingMissing(rule);
+    return ruleDrawingMissing(rule) ? "drawing" : ruleScriptDeleted(rule) ? "script" : null;
   };
 
   // ── Log ──
@@ -138,7 +154,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
       >
         <div class="alerts-panel-subheader" ref={logToolbarEl}>
           <Tooltip text="Clear log" side="bottom">
-            <IconButton data-name="clear-log-button" aria-label="Clear log" class="alerts-panel-tool" onClick={() => alertStore.clearFires()}>
+            <IconButton data-name="clear-log-button" aria-label="Clear log" class="alerts-panel-tool" onClick={askClearLog}>
               <Icon name="al-clear-log" size={28} />
             </IconButton>
           </Tooltip>
@@ -175,7 +191,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
       <div class="alerts-panel-body">
         {/* ── Configured rules ── */}
         <Show when={view() === "alerts"}>
-          <AlertRulesList ctx={ctx()} drawingMissing={drawingMissing} onShow={props.onShow} />
+          <AlertRulesList ctx={ctx()} sourceMissing={sourceMissing} onShow={props.onShow} />
         </Show>
 
         {/* ── Fired-event log ── */}

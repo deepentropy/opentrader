@@ -4,7 +4,7 @@
  * editor" rows move the editor, an editor tab shows the editor in place of the chart layout, and the window's editor
  * window is answered here (its studies, Add to chart, Logs, In-place, the script runtime of this window).
  */
-import { Show, createEffect, on } from "solid-js";
+import { Show, createEffect, on, onCleanup } from "solid-js";
 import type { AppTabs } from "../shell/app-tabs";
 import type { createChartEdits } from "../shell/chart-edits";
 import { DEFAULT_PANELS } from "../shell/tabs";
@@ -19,7 +19,7 @@ import { dropUserStrategy, notifyUserStrategyCompiled } from "../chart/indicator
 
 type Deps = {
   tabs: Pick<AppTabs, "tabs" | "activeTabId" | "activeTab" | "tabOf" | "patchTab" | "activateTab" | "newEditorTab" | "closeEditorTab">;
-  edits: Pick<ReturnType<typeof createChartEdits>, "toggleScriptOnTab" | "addStudyTo">;
+  edits: Pick<ReturnType<typeof createChartEdits>, "toggleScriptOnTab" | "addStudyTo" | "removeScript">;
   editorOpen: () => boolean;
   setEditorOpen: (open: boolean) => void;
 };
@@ -68,12 +68,17 @@ export function createEditorPlacements(d: Deps) {
           () => {},
         );
     },
-    deleted: (scriptId) => {
-      dropUserScriptRuntime(scriptId);
-      dropUserStrategy(scriptId);
-    },
     renamed: (scriptId) => notifyScriptRenamed(scriptId),
   });
+
+  // A script deleted in any window leaves this window's charts and script runtime.
+  onCleanup(
+    scripts.onScriptDeleted((scriptId) => {
+      d.edits.removeScript(scriptId);
+      dropUserScriptRuntime(scriptId);
+      dropUserStrategy(scriptId);
+    }),
+  );
 
   // While the editor has a window of its own, opening it under the chart (the editor button, a study's "Source
   // code") brings that window to the front with the script instead.

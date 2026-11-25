@@ -29,8 +29,9 @@ import type { LayoutId } from "../chart/layouts";
 import type { Sizing } from "../chart/layout-sizes";
 import { newCompareId, type CompareEntry, type ComparePatch, type ComparePlacement, type PaneChart, type PaneIndicatorSettings } from "./tabs";
 import type { AppTabs } from "./app-tabs";
-import type { ChartSources, CompareUndoEntry, LayoutSizesUndoEntry, StudyUndoEntry, UndoEntry, UndoHistory } from "./undo-history";
+import type { ChartSources, CompareUndoEntry, DrawingSlice, LayoutSizesUndoEntry, StudyUndoEntry, UndoEntry, UndoHistory } from "./undo-history";
 import { chartSources } from "./layout-sources";
+import { scriptIdOfStudy, withoutDeletedScripts, withoutStudies, withStudiesOn } from "../chart/indicators/script-studies";
 import { sourceInputIds, sourceRef, withDescendants } from "../chart/indicators/study-sources";
 import { isScaleKey } from "../chart/scales/scale-layout";
 import { showConfirm } from "../../components/Dialogs";
@@ -53,9 +54,42 @@ export type SourcesPatch = {
   drawings?: { key: string; list: Drawing[] };
 };
 
+/** An undo step without the studies of a deleted script (`ofScript`), the ones built on them and the drawings they own;
+ *  null when nothing is left of it. */
+function withoutScript(e: UndoEntry, ofScript: (id: string) => boolean): UndoEntry | null {
+  const drawings = (list: Drawing[], removed?: ReadonlySet<string>) => list.filter((x) => !x.owner || !(ofScript(x.owner) || removed?.has(x.owner)));
+  const slices = (all: DrawingSlice[], removed?: ReadonlySet<string>) =>
+    all.map((s) => ({ ...s, before: drawings(s.before, removed), after: drawings(s.after, removed) }));
+  if (e.kind === "study") {
+    const removed = withStudiesOn(e.ids, e.settings, ofScript);
+    const at = e.ids.map((_, i) => i).filter((i) => !removed.has(e.ids[i]));
+    if (at.length === 0) return null;
+    const studies = withoutStudies(e.ids, e.settings, removed);
+    return { ...e, ids: studies.ids, positions: at.map((i) => e.positions[i]), settings: studies.settings ?? {}, slices: slices(e.slices, removed) };
+  }
+  if (e.kind === "layout-sources") {
+    let touched = false;
+    const side = (charts: Record<number, ChartSources>): Record<number, ChartSources> =>
+      Object.fromEntries(
+        Object.entries(charts).map(([i, c]) => {
+          const removed = withStudiesOn(c.indicators, c.indicatorSettings, ofScript);
+          if (removed.size === 0) return [i, c];
+          touched = true;
+          const studies = withoutStudies(c.indicators, c.indicatorSettings, removed);
+          return [i, { ...c, indicators: studies.ids, indicatorSettings: studies.settings }];
+        }),
+      );
+    const next = { ...e, before: side(e.before), after: side(e.after), slices: slices(e.slices) };
+    const same = touched && JSON.stringify([next.before, next.slices.map((s) => s.before)]) === JSON.stringify([next.after, next.slices.map((s) => s.after)]);
+    return same ? null : next;
+  }
+  if (e.kind === undefined) return { ...e, before: drawings(e.before), after: drawings(e.after), ...(e.slices ? { slices: slices(e.slices) } : {}) };
+  return e;
+}
+
 export function createChartEdits(
-  t: Pick<AppTabs, "tabOf" | "patchTab" | "activeTab" | "activePaneState" | "patchActivePane">,
-  undo: Pick<UndoHistory, "commit" | "record" | "rollback" | "undoStack" | "redoStack">,
+  t: Pick<AppTabs, "tabs" | "tabOf" | "patchTab" | "activeTab" | "activePaneState" | "patchActivePane">,
+  undo: Pick<UndoHistory, "commit" | "record" | "rollback" | "rewrite" | "undoStack" | "redoStack">,
   d: Pick<DrawingStore, "drawingKeyFor" | "drawingsFor" | "splitView" | "restoreSlice">,
 ) {
   const { tabOf, patchTab, activeTab, activePaneState } = t;
@@ -295,6 +329,29 @@ export function createChartEdits(
     if (on.length) removeStudies(tab.id, tab.activePane, on);
     else addStudyTo(tab.id, typeId);
   }
+  /** A script was deleted: its studies, the studies built on them and the drawings they own leave every chart of the
+   *  window. Not an undo step (the source is gone), and the steps already made don't bring them back either. */
+  function removeScript(scriptId: string) {
+    const ofScript = (id: string) => scriptIdOfStudy(id) === scriptId;
+    for (const tab of t.tabs()) {
+      let changed = false;
+      const clean = (pane: PaneChart): PaneChart => {
+        const removed = withStudiesOn(pane.indicators, pane.indicatorSettings, ofScript);
+        if (removed.size === 0) return pane;
+        changed = true;
+        const key = d.drawingKeyFor(pane, tab.id);
+        const list = d.drawingsFor(key);
+        const kept = list.filter((x) => !x.owner || !removed.has(x.owner));
+        if (kept.length !== list.length) for (const sl of d.splitView(key, kept)) d.restoreSlice(sl.key, sl.after);
+        const studies = withoutStudies(pane.indicators, pane.indicatorSettings, removed);
+        return { ...pane, indicators: studies.ids, indicatorSettings: studies.settings };
+      };
+      const panes = tab.panes.map(clean);
+      const hiddenPanes = tab.hiddenPanes?.map(clean);
+      if (changed) patchTab(tab.id, hiddenPanes ? { panes, hiddenPanes } : { panes });
+    }
+    undo.rewrite((e) => withoutScript(e, ofScript));
+  }
   /** Remove-objects dropdown actions. Indicators live on the active pane. */
   function removeAllIndicators() {
     const tab = activeTab();
@@ -322,11 +379,9 @@ export function createChartEdits(
     if (!tpl) return;
     const tab = activeTab();
     const before = chartSources(activePaneState());
-    const after: ChartSources = {
-      ...before,
-      indicators: [...tpl.indicators],
-      indicatorSettings: JSON.parse(JSON.stringify(tpl.settings)) as PaneChart["indicatorSettings"],
-    };
+    // Without the studies of scripts deleted since the template was saved.
+    const studies = withoutDeletedScripts([...tpl.indicators], JSON.parse(JSON.stringify(tpl.settings)) as PaneChart["indicatorSettings"]);
+    const after: ChartSources = { ...before, indicators: studies.ids, indicatorSettings: studies.settings };
     undo.commit({
       kind: "layout-sources",
       tabId: tab.id,
@@ -561,6 +616,7 @@ export function createChartEdits(
     toggleScriptOnChart,
     toggleScriptOnTab,
     addStudyTo,
+    removeScript,
     removeAllIndicators,
     saveIndicatorTemplateNamed,
     applyIndicatorTemplate,

@@ -36,7 +36,6 @@ import * as scripts from "../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "./engine";
 import { OakScriptMenu } from "./OakScriptMenu";
 import {
-  dropUserScriptRuntime,
   notifyScriptCompiled,
   notifyScriptRenamed,
   OAKSCRIPT_OPEN_EVENT,
@@ -46,7 +45,6 @@ import {
 } from "../chart/indicators/user-scripts";
 import { saveFile } from "../../data/save-file";
 import {
-  dropUserStrategy,
   notifyUserStrategyCompiled,
   STRATEGY_UPDATED_EVENT,
   userStrategyFullRunReason,
@@ -54,12 +52,13 @@ import {
 } from "../chart/indicators/strategy-entries";
 import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
-import { showConfirm, showRename } from "../../components/Dialogs";
+import { confirmDelete, showConfirm, showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
 import { isPluginScriptId, isPluginStrategy, onPluginScriptsChanged, pluginScript } from "../../data/plugin-scripts";
 import { setOpenedScript, setShownScriptName } from "./editor-state";
 import type { DetachMode } from "./detached-editor";
 import { isTauri } from "../shell/window-bridge";
+import { chartsShowingScript } from "../shell/tabs";
 import { setShortcutsOpen } from "../shell/app-dialogs";
 import { releaseNotesNew } from "./help-links";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
@@ -69,7 +68,7 @@ import { openScriptLogs } from "./logs/script-logs";
 import type { OakProfile } from "./engine-types";
 import type { OakCalculation } from "./engine";
 import { closeWarning, isHeavy, limitSeconds, wasClosed } from "./heavy-script";
-import { translate, translateAs, translateWith } from "../../i18n/translator";
+import { translate, translateAs, translatePlural, translateWith } from "../../i18n/translator";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -110,7 +109,7 @@ type Props = {
   /** More menu "Logs" (default: this window's logs panel). */
   onLogs?: (scriptId: string) => void;
   /** What the script runtime of the chart window must know (an editor window of its own). */
-  onScriptChange?: (change: { kind: "compiled"; scriptId: string; source: string } | { kind: "deleted" | "renamed"; scriptId: string }) => void;
+  onScriptChange?: (change: { kind: "compiled"; scriptId: string; source: string } | { kind: "renamed"; scriptId: string }) => void;
 };
 
 export function OakScriptPanel(props: Props) {
@@ -483,26 +482,49 @@ export function OakScriptPanel(props: Props) {
     });
   }
 
+  /** Asks first (reference rule): the source cannot be had back. */
   function deleteScript(): void {
     if (builtin()) return; // a built-in cannot be deleted
+    const { id, name } = currentScript();
+    const charts = chartsShowingScript(id);
+    confirmDelete({
+      title: "Delete script?",
+      text: charts
+        ? translatePlural(
+            charts,
+            {
+              one: "\"{1}\" will be deleted with its source code, and removed from {0} chart. This cannot be undone.",
+              other: "\"{1}\" will be deleted with its source code, and removed from {0} charts. This cannot be undone.",
+            },
+            charts,
+            name,
+          )
+        : translateWith("\"{0}\" will be deleted with its source code. This cannot be undone.", name),
+      // The charts drop its studies on the store's notice (editor-placements).
+      onConfirm: () => scripts.deleteScript(id),
+    });
+  }
+  // The script the editor holds was deleted (here or in another window): the next stored one, or a fresh template.
+  const offDeleted = scripts.onScriptDeleted((id) => {
     const s = currentScript();
-    for (const uid of chartIdsOf(s.id)) {
-      if (props.indicators.some((x) => typeIdOf(x) === uid)) props.onToggleIndicator(uid); // pull it off the chart
-    }
-    dropUserScriptRuntime(s.id);
-    dropUserStrategy(s.id);
-    scripts.deleteScript(s.id);
-    props.onScriptChange?.({ kind: "deleted", scriptId: s.id });
+    if (s.id !== id) return;
     log("info", translateWith("\"{0}\" deleted.", s.name));
-    // Fall back to the next stored script, or a fresh template.
-    const next = scripts.listScripts()[0];
+    // Behind a built-in: the script to come back to, the built-in stays shown.
+    if (builtin()) {
+      const shown = scripts.currentScriptId();
+      setCurrentScript(scripts.ensureCurrentScript());
+      if (shown) scripts.setCurrentScriptId(shown);
+      return;
+    }
+    const next = scripts.listScripts().find((m) => scripts.loadScript(m.id));
     if (next) openScript(next.id);
     else {
       const fresh = scripts.ensureCurrentScript();
       setCurrentScript(fresh);
       setIsStrategy(!!fresh.meta?.strategy);
     }
-  }
+  });
+  onCleanup(offDeleted);
 
   // Pin the console to its newest entry.
   createEffect(() => {

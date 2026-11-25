@@ -99,6 +99,11 @@ export function loadScript(id: string): OakScript | null {
   }
 }
 
+/** A stored script of this id exists (its source may not read). */
+export function scriptExists(id: string): boolean {
+  return kv.getItem(SCRIPT_PREFIX + id) !== null;
+}
+
 export function saveScript(script: OakScript): void {
   if (isPluginScriptId(script.id)) return;
   kv.setItem(SCRIPT_PREFIX + script.id, JSON.stringify(script));
@@ -244,4 +249,26 @@ export function deleteScript(id: string): void {
   writeIndex(readIndex().filter((m) => m.id !== id));
   if (currentScriptId() === id) kv.removeItem(CURRENT_KEY);
   kv.setItem(RECENTS_KEY, JSON.stringify(readRecents().filter((x) => x !== id)));
+  notifyDeleted(id);
+}
+
+const deletedListeners = new Set<(id: string) => void>();
+function notifyDeleted(id: string): void {
+  for (const l of [...deletedListeners]) l(id);
+}
+let followsWindows = false;
+const EXTERNAL_SETTLE = 100; // ms
+
+/** A stored script was deleted, in this window or another one. Returns what stops listening. */
+export function onScriptDeleted(listener: (id: string) => void): () => void {
+  deletedListeners.add(listener);
+  if (!followsWindows) {
+    followsWindows = true;
+    kv.onExternalChangePrefix(SCRIPT_PREFIX, (key, raw) => {
+      if (raw !== null) return;
+      // The other keys of the deletion (the index, the script opened instead) come as separate events right after.
+      setTimeout(() => notifyDeleted(key.slice(SCRIPT_PREFIX.length)), EXTERNAL_SETTLE);
+    });
+  }
+  return () => deletedListeners.delete(listener);
 }

@@ -40,6 +40,8 @@ import { loadDrawings } from "../drawings/persistence";
 import { iconForKind } from "../drawings/labels";
 import * as kv from "../../data/kv";
 import { emitAppEvent } from "../../data/app-events";
+import { confirmDelete } from "../../components/Dialogs";
+import { alertDeleteName, confirmDeleteAlert } from "../alerts/confirm-delete-alert";
 import { GLYPH, MenuAction, MenuSection, MenuSep, MenuSort, MenuToggle } from "./alerts-menu";
 import { createPopover } from "../../components/popover";
 
@@ -221,8 +223,20 @@ const editItem = (i: Item) => (i.kind === "rule" ? emitAppEvent("chart-open-aler
 /** Actions on every row the list shows. */
 const restartShown = (ctx: AlertListContext) => visibleItems(ctx).forEach((i) => setItemEnabled(i, true));
 const pauseShown = (ctx: AlertListContext) => visibleItems(ctx).forEach((i) => setItemEnabled(i, false));
-const deleteShown = (ctx: AlertListContext) => visibleItems(ctx).forEach(removeItem);
-const deleteInactive = () => allItems().filter((i) => !itemEnabled(i)).forEach(removeItem);
+// Deletes ask first (reference rule).
+const askDelete = (i: Item) => confirmDeleteAlert(i.kind === "rule" ? alertDeleteName(i.rule) : i.list.name, () => removeItem(i));
+const deleteShown = (ctx: AlertListContext) =>
+  confirmDelete({
+    title: "Delete alerts?",
+    text: "The alerts the filters show will be deleted. This cannot be undone.",
+    onConfirm: () => visibleItems(ctx).forEach(removeItem),
+  });
+const deleteInactive = () =>
+  confirmDelete({
+    title: "Delete inactive alerts?",
+    text: "All inactive alerts will be deleted. This cannot be undone.",
+    onConfirm: () => allItems().filter((i) => !itemEnabled(i)).forEach(removeItem),
+  });
 
 /** Source icon: the drawing's tool icon or the indicator glyph; none for a price alert. */
 function SourceIcon(props: { rule: AlertRule }) {
@@ -349,7 +363,8 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings
 /** The list of alerts (the panel body of the Alerts view). */
 export function AlertRulesList(props: {
   ctx: AlertListContext;
-  drawingMissing: (r: AlertRule) => boolean;
+  /** What the alert reads that was deleted. */
+  sourceMissing: (r: AlertRule) => "drawing" | "script" | null;
   /** Show a symbol and interval on the active chart (a row click). */
   onShow?: (symbol: string, interval: string) => void;
 }) {
@@ -436,12 +451,17 @@ export function AlertRulesList(props: {
                 <Show when={filters().triggered && fired().get(itemId(i))}>
                   {(t) => <span class="alerts-panel-attr" data-name="alert-item-time">{lastTriggeredText(t())}</span>}
                 </Show>
-                <Show when={ruleOf(i) && props.drawingMissing(ruleOf(i)!)}>
-                  <span class="alerts-panel-attr alerts-panel-warn" title="Source drawing was deleted — this alert can't trigger">
+                <Show when={ruleOf(i) && props.sourceMissing(ruleOf(i)!)}>
+                  {(gone) => (
+                  <span
+                    class="alerts-panel-attr alerts-panel-warn"
+                    title={gone() === "script" ? "Source script was deleted — this alert can't trigger" : "Source drawing was deleted — this alert can't trigger"}
+                  >
                     <svg viewBox="0 0 18 18" width="14" height="14" aria-hidden="true">
                       <path fill="currentColor" fill-rule="evenodd" d="M9 1.5 17 16H1L9 1.5Zm-.75 5.5h1.5v5h-1.5V7Zm.75 8.1a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z" />
                     </svg>
                   </span>
+                  )}
                 </Show>
               </div>
               <div class="alerts-panel-row-actions">
@@ -449,7 +469,7 @@ export function AlertRulesList(props: {
                   ? rowBtn("alert-stop-button", "Pause", GLYPH.pause, () => setItemEnabled(i, false))
                   : rowBtn("alert-restart-button", "Restart", GLYPH.restart, () => setItemEnabled(i, true))}
                 {rowBtn("alert-edit-button", "Edit", GLYPH.edit, () => editItem(i))}
-                {rowBtn("alert-delete-button", "Delete", GLYPH.trash, () => removeItem(i))}
+                {rowBtn("alert-delete-button", "Delete", GLYPH.trash, () => askDelete(i))}
               </div>
             </div>
           )}
@@ -470,7 +490,7 @@ export function AlertRulesList(props: {
             <Show when={m().item.kind === "rule"}>
               <MenuAction icon={<Icon name="ot-header-copy-clone" size={28} />} label="Clone" onSelect={act(() => alertStore.clone(itemId(m().item)))} />
             </Show>
-            <MenuAction icon={GLYPH.trash()} label="Delete" onSelect={act(() => removeItem(m().item))} />
+            <MenuAction icon={GLYPH.trash()} label="Delete" onSelect={act(() => askDelete(m().item))} />
             <MenuSep />
             <MenuAction label="Restart as per filter" disabled={!items().some((i) => !itemEnabled(i))} onSelect={act(() => restartShown(props.ctx))} />
             <MenuAction label="Pause as per filter" disabled={!items().some(itemEnabled)} onSelect={act(() => pauseShown(props.ctx))} />

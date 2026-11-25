@@ -31,12 +31,13 @@ import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta, OakSourceData, OakSymbolData } from "../../oakscript/engine-types";
 import { BUILTIN_SOURCES, externalSource } from "oakscriptjs";
 import type { StudyCalcContext } from "./indicator-layer";
-import { typeIdOf } from "./study-id";
 import { addRequests, enterScope, noRequests, readRequests, seriesOf, type SymbolRequests } from "./symbol-requests";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
+import { USER_INDICATOR_PREFIX } from "./script-studies";
 
-export const USER_INDICATOR_PREFIX = "user:";
+export { scriptIdOfStudy, USER_INDICATOR_PREFIX } from "./script-studies";
+
 export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated" as const;
 
 export type OakScriptUpdatedDetail = AppEvents[typeof OAKSCRIPT_UPDATED_EVENT];
@@ -51,15 +52,6 @@ export function userIndicatorId(scriptId: string): string {
 
 /** Window event: open an OakScript in the editor panel ({ scriptId }). */
 export const OAKSCRIPT_OPEN_EVENT = "oakscript-open-script" as const;
-
-/** Script of a study on the chart (an OakScript indicator "user:<id>" or
- *  strategy "strategy:user:<id>", any instance), else null. */
-export function scriptIdOfStudy(studyId: string): string | null {
-  const id = typeIdOf(studyId);
-  if (id.startsWith(USER_INDICATOR_PREFIX)) return id.slice(USER_INDICATOR_PREFIX.length);
-  if (id.startsWith("strategy:" + USER_INDICATOR_PREFIX)) return id.slice(("strategy:" + USER_INDICATOR_PREFIX).length);
-  return null;
-}
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
 /** What calculate() returns while the study waits for its first result (worker run, other symbols' bars): the chart
