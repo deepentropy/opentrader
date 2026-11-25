@@ -41,20 +41,21 @@
     {
       "id": "ninjatrader",
       "name": "NinjaTrader 8",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "publisher": "OpenTrader",
-      "description": "NinjaTrader 8's futures data in OpenTrader: front contracts and single contracts, history, tick charts and live prices. Data only, no trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
+      "description": "NinjaTrader 8 in OpenTrader: futures history, tick charts, live prices and order book, and your account, positions and orders, read only. No trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
       "provides": [
-        "datafeed"
+        "datafeed",
+        "broker"
       ],
       "api": 4,
       "platforms": [
         "windows"
       ],
       "homepage": "https://opentrader.markets/plugin-ninjatrader.html",
-      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ninjatrader-v0.1.0/ninjatrader-0.1.0.zip",
-      "sha256": "31213f7268dd3cb77b483fffadaa95bb5ebe1726879c5ddd23e2fc16de2910ba",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM2hYeksxREk3bVBuZzNCRHd3M0FXNDhtMFhrVWR6SXhJbDVTWmpLZzFQWXltalVNdkdES2wxNkdvM01FM1JHVWtidUUzY2JQSWprT3ZBUitPNVNPQncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjI1MzU0CWZpbGU6bmluamF0cmFkZXItMC4xLjAuemlwCnk5dm01MmZ2ZXBnSUd0WEw0RWp1MUgvbFd0SlhoZTRoa01RTEdIT21tcUFhNkRraSt6VTFkS3F6QkJlaXdROEViQ3hSaXo1YjBGTXpEK1hGQTNJWUJ3PT0K"
+      "url": "https://github.com/deepentropy/opentrader/releases/download/plugin-ninjatrader-v0.2.0/ninjatrader-0.2.0.zip",
+      "sha256": "514618c87007eac1a31eb019b07b92805e833d3e682b095d9274e22cd1cd6c2b",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRdGx6RUJ3cGVSM25lcnJadFNiWm8vdk1oTkxGSXVtaGhTSkNlRWEvdGxXUldCWWdBMnp0c2dxcGpuUitGdFZ6L0VGR0EvQWp2TEVYbkZtMlZEVk10KzcxUUIwRzBUZEFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjQwMjU5CWZpbGU6bmluamF0cmFkZXItMC4yLjAuemlwCjlFUFhxL3h6VkNvdnNtR2NFeXdsV0ZmaWhDZHNyYUh0cUZPbjJjL2tyZ3hTeWVYQ0hLNkY2Ymw4YWZ4c25zbFpVTmR5VTV2blZ0bW5HTU1NQnFIb0RRPT0K"
     }
   ]
 }
