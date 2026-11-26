@@ -38,6 +38,7 @@ import { fieldText, pluginFields } from "../../data/plugin-fields";
 import { createPopover } from "../../components/popover";
 import { translateWith } from "../../i18n/translator";
 import { lastNoteOf } from "../../data/symbol-notes";
+import { titleCase } from "../../data/title-case";
 import { AllNotesPage, NotesCard, SymbolNotesPage } from "./notes/SymbolNotes";
 
 const DASH = "—";
@@ -60,21 +61,9 @@ const SUN_ICON =
   '<line x1="3.7" y1="14.3" x2="5.1" y2="12.9"/><line x1="12.9" y1="5.1" x2="14.3" y2="3.7"/>' +
   '</g></svg>';
 
-/** Title-case a SCREAMING or lower-case label (the reference sector/industry come
- *  through upper-cased, e.g. "ELECTRONIC TECHNOLOGY" → "Electronic Technology").
- *  Small connectives stay lower-case; "&" and tokens with digits pass through. */
+/** A sector / industry label title-cased, the dash without one. */
 function toTitleCase(s: string | null | undefined): string {
-  if (!s) return DASH;
-  const small = new Set(["and", "or", "the", "of", "for", "to", "in", "on", "a", "an"]);
-  return s
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w, i) => {
-      if (/\d/.test(w) || w === "&") return w;
-      if (i > 0 && small.has(w)) return w;
-      return w.charAt(0).toUpperCase() + w.slice(1);
-    })
-    .join(" ");
+  return s ? titleCase(s) : DASH;
 }
 
 /** A price on `symbol`'s tick grid (2 decimals without it, or until its session resolves). */

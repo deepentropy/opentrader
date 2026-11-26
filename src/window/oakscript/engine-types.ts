@@ -30,7 +30,7 @@ export type OakScriptError = {
   col?: number;
   /** The run needs bars of other symbols the host did not give (`request.security` of another ticker): load
    *  them and run again with {@link OakSymbolData}. */
-  missing?: { symbol: string; timeframe: string }[];
+  missing?: { symbol: string; timeframe: string; events?: boolean }[];
 };
 
 /** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks) and the calendar

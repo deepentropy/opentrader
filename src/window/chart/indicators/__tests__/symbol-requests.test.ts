@@ -18,7 +18,7 @@ vi.mock("../../../../data/datafeed", () => ({
     feed.stopped++;
   }),
 }));
-vi.mock("../script-chart", () => ({ scriptChartContext: () => ({}), symbolDetails: () => undefined }));
+vi.mock("../script-chart", () => ({ scriptChartContext: () => ({}), symbolDetails: () => ({}), symbolDetailsLoaded: async () => undefined, scriptSymbolFields: () => ({}) }));
 vi.mock("../../../../data/oakscript-store", () => ({
   loadScript: () => ({ id: "S1", name: "Test", source: "", meta: null }),
   saveCompiledMeta: () => undefined,
@@ -48,7 +48,7 @@ vi.mock("../../../oakscript/engine", () => {
 vi.mock("../../../../data/app-events", () => ({ emitAppEvent: () => undefined }));
 
 import { OtherSymbolBars } from "../other-symbols";
-import { callAnswered, enterScope, noRequests, readRequests } from "../symbol-requests";
+import { addRequests, callAnswered, enterScope, noRequests, readRequests } from "../symbol-requests";
 import { getUserIndicatorEntry } from "../user-scripts";
 
 const settle = async () => {
@@ -87,7 +87,7 @@ describe("other symbols a study asked for (#411)", () => {
             reads.add(store.key(s, tf, "5"));
             return store.bars(s, tf, "5");
           },
-          symbolInfo: () => undefined,
+          symbolInfo: () => ({}),
         };
         try {
           out = (entry.calculate as unknown as (b: unknown, i: unknown, c: unknown) => unknown)(bars, {}, ctx);
@@ -148,6 +148,20 @@ describe("other symbols a study asked for (#411)", () => {
     };
     expect(readRequests(list, bars, undefined)).toBeNull();
     expect(asked).toEqual(["A", "B"]);
+  });
+
+  it("an events request (request.dividends...) reads the symbol's events, not bars (#414)", () => {
+    const list = [{ symbol: "NASDAQ:KO", timeframe: "", events: true }];
+    const bars = vi.fn(() => []);
+    expect(readRequests(list, bars, undefined, () => undefined)).toBeNull();
+    const events = { dividends: [{ time: 1, net: 0.5 }] };
+    const read = readRequests(list, bars, undefined, () => events);
+    expect(read?.symbols?.events).toEqual({ "NASDAQ:KO": events });
+    expect(bars).not.toHaveBeenCalled();
+    // the same symbol's bars are another request
+    const both = noRequests().list;
+    addRequests(both, [{ symbol: "NASDAQ:KO", timeframe: "1D" }, { symbol: "NASDAQ:KO", timeframe: "", events: true }, { symbol: "NASDAQ:KO", timeframe: "", events: true }]);
+    expect(both).toHaveLength(2);
   });
 
   it("a call answers when its data is there", () => {

@@ -33,6 +33,7 @@ export type LiveScript = {
   symbols: OakSymbolData | undefined;
   barsOf: NonNullable<ChartContext["bars"]>;
   infoOf: NonNullable<ChartContext["symbolInfo"]>;
+  eventsOf: NonNullable<ChartContext["events"]>;
   /** The bars as the script reads them (daily bars at the session open) of the last update, null when not restamped. */
   seen: Bar[] | null;
   /** The copies on the chart's times of the plots' points sent before (withChartTimes). */
@@ -73,6 +74,7 @@ function newLiveScript(entry: Compiled, inputs: Record<string, unknown>, inputsK
     symbols: undefined,
     barsOf: (s, tf) => live.symbols?.bars[`${s}|${tf}`],
     infoOf: (s) => live.symbols?.info[s],
+    eventsOf: (s) => live.symbols?.events?.[s],
     seen: null,
     chartTimes: new WeakMap(),
   };
@@ -97,7 +99,7 @@ export function updateLiveScript(kept: KeptRuns<LiveScript>, entry: Compiled, re
   const live = same ? prev.run : newLiveScript(entry, inputs, inputsKey);
   live.sources = req.sources;
   live.symbols = req.symbols;
-  const chart: ChartContext = req.symbols ? { ...req.chart, bars: live.barsOf, symbolInfo: live.infoOf, seedSymbol } : { ...req.chart, seedSymbol };
+  const chart: ChartContext = req.symbols ? { ...req.chart, bars: live.barsOf, symbolInfo: live.infoOf, events: live.eventsOf, seedSymbol } : { ...req.chart, seedSymbol };
   // Daily bars at the session open, as scripts read them: only the changed bars are restamped again.
   let seen = got.bars;
   if (req.restamp) {

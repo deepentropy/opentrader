@@ -212,7 +212,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     const typedInputs = (inputs ?? {}) as Record<string, unknown>;
     // The chart context without the app's own fields and the accessors (functions do not cross to the worker: the
     // lower-timeframe bars and chart events accessors of the profile studies neither).
-    const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, ...withFns } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, events: symbolEvents, ...withFns } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
@@ -223,7 +223,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
     // them while a study reads them); one not loaded yet holds the run until it arrives.
     enterScope(run.requests, `${seriesOf(chart)}|${JSON.stringify(typedInputs)}`);
-    const read = readRequests(run.requests.list, symbolBars, symbolInfo);
+    const read = readRequests(run.requests.list, symbolBars, symbolInfo, symbolEvents);
     if (!read) return kept ?? PENDING_RESULT;
     const { symbols, key: symbolsKey } = read;
     // Source inputs naming another source of the chart (study on study): its values, read now (the chart's

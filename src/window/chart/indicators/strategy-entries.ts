@@ -164,7 +164,7 @@ function makeCalculate(
     // the strategy runs on it only with "On realtime bar tick".
     // The accessors of other symbols stay out: functions do not cross to the worker (the lower-timeframe bars and
     // chart events accessors of the profile studies neither).
-    const { chartId = "", studyId, heikinAshi: ha, bars: symbolBars, symbolInfo, ...withFns } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const { chartId = "", studyId, heikinAshi: ha, bars: symbolBars, symbolInfo, events: symbolEvents, ...withFns } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const heikinAshi = ha === true;
     // One backtest per study instance: two instances of a strategy on a chart
@@ -180,7 +180,7 @@ function makeCalculate(
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps them
     // while a study reads them); one not loaded yet holds the run until it arrives.
     enterScope(rt.requests, `${seriesOf(chart)}|${JSON.stringify(typedInputs)}`);
-    const read = readRequests(rt.requests.list, symbolBars, symbolInfo);
+    const read = readRequests(rt.requests.list, symbolBars, symbolInfo, symbolEvents);
     const kept = rt.visualsSeries === seriesOf(chart) ? rt.visuals : null;
     if (!read) return kept ?? PENDING_RESULT;
     const { symbols, key: symbolsKey } = read;

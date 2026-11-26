@@ -24,7 +24,7 @@
  */
 import type { Bar } from "oakscriptjs";
 import type { SessionId } from "../../../data/session";
-import type { SymbolInfo } from "oakscriptjs/script";
+import type { SymbolEvents, SymbolInfo } from "oakscriptjs/script";
 import {
   getBars,
   getBarsBefore,
@@ -42,7 +42,8 @@ import { getFundamentals, type Fundamentals } from "../../../data/fundamentals";
 import { onPluginEventsChanged } from "../../../data/plugin-events";
 import { scriptBars } from "../../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../../backtester/types";
-import { scriptChartContext, symbolDetails } from "./script-chart";
+import { scriptChartContext, scriptSymbolFields, symbolDetails, symbolDetailsLoaded } from "./script-chart";
+import { scriptEvents } from "./script-events";
 import { intervalSeconds } from "../../../backtester/magnifier";
 
 /** Session of another symbol's bars. */
@@ -89,6 +90,8 @@ export class OtherSymbolBars {
   private entries = new Map<string, Entry>();
   /** Dividends / splits of a symbol (`symbol|events`): null while loading. */
   private eventLists = new Map<string, ChartEvent[] | null>();
+  /** Symbols whose reference data a study waits for (asked once). */
+  private detailsAsked = new Set<string>();
   /** Fundamentals of a symbol (`symbol|fundamentals`): undefined while loading, null when it has none. */
   private fundamentalSets = new Map<string, Fundamentals | null | undefined>();
   /** First bar time of the chart's loaded bars (seconds): the span the other symbols cover. */
@@ -251,6 +254,13 @@ export class OtherSymbolBars {
     return this.eventLists.get(key) ?? undefined;
   }
 
+  /** Dividends, splits and earnings of `symbol` as scripts read them (`request.dividends`...); undefined while they
+   *  load. */
+  scriptEvents(symbol: string): SymbolEvents | undefined {
+    const list = this.events(symbol);
+    return list && scriptEvents(list);
+  }
+
   /** Read a symbol's events; the studies reading them calculate again when they arrive. */
   private loadEvents(key: string, symbol: string): void {
     getEvents(symbol)
@@ -287,14 +297,24 @@ export class OtherSymbolBars {
     return this.entries.get(key)?.failed ?? false;
   }
 
-  /** Time zone, session and price grid of `symbol` (undefined until its session is known). */
+  /** Time zone, session, price grid and the other fields of `symbol`: undefined until its session and its reference
+   *  data are known (the studies that read it calculate again when the reference data arrives). */
   symbolInfo(symbol: string): SymbolInfo | undefined {
-    const s = cachedSymbolSessions(symbol.trim().toUpperCase());
+    const sym = symbol.trim().toUpperCase();
+    const s = cachedSymbolSessions(sym);
     if (!s) return undefined;
-    const details = symbolDetails(symbol);
+    if (!symbolDetails(sym)) {
+      if (!this.detailsAsked.has(sym)) {
+        this.detailsAsked.add(sym);
+        void symbolDetailsLoaded(sym).then(() => {
+          if (this.disposed) return;
+          this.changed(new Set([...this.entries.keys()].filter((k) => this.entries.get(k)!.symbol === sym)), false);
+        });
+      }
+      return undefined;
+    }
     return {
-      symbolType: details?.symbolType,
-      currency: details?.currency,
+      ...scriptSymbolFields(sym),
       timezone: s.timeZone,
       session: s.regularScript,
       regularSession: s.regularScript,

@@ -277,7 +277,7 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
     });
   } catch (err) {
     const error = toScriptError(err, entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0);
-    if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe }));
+    if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe, ...(r.events ? { events: true } : {}) }));
     return { id: req.id, type: "run", ok: false, error };
   } finally {
     setSourceResolver(null);
@@ -325,7 +325,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };
     }
     const error = toScriptError(err, SCRIPT_LINE_OFFSET);
-    if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe }));
+    if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe, ...(r.events ? { events: true } : {}) }));
     return { id: req.id, type: "backtest", ok: false, error };
   }
 }

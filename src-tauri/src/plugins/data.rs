@@ -94,6 +94,25 @@ pub struct Info {
     /// The plugin's ticker the symbol trades as: a continuous future's contract. None: its own.
     #[serde(default)]
     pub trade_ticker: Option<String>,
+    /// What scripts read of the instrument (`syminfo.*`, Plugin API 10): the root of a future, its last trading day
+    /// (`YYYY-MM-DD`), ISIN, base currency, the country it trades in, a company's sector and industry, the unit of
+    /// the volume.
+    #[serde(default)]
+    pub root: Option<String>,
+    #[serde(default)]
+    pub expiration: Option<String>,
+    #[serde(default)]
+    pub isin: Option<String>,
+    #[serde(default)]
+    pub base_currency: Option<String>,
+    #[serde(default)]
+    pub country: Option<String>,
+    #[serde(default)]
+    pub sector: Option<String>,
+    #[serde(default)]
+    pub industry: Option<String>,
+    #[serde(default)]
+    pub volume_type: Option<String>,
 }
 
 /// An extra series of a symbol (`series` of `data.symbolInfo`): its name alone (`"OI"`), or with what differs from
@@ -531,24 +550,36 @@ fn origin_minutes(hhmm: &str) -> Option<u32> {
 }
 
 pub async fn ticker_info(app: &AppHandle, r: &Route) -> Result<TickerInfo, String> {
-    let i = info(app, r).await?;
+    Ok(ticker_info_of(r, &*info(app, r).await?))
+}
+
+/// The reference data of a plugin's symbol, from what it says of it.
+fn ticker_info_of(r: &Route, i: &Info) -> TickerInfo {
     let exchange = r.symbol.split(':').next().unwrap_or_default().to_string();
-    Ok(TickerInfo {
+    let text = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+    // The contract a continuous future stands for is the ticker it trades as, without an exchange.
+    let current_contract = (i.kind == "futures")
+        .then(|| text(&i.trade_ticker))
+        .flatten()
+        .map(|t| t.rsplit(':').next().unwrap_or_default().to_string());
+    TickerInfo {
         ticker: r.ticker.clone(),
         name: Some(i.description.clone()).filter(|d| !d.is_empty()),
         exchange: Some(exchange),
-        industry: None,
-        sector: None,
+        industry: text(&i.industry),
+        sector: text(&i.sector),
         currency: i.currency.clone(),
-        description: None,
-        homepage_url: None,
-        total_employees: None,
-        market_cap: None,
-        figi: None,
         symbol_type: Some(i.kind.clone()).filter(|k| !k.is_empty()),
         security_type: Some(i.kind.clone()).filter(|k| !k.is_empty()),
-        icon_url: None,
-    })
+        root: text(&i.root),
+        isin: text(&i.isin),
+        base_currency: text(&i.base_currency),
+        country: text(&i.country).map(|c| c.to_uppercase()),
+        current_contract,
+        expiration: text(&i.expiration).filter(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok()),
+        volume_type: text(&i.volume_type),
+        ..Default::default()
+    }
 }
 
 /// A resolution the plugin serves, and the bucket it is rebuilt to (seconds, 0 = as served).
@@ -1392,6 +1423,33 @@ pub fn plugin_scripts(app: AppHandle) -> Vec<PluginScripts> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn gives_scripts_the_instrument_fields_of_plugin_api_10() {
+        use serde_json::json;
+        let info: super::Info = serde_json::from_value(json!({
+            "description": "NIFTY continuous", "type": "futures", "currency": "INR", "timezone": "Asia/Kolkata",
+            "session": "0915-1530", "pricescale": 20, "tradeTicker": "NFO:NIFTY26DECFUT", "root": " NIFTY ",
+            "expiration": "2026-12-29", "country": "in", "isin": "", "volumeType": "n/a"
+        }))
+        .unwrap();
+        let r = super::Route { plugin: "p".into(), symbol: "NFO:NIFTY1!".into(), ticker: "NIFTY1!".into() };
+        let t = super::ticker_info_of(&r, &info);
+        assert_eq!(t.root.as_deref(), Some("NIFTY"));
+        assert_eq!(t.current_contract.as_deref(), Some("NIFTY26DECFUT"));
+        assert_eq!(t.expiration.as_deref(), Some("2026-12-29"));
+        assert_eq!(t.country.as_deref(), Some("IN"));
+        assert_eq!(t.isin, None);
+        assert_eq!(t.volume_type.as_deref(), Some("n/a"));
+        // A stock's trade ticker is no contract; a date that is not one is dropped.
+        let stock: super::Info = serde_json::from_value(json!({
+            "description": "Reliance", "type": "stock", "timezone": "Asia/Kolkata", "session": "0915-1530",
+            "pricescale": 20, "tradeTicker": "RELIANCE-EQ", "expiration": "soon"
+        }))
+        .unwrap();
+        let t = super::ticker_info_of(&r, &stock);
+        assert_eq!((t.current_contract, t.expiration), (None, None));
+    }
+
     #[test]
     fn keeps_a_plugins_scripts_with_usable_ids() {
         use serde_json::json;

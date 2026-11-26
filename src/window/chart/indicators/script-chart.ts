@@ -3,18 +3,21 @@
  * scripts, which is also the optional third argument of the library
  * indicators' calculate(). Chart timeframe (timeframe.period), exchange time
  * zone and session of the bars (time(tf, session), session.*, calendar,
- * timeframe.change...), tickerid, symbol type and currency, price grid and
- * the chart colours. Time zone, sessions and price grid are the charted
- * symbol's own (data/session), type and currency come from its reference
- * data; until they resolve the study gets the library defaults. Reactive:
+ * timeframe.change...), tickerid, the symbol's fields (syminfo.*: type,
+ * currency, description, sector...), price grid and the chart colours. Time
+ * zone, sessions and price grid are the charted symbol's own (data/session),
+ * the other fields come from its reference data; until they resolve the
+ * study gets the library defaults. Reactive:
  * read inside an effect, the context updates once they arrive.
  */
 import { createSignal } from "solid-js";
-import type { ChartContext } from "oakscriptjs/script";
+import { TradingCalendar } from "oakscriptjs";
+import type { ChartContext, SymbolInfo } from "oakscriptjs/script";
 import { textOnColor } from "lightweight-charts-drawing/core/color";
 import { DEFAULT_SYMBOL } from "../../../backtester/types";
-import { getTickerInfo } from "../../../data/datafeed";
-import { cachedSymbolSessions, type SessionId } from "../../../data/session";
+import { getTickerInfo, isLocalSymbol, type TickerInfo } from "../../../data/datafeed";
+import { cachedSymbolSessions, type SessionId, type SymbolSessions } from "../../../data/session";
+import { titleCase } from "../../../data/title-case";
 
 /** `backgroundColor`: the chart background (script `chart.bg_color`). */
 export type StudyChart = ChartContext & { backgroundColor?: string };
@@ -22,25 +25,114 @@ export type StudyChart = ChartContext & { backgroundColor?: string };
 /** Chart background, top and bottom colours (the same colour without a gradient). */
 export type StudyChartBackground = { top: string; bottom: string };
 
-type SymbolDetails = { symbolType?: string; currency?: string };
+/** A symbol's reference data; empty when it could not be read. */
+type SymbolDetails = Partial<TickerInfo>;
 const details = new Map<string, SymbolDetails | null>();
+const lookups = new Map<string, Promise<unknown>>();
 const [detailsVersion, setDetailsVersion] = createSignal(0);
 
-/** Symbol type (`syminfo.type`) and currency (`syminfo.currency`) of a symbol from its reference data; null until
- *  they arrive (the lookup starts on the first call). Reactive. */
+/** Reference data of a symbol (type, currency, name, sector... read by `syminfo.*`); null until it arrives (the
+ *  lookup starts on the first call). Reactive. */
 export function symbolDetails(symbol: string): SymbolDetails | null {
   detailsVersion();
   const key = symbol.trim().toUpperCase();
   if (!key) return null;
   if (!details.has(key)) {
     details.set(key, null);
-    getTickerInfo(key)
-      .then((info) => details.set(key, { symbolType: info.symbolType ?? undefined, currency: info.currency ?? undefined }))
-      .catch(() => details.set(key, {}))
-      .finally(() => setDetailsVersion((v) => v + 1));
+    lookups.set(
+      key,
+      getTickerInfo(key)
+        .then((info) => details.set(key, info))
+        .catch(() => details.set(key, {}))
+        .finally(() => setDetailsVersion((v) => v + 1)),
+    );
   }
   return details.get(key) ?? null;
 }
+
+/** Resolves once the reference data of `symbol` has arrived (or could not be read). */
+export function symbolDetailsLoaded(symbol: string): Promise<void> {
+  const key = symbol.trim().toUpperCase();
+  symbolDetails(key);
+  return (lookups.get(key) ?? Promise.resolve()).then(() => undefined);
+}
+
+/** Types whose symbols are companies (sector, ISIN, employees, shares...). */
+const COMPANY_TYPES = new Set(["stock", "fund", "dr", "warrant"]);
+
+/** Start of the last trading day (`YYYY-MM-DD`) of a future's contract in ms, as `syminfo.expiration_date` gives it:
+ *  the open of that day's session (the evening before for an overnight session), else 00:00 UTC of the day. */
+function expirationTime(day: string, sessions: SymbolSessions): number {
+  const date = Number(day.replace(/-/g, ""));
+  const open = new TradingCalendar(sessions.timeZone, sessions.regularScript).periods(date)[0]?.[0];
+  return open ?? Date.parse(day);
+}
+
+/**
+ * What scripts read of a symbol (`syminfo.*`) beyond its sessions and tick, from its reference data: a value; null
+ * when the symbol has none (the script reads na, as the reference gives a stock's base currency or an index's
+ * sector); left out when the app does not know it (reading it stops the script with an error: analysts' figures,
+ * a stock's ISIN). Empty until the reference data and the sessions arrive. Reactive.
+ */
+export function scriptSymbolFields(symbol: string): SymbolInfo {
+  const info = symbolDetails(symbol);
+  const sessions = symbol ? cachedSymbolSessions(symbol) : null;
+  if (!info || !sessions) return {};
+  const type = info.symbolType ?? undefined;
+  const out: SymbolInfo = { description: info.name ?? null };
+  if (type) out.symbolType = type;
+  if (info.currency) out.currency = info.currency;
+  // An imported series or an economic series: only its name is known.
+  if (isLocalSymbol(symbol) || type === "economic") return out;
+  const company = type !== undefined && COMPANY_TYPES.has(type);
+  const label = (v: string | null | undefined) => (v ? titleCase(v) : null);
+  if (!sessions.intervals.length) {
+    // The server's symbols: companies and funds listed in the US (the reference gives "n/a" as their volume unit).
+    return {
+      ...out,
+      country: "US",
+      volumetype: "n/a",
+      basecurrency: null,
+      currentContract: null,
+      expirationDate: null,
+      sector: label(info.sector),
+      industry: label(info.industry),
+      employees: info.totalEmployees ?? null,
+      sharesOutstandingTotal: info.sharesOutstanding ?? null,
+    };
+  }
+  // A data plugin's symbol: what the plugin says; what a symbol of its type has none of is null.
+  const ticker = symbol.slice(symbol.indexOf(":") + 1);
+  const forexBase = type === "forex" && /^[A-Z]{6}$/.test(ticker) ? ticker.slice(0, 3) : undefined;
+  const companyOnly = <T>(v: T | null | undefined): T | null | undefined => v ?? (company ? undefined : null);
+  const contract = info.currentContract ?? null;
+  const dated = type === "futures" || type === "option";
+  const fields: SymbolInfo = {
+    ...out,
+    country: info.country ?? (type === "crypto" || type === "forex" ? null : undefined),
+    basecurrency: info.baseCurrency ?? forexBase ?? (company || type === "index" ? null : undefined),
+    currentContract: contract,
+    // A continuous future has none; a contract without one from its plugin is not known.
+    expirationDate: info.expiration ? expirationTime(info.expiration, sessions) : dated && !contract ? undefined : null,
+    isin: companyOnly(info.isin),
+    sector: companyOnly(info.sector),
+    industry: companyOnly(info.industry),
+    employees: companyOnly(info.totalEmployees),
+    volumetype: info.volumeType ?? (type === "crypto" ? undefined : "n/a"),
+  };
+  if (info.root) fields.root = info.root;
+  if (!company) Object.assign(fields, NO_COMPANY_FIGURES);
+  return fields;
+}
+
+/** The figures of a company, none for another symbol. */
+const NO_COMPANY_FIGURES: SymbolInfo = {
+  shareholders: null,
+  sharesOutstandingTotal: null,
+  sharesOutstandingFloat: null,
+  recommendations: null,
+  targetPrice: null,
+};
 
 /** RGBA channels of a hex (#rgb, #rrggbb, #rrggbbaa) or rgb() / rgba() colour; null when not read. */
 function rgba(color: string): [number, number, number, number] | null {
@@ -104,8 +196,6 @@ export function scriptChartContext(
     ctx.minmove = sessions.minmove;
     ctx.pricescale = sessions.pricescale;
   }
-  const info = symbol ? symbolDetails(symbol) : null;
-  if (info?.symbolType) ctx.symbolType = info.symbolType;
-  if (info?.currency) ctx.currency = info.currency;
+  if (symbol) Object.assign(ctx, scriptSymbolFields(symbol));
   return ctx;
 }

@@ -39,7 +39,7 @@ export interface BacktestError {
   code?: string;
   bar?: number;
   /** The run needs bars of other symbols that were not given: load them and run again. */
-  missing?: { symbol: string; timeframe: string }[];
+  missing?: { symbol: string; timeframe: string; events?: boolean }[];
 }
 
 /** A finished run: the report, and the script's drawing output (plots, markers...) for OakScript strategies. */

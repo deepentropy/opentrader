@@ -23,7 +23,7 @@ vi.mock("../../../../data/datafeed", () => ({
 }));
 // Daily bars as loaded (no session restamp in this test).
 vi.mock("../../../../backtester/oakscript", () => ({ scriptBars: (b: unknown[]) => b }));
-vi.mock("../script-chart", () => ({ scriptChartContext: () => undefined, symbolDetails: () => undefined }));
+vi.mock("../script-chart", () => ({ scriptChartContext: () => undefined, symbolDetails: () => ({}), symbolDetailsLoaded: async () => undefined, scriptSymbolFields: () => ({}) }));
 
 import { OtherSymbolBars } from "../other-symbols";
 

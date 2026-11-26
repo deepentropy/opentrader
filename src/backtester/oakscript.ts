@@ -27,6 +27,7 @@ import {
   type ScriptOptions,
   type ScriptRun,
   type SymbolInfo as ScriptSymbolInfo,
+  type SymbolEvents,
   type ScriptRunResult,
   type StrategyCloseAllOptions,
   type StrategyCloseOptions,
@@ -336,11 +337,13 @@ export interface OakScriptRunOptions {
   symbols?: OtherSymbolData;
 }
 
-/** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks) and the calendar and
- *  properties of each symbol: plain data, sent to the workers. */
+/** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks), the calendar and
+ *  properties of each symbol, and the events of the symbols `request.dividends` / `splits` / `earnings` read: plain
+ *  data, sent to the workers. */
 export type OtherSymbolData = {
   bars: Record<string, Bar[]>;
   info: Record<string, ScriptSymbolInfo>;
+  events?: Record<string, SymbolEvents>;
 };
 
 /** The chart context with the accessors of the other symbols' bars (a request not in `symbols` is missing: the run
@@ -352,6 +355,7 @@ export function chartWithSymbols(chart: ChartContext | undefined, symbols: Other
     ...chart,
     bars: (symbol, timeframe) => symbols.bars[`${symbol}|${timeframe}`],
     symbolInfo: (symbol) => symbols.info[symbol],
+    events: (symbol) => symbols.events?.[symbol],
     seedSymbol,
   };
 }
@@ -367,17 +371,42 @@ const DECLARATION_BAR: Bar = { time: 0, open: 0, high: 0, low: 0, close: 0, volu
  * stands in too: a script that asks a series of its own symbol (`request.security(syminfo.tickerid + "_OI", …)`,
  * #383) reads it at its top level.
  */
-export const DECLARATION_CHART: ChartContext = {
-  tickerid: 'DECLARATION:SYMBOL',
-  timeframe: '1D',
+/** The symbol fields (syminfo.*) of a declaration run: none, so that a script that reads them at its top level, or inside
+ *  request.security, declares itself. */
+const DECLARATION_FIELDS: ScriptSymbolInfo = {
   timezone: 'Etc/UTC',
-  sessionType: 'regular',
   session: '24x7',
   mintick: DEFAULT_SYMBOL.mintick,
   pointvalue: DEFAULT_SYMBOL.pointValue,
   mincontract: DEFAULT_SYMBOL.qtyStep,
-  // Another symbol of request.security runs on one empty bar.
+  symbolType: 'stock',
+  currency: 'USD',
+  description: null,
+  basecurrency: null,
+  country: null,
+  currentContract: null,
+  expirationDate: null,
+  sector: null,
+  industry: null,
+  isin: null,
+  volumetype: null,
+  employees: null,
+  shareholders: null,
+  sharesOutstandingTotal: null,
+  sharesOutstandingFloat: null,
+  recommendations: null,
+  targetPrice: null,
+};
+
+export const DECLARATION_CHART: ChartContext = {
+  tickerid: 'DECLARATION:SYMBOL',
+  timeframe: '1D',
+  sessionType: 'regular',
+  ...DECLARATION_FIELDS,
+  // Another symbol of request.security runs on one empty bar with the same fields, request.dividends... on no event.
   bars: () => [DECLARATION_BAR],
+  symbolInfo: () => DECLARATION_FIELDS,
+  events: () => ({}),
 };
 
 /**
@@ -627,6 +656,7 @@ type LiveStrategy = {
   symbols: OtherSymbolData | undefined;
   barsOf: NonNullable<ChartContext['bars']>;
   infoOf: NonNullable<ChartContext['symbolInfo']>;
+  eventsOf: NonNullable<ChartContext['events']>;
 };
 
 /**
@@ -649,6 +679,7 @@ export function createStrategyRun(body: () => void, options: { verify?: number }
       symbols: opts.symbols,
       barsOf: (s, tf) => live.symbols?.bars[`${s}|${tf}`],
       infoOf: (s) => live.symbols?.info[s],
+      eventsOf: (s) => live.symbols?.events?.[s],
     };
     const declared = declaredProperties(body, opts, strategyChart(chartWithSymbols(opts.chart, opts.symbols), symbol), symbol);
     if (!declared) {
@@ -673,7 +704,7 @@ export function createStrategyRun(body: () => void, options: { verify?: number }
       const live = current;
       if (!live.run) return { ...runOakScriptStrategy(body, bars, opts), fullRunReason: live.reason };
       live.symbols = opts.symbols;
-      const chart = strategyChart(opts.symbols ? { ...opts.chart, bars: live.barsOf, symbolInfo: live.infoOf, seedSymbol } : { ...opts.chart, seedSymbol }, symbol);
+      const chart = strategyChart(opts.symbols ? { ...opts.chart, bars: live.barsOf, symbolInfo: live.infoOf, events: live.eventsOf, seedSymbol } : { ...opts.chart, seedSymbol }, symbol);
       const skipLast = chart.realtime === true && bars.length > 0 && !live.everyTick;
       const runChart = setPass(live.pass, bars, opts, chart, skipLast);
       const script = live.run.update(live.pass.seen, runChart);

@@ -832,6 +832,11 @@ export class IndicatorLayer {
           return store.bars(symbol, timeframe, interval);
         };
         ctx.symbolInfo = (symbol) => store.symbolInfo(symbol);
+        // Script events (`request.dividends`...) of any symbol, the chart's included.
+        ctx.events = (symbol) => {
+          used.add(store.eventsKey(symbol));
+          return store.scriptEvents(symbol);
+        };
         const ticker = ctx.tickerid;
         if (ticker) {
           const session = ctx.sessionType === 'extended' ? 'ETH' : 'RTH';

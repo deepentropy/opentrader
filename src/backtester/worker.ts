@@ -75,7 +75,7 @@ self.onmessage = async (e: MessageEvent<BacktestRequest>) => {
       err instanceof StrategyRuntimeError
         ? { id: req.id, ok: false, error: { message: err.message, code: err.code, bar: err.bar } }
         : err instanceof MissingSymbolDataError
-          ? { id: req.id, ok: false, error: { message: err.message, missing: err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe })) } }
+          ? { id: req.id, ok: false, error: { message: err.message, missing: err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe, ...(r.events ? { events: true } : {}) })) } }
           : { id: req.id, ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
   }
   (self as unknown as Worker).postMessage(res);
