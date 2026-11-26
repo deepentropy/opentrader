@@ -1480,7 +1480,8 @@ export class IndicatorController {
   private removeLayer(id: string): void {
     const inst = this.instances.get(id);
     if (!inst) return;
-    inst.layer.setOnCalculated(null);
+    // A pane owner (a compared symbol in its own pane) has no study layer.
+    if (!inst.owner) inst.layer.setOnCalculated(null);
     const panesBefore = this.chart.panes();
     if (inst.owner) inst.owner.clear();
     else inst.layer.clear();
