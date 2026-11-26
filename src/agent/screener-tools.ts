@@ -181,11 +181,13 @@ export function pillOf(f: unknown): Filter {
     if (!op) throw new AgentError('A comparison with another column takes op ">" or "<".');
     return cond(op, { column }, column.id);
   }
+  // A column the screener only filters by range (Market cap) takes "more than" / "less than" as an open range.
+  const rangeOnly = !cfg.operations.includes("above") && !cfg.operations.includes("below");
   switch (x.op) {
     case ">":
-      return cond("above", { value: num(v) });
+      return rangeOnly ? cond("between", { left: num(v), right: null }) : cond("above", { value: num(v) });
     case "<":
-      return cond("below", { value: num(v) });
+      return rangeOnly ? cond("between", { left: null, right: num(v) }) : cond("below", { value: num(v) });
     // At least / at most: an open range, as the screener's presets write them.
     case ">=":
       return cond("between", { left: num(v), right: null });

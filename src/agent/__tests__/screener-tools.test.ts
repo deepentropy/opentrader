@@ -46,6 +46,9 @@ describe("saved screens from run_screen filters", () => {
     expect(pillOf({ field: "close", op: ">", value: 10 })).toMatchObject({ type: "Condition", left: { id: "Price" }, operation: "above", right: { value: 10 } });
     // At least: an open range, as the presets write it.
     expect(pillOf({ field: "market_cap_basic", op: ">=", value: 1e10 })).toMatchObject({ operation: "between", right: { left: 1e10, right: null } });
+    // Market cap is filtered by range only: "more than" / "less than" are open ranges.
+    expect(pillOf({ field: "market_cap_basic", op: ">", value: 1e10 })).toMatchObject({ operation: "between", right: { left: 1e10, right: null } });
+    expect(pillOf({ field: "market_cap_basic", op: "<", value: 2e9 })).toMatchObject({ operation: "between", right: { left: null, right: 2e9 } });
     expect(pillOf({ field: "change", op: "between", value: [5, -5] })).toMatchObject({ operation: "between", right: { left: -5, right: 5 } });
     expect(pillOf({ field: "close", op: ">", value: { field: "EMA200" } })).toMatchObject({
       operation: "above",
