@@ -58,7 +58,9 @@
     // Ticker communities only for known symbols; its token is GATEWAY_TOKEN.
     "GATEWAY_URL": "https://api.opentrader.markets",
     // The accounts the posting API (scripts/bot.mjs) may write as, besides OpenTrader-bot: deepentropy.
-    "API_AUTHORS": "yvu24j8k8275"
+    "API_AUTHORS": "yvu24j8k8275",
+    // Live data beta: every signed-in account gets real-time data until the end of this day (src/billing.ts).
+    "LIVE_BETA_UNTIL": "2026-12-31"
   },
   "env": {
     // `wrangler dev --env local`: the test sign-in, the Vite dev servers.

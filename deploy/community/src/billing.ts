@@ -68,6 +68,25 @@ export function planOf(row: PlanRow | null, at = now()): Plan {
   return "free";
 }
 
+/**
+ * The live data beta (`LIVE_BETA_UNTIL`, a date, New York's end of that day):
+ * until then every signed-in account gets real-time passes, paid or not, and
+ * the app tells it the beta is free until that day. A disputed account does not.
+ */
+export function betaUntil(env: Pick<Env, "LIVE_BETA_UNTIL">, at = now()): number | null {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(env.LIVE_BETA_UNTIL ?? "") ? Date.parse(`${env.LIVE_BETA_UNTIL}T00:00:00Z`) : NaN;
+  if (!Number.isFinite(day)) return null;
+  // Midnight after that day in New York (05:00 UTC; 04:00 in summer, an hour more is harmless).
+  const end = day / 1000 + 86_400 + 5 * 3_600;
+  return at < end ? end : null;
+}
+
+/** The plan a pass carries: the subscription's, or real-time during the beta. */
+export function passPlan(env: Pick<Env, "LIVE_BETA_UNTIL">, row: PlanRow | null, at = now()): Plan {
+  if (row?.blocked) return "free";
+  return planOf(row, at) === "rt" || betaUntil(env, at) !== null ? "rt" : "free";
+}
+
 /** The account may subscribe (`PAID_OPEN`). */
 export function openTo(env: Env, userId: string | null): boolean {
   const list = (env.PAID_OPEN ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -76,7 +95,8 @@ export function openTo(env: Env, userId: string | null): boolean {
 
 /** GET /paid → {open, price}: whether the app offers the subscription to this account (or, signed out, to everyone). */
 export function offer(env: Env, user: User | null): Response {
-  return json({ open: !!env.PASS_PRIVATE_KEY && openTo(env, user?.id ?? null), price: env.PAID_PRICE || "$10" });
+  const beta = env.PASS_PRIVATE_KEY ? betaUntil(env) : null;
+  return json({ open: !!env.PASS_PRIVATE_KEY && openTo(env, user?.id ?? null), price: env.PAID_PRICE || "$10", beta_until: beta });
 }
 
 /** True when the provider is set up: its keys and the price. */
@@ -95,7 +115,7 @@ export async function issuePass(env: Env, user: User | null): Promise<Response> 
   const u = requireUser(user);
   if (!env.PASS_PRIVATE_KEY) throw new HttpError(404, "Not available.");
   const r = await row(env, u.id);
-  const plan = planOf(r);
+  const plan = passPlan(env, r);
   const iat = now();
   const exp = iat + PASS_TTL;
   // A short id of the sign-in session, not the session token's hash itself.
@@ -107,8 +127,11 @@ export async function issuePass(env: Env, user: User | null): Promise<Response> 
 export async function myPlan(env: Env, user: User | null): Promise<Response> {
   const u = requireUser(user);
   const r = await row(env, u.id);
+  const paid = planOf(r);
   return json({
-    plan: planOf(r),
+    plan: passPlan(env, r),
+    /** Real-time comes from the beta, not from a subscription: when it ends (UNIX seconds). */
+    beta_until: paid === "rt" || r?.blocked ? null : betaUntil(env),
     status: r?.status ?? "none",
     renews_at: r?.current_period_end ?? null,
     cancel_at_period_end: !!r?.cancel_at_period_end,

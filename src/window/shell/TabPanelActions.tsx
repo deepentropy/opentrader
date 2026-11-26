@@ -4,7 +4,7 @@
  * main-menu button (meatballs glyph for a signed-in user) which opens the
  * window's main menu (MainMenu).
  */
-import { createEffect, createSignal, on, onMount, Show } from "solid-js";
+import { createEffect, createSignal, on, onMount, Show, untrack } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { MainMenu } from "./MainMenu";
@@ -14,13 +14,16 @@ import { updateReady } from "../../data/app-update";
 import { zoom } from "../../data/app-zoom";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
-import { initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
-import { showPlanDialog } from "../paid/PlanDialog";
-import { translateAs } from "../../i18n/translator";
+import { betaEnds, initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
+import { getItem, setItem } from "../../data/kv";
+import { betaDay, betaText, showPlanDialog } from "../paid/PlanDialog";
+import { translateAs, translateWith } from "../../i18n/translator";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
 const WEB_BUILD = import.meta.env.MODE === "web";
 const DESKTOP_DOWNLOAD_URL = "https://opentrader.markets/download.html";
+/** Set once the live data beta was told (src/data/kv.ts). */
+const BETA_TOLD = "ot:live-beta-told";
 
 type Props = {
   /** Open App Settings (the main menu's Settings row). */
@@ -44,12 +47,20 @@ export function TabPanelActions(props: Props) {
     if (anchor() && btn) setAnchor(btn.getBoundingClientRect());
   }, { defer: true }));
   onMount(initPaid);
+  // The live data beta is told once, as soon as this user is on it or may sign in for it.
+  createEffect(() => {
+    if (betaEnds() === null || getItem(BETA_TOLD) !== null) return;
+    setItem(BETA_TOLD, "1");
+    untrack(showPlanDialog);
+  });
   const badgeTip = () =>
     realtimeActive()
-      ? "Market data is live."
+      ? betaEnds() !== null ? betaText(betaEnds()!) : "Market data is live."
       : realtimeElsewhere()
         ? "Live data is in use on another device. Click to use it here."
-        : "Market data is delayed by 15 minutes. Click to upgrade to live data.";
+        : betaEnds() !== null
+          ? translateWith("Market data is delayed by 15 minutes. Sign in to get live data, free during the beta until {0}.", betaDay(betaEnds()!))
+          : "Market data is delayed by 15 minutes. Click to upgrade to live data.";
 
   return (
     <div class="tab-panel-actions">
@@ -71,7 +82,9 @@ export function TabPanelActions(props: Props) {
             data-qa-id="data-delay-badge"
             onClick={() => showPlanDialog()}
           >
-            {realtimeActive() ? translateAs("Live", "market data") : realtimeElsewhere() ? "Live elsewhere" : "Delayed 15 min"}
+            {realtimeActive()
+              ? betaEnds() !== null ? "Live (beta)" : translateAs("Live", "market data")
+              : realtimeElsewhere() ? "Live elsewhere" : "Delayed 15 min"}
           </button>
         </Tooltip>
       </Show>

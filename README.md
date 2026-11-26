@@ -15,7 +15,7 @@ It is an early work in progress: some features are stubbed or partially wired. C
 > **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform, broker or data provider. It is for charting and research and is **not financial advice**. Trading through a broker plugin you install sends real orders to your broker: you do it at your own risk, OpenTrader is not a broker and does not check your orders. Trading is off until you turn it on, and orders to a live account are confirmed first. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
 > [!WARNING]
-> **Market data is delayed by 15 minutes for now.**
+> **Market data is delayed by 15 minutes.** Live data is in beta in the desktop app: sign in with a Community account to get it, free until 31/12/2026, then part of a paid plan.
 >
 > **Second and minute history is limited to 5 years.** Daily history goes back to 2003.
 

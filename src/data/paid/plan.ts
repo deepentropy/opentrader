@@ -23,6 +23,10 @@
  * takes it back), the pass expired or was refused (a new one is asked), or
  * the account is not served real-time (asked again later). Desktop only: the
  * web server is shared by its users.
+ *
+ * The live data beta: until its end (`beta_until`, from `/paid` and `/me/plan`)
+ * every signed-in account gets real-time passes; the badge and the dialog say
+ * it is free until then and part of a paid plan after.
  */
 import { createEffect, createRoot, createSignal, on } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -40,10 +44,12 @@ export type PlanInfo = {
   cancel_at_period_end: boolean;
   /** This account may subscribe. */
   billing: boolean;
+  /** Real-time comes from the live data beta, which ends then (UNIX seconds); null otherwise. */
+  beta_until?: number | null;
 };
 
 /** What the accounts server offers: to everyone, or (signed in) to this account. */
-export type Offer = { open: boolean; price: string };
+export type Offer = { open: boolean; price: string; /** End of the live data beta (UNIX seconds), null when none. */ beta: number | null };
 
 type PassAnswer = { pass: string; plan: "free" | "rt"; exp: number };
 
@@ -85,8 +91,16 @@ export { info as planInfo, elsewhere as realtimeElsewhere, offer as paidOffer };
 /** Market data comes real-time on this device now. */
 export const realtimeActive = () => handed() && live() && !elsewhere() && !refused();
 
+/** The live data beta's end (UNIX seconds) while this user is on it, or may sign in for it; null otherwise. */
+export const betaEnds = (): number | null => {
+  const i = info();
+  if (i) return i.beta_until ?? null;
+  const end = offer()?.beta ?? null;
+  return end !== null && end > Date.now() / 1000 ? end : null;
+};
+
 /** Real-time data is on screen: offered to this user, or theirs. */
-export const paidShown = () => !!offer()?.open || info()?.plan === "rt" || info()?.status === "past_due";
+export const paidShown = () => !!offer()?.open || betaEnds() !== null || info()?.plan === "rt" || info()?.status === "past_due";
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -112,8 +126,8 @@ async function loadPlan(): Promise<void> {
 /** What is offered now. A server without the paid tier offers nothing. */
 export async function refreshOffer(): Promise<void> {
   try {
-    const r = await request<Offer>("GET", "/paid");
-    setOffer({ open: r.open === true, price: String(r.price) });
+    const r = await request<{ open?: boolean; price?: string; beta_until?: number | null }>("GET", "/paid");
+    setOffer({ open: r.open === true, price: String(r.price), beta: typeof r.beta_until === "number" ? r.beta_until : null });
   } catch (e) {
     if (e instanceof CommunityError && e.status === 404) setOffer(null);
   }

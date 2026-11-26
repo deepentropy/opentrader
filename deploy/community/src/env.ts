@@ -60,6 +60,8 @@ export interface Env {
   STRIPE_TERMS?: string;
   /** Who may subscribe: "1" everyone, account ids (comma-separated) those only, unset nobody. Apps show the offer to them. */
   PAID_OPEN?: string;
+  /** Live data beta: every signed-in account gets real-time until the end of this day (YYYY-MM-DD), unset = none. */
+  LIVE_BETA_UNTIL?: string;
   /** The price as shown in the app, "$10" when unset. The amount charged is the provider's price. */
   PAID_PRICE?: string;
   /** Local test only: the provider API's base URL. */

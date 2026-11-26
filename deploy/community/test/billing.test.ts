@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openTo, planOf, signatureValid } from "../src/billing";
+import { betaUntil, openTo, passPlan, planOf, signatureValid } from "../src/billing";
 import { fromBase64url, signPass } from "../src/pass";
 import { base64url } from "../src/util";
 
@@ -31,6 +31,25 @@ describe("planOf", () => {
       expect(planOf({ status, current_period_start: t, current_period_end: t + 10 }, t)).toBe("free");
     }
     expect(planOf(null, t)).toBe("free");
+  });
+});
+
+describe("live data beta", () => {
+  const env = { LIVE_BETA_UNTIL: "2026-12-31" };
+  const lastDay = Date.parse("2026-12-31T12:00:00Z") / 1000;
+  const after = Date.parse("2027-01-01T06:00:00Z") / 1000;
+  it("ends after the last day in New York", () => {
+    expect(betaUntil(env, lastDay)).toBe(Date.parse("2027-01-01T05:00:00Z") / 1000);
+    expect(betaUntil(env, after)).toBeNull();
+    expect(betaUntil({}, lastDay)).toBeNull();
+    expect(betaUntil({ LIVE_BETA_UNTIL: "soon" }, lastDay)).toBeNull();
+  });
+  it("gives every account real-time until then, a disputed one never", () => {
+    expect(passPlan(env, null, lastDay)).toBe("rt");
+    expect(passPlan(env, null, after)).toBe("free");
+    expect(passPlan(env, { status: "active", current_period_start: after, current_period_end: after + 10 }, after)).toBe("rt");
+    expect(passPlan(env, { status: "canceled", current_period_start: 0, current_period_end: 0, blocked: 1 }, lastDay)).toBe("free");
+    expect(passPlan({}, null, lastDay)).toBe("free");
   });
 });
 

@@ -5,13 +5,16 @@
  * payment. The payment is made here: a frame of the accounts server's payment
  * page (deploy/community/src/pay-page.ts), which holds the payment provider's
  * own form. Built on the shared confirm dialog.
+ *
+ * During the live data beta the dialog only says so: signed in, live data is on
+ * and free until the beta ends; signed out, signing in turns it on.
  */
 import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { showConfirm, showNotice } from "../../components/Dialogs";
 import { PROVIDER_LABELS, me, signIn } from "../../data/community/session";
 import { request } from "../../data/community/api";
 import {
-  awaitPlan, openPortal, paidOffer, payInBrowser, planInfo, realtimeElsewhere, refreshPass, setCancelled, startCheckout, useRealtimeHere, type PlanInfo,
+  awaitPlan, betaEnds, openPortal, paidOffer, payInBrowser, planInfo, realtimeElsewhere, refreshPass, setCancelled, startCheckout, useRealtimeHere, type PlanInfo,
 } from "../../data/paid/plan";
 import { translateAs, translateWith } from "../../i18n/translator";
 
@@ -26,6 +29,16 @@ function failed(e: unknown): void {
 }
 
 const offerText = () => translateWith("Prices without the 15-minute delay, for {0} per month. Cancel any time.", paidOffer()?.price ?? "$10");
+
+/** dd/mm/yyyy of the beta's last day: its end is midnight after it in New York. */
+export function betaDay(end: number): string {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts((end - 1) * 1000);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("day")}/${part("month")}/${part("year")}`;
+}
+
+/** What the beta is, and until when. */
+export const betaText = (end: number) => translateWith("Live data is in beta: free until {0}, then part of a paid plan.", betaDay(end));
 
 /** Signed in from the upgrade: on to the payment, or to the subscription the account already has. */
 async function goOn(): Promise<void> {
@@ -93,7 +106,7 @@ async function showPayment(): Promise<void> {
   });
 }
 
-function SignInButtons(props: { onDone: () => void }) {
+function SignInButtons(props: { onDone: () => void; beta?: boolean }) {
   const [providers] = createResource(() =>
     request<{ providers: string[] }>("GET", "/auth/providers").then((r) => r.providers, () => [] as string[]),
   );
@@ -104,9 +117,9 @@ function SignInButtons(props: { onDone: () => void }) {
           <button
             type="button"
             class="plan-signin-button"
-            onClick={() => signIn(p).then(props.onDone).then(goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
+            onClick={() => signIn(p).then(props.onDone).then(props.beta ? refreshPass : goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
           >
-            {translateWith("Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}
+            {props.beta ? translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p) : translateWith("Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}
           </button>
         )}
       </For>
@@ -143,6 +156,23 @@ export function showPlanDialog(): void {
       mainText: "Use here",
       cancelText: "Not now",
       onConfirm: () => void useRealtimeHere(),
+    });
+    return;
+  }
+  const beta = betaEnds();
+  if (beta !== null) {
+    if (me()) {
+      showNotice({ title: "Live data (beta)", text: betaText(beta) });
+      return;
+    }
+    const close = showConfirm({
+      title: "Live data (beta)",
+      text: translateWith("Sign in to get live market data. It is in beta: free until {0}, then part of a paid plan.", betaDay(beta)),
+      mainText: "Not now",
+      cancelText: null,
+      intent: "neutral",
+      body: () => <SignInButtons beta onDone={() => close()} />,
+      onConfirm: () => {},
     });
     return;
   }

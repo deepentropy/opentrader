@@ -33,7 +33,7 @@ const session = vi.hoisted(() => ({ me: null as unknown }));
 vi.mock("../../community/session", () => ({ me: () => session.me, ready: () => true, initSession: async () => undefined }));
 
 import { CommunityError } from "../../community/api";
-import { onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, awaitPlan, refreshOffer, refreshPass, setCancelled, startCheckout } from "../plan";
+import { betaEnds, onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, awaitPlan, refreshOffer, refreshPass, setCancelled, startCheckout } from "../plan";
 
 const exp = () => Math.floor(Date.now() / 1000) + 900;
 const plan = (p: "free" | "rt") => ({ plan: p, status: p === "rt" ? "active" : "none", renews_at: null, cancel_at_period_end: false, billing: true });
@@ -170,6 +170,37 @@ describe("refreshPass", () => {
     expect(rust.passes).toEqual(["otp1.a.b"]);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(server.calls.filter((c) => c === "POST /auth/pass")).toHaveLength(3);
+  });
+});
+
+describe("the live data beta", () => {
+  it("is offered signed out, and the account's own once signed in, until it ends", async () => {
+    const end = Math.floor(Date.now() / 1000) + 86_400;
+    session.me = null;
+    await refreshPass();
+    server.answers["/paid"] = { open: false, price: "$10", beta_until: end };
+    await refreshOffer();
+    expect(betaEnds()).toBe(end);
+    expect(paidShown()).toBe(true);
+    session.me = { user: { name: "owner" } };
+    server.answers["/auth/pass"] = { pass: "otp1.beta.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = { ...plan("rt"), status: "none", billing: false, beta_until: end };
+    await refreshPass();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rust.passes[rust.passes.length - 1]).toBe("otp1.beta.b");
+    expect(betaEnds()).toBe(end);
+    // A subscriber is not on the beta.
+    server.answers["/me/plan"] = { ...plan("rt"), beta_until: null };
+    await refreshPass();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(betaEnds()).toBeNull();
+    // Over: nothing is offered.
+    session.me = null;
+    await refreshPass();
+    server.answers["/paid"] = { open: false, price: "$10", beta_until: null };
+    await refreshOffer();
+    expect(betaEnds()).toBeNull();
+    expect(paidShown()).toBe(false);
   });
 });
 
