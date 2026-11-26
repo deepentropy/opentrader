@@ -46,7 +46,7 @@ function useTable(): Promise<void> {
   }, KEEP_MS);
   ready ??= (async () => {
     const st = await screenerOpen(OWNER);
-    if (st.updatedMs !== null && st.complete) return;
+    if (st.complete) return;
     // The first complete table (with the ticker list and the daily state): wait for its update (at most 30 s).
     await new Promise<void>((resolve) => {
       let off: (() => void) | null = null;

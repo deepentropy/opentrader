@@ -268,7 +268,8 @@ export function ScreenerPanel(props: Props) {
         let stateAsof = st.stateAsof;
         // The first scan ran on an empty table when the backend had no complete one yet (no table, or one still
         // waiting on the ticker list or the daily state): that one is shown at once, whatever the auto-refresh setting.
-        let loaded = st.updatedMs !== null && st.complete;
+        // A complete table can hold no trade time (a market holiday before the open): it is loaded all the same.
+        let loaded = st.complete;
         setBackendLoaded(loaded);
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());
@@ -278,7 +279,7 @@ export function ScreenerPanel(props: Props) {
             void screenerFields().then((l) => !disposed && setFields(new Map(l.map((f) => [f.id, f]))));
           }
           if (u.error) return;
-          const first = !loaded && u.updatedMs !== null && u.complete;
+          const first = !loaded && u.complete;
           // Auto-refresh: every update (10 s), the first update a minute after the last refresh, or never.
           const period = refreshMs(screenerSettings().autoRefresh);
           if (first || (period !== null && Date.now() - lastRefresh() >= period - 1000)) refreshNow();
