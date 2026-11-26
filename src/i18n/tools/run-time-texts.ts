@@ -64,6 +64,7 @@ const GROUPS: Record<string, string[]> = {
     "This symbol doesn't exist, please pick another one.",
   ],
   "window/drawings/DrawingToolbar.tsx, magnet modes": ["Weak magnet", "Strong magnet"],
+  "window/chart/IndicatorSettingsDialog.tsx, a timeframe input whose value is not in its list (Select display)": ["Not selected"],
   "volume profile, rows layout option": ["Number Of Rows"],
   // The words too: a sense falls back to its word ("right" is already the side).
   "data/providers/gateway.ts TYPE_LABELS and data/symbol-search.ts, the market type of a symbol search row": [

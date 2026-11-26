@@ -151,7 +151,11 @@ export function statusLineInputs(
     if (display === "none" || display === "data_window") continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
-    const named = cfg.type === "source" && typeof v === "string" ? (sourceText?.(v) ?? sourceValueText(v)) : null;
+    // A source naming another study, an enum field (its title).
+    const named =
+      cfg.type === "source" && typeof v === "string"
+        ? (sourceText?.(v) ?? sourceValueText(v))
+        : ((cfg as { optionsTitles?: Record<string, string> }).optionsTitles?.[String(v)] ?? null);
     out.push(named ?? (typeof v === "number" ? inputNumberFormat.format(v) : String(v)));
   }
   // Values and names already in the interface language: shown as they are.

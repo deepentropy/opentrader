@@ -106,7 +106,7 @@ function describeInputs(inputConfig: unknown[] | undefined) {
   return (inputConfig ?? []).map((c) => {
     const i = c as Record<string, unknown>;
     const out: Record<string, unknown> = { id: i.id, title: i.title, type: i.type, default: i.defval };
-    for (const k of ["options", "min", "max", "step"]) if (i[k] !== undefined) out[k] = i[k];
+    for (const k of ["options", "optionsTitles", "min", "max", "step"]) if (i[k] !== undefined) out[k] = i[k];
     return out;
   });
 }

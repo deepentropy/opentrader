@@ -1341,6 +1341,29 @@ html.theme-light .cp3-card { background: var(--color-white); color: var(--color-
 .cp3-label.is-inert .cp3-title,
 .cp3-label.is-inert .cp3-desc { color: var(--color-text-disabled); }
 .cp3-label.is-inert .cp3-checkbox + .cp3-title { cursor: default; }
+/* Script inputs: the title of an inactive input (`active` false) is greyed out like its control. */
+.ind3-grid .cp3-title.is-off { color: var(--color-text-disabled); cursor: default; }
+.ind3-symbol:disabled { color: var(--color-text-disabled); }
+.ind3-symbol:disabled .cmp3-symbol-icon { color: var(--color-text-disabled); }
+/* Script text area: the whole row, under its title. */
+.ind3-textarea-row { flex-direction: column; align-items: stretch; gap: 8px; }
+.ind3-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 76px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+}
+.ind3-textarea:hover { border-color: var(--color-border-primary-neutral-semi-bold); }
+.ind3-textarea:focus { border-color: var(--color-brand); }
+.ind3-textarea:disabled { background-color: var(--color-bg-primary); color: var(--color-text-disabled); }
 /* Profile studies: "Custom session" from — to time fields. */
 .ind3-session { display: inline-flex; align-items: center; gap: 8px; }
 .ind3-session-dash { color: var(--color-text-primary); }

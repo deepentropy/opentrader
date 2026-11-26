@@ -15,6 +15,7 @@ import { translateWith } from "../../i18n/translator";
 import { For, Show, createEffect, createSignal, on, type JSX } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
+import { isInputActive } from "oakscriptjs";
 import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
 import { CheckBox, ColorControl, NumberField, SelectControl, SwitchMark } from "../../components/form";
@@ -46,6 +47,10 @@ import { showNotice } from "../../components/Dialogs";
 import { saveFile } from "../../data/save-file";
 import type { StyleItem } from "./indicators/style-outputs";
 import type { PlotStyleOverride } from "./indicators/indicator-layer";
+import { SymbolSearchDialog } from "../header/SymbolSearchDialog";
+import { isFullSymbol } from "../../data/symbol-name";
+import { toFullSymbol } from "../../data/datafeed";
+import { timeframeChoices, timeframeLabel, timeframeValue } from "./timeframe-input";
 
 /** Input schema entry; strategies add Pine's `time` type, groups, inline rows and tooltips; the profile studies a
  *  session range ("HHMM-HHMM") and inputs enabled only for one value of another input. */
@@ -313,6 +318,19 @@ export function UnitRow(props: { label: string; max: number; unit: UnitVisibilit
 /** Clamp a registry line width into the 1-4 range the renderer draws. */
 function seedWidth(w: number | undefined): number {
   return w && w >= 1 && w <= 4 ? w : 1;
+}
+
+/** The edit mark of a symbol input's button. */
+const Pencil = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="none" stroke="currentColor" d="M12.5 3.5l2 2-8 8-2.6.6.6-2.6 8-8zM11 5l2 2" />
+  </svg>
+);
+
+/** A session value's time range and what follows it (the days, ":23456"); null when it has no "HHMM-HHMM". */
+function sessionParts(v: string): { from: string; to: string; rest: string } | null {
+  const m = /^(\d{2})(\d{2})-(\d{2})(\d{2})(.*)$/.exec(v);
+  return m ? { from: `${m[1]}:${m[2]}`, to: `${m[3]}:${m[4]}`, rest: m[5] } : null;
 }
 
 /** (i) icon after a control, with the input tooltip. */
@@ -672,19 +690,24 @@ export function IndicatorSettingsDialog(props: Props) {
     return rows;
   };
 
-  /** An input enabled only while another input has one value (profile "Custom session"). */
-  const enabled = (cfg: DialogInput) => !cfg.enabledWhen || String(inputDraft[cfg.enabledWhen.id]) === cfg.enabledWhen.value;
+  /** An input enabled only while another input has one value (profile "Custom session"), or while the script's
+   *  `active` condition holds on the edited values (greyed out otherwise; it keeps its value). */
+  const enabled = (cfg: DialogInput) =>
+    (!cfg.enabledWhen || String(inputDraft[cfg.enabledWhen.id]) === cfg.enabledWhen.value) &&
+    (cfg.active === undefined || isInputActive(cfg as InputConfig, inputDraft, props.inputConfig as InputConfig[]));
+  // The symbol input whose symbol search is open.
+  const [symbolSearch, setSymbolSearch] = createSignal<string | null>(null);
   const inputControl = (cfg: DialogInput) => {
-    if (cfg.type === "session") {
-      // "HHMM-HHMM": two time fields.
+    if (cfg.type === "session" && !cfg.options?.length) {
+      // "HHMM-HHMM": two time fields. The days after the range (":23456") are kept as they are.
       const parts = () => {
-        const m = /^(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(istr(cfg.id));
-        return m ? [`${m[1]}:${m[2]}`, `${m[3]}:${m[4]}`] : ["09:30", "16:00"];
+        const p = sessionParts(istr(cfg.id));
+        return p ? [p.from, p.to] : ["09:30", "16:00"];
       };
       const set = (i: 0 | 1, v: string) => {
         const p = parts();
         p[i] = v;
-        setInputDraft(cfg.id, p.map((x) => x.replace(":", "")).join("-"));
+        setInputDraft(cfg.id, p.map((x) => x.replace(":", "")).join("-") + (sessionParts(istr(cfg.id))?.rest ?? ""));
       };
       return (
         <span class="ind3-session" classList={{ "is-disabled": !enabled(cfg) }}>
@@ -692,6 +715,65 @@ export function IndicatorSettingsDialog(props: Props) {
           <span class="ind3-session-dash">—</span>
           <span class="ind3-time"><TimeInput value={parts()[1]} disabled={!enabled(cfg)} onChange={(v) => set(1, v)} /></span>
         </span>
+      );
+    }
+    if (cfg.type === "timeframe") {
+      // The script's options, else the chart interval ("Chart") and the intervals; a value not listed: "Not selected".
+      const items = () => timeframeChoices(cfg.options?.map(String));
+      const shown = () => {
+        const v = timeframeValue(istr(cfg.id));
+        return items().includes(v) ? v : null;
+      };
+      return (
+        <SelectControl
+          value={shown() ?? ""}
+          display={shown() === null ? "Not selected" : undefined}
+          options={items()}
+          labelOf={timeframeLabel}
+          width={selectWidth([shown() === null ? "Not selected" : timeframeLabel(shown()!)])}
+          disabled={!enabled(cfg)}
+          onPick={(v) => setInputDraft(cfg.id, v)}
+        />
+      );
+    }
+    if (cfg.options?.length && cfg.type !== "source") {
+      // A choice list (string, number, enum, symbol and session inputs with options); an enum shows its titles.
+      const options = cfg.options;
+      const titles = (cfg as { optionsTitles?: Record<string, string> }).optionsTitles;
+      const label = (o: string | number) => titles?.[String(o)] ?? String(o);
+      const current = () => options.find((o) => String(o) === istr(cfg.id));
+      return (
+        <SelectControl
+          value={current() === undefined ? istr(cfg.id) : String(current())}
+          options={options.map(String)}
+          labelOf={(o) => label(options.find((x) => String(x) === o) ?? o)}
+          // Profile studies: the reference's 100 px select (long values cut).
+          width={props.profile ? 100 : selectWidth([label(current() ?? istr(cfg.id))])}
+          disabled={!enabled(cfg)}
+          onPick={(o) => setInputDraft(cfg.id, options.find((x) => String(x) === o) ?? o)}
+        />
+      );
+    }
+    if (cfg.type === "symbol") {
+      // The symbol (else the default) on a button that opens the symbol search; empty: the chart symbol.
+      return (
+        <button type="button" class="cmp3-symbol ind3-symbol" disabled={!enabled(cfg)} onClick={() => setSymbolSearch(cfg.id)}>
+          <span class="cmp3-symbol-text" data-no-translate>{istr(cfg.id) || String(cfg.defval ?? "")}</span>
+          <span class="cmp3-symbol-icon"><Pencil /></span>
+        </button>
+      );
+    }
+    if (cfg.type === "text_area") {
+      return (
+        <textarea
+          class="ind3-textarea"
+          value={istr(cfg.id)}
+          spellcheck={false}
+          maxLength={40960}
+          disabled={!enabled(cfg)}
+          data-no-translate
+          onInput={(e) => setInputDraft(cfg.id, e.currentTarget.value)}
+        />
       );
     }
     if (cfg.type === "time") {
@@ -727,17 +809,12 @@ export function IndicatorSettingsDialog(props: Props) {
         />
       );
     }
-    if (cfg.type === "string" && cfg.options?.length) {
-      const options = cfg.options.map(String);
-      // Profile studies: the reference's 100 px select (long values cut).
-      return <SelectControl value={istr(cfg.id)} options={options} width={props.profile ? 100 : selectWidth([istr(cfg.id)])} disabled={!enabled(cfg)} onPick={(o) => setInputDraft(cfg.id, o)} />;
-    }
     if (cfg.type === "color") {
-      return <ColorControl color={istr(cfg.id)} onChange={(p) => { if (p.color) setInputDraft(cfg.id, p.color); }} />;
+      return <ColorControl color={istr(cfg.id)} disabled={!enabled(cfg)} onChange={(p) => { if (p.color) setInputDraft(cfg.id, p.color); }} />;
     }
     return (
-      <span class="cp3-number ind3-text">
-        <input type="text" value={istr(cfg.id)} spellcheck={false} onInput={(e) => setInputDraft(cfg.id, e.currentTarget.value)} />
+      <span class="cp3-number ind3-text" classList={{ "is-disabled": !enabled(cfg) }}>
+        <input type="text" value={istr(cfg.id)} spellcheck={false} disabled={!enabled(cfg)} onInput={(e) => setInputDraft(cfg.id, e.currentTarget.value)} />
       </span>
     );
   };
@@ -755,9 +832,10 @@ export function IndicatorSettingsDialog(props: Props) {
       title={props.title}
       onClose={ok}
       // Escape / Enter in the bubble phase: popovers (menus, colour panel) take their own Escape first (they stop it
-      // in the capture phase). Enter in a field is the field's.
+      // in the capture phase). Enter in a field is the field's; the symbol search takes both.
       keys={{ capture: false }}
-      onEnter={(e) => (e.target instanceof HTMLInputElement ? false : ok())}
+      onEscape={() => (symbolSearch() ? false : ok())}
+      onEnter={(e) => (symbolSearch() || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? false : ok())}
     >
       {/* Underline tabs (study dialog: a top bar, not the left rail). */}
       <div class="ind3-tabs" role="tablist">
@@ -792,13 +870,13 @@ export function IndicatorSettingsDialog(props: Props) {
                         <span class="ind3-inline-item" classList={{ "is-wide": !!cfg.title }}>
                           {cfg.type === "bool" ? (
                             <>
-                              <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} />
-                              <span class="cp3-title" onClick={() => toggleInput(cfg.id)}>{cfg.title}</span>
+                              <CheckBox checked={!!inputDraft[cfg.id]} disabled={!enabled(cfg)} onToggle={() => toggleInput(cfg.id)} />
+                              <span class="cp3-title" classList={{ "is-off": !enabled(cfg) }} onClick={() => enabled(cfg) && toggleInput(cfg.id)}>{cfg.title}</span>
                             </>
                           ) : (
                             <>
                               <Show when={cfg.title}>
-                                <span class="cp3-title">{cfg.title}</span>
+                                <span class="cp3-title" classList={{ "is-off": !enabled(cfg) }}>{cfg.title}</span>
                               </Show>
                               {inputControl(cfg)}
                             </>
@@ -812,8 +890,8 @@ export function IndicatorSettingsDialog(props: Props) {
                     return (
                       <div class={`cp3-cell cp3-label is-full${rest.length === 0 ? " ind3-check-row" : ""}`}>
                         <div class="cp3-label-inner">
-                          <CheckBox checked={!!inputDraft[first.id]} onToggle={() => toggleInput(first.id)} />
-                          <span class="cp3-title" onClick={() => toggleInput(first.id)}>{first.title ?? first.id}</span>
+                          <CheckBox checked={!!inputDraft[first.id]} disabled={!enabled(first)} onToggle={() => toggleInput(first.id)} />
+                          <span class="cp3-title" classList={{ "is-off": !enabled(first) }} onClick={() => enabled(first) && toggleInput(first.id)}>{first.title ?? first.id}</span>
                           {more()}
                           {info()}
                         </div>
@@ -826,7 +904,7 @@ export function IndicatorSettingsDialog(props: Props) {
                     return (
                       <div class="cp3-cell cp3-label is-full">
                         <div class="cp3-label-inner">
-                          <span class="cp3-title">{first.title ?? first.id}</span>
+                          <span class="cp3-title" classList={{ "is-off": !enabled(first) }}>{first.title ?? first.id}</span>
                           {inputControl(first)}
                           {more()}
                           {info()}
@@ -834,9 +912,21 @@ export function IndicatorSettingsDialog(props: Props) {
                       </div>
                     );
                   }
+                  if (first.type === "text_area") {
+                    // A text area takes the whole row, under its title (reference).
+                    return (
+                      <div class="cp3-cell cp3-label is-full ind3-textarea-row">
+                        <div class="cp3-label-inner">
+                          <span class="cp3-title" classList={{ "is-off": !enabled(first) }}>{first.title ?? first.id}</span>
+                          {info()}
+                        </div>
+                        {inputControl(first)}
+                      </div>
+                    );
+                  }
                   return (
                     <>
-                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{first.title ?? first.id}</span></div></div>
+                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title" classList={{ "is-off": !enabled(first) }}>{first.title ?? first.id}</span></div></div>
                       <div class="cp3-cell cp3-controls">{inputControl(first)}{info()}</div>
                     </>
                   );
@@ -1200,6 +1290,19 @@ export function IndicatorSettingsDialog(props: Props) {
           <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>{props.inputsOnly ? "Apply" : "Ok"}</button>
         </div>
       </footer>
+      <Show when={symbolSearch()} keyed>
+        {(id) => (
+          <SymbolSearchDialog
+            activeSymbol={istr(id) || undefined}
+            onSelect={(s) => {
+              // "EXCHANGE:TICKER", as request.security takes it.
+              if (isFullSymbol(s)) setInputDraft(id, s.toUpperCase());
+              else void toFullSymbol(s).then((full) => setInputDraft(id, full.toUpperCase()), () => {});
+            }}
+            onClose={() => setSymbolSearch(null)}
+          />
+        )}
+      </Show>
     </Dialog>
   );
 }
