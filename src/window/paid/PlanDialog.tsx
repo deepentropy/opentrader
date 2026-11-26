@@ -17,6 +17,8 @@ import {
   awaitPlan, betaEnds, openPortal, paidOffer, payInBrowser, planInfo, realtimeElsewhere, refreshPass, setCancelled, startCheckout, useRealtimeHere, type PlanInfo,
 } from "../../data/paid/plan";
 import { translateAs, translateWith } from "../../i18n/translator";
+import { dateText } from "../../i18n/format";
+import { Icon } from "../../components/Icon";
 
 /** dd/mm/yyyy of a UNIX time. */
 function day(sec: number): string {
@@ -28,13 +30,23 @@ function failed(e: unknown): void {
   showNotice({ title: "Live data", text: e instanceof Error ? e.message : String(e) });
 }
 
-const offerText = () => translateWith("Prices without the 15-minute delay, for {0} per month. Cancel any time.", paidOffer()?.price ?? "$10");
+const price = () => paidOffer()?.price ?? "$10";
+const offerText = () => translateWith("Prices without the 15-minute delay, for {0} per month. Cancel any time.", price());
 
-/** dd/mm/yyyy of the beta's last day: its end is midnight after it in New York. */
+/** The beta's last day, written in the interface language: its end is midnight after it in New York. */
 export function betaDay(end: number): string {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts((end - 1) * 1000);
-  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("day")}/${part("month")}/${part("year")}`;
+  return dateText((end - 1) * 1000, { day: "numeric", month: "long", year: "numeric" }, "America/New_York");
+}
+
+/** The beta told: live data now or after signing in, free until its last day, the paid plan after. */
+function BetaBody(props: { end: number; signedIn: boolean }) {
+  return (
+    <div class="plan-beta">
+      <p class="plan-beta-lead">{props.signedIn ? "Live data is on." : "Sign in to get live market data."}</p>
+      <p class="plan-beta-free">{translateWith("Free during the beta until {0}.", betaDay(props.end))}</p>
+      <p class="plan-beta-later">{translateWith("Then part of a paid plan at {0} a month, cancel any time.", price())}</p>
+    </div>
+  );
 }
 
 /** What the beta is, and until when. */
@@ -119,7 +131,8 @@ function SignInButtons(props: { onDone: () => void; beta?: boolean }) {
             class="plan-signin-button"
             onClick={() => signIn(p).then(props.onDone).then(props.beta ? refreshPass : goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
           >
-            {props.beta ? translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p) : translateWith("Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}
+            <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="plan-signin-logo" /></Show>
+            <span>{props.beta ? translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p) : translateWith("Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}</span>
           </button>
         )}
       </For>
@@ -161,17 +174,20 @@ export function showPlanDialog(): void {
   }
   const beta = betaEnds();
   if (beta !== null) {
-    if (me()) {
-      showNotice({ title: "Live data (beta)", text: betaText(beta) });
-      return;
-    }
+    const signedIn = !!me();
     const close = showConfirm({
       title: "Live data (beta)",
-      text: translateWith("Sign in to get live market data. It is in beta: free until {0}, then part of a paid plan.", betaDay(beta)),
-      mainText: "Not now",
+      titleTone: "success",
+      text: "",
+      mainText: signedIn ? translateAs("Close", "action") : "Skip",
       cancelText: null,
       intent: "neutral",
-      body: () => <SignInButtons beta onDone={() => close()} />,
+      body: () => (
+        <>
+          <BetaBody end={beta} signedIn={signedIn} />
+          <Show when={!signedIn}><SignInButtons beta onDone={() => close()} /></Show>
+        </>
+      ),
       onConfirm: () => {},
     });
     return;

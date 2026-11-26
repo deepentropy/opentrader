@@ -16,6 +16,8 @@ import { Dialog } from "./Dialog";
 export type ConfirmOptions = {
   /** Title (default "Confirmation"). */
   title?: string;
+  /** Title colour: success = green (an offer, something turned on). */
+  titleTone?: "success";
   text: string;
   /** Main button (default "Yes"). */
   mainText?: string;
@@ -118,7 +120,7 @@ export function showAsk(opts: AskOptions): () => void {
 /** Case-insensitive "contains" filter. */
 const matches = (typed: string, name: string) => typed === "" || name.toLowerCase().includes(typed.toLowerCase());
 
-function Frame(props: { title: string; onClose: () => void; children: JSX.Element; label: string; iconPath?: string }) {
+function Frame(props: { title: string; onClose: () => void; children: JSX.Element; label: string; iconPath?: string; titleTone?: "success" }) {
   return (
     <Dialog
       look="prompt"
@@ -137,7 +139,9 @@ function Frame(props: { title: string; onClose: () => void; children: JSX.Elemen
               <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" d={props.iconPath} />
             </svg>
           </Show>
-          {props.title}
+          <Show when={props.titleTone} fallback={props.title}>
+            <span class={`ot-dlg-title-${props.titleTone}`}>{props.title}</span>
+          </Show>
         </>
       }
     >
@@ -153,7 +157,7 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
   const confirm = () => { close(props.entry.id); o.onConfirm(); };
   useKeys(props.entry.id, dismiss, confirm);
   return (
-    <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={dismiss}>
+    <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} titleTone={o.titleTone} onClose={dismiss}>
       <Show when={o.text || o.doNotShow || o.body}>
       <div class="ot-dlg-content ot-dlg-text">
         {o.text}

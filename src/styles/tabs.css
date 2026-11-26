@@ -341,7 +341,28 @@ html.theme-dark .data-delay-badge.is-realtime {
   gap: 8px;
   margin-top: 16px;
 }
+.plan-beta p {
+  margin: 0 0 6px;
+}
+.plan-beta-lead {
+  color: var(--color-content-primary-neutral-bold);
+}
+.plan-beta-free {
+  font-weight: 600;
+  color: var(--color-minty-green-500);
+}
+html.theme-dark .plan-beta-free {
+  color: var(--color-minty-green-400);
+}
+.plan-beta-later {
+  color: var(--color-content-secondary-neutral);
+  font-size: 13px;
+}
 .plan-signin-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 34px;
   border: 1px solid var(--color-cold-gray-650);
   border-radius: 6px;
@@ -349,6 +370,10 @@ html.theme-dark .data-delay-badge.is-realtime {
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+.plan-signin-logo {
+  position: absolute;
+  inset-inline-start: 12px;
 }
 .plan-signin-button:hover {
   background-color: var(--color-cold-gray-800);

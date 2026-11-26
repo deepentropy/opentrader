@@ -46,6 +46,8 @@
   gap: 12px;
 }
 .ot-dlg-title-icon { flex: none; }
+.ot-dlg-title-success { color: var(--color-minty-green-500); }
+html.theme-dark .ot-dlg-title-success { color: var(--color-minty-green-400); }
 .ot-dlg-close {
   all: unset;
   position: absolute;
