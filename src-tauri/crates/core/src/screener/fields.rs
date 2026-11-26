@@ -17,7 +17,7 @@ use crate::sync::LockExt;
 use crate::screener::state::StateFile;
 use crate::screener::table::{Join, Row, Table};
 use crate::screener::candles;
-use crate::screener::technicals::{self, Tech};
+use crate::screener::technicals::{self, Band, Cloud, CloudLine, Level, PivotKind, Tech};
 use serde::Serialize;
 
 /// A computed cell.
@@ -46,6 +46,9 @@ pub enum Live {
     ValueTraded,
     /// 100 * true range / low.
     VolatilityD,
+    /// The session's VWAP as the reference shows it on daily bars: one bar per session, so its typical price
+    /// (high + low + close) / 3 (equal for every symbol of the 25/11/2026 close).
+    Vwap,
     /// The shown session as a daily bar time (00:00 New York of its date,
     /// UNIX seconds, the stamp of the daily bars): where the row's open /
     /// high / low / close / volume go in a daily series.
@@ -205,6 +208,7 @@ const LIVE: &[(&str, Live)] = &[
     ("active_symbol", Live::ActiveSymbol),
     ("Value.Traded", Live::ValueTraded),
     ("Volatility.D", Live::VolatilityD),
+    ("VWAP", Live::Vwap),
     ("session_day", Live::SessionDay),
     ("premarket_open", Live::PreOpen),
     ("premarket_high", Live::PreHigh),
@@ -313,6 +317,81 @@ const STATE: &[(&str, Step)] = &[
     ("Stoch.D", Step::Tech(Tech::StochD)),
     ("Stoch.K_14_1_3", Step::Tech(Tech::StochKFast)),
     ("Stoch.D_14_1_3", Step::Tech(Tech::StochDFast)),
+    ("MACD.macd", Step::Tech(Tech::MacdLevel)),
+    ("MACD.signal", Step::Tech(Tech::MacdSignal)),
+    ("ADX", Step::Tech(Tech::Adx(14))),
+    ("ADX_9", Step::Tech(Tech::Adx(9))),
+    ("ADX_20", Step::Tech(Tech::Adx(20))),
+    ("ADX_50", Step::Tech(Tech::Adx(50))),
+    ("ADX_100", Step::Tech(Tech::Adx(100))),
+    ("ADX+DI", Step::Tech(Tech::DiPlus)),
+    ("ADX-DI", Step::Tech(Tech::DiMinus)),
+    ("Aroon.Up", Step::Tech(Tech::AroonUp)),
+    ("Aroon.Down", Step::Tech(Tech::AroonDown)),
+    ("BB.upper", Step::Tech(Tech::Bb(20, Band::Upper))),
+    ("BB.basis", Step::Tech(Tech::Bb(20, Band::Basis))),
+    ("BB.lower", Step::Tech(Tech::Bb(20, Band::Lower))),
+    ("BB.upper_50", Step::Tech(Tech::Bb(50, Band::Upper))),
+    ("BB.basis_50", Step::Tech(Tech::Bb(50, Band::Basis))),
+    ("BB.lower_50", Step::Tech(Tech::Bb(50, Band::Lower))),
+    ("KltChnl.upper", Step::Tech(Tech::Keltner(Band::Upper))),
+    ("KltChnl.basis", Step::Tech(Tech::Keltner(Band::Basis))),
+    ("KltChnl.lower", Step::Tech(Tech::Keltner(Band::Lower))),
+    ("DonchCh20.Upper", Step::Tech(Tech::Donchian(Band::Upper))),
+    ("DonchCh20.Middle", Step::Tech(Tech::Donchian(Band::Basis))),
+    ("DonchCh20.Lower", Step::Tech(Tech::Donchian(Band::Lower))),
+    ("BBPower", Step::Tech(Tech::BullBearPower)),
+    ("ChaikinMoneyFlow", Step::Tech(Tech::ChaikinMoneyFlow)),
+    ("HullMA9", Step::Tech(Tech::Hull(9))),
+    ("HullMA20", Step::Tech(Tech::Hull(20))),
+    ("HullMA200", Step::Tech(Tech::Hull(200))),
+    ("Ichimoku.CLine", Step::Tech(Tech::Ichimoku(Cloud::Std, CloudLine::Conversion))),
+    ("Ichimoku.BLine", Step::Tech(Tech::Ichimoku(Cloud::Std, CloudLine::Base))),
+    ("Ichimoku.Lead1", Step::Tech(Tech::Ichimoku(Cloud::Std, CloudLine::SpanA))),
+    ("Ichimoku.Lead2", Step::Tech(Tech::Ichimoku(Cloud::Std, CloudLine::SpanB))),
+    ("Ichimoku.CLine_20_60_120_30", Step::Tech(Tech::Ichimoku(Cloud::Long, CloudLine::Conversion))),
+    ("Ichimoku.BLine_20_60_120_30", Step::Tech(Tech::Ichimoku(Cloud::Long, CloudLine::Base))),
+    ("Ichimoku.Lead1_20_60_120_30", Step::Tech(Tech::Ichimoku(Cloud::Long, CloudLine::SpanA))),
+    ("Ichimoku.Lead2_20_60_120_30", Step::Tech(Tech::Ichimoku(Cloud::Long, CloudLine::SpanB))),
+    ("MoneyFlow", Step::Tech(Tech::MoneyFlow)),
+    ("P.SAR", Step::Tech(Tech::Psar)),
+    ("ROC", Step::Tech(Tech::Roc)),
+    ("Stoch.RSI.K", Step::Tech(Tech::StochRsiK)),
+    ("Stoch.RSI.D", Step::Tech(Tech::StochRsiD)),
+    ("UO", Step::Tech(Tech::Uo)),
+    ("VWMA", Step::Tech(Tech::Vwma)),
+    ("W.R", Step::Tech(Tech::WilliamsR)),
+    ("Pivot.M.Classic.Middle", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::P))),
+    ("Pivot.M.Classic.R1", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::R1))),
+    ("Pivot.M.Classic.R2", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::R2))),
+    ("Pivot.M.Classic.R3", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::R3))),
+    ("Pivot.M.Classic.S1", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::S1))),
+    ("Pivot.M.Classic.S2", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::S2))),
+    ("Pivot.M.Classic.S3", Step::Tech(Tech::Pivot(PivotKind::Classic, Level::S3))),
+    ("Pivot.M.Fibonacci.Middle", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::P))),
+    ("Pivot.M.Fibonacci.R1", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::R1))),
+    ("Pivot.M.Fibonacci.R2", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::R2))),
+    ("Pivot.M.Fibonacci.R3", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::R3))),
+    ("Pivot.M.Fibonacci.S1", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::S1))),
+    ("Pivot.M.Fibonacci.S2", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::S2))),
+    ("Pivot.M.Fibonacci.S3", Step::Tech(Tech::Pivot(PivotKind::Fibonacci, Level::S3))),
+    ("Pivot.M.Woodie.Middle", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::P))),
+    ("Pivot.M.Woodie.R1", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::R1))),
+    ("Pivot.M.Woodie.R2", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::R2))),
+    ("Pivot.M.Woodie.R3", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::R3))),
+    ("Pivot.M.Woodie.S1", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::S1))),
+    ("Pivot.M.Woodie.S2", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::S2))),
+    ("Pivot.M.Woodie.S3", Step::Tech(Tech::Pivot(PivotKind::Woodie, Level::S3))),
+    ("Pivot.M.Camarilla.Middle", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::P))),
+    ("Pivot.M.Camarilla.R1", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::R1))),
+    ("Pivot.M.Camarilla.R2", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::R2))),
+    ("Pivot.M.Camarilla.R3", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::R3))),
+    ("Pivot.M.Camarilla.S1", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::S1))),
+    ("Pivot.M.Camarilla.S2", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::S2))),
+    ("Pivot.M.Camarilla.S3", Step::Tech(Tech::Pivot(PivotKind::Camarilla, Level::S3))),
+    ("Pivot.M.Demark.Middle", Step::Tech(Tech::Pivot(PivotKind::Demark, Level::P))),
+    ("Pivot.M.Demark.R1", Step::Tech(Tech::Pivot(PivotKind::Demark, Level::R1))),
+    ("Pivot.M.Demark.S1", Step::Tech(Tech::Pivot(PivotKind::Demark, Level::S1))),
     ("Volatility.W", Step::MeanSwing),
     ("Volatility.M", Step::MeanSwing),
     ("volume|1W", Step::PeriodVolume),
@@ -392,7 +471,7 @@ const STATE_OPTIONAL: &[&str] = &[
 /// The state key whose presence offers an optional field.
 fn held_key(id: &str, step: Step) -> String {
     match step {
-        Step::Rating(t) => technicals::state_key(t).to_string(),
+        Step::Rating(t) | Step::Tech(t) => technicals::state_key(t).to_string(),
         Step::PeriodTurnover(k) => k.to_string(),
         Step::Perf => format!("{id}|next"),
         Step::Candles => "candle.c0".to_string(),
@@ -563,6 +642,7 @@ fn live(f: Live, t: &Table, row: &Row) -> Option<f64> {
         }
         Live::ValueTraded => pos(m.last)? * m.volume,
         Live::SessionDay => crate::screener::clock::ny_midnight_sec(row.day?)?,
+        Live::Vwap => (pos(m.high)? + pos(m.low)? + pos(m.last)?) / 3.0,
         Live::VolatilityD => {
             let (h, l, pc) = (pos(m.high)?, pos(m.low)?, m.prev_close.filter(|p| *p > 0.0)?);
             100.0 * (h - l).max((h - pc).abs()).max((l - pc).abs()) / l
@@ -582,6 +662,8 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
             // Market cap moves with the price even on the state's own day.
             Step::MarketCap => Some(price? * s.num("shares", i)?),
             Step::PeriodTurnover(k) => Some(price? * s.num(k, i)?),
+            // Bands and pivot levels are derived from the state's columns.
+            Step::Tech(tech) => technicals::at_close(s, i, tech),
             _ => s.num(key, i),
         },
         Join::Step => match step {
@@ -693,7 +775,9 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
     }
     for (id, step) in STATE {
         let kind = if matches!(step, Step::Text | Step::List | Step::Rating(_) | Step::Candles) { "text" } else { "number" };
-        let held = !STATE_OPTIONAL.contains(id) || t.state.as_ref().is_some_and(|s| s.num.contains_key(&held_key(id, *step)));
+        // The technicals came in later state versions: offered once the state holds their columns.
+        let optional = STATE_OPTIONAL.contains(id) || matches!(step, Step::Tech(_) | Step::Rating(_));
+        let held = !optional || t.state.as_ref().is_some_and(|s| s.num.contains_key(&held_key(id, *step)));
         out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state && held });
     }
     // The fundamentals the served state holds, and the ratios whose inputs it holds.

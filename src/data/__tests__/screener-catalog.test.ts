@@ -199,6 +199,31 @@ describe("filters and screens", () => {
     expect(isOffered(COLUMN_BY_ID.Stochastic, has("Stoch.K_14_1_3"))).toBe(true);
   });
 
+  it("the indicator columns: the reference scanner's field of each length, inputs, plot and level", () => {
+    expect(fieldOf(C("Macd"))).toBe("MACD.macd");
+    expect(fieldOf(C("Macd", { plot: "Macd:Signal" }))).toBe("MACD.signal");
+    expect(fieldOf(C("AverageDirectionalIndex"))).toBe("ADX");
+    expect(fieldOf(C("AverageDirectionalIndex", { length: "50" }))).toBe("ADX_50");
+    expect(fieldOf(C("DirectionalMovementIndex", { plot: "DirectionalMovementIndex:Negative" }))).toBe("ADX-DI");
+    expect(fieldOf(C("BollingerBands"))).toBe("BB.upper");
+    expect(fieldOf(C("BollingerBands", { length: "50", plot: "BollingerBands:Basis" }))).toBe("BB.basis_50");
+    expect(fieldOf(C("KeltnerChannels", { plot: "KeltnerChannels:Lower" }))).toBe("KltChnl.lower");
+    expect(fieldOf(C("DonchianChannels", { plot: "DonchianChannels:Basis" }))).toBe("DonchCh20.Middle");
+    expect(fieldOf(C("IchimokuCloud"))).toBe("Ichimoku.BLine");
+    expect(fieldOf(C("IchimokuCloud", { inputsGroup: "IchimokuCloud:20_60_120_30", plot: "IchimokuCloud:SpanA" }))).toBe("Ichimoku.Lead1_20_60_120_30");
+    expect(fieldOf(C("HullMovingAverage", { length: "200" }))).toBe("HullMA200");
+    expect(fieldOf(C("StochasticRsi", { plot: "StochasticRsi:Slow" }))).toBe("Stoch.RSI.D");
+    expect(fieldOf(C("PivotClassic"))).toBe("Pivot.M.Classic.Middle");
+    expect(fieldOf(C("PivotDemark", { level: "S1" }))).toBe("Pivot.M.Demark.S1");
+    expect(COLUMN_BY_ID.PivotDemark.params![0].options.map((o) => o.label)).toEqual(["P", "R1", "S1"]);
+    expect(["Psar", "VolumeWeightedAveragePrice", "VolumeWeightedMovingAverage", "WilliamsPercentRange", "UltimateOscillator", "RateOfChange", "MoneyFlow",
+      "ChaikinMoneyFlow", "BBPower", "Aroon"].map((id) => fieldOf(C(id)))).toEqual(["P.SAR", "VWAP", "VWMA", "W.R", "UO", "ROC", "MoneyFlow", "ChaikinMoneyFlow",
+      "BBPower", "Aroon.Up"]);
+    // Offered only once the state holds them: the ADX lengths one by one.
+    expect(offeredParams(COLUMN_BY_ID.AverageDirectionalIndex, has("ADX", "ADX_20"))![0].options.map((o) => o.value)).toEqual(["14", "20"]);
+    expect(isOffered(COLUMN_BY_ID.BollingerBands, has("MACD.macd"))).toBe(false);
+  });
+
   it("the Technicals set: ratings, RSI, Momentum, AO, CCI, the slow Stochastic and the candlestick patterns", () => {
     const set = COLUMN_SETS.find((x) => x.id === "technicals")!;
     expect(set.columns.map(fieldOf)).toEqual(["Recommend.All", "Recommend.MA", "Recommend.Other", "RSI", "Mom", "AO", "CCI20", "Stoch.K", "Stoch.D",

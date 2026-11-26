@@ -262,6 +262,12 @@ describe("filterClauses", () => {
     expect(up("offset_range_10")).toEqual([{ left: "EMA50", operation: "above%", right: ["close", 10] }]);
     expect(down("offset_range_20")).toEqual([{ left: "EMA50", operation: "below%", right: ["close", 20] }]);
     expect(filterClauses(cond(EMA("50"), "abovePercent", { column: C("Price") }))).toEqual([]);
+    // The bands' ranges: the upper Bollinger band 100% or more above the lower one, 0% to 5% below the price.
+    const bb = (plot: string) => C("BollingerBands", { plot: `BollingerBands:${plot}`, length: "20" });
+    expect(filterClauses(cond(bb("Upper"), "abovePercent", { column: bb("Lower") }, { offsetRangeId: "offset_range_100" })))
+      .toEqual([{ left: "BB.upper", operation: "above%", right: ["BB.lower", 100] }]);
+    expect(filterClauses(cond(bb("Upper"), "belowPercent", { column: C("Price") }, { offsetRangeId: "offset_range_0_5" })))
+      .toEqual([{ left: "BB.upper", operation: "in_range%", right: ["close", 0.95, 1] }]);
   });
 
   it("gives nothing for an empty value, null for an unknown column", () => {

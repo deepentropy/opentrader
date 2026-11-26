@@ -62,9 +62,12 @@ function unitOf(col: ColumnRef): string {
 }
 
 const OFFSET_LABEL: Record<OffsetRangeId, string> = {
+  offset_range_0_5: "0% to 5%",
   offset_range_0_10: "0% to 10%",
+  offset_range_0_20: "0% to 20%",
   offset_range_10: "10% or more",
   offset_range_20: "20% or more",
+  offset_range_100: "100% or more",
 };
 
 /** Texts of a filter pill: primary (column title), the active value, and
@@ -251,18 +254,15 @@ export function filterClauses(f: Filter): Clause[] | null {
     return [];
   }
   if (f.operation === "abovePercent" || f.operation === "belowPercent") {
-    // Left deviates from the right field by a % band (the reference app offset ranges).
+    // Left deviates from the right field by a % band (the reference app offset ranges): "offset_range_0_10" = 0% to
+    // 10%, "offset_range_10" = 10% or more.
     const up = f.operation === "abovePercent";
-    switch (f.offsetRangeId) {
-      case "offset_range_0_10":
-        return [{ left, operation: "in_range%", right: up ? [right, 1, 1.1] : [right, 0.9, 1] }];
-      case "offset_range_10":
-        return [{ left, operation: up ? "above%" : "below%", right: [right, 10] }];
-      case "offset_range_20":
-        return [{ left, operation: up ? "above%" : "below%", right: [right, 20] }];
-      default:
-        return [];
-    }
+    const m = /^offset_range_(\d+)(?:_(\d+))?$/.exec(f.offsetRangeId ?? "");
+    if (!m) return [];
+    const lo = Number(m[1]);
+    if (m[2] === undefined) return [{ left, operation: up ? "above%" : "below%", right: [right, lo] }];
+    const hi = Number(m[2]);
+    return [{ left, operation: "in_range%", right: up ? [right, 1 + lo / 100, 1 + hi / 100] : [right, 1 - hi / 100, 1 - lo / 100] }];
   }
   if (f.operation === "between" || f.operation === "outside") return [];
   return [{ left, operation: OP[f.operation], right }];

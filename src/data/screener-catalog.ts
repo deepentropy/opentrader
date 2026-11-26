@@ -48,7 +48,7 @@ export type Operation = "above" | "aboveOrEqual" | "below" | "belowOrEqual" | "e
 export type FilterOp = Operation | "crosses" | "crossesUp" | "crossesDown" | "true" | "trueWithin";
 /** Operations only used by presets (EMA/SMA deviation from price). */
 export type OffsetOperation = "abovePercent" | "belowPercent";
-export type OffsetRangeId = "offset_range_0_10" | "offset_range_10" | "offset_range_20";
+export type OffsetRangeId = "offset_range_0_5" | "offset_range_0_10" | "offset_range_0_20" | "offset_range_10" | "offset_range_20" | "offset_range_100";
 
 export type ParamOption = { value: string; label: string; short: string; field: string };
 /** `custom`: any length from 1 to MAX_CUSTOM_LENGTH can be typed ("Custom…"); its field is the prefix and the
@@ -187,7 +187,8 @@ const BANDS: Preset[] = [
 const EMA50 = { id: "Ema", params: { length: "50", resolution: "TimeResolution1D" } };
 const EMA200 = { id: "Ema", params: { length: "200", resolution: "TimeResolution1D" } };
 const PRICE = { id: "Price", params: {} };
-const MA_PRESETS = (id: "Ema" | "Ma"): Preset[] => [
+/** The reference presets of a moving average (the Hull MA takes the first eight). */
+const MA_PRESETS = (id: string): Preset[] => [
   { operation: "below", target: "Price", right: { column: PRICE }, ...d("Bullish bias") },
   { operation: "belowPercent", offsetRangeId: "offset_range_0_10", target: "Price", right: { column: PRICE }, ...d("Bullish deviation") },
   { operation: "belowPercent", offsetRangeId: "offset_range_10", target: "Price", right: { column: PRICE }, ...d("Large bullish deviation") },
@@ -229,16 +230,31 @@ const rating = (id: string, title: string, short: string, field: string, bucketF
   id, title, short, category: "technicals", align: "left", fmt: "rating", width: 110, field, filterField: bucketField,
   filter: { type: "CheckboxGroup", options: [["StrongBuy", "Strong buy"], ["Buy", "Buy"], ["Neutral", "Neutral"], ["Sell", "Sell"], ["StrongSell", "Strong sell"]] },
 });
-/** An oscillator column (the reference filter: any comparison with a value or the same column). */
-const oscillator = (id: string, title: string, short: string, params: ParamDef[]): ColumnDef => ({
+/** An oscillator column (the reference filter: any comparison with a value or the same column; `targets`: the other
+ *  columns it compares with too). */
+const oscillator = (id: string, title: string, short: string, params: ParamDef[], presets?: Preset[], targets: string[] = [id]): ColumnDef => ({
   id, title, short, category: "technicals", align: "right", fmt: "number", width: 86, params,
-  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: [["value", id]] },
+  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: [["value", ...targets]], presets },
+});
+/** A technical drawn over the price (moving average, band, stop, pivot level): a price compared with the prices and
+ *  the other such lines. */
+const priceLine = (id: string, title: string, short: string, params: ParamDef[], targets: string[][], presets?: Preset[]): ColumnDef => ({
+  id, title, short, category: "technicals", align: "right", fmt: "price", width: 99, params,
+  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets, presets },
 });
 
-// Price-like right-hand targets (the reference app groups: Value | Open High Low Price | EMA SMA | the extended-hours
-// prices).
+// Price-like right-hand targets (the reference app groups: Value | Open High Low Price | the moving averages and bands
+// | the pivot points | the extended-hours prices).
 const EXT_PRICES = ["PostMarketHigh", "PostMarketLow", "PostMarketOpen", "PostMarketClose", "PreMarketHigh", "PreMarketLow", "PreMarketOpen", "PreMarketClose"];
-const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Price"].filter((x) => x !== self), ["Ema", "Ma"], EXT_PRICES.filter((x) => x !== self)];
+const OHLP = ["Open", "High", "Low", "Price"];
+const PRICE_LINES = ["BollingerBands", "DonchianChannels", "Ema", "HullMovingAverage", "IchimokuCloud", "KeltnerChannels", "Ma", "Psar",
+  "VolumeWeightedAveragePrice", "VolumeWeightedMovingAverage"];
+const PIVOTS = ["PivotCamarilla", "PivotClassic", "PivotDemark", "PivotFibonacci", "PivotWoodie"];
+const PRICE_TARGETS = (self: string) => [["value"], OHLP.filter((x) => x !== self), PRICE_LINES, PIVOTS, EXT_PRICES.filter((x) => x !== self)];
+/** The targets of the bands and lines (Bollinger Bands and Hull MA also take the pivot points) and of a pivot level. */
+const LINE_TARGETS = [["value"], OHLP, PRICE_LINES];
+const LINE_PIVOT_TARGETS = [...LINE_TARGETS, PIVOTS];
+const PIVOT_TARGETS = [["value"], OHLP, ["BollingerBands", "Ema", "HullMovingAverage", "Ma"]];
 /** The right-hand targets of the percent changes (the reference Change filter's list). */
 const CHANGE_TARGETS = [["value", "ChangeFromOpen", "Gap", "PostMarketChange", "PreMarketChange", "PreMarketChangeFromOpen", "PreMarketGap", "Change"]];
 const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "between", "outside", "equal"];
@@ -519,6 +535,71 @@ const MORE_FUNDAMENTALS: ColumnDef[] = [
   more("self", "DividendsPaid", "Total cash dividends paid", "Div paid", "dividends", "money", fqfyttm("dividends_paid"), true),
 ];
 
+// ── Technicals: params and presets of the indicator columns ─────────────────
+const R1D_PARAM = { resolution: "TimeResolution1D" };
+/** A length param, each length with its field ("" when the field comes from the column's other params). */
+const LENGTHS = (opts: [length: string, field: string][], def = opts[0][0]): ParamDef => ({
+  key: "length", title: "Length", default: def, options: opts.map(([v, field]) => ({ value: v, label: v, short: v, field })),
+});
+/** The reference's one set of inputs ("Macd:12_26", shown "12,26"). */
+const INPUTS = (id: string, inputs: string, field = ""): ParamDef => {
+  const label = inputs.split("_").join(",");
+  return { key: "inputsGroup", title: "Inputs", default: `${id}:${inputs}`, options: [{ value: `${id}:${inputs}`, label, short: label, field }] };
+};
+/** Which line of the indicator a column shows (the field comes from `fieldOfParams`). */
+const PLOT = (id: string, opts: { plot: string; label: string }[]): ParamDef => ({
+  key: "plot", title: "Plot", default: `${id}:${opts[0].plot}`,
+  options: opts.map((o) => ({ value: `${id}:${o.plot}`, label: o.label, short: o.label, field: "" })),
+});
+const BANDS_PLOT = (id: string) => PLOT(id, [{ plot: "Upper", label: "Upper" }, { plot: "Basis", label: "Basis" }, { plot: "Lower", label: "Lower" }]);
+/** The scanner's name of a band plot ("BollingerBands:Lower" → "lower"). */
+const bandKey = (plot: string) => (plot.endsWith(":Lower") ? "lower" : plot.endsWith(":Basis") ? "basis" : "upper");
+const resOnly = (field: string): ParamDef[] => [{ ...RES_1D_ONLY, options: [{ ...RES_1D_ONLY.options[0], field }] }];
+const DMI = (plot: string): ColumnRef => ({ id: "DirectionalMovementIndex", params: { ...R1D_PARAM, plot: `DirectionalMovementIndex:${plot}`, length: "14" } });
+const AROON = (plot: string): ColumnRef => ({ id: "Aroon", params: { ...R1D_PARAM, plot: `Aroon:${plot}`, length: "14" } });
+const BB_LOWER: ColumnRef = { id: "BollingerBands", params: { ...R1D_PARAM, plot: "BollingerBands:Lower", length: "20" } };
+const SPAN_B: ColumnRef = { id: "IchimokuCloud", params: { ...R1D_PARAM, plot: "IchimokuCloud:SpanB", inputsGroup: "IchimokuCloud:9_26_52_26" } };
+const SIGN_PRESETS: Preset[] = [
+  { operation: "above", target: "value", right: { value: 0 }, ...d("Positive") },
+  { operation: "below", target: "value", right: { value: 0 }, ...d("Negative") },
+];
+const TREND_PRESETS: Preset[] = [
+  { operation: "below", target: "Price", right: { column: PRICE }, ...d("Uptrend") },
+  { operation: "above", target: "Price", right: { column: PRICE }, ...d("Downtrend") },
+];
+/** Overbought / oversold %K and %D of a stochastic (80 / 20). */
+const ZONE_PRESETS = (id: string, inputs: string, k: string, dd: string): Preset[] => {
+  const left = (plot: string) => ({ plot: `${id}:${plot}`, inputsGroup: inputs });
+  return [
+    { operation: "above", target: "value", leftParams: left(k), right: { value: 80 }, ...d("Overbought (%K)") },
+    { operation: "above", target: "value", leftParams: left(dd), right: { value: 80 }, ...d("Overbought (%D)") },
+    { operation: "below", target: "value", leftParams: left(k), right: { value: 20 }, ...d("Oversold (%K)") },
+    { operation: "below", target: "value", leftParams: left(dd), right: { value: 20 }, ...d("Oversold (%D)") },
+  ];
+};
+/** The price above / below a pivot level (the reference presets, top level first). */
+const PIVOT_ABOVE_TEXT: Record<string, string> = { R3: "Exit above R3", R2: "Above R2", R1: "Above R1", Middle: "Above pivot", S1: "Above S1", S2: "Above S2",
+  S3: "Above S3" };
+const PIVOT_BELOW_TEXT: Record<string, string> = { R3: "Below R3", R2: "Below R2", R1: "Below R1", Middle: "Below pivot", S1: "Below S1", S2: "Below S2",
+  S3: "Exit below S3" };
+const PIVOT_LEVELS: { level: string; label: string }[] = [
+  { level: "Middle", label: "P" }, { level: "R1", label: "R1" }, { level: "R2", label: "R2" }, { level: "R3", label: "R3" },
+  { level: "S1", label: "S1" }, { level: "S2", label: "S2" }, { level: "S3", label: "S3" },
+];
+/** A monthly pivot points column: its levels (DeMark: P, R1, S1), each a field `Pivot.M.<kind>.<level>`. */
+const pivot = (id: string, title: string, short: string, kind: string): ColumnDef => {
+  const levels = PIVOT_LEVELS.filter((l) => kind !== "Demark" || ["Middle", "R1", "S1"].includes(l.level));
+  const order = ["R3", "R2", "R1", "Middle", "S1", "S2", "S3"].filter((l) => levels.some((x) => x.level === l));
+  return priceLine(id, title, short, [
+    { key: "level", title: "Level", default: "Middle",
+      options: levels.map((l) => ({ value: l.level, label: l.label, short: l.label, field: `Pivot.M.${kind}.${l.level}` })) },
+    RES_1D_ONLY,
+  ], PIVOT_TARGETS, order.flatMap((lv): Preset[] => [
+    { operation: "below", target: "Price", leftParams: { level: lv }, right: { column: PRICE }, description: PIVOT_ABOVE_TEXT[lv] },
+    { operation: "above", target: "Price", leftParams: { level: lv }, right: { column: PRICE }, description: PIVOT_BELOW_TEXT[lv] },
+  ]));
+};
+
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
   // Security info
@@ -764,11 +845,14 @@ export const COLUMNS: ColumnDef[] = [
       { value: "14", label: "14", short: "14", field: "Mom_14" },
     ] },
     RES_1D_ONLY,
-  ]),
-  oscillator("AwesomeOscillator", "Awesome oscillator", "AO", [{ ...RES_1D_ONLY, options: [{ ...RES_1D_ONLY.options[0], field: "AO" }] }]),
+  ], SIGN_PRESETS),
+  oscillator("AwesomeOscillator", "Awesome oscillator", "AO", resOnly("AO"), SIGN_PRESETS),
   oscillator("CommodityChannelIndex", "Commodity channel index", "CCI", [
     { key: "length", title: "Length", default: "20", options: [{ value: "20", label: "20", short: "20", field: "CCI20" }] },
     RES_1D_ONLY,
+  ], [
+    { operation: "above", target: "value", right: { value: 100 }, ...d("Overbought") },
+    { operation: "below", target: "value", right: { value: -100 }, ...d("Oversold") },
   ]),
   {
     ...oscillator("Stochastic", "Stochastic", "Stoch", [
@@ -776,15 +860,169 @@ export const COLUMNS: ColumnDef[] = [
         { value: "Stochastic:14_1_3", label: "14,1,3", short: "14,1,3", field: "" },
         { value: "Stochastic:14_3_3", label: "14,3,3", short: "14,3,3", field: "" },
       ] },
-      { key: "plot", title: "Plot", default: "Stochastic:K", options: [
-        { value: "Stochastic:K", label: "%K", short: "%K", field: "" },
-        { value: "Stochastic:D", label: "%D", short: "%D", field: "" },
-      ] },
+      PLOT("Stochastic", [{ plot: "K", label: "%K" }, { plot: "D", label: "%D" }]),
       RES_1D_ONLY,
-    ]),
+    ], ZONE_PRESETS("Stochastic", "Stochastic:14_3_3", "K", "D")),
     // The reference scanner names: Stoch.K / Stoch.D for 14, 3, 3, with the inputs as a suffix otherwise.
     fieldOfParams: (p) => `Stoch.${p.plot === "Stochastic:D" ? "D" : "K"}${p.inputsGroup === "Stochastic:14_3_3" ? "" : "_14_1_3"}`,
   },
+  // The indicators of the reference Technicals filters, on the daily bars (deepentropy/gateway#57; the state's values
+  // at the close checked against the reference scanner's on 25/11/2026, every US symbol).
+  {
+    ...oscillator("Macd", "Moving average convergence divergence", "MACD", [INPUTS("Macd", "12_26"), PLOT("Macd", [{ plot: "Level", label: "Level" }, { plot: "Signal", label: "Signal" }]), RES_1D_ONLY], [
+      { operation: "above", target: "value", leftParams: { plot: "Macd:Level" }, right: { value: 0 }, ...d("Bullish momentum") },
+      { operation: "below", target: "value", leftParams: { plot: "Macd:Level" }, right: { value: 0 }, ...d("Bearish momentum") },
+    ]),
+    fieldOfParams: (p) => (p.plot === "Macd:Signal" ? "MACD.signal" : "MACD.macd"),
+  },
+  oscillator("AverageDirectionalIndex", "Average directional index", "ADX",
+    [LENGTHS([["9", "ADX_9"], ["14", "ADX"], ["20", "ADX_20"], ["50", "ADX_50"], ["100", "ADX_100"]], "14"), RES_1D_ONLY], [
+      { operation: "above", target: "value", right: { value: 60 }, ...d("Extremely strong trend") },
+      { operation: "above", target: "value", right: { value: 50 }, ...d("Very strong trend") },
+      { operation: "above", target: "value", right: { value: 40 }, ...d("Strong trend") },
+      { operation: "below", target: "value", right: { value: 20 }, ...d("Weak or no trend") },
+      { operation: "above", target: "DirectionalMovementIndex", leftParams: { length: "14" }, right: { column: DMI("Positive") }, ...d("Uptrend bias") },
+      { operation: "above", target: "DirectionalMovementIndex", leftParams: { length: "14" }, right: { column: DMI("Negative") }, ...d("Downtrend bias") },
+    ], ["DirectionalMovementIndex", "AverageDirectionalIndex"]),
+  {
+    ...oscillator("DirectionalMovementIndex", "Directional movement index", "DMI",
+      [LENGTHS([["14", ""]]), PLOT("DirectionalMovementIndex", [{ plot: "Positive", label: "Positive" }, { plot: "Negative", label: "Negative" }]), RES_1D_ONLY], [
+        { operation: "above", target: "DirectionalMovementIndex", leftParams: { plot: "DirectionalMovementIndex:Positive" }, right: { column: DMI("Negative") },
+          ...d("Bullish directional bias") },
+        { operation: "below", target: "DirectionalMovementIndex", leftParams: { plot: "DirectionalMovementIndex:Positive" }, right: { column: DMI("Negative") },
+          ...d("Bearish directional bias") },
+      ], ["AverageDirectionalIndex", "DirectionalMovementIndex"]),
+    fieldOfParams: (p) => (p.plot === "DirectionalMovementIndex:Negative" ? "ADX-DI" : "ADX+DI"),
+  },
+  {
+    ...oscillator("Aroon", "Aroon", "Aroon", [LENGTHS([["14", ""]]), PLOT("Aroon", [{ plot: "Up", label: "Up" }, { plot: "Down", label: "Down" }]), RES_1D_ONLY], [
+      ...(["Up", "Down"] as const).flatMap((side): Preset[] => {
+        const up = side === "Up";
+        const left = { plot: `Aroon:${side}` };
+        return [
+          { operation: "above", target: "Aroon", leftParams: left, right: { column: AROON(up ? "Down" : "Up") }, ...d(up ? "Bullish bias" : "Bearish bias") },
+          { operation: "equal", target: "value", leftParams: left, right: { value: 100 }, ...d(up ? "Local high" : "Local low") },
+          { operation: "above", target: "value", leftParams: left, right: { value: 50 }, ...d(up ? "Strong bullish momentum" : "Strong bearish momentum") },
+          { operation: "below", target: "value", leftParams: left, right: { value: 50 }, ...d(up ? "Weak bullish momentum" : "Weak bearish momentum") },
+          { operation: "below", target: "value", leftParams: left, right: { value: 10 }, ...d(up ? "Minimal bullish momentum" : "Minimal bearish momentum") },
+        ];
+      }),
+    ]),
+    fieldOfParams: (p) => (p.plot === "Aroon:Down" ? "Aroon.Down" : "Aroon.Up"),
+  },
+  {
+    ...priceLine("BollingerBands", "Bollinger Bands", "BB", [LENGTHS([["20", ""], ["50", ""]]), BANDS_PLOT("BollingerBands"), RES_1D_ONLY], LINE_PIVOT_TARGETS, [
+      { operation: "below", target: "Price", leftParams: { plot: "BollingerBands:Upper" }, right: { column: PRICE }, ...d("Upper band proximity") },
+      { operation: "belowPercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "BollingerBands:Upper" }, right: { column: PRICE },
+        ...d("Mild upper band proximity") },
+      { operation: "below", target: "Price", leftParams: { plot: "BollingerBands:Basis" }, right: { column: PRICE }, ...d("Bullish bias") },
+      { operation: "above", target: "Price", leftParams: { plot: "BollingerBands:Basis" }, right: { column: PRICE }, ...d("Bearish bias") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "BollingerBands:Lower" }, right: { column: PRICE },
+        ...d("Lower band proximity") },
+      { operation: "above", target: "Price", leftParams: { plot: "BollingerBands:Lower" }, right: { column: PRICE }, ...d("Lower band overextension") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_100", target: "BollingerBands", leftParams: { plot: "BollingerBands:Upper", length: "20" },
+        right: { column: BB_LOWER }, ...d("High volatility") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_0_20", target: "BollingerBands", leftParams: { plot: "BollingerBands:Upper", length: "20" },
+        right: { column: BB_LOWER }, ...d("Low volatility") },
+    ]),
+    // The reference scanner names: BB.upper / BB.basis / BB.lower for 20 closes, "_50" after them for 50.
+    fieldOfParams: (p) => `BB.${bandKey(p.plot)}${p.length === "50" ? "_50" : ""}`,
+  },
+  oscillator("BBPower", "Bull bear power", "Bull/bear", [LENGTHS([["13", "BBPower"]]), RES_1D_ONLY], SIGN_PRESETS),
+  oscillator("ChaikinMoneyFlow", "Chaikin money flow", "CMF", [LENGTHS([["20", "ChaikinMoneyFlow"]]), RES_1D_ONLY], [
+    { operation: "above", target: "value", right: { value: 0.05 }, ...d("Strong bullish bias") },
+    { operation: "above", target: "value", right: { value: 0 }, ...d("Bullish bias") },
+    { operation: "below", target: "value", right: { value: 0 }, ...d("Bearish bias") },
+    { operation: "below", target: "value", right: { value: -0.05 }, ...d("Strong bearish bias") },
+  ]),
+  {
+    ...priceLine("DonchianChannels", "Donchian channels", "DC", [LENGTHS([["20", ""]]), BANDS_PLOT("DonchianChannels"), RES_1D_ONLY], LINE_TARGETS, [
+      { operation: "below", target: "High", leftParams: { plot: "DonchianChannels:Upper" }, right: { column: { id: "High", params: { timebased: "TimeResolution1D" } } },
+        ...d("Channel top proximity") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "DonchianChannels:Upper" }, right: { column: PRICE },
+        ...d("Upper channel deviation") },
+      { operation: "belowPercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "DonchianChannels:Lower" }, right: { column: PRICE },
+        ...d("Lower band proximity") },
+      { operation: "above", target: "Low", leftParams: { plot: "DonchianChannels:Lower" }, right: { column: { id: "Low", params: { timebased: "TimeResolution1D" } } },
+        ...d("Channel bottom proximity") },
+    ]),
+    fieldOfParams: (p) => `DonchCh20.${{ "DonchianChannels:Basis": "Middle", "DonchianChannels:Lower": "Lower" }[p.plot] ?? "Upper"}`,
+  },
+  priceLine("HullMovingAverage", "Hull moving average", "Hull MA", [LENGTHS([["9", "HullMA9"], ["20", "HullMA20"], ["200", "HullMA200"]]), RES_1D_ONLY],
+    LINE_PIVOT_TARGETS, MA_PRESETS("HullMovingAverage").slice(0, 8)),
+  {
+    ...priceLine("IchimokuCloud", "Ichimoku cloud", "Ichimoku", [
+      { ...INPUTS("IchimokuCloud", "9_26_52_26"), options: [...INPUTS("IchimokuCloud", "9_26_52_26").options, ...INPUTS("IchimokuCloud", "20_60_120_30").options] },
+      PLOT("IchimokuCloud", [{ plot: "Base", label: "Base line" }, { plot: "Conversion", label: "Conversion line" }, { plot: "SpanA", label: "Leading span A" }, { plot: "SpanB", label: "Leading span B" }]),
+      RES_1D_ONLY,
+    ], LINE_TARGETS, [
+      { operation: "above", target: "IchimokuCloud", leftParams: { plot: "IchimokuCloud:SpanA" }, right: { column: SPAN_B }, ...d("Bullish cloud") },
+      { operation: "below", target: "Price", leftParams: { plot: "IchimokuCloud:SpanB" }, right: { column: PRICE }, ...d("Price above cloud") },
+      { operation: "below", target: "Price", leftParams: { plot: "IchimokuCloud:SpanA" }, right: { column: PRICE }, ...d("Price above lower cloud boundary") },
+      { operation: "above", target: "Price", leftParams: { plot: "IchimokuCloud:SpanA" }, right: { column: PRICE }, ...d("Price below upper cloud boundary") },
+      { operation: "above", target: "Price", leftParams: { plot: "IchimokuCloud:SpanB" }, right: { column: PRICE }, ...d("Price below cloud") },
+      { operation: "below", target: "IchimokuCloud", leftParams: { plot: "IchimokuCloud:SpanA" }, right: { column: SPAN_B }, ...d("Bearish cloud") },
+    ]),
+    // The reference scanner names: Ichimoku.BLine / CLine / Lead1 / Lead2, the inputs after them for 20, 60, 120, 30.
+    fieldOfParams: (p) =>
+      `Ichimoku.${{ "IchimokuCloud:Conversion": "CLine", "IchimokuCloud:SpanA": "Lead1", "IchimokuCloud:SpanB": "Lead2" }[p.plot] ?? "BLine"}${
+        p.inputsGroup === "IchimokuCloud:20_60_120_30" ? "_20_60_120_30" : ""}`,
+  },
+  {
+    ...priceLine("KeltnerChannels", "Keltner channels", "KC", [LENGTHS([["20", ""]]), BANDS_PLOT("KeltnerChannels"), RES_1D_ONLY], LINE_TARGETS, [
+      { operation: "below", target: "Price", leftParams: { plot: "KeltnerChannels:Upper" }, right: { column: PRICE }, ...d("Upper band proximity") },
+      { operation: "belowPercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "KeltnerChannels:Upper" }, right: { column: PRICE },
+        ...d("Mild upper band proximity") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "KeltnerChannels:Upper" }, right: { column: PRICE },
+        ...d("Upper band deviation") },
+      { operation: "below", target: "Price", leftParams: { plot: "KeltnerChannels:Basis" }, right: { column: PRICE }, ...d("Bullish bias") },
+      { operation: "above", target: "Price", leftParams: { plot: "KeltnerChannels:Basis" }, right: { column: PRICE }, ...d("Bearish bias") },
+      { operation: "belowPercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "KeltnerChannels:Lower" }, right: { column: PRICE },
+        ...d("Lower band proximity") },
+      { operation: "abovePercent", offsetRangeId: "offset_range_0_5", target: "Price", leftParams: { plot: "KeltnerChannels:Lower" }, right: { column: PRICE },
+        ...d("Mild lower band overextension") },
+      { operation: "above", target: "Price", leftParams: { plot: "KeltnerChannels:Lower" }, right: { column: PRICE }, ...d("Lower band overextension") },
+    ]),
+    fieldOfParams: (p) => `KltChnl.${bandKey(p.plot)}`,
+  },
+  oscillator("MoneyFlow", "Money flow index", "MFI", [LENGTHS([["14", "MoneyFlow"]]), RES_1D_ONLY], [
+    { operation: "above", target: "value", right: { value: 90 }, ...d("Extremely overbought") },
+    { operation: "above", target: "value", right: { value: 80 }, ...d("Overbought") },
+    { operation: "above", target: "value", right: { value: 70 }, ...d("Slightly overbought") },
+    { operation: "below", target: "value", right: { value: 30 }, ...d("Slightly oversold") },
+    { operation: "below", target: "value", right: { value: 20 }, ...d("Oversold") },
+    { operation: "below", target: "value", right: { value: 10 }, ...d("Extremely oversold") },
+  ]),
+  pivot("PivotClassic", "Pivot points Classic", "Classic", "Classic"),
+  pivot("PivotFibonacci", "Pivot points Fibonacci", "Fibonacci", "Fibonacci"),
+  pivot("PivotWoodie", "Pivot points Woodie", "Woodie", "Woodie"),
+  pivot("PivotCamarilla", "Pivot points Camarilla", "Camarilla", "Camarilla"),
+  pivot("PivotDemark", "Pivot points DeMark", "DeM", "Demark"),
+  priceLine("Psar", "Parabolic SAR", "SAR", resOnly("P.SAR"), LINE_TARGETS, [
+    { operation: "below", target: "Price", right: { column: PRICE }, ...d("Uptrend") },
+    { operation: "belowPercent", offsetRangeId: "offset_range_0_5", target: "Price", right: { column: PRICE }, ...d("Strengthening uptrend") },
+    { operation: "above", target: "Price", right: { column: PRICE }, ...d("Downtrend") },
+    { operation: "abovePercent", offsetRangeId: "offset_range_0_5", target: "Price", right: { column: PRICE }, ...d("Strengthening downtrend") },
+  ]),
+  oscillator("RateOfChange", "Rate of change", "ROC", [LENGTHS([["9", "ROC"]]), RES_1D_ONLY], SIGN_PRESETS),
+  {
+    ...oscillator("StochasticRsi", "Stochastic RSI", "Stoch RSI", [INPUTS("StochasticRsi", "3_3_14_14"), PLOT("StochasticRsi", [{ plot: "Fast", label: "K" }, { plot: "Slow", label: "D" }]), RES_1D_ONLY],
+      ZONE_PRESETS("StochasticRsi", "StochasticRsi:3_3_14_14", "Fast", "Slow")),
+    fieldOfParams: (p) => (p.plot === "StochasticRsi:Slow" ? "Stoch.RSI.D" : "Stoch.RSI.K"),
+  },
+  oscillator("UltimateOscillator", "Ultimate oscillator", "UO", [INPUTS("UltimateOscillator", "7_14_28", "UO"), RES_1D_ONLY], [
+    { operation: "above", target: "value", right: { value: 80 }, ...d("Strong overbought") },
+    { operation: "above", target: "value", right: { value: 70 }, ...d("Overbought") },
+    { operation: "below", target: "value", right: { value: 30 }, ...d("Oversold") },
+    { operation: "below", target: "value", right: { value: 20 }, ...d("Strong oversold") },
+  ]),
+  priceLine("VolumeWeightedAveragePrice", "Volume-weighted average price", "VWAP", resOnly("VWAP"),
+    LINE_TARGETS, TREND_PRESETS),
+  priceLine("VolumeWeightedMovingAverage", "Volume-weighted moving average", "VWMA", [LENGTHS([["20", "VWMA"]]), RES_1D_ONLY], LINE_TARGETS, TREND_PRESETS),
+  oscillator("WilliamsPercentRange", "Williams percent range", "Williams %R", [LENGTHS([["14", "W.R"]]), RES_1D_ONLY], [
+    { operation: "above", target: "value", right: { value: -20 }, ...d("Overbought") },
+    { operation: "below", target: "value", right: { value: -80 }, ...d("Oversold") },
+  ]),
   // Valuation
   { id: "MarketCap", title: "Market capitalization", short: "Mkt cap", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]], presets: [
