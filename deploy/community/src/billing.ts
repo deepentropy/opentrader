@@ -18,7 +18,7 @@ import { Env } from "./env";
 import { User, page } from "./auth";
 import { requireUser } from "./api";
 import { PASS_TTL, Plan, signPass } from "./pass";
-import { HttpError, json, now } from "./util";
+import { HttpError, hmacHex, json, now, timingSafeEqual } from "./util";
 
 const API = "https://api.stripe.com";
 /** The API version the calls below are written for (the period is on the subscription's items; `embedded_page`). */
@@ -251,17 +251,8 @@ export async function signatureValid(secret: string, header: string, body: strin
   const t = Number(parts.find(([k]) => k === "t")?.[1]);
   const sigs = parts.filter(([k]) => k === "v1").map(([, v]) => v);
   if (!Number.isFinite(t) || !sigs.length || Math.abs(at - t) > SIGNATURE_TOLERANCE) return false;
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${t}.${body}`)));
-  const expected = [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const expected = await hmacHex(secret, `${t}.${body}`);
   return sigs.some((s) => timingSafeEqual(s, expected));
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 /** A disputed payment: the subscription ends and the account is blocked; a dispute won unblocks it. */

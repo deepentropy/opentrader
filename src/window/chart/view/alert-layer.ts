@@ -3,11 +3,13 @@
  * they read, their hover / selection / drag and their menu.
  */
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
+import { priceAxisWidth } from "../axis-width";
 import { type ISeriesApi, type SeriesType } from "lightweight-charts";
 import { crosshairLockTime } from "../crosshair-lock";
 import { uiTheme } from "../../header/chart-settings";
 import { alertStore, type AlertRule, type AlertStopReason } from "../../../data/alert-store";
 import { LEVEL_OPERATORS, defaultAlertMessage, isBandOperator } from "../../../data/alert-condition";
+import { alertDeleteName, confirmDeleteAlert } from "../../alerts/confirm-delete-alert";
 import { ALERT_STATUS_COLORS, AlertLabelsPrimitive, alertLabelTheme, type AlertLabelHit, type AlertLabelSpec } from "../alert-labels";
 import { CtxIcons, type CtxNode } from "../ChartContextMenu";
 import { roundedOnSeries } from "./helpers";
@@ -179,7 +181,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
   function alertLabelAt(clientX: number, clientY: number): { series: ISeriesApi<SeriesType>; prim: AlertLabelsPrimitive; hit: AlertLabelHit; paneTop: number } | null {
     if (!cx.chart || !cx.host || alertLabelPrims.size === 0) return null;
     const hostRect = cx.host.getBoundingClientRect();
-    const plotLeft = hostRect.left + cx.chart.priceScale("left").width();
+    const plotLeft = hostRect.left + priceAxisWidth(cx.chart, "left");
     const plotW = cx.chart.timeScale().width();
     for (const [s, prim] of alertLabelPrims) {
       let paneEl: HTMLElement;
@@ -209,7 +211,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
       { kind: "item", id: "alert-edit", label: "Edit…", icon: CtxIcons.edit,
         onSelect: () => emitAppEvent("chart-open-alert-dialog", { editId: id }) },
       { kind: "item", id: "alert-delete", label: "Delete", icon: CtxIcons.remove,
-        onSelect: () => alertStore.remove(id) },
+        onSelect: () => confirmDeleteAlert(alertDeleteName(rule), () => alertStore.remove(id)) },
       { kind: "separator" },
       { kind: "item", id: "alert-lines", label: "Alert lines", checked: t.alertLinesVisible,
         onSelect: () => emitAppEvent("chart-patch-scale-settings", { patch: { alertLines: !t.alertLinesVisible } }) },
@@ -265,7 +267,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
           const again = alertLabelAt(ev.clientX, ev.clientY);
           if (again?.hit.id !== rule.id || again.hit.area !== "button") return;
           if (!rule.enabled) alertStore.setEnabled(rule.id, true);
-          else alertStore.remove(rule.id);
+          else confirmDeleteAlert(alertDeleteName(rule), () => alertStore.remove(rule.id));
         };
         window.addEventListener("pointerup", up, true);
         return;

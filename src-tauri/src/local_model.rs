@@ -290,37 +290,28 @@ async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, t: &mut Tall
         have = 0;
     }
     if have < a.size {
-        let mut req = CLIENT.get().get(a.url);
-        if have > 0 {
-            req = req.header("Range", format!("bytes={have}-"));
-        }
-        let mut res = req.send().await.map_err(|e| format!("Download of {} failed: {e}", a.file))?;
-        if !res.status().is_success() {
-            return Err(format!("Download of {} failed: HTTP {}", a.file, res.status().as_u16()));
-        }
-        // A server that ignores the range sends the whole file again.
-        if have > 0 && res.status().as_u16() != 206 {
-            have = 0;
-        }
-        let mut f = tokio::fs::OpenOptions::new().create(true).append(have > 0).write(true).truncate(have == 0).open(&part).await.map_err(|e| e.to_string())?;
-        let mut last = std::time::Instant::now();
+        // A connection that drops goes on from where it was, after a pause, without the user starting it again (on
+        // a weak line a download of gigabytes drops many times).
+        let mut failures = 0;
         loop {
-            let chunk = tokio::select! {
-                c = res.chunk() => c.map_err(|e| format!("Download of {} stopped: {e}", a.file))?,
-                _ = &mut *stop => {
-                    f.flush().await.ok();
-                    return Err("Stopped.".into());
+            match download(&part, a, &mut have, &send, stop).await {
+                Ok(()) => break,
+                Err(Dl::Fail(e)) => return Err(e),
+                Err(Dl::Retry { error, progressed }) => {
+                    if progressed {
+                        failures = 0;
+                    }
+                    failures += 1;
+                    if failures > RETRIES {
+                        return Err(error);
+                    }
+                    tokio::select! {
+                        _ = tokio::time::sleep(retry_pause(failures)) => {}
+                        _ = &mut *stop => return Err("Stopped.".into()),
+                    }
                 }
-            };
-            let Some(bytes) = chunk else { break };
-            f.write_all(&bytes).await.map_err(|e| e.to_string())?;
-            have += bytes.len() as u64;
-            if last.elapsed() > Duration::from_millis(250) {
-                last = std::time::Instant::now();
-                send(a.file.into(), have);
             }
         }
-        f.flush().await.map_err(|e| e.to_string())?;
     }
     send(format!("Checking {}", a.file), a.size);
     let p = part.clone();
@@ -339,6 +330,79 @@ async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, t: &mut Tall
     }
     std::fs::rename(&part, &path).map_err(|e| e.to_string())?;
     t.before += a.size;
+    Ok(())
+}
+
+/// Failed tries in a row (none received a byte) before a download gives up.
+const RETRIES: u32 = 6;
+
+/// The pause before try `n` again: 2, 4, 8, 16, then 30 seconds.
+fn retry_pause(n: u32) -> Duration {
+    Duration::from_secs((1u64 << n.min(5)).min(30))
+}
+
+enum Dl {
+    /// The connection failed or dropped, or the server was busy: try again.
+    Retry { error: String, progressed: bool },
+    /// Stopped, refused, or the disk failed: trying again would not help.
+    Fail(String),
+}
+
+/// One try at the rest of `a` into its `.part` file (`have` bytes already there, kept up to date).
+async fn download(part: &Path, a: &Asset, have: &mut u64, send: &(dyn Fn(String, u64) + Sync), stop: &mut oneshot::Receiver<()>) -> Result<(), Dl> {
+    let mut req = CLIENT.get().get(a.url);
+    if *have > 0 {
+        req = req.header("Range", format!("bytes={have}-"));
+    }
+    let retry = |error: String, progressed: bool| Dl::Retry { error, progressed };
+    let mut res = req.send().await.map_err(|e| retry(format!("Download of {} failed: {e}", a.file), false))?;
+    let status = res.status();
+    if !status.is_success() {
+        let error = format!("Download of {} failed: HTTP {}", a.file, status.as_u16());
+        return Err(if status.is_server_error() || status.as_u16() == 429 { retry(error, false) } else { Dl::Fail(error) });
+    }
+    // A server that ignores the range sends the whole file again.
+    if *have > 0 && status.as_u16() != 206 {
+        *have = 0;
+    }
+    let mut f = tokio::fs::OpenOptions::new()
+        .create(true)
+        .append(*have > 0)
+        .write(true)
+        .truncate(*have == 0)
+        .open(part)
+        .await
+        .map_err(|e| Dl::Fail(e.to_string()))?;
+    let mut got = 0u64;
+    let mut last = std::time::Instant::now();
+    loop {
+        let chunk = tokio::select! {
+            c = res.chunk() => match c {
+                Ok(c) => c,
+                Err(e) => {
+                    f.flush().await.ok();
+                    return Err(retry(format!("Download of {} stopped: {e}", a.file), got > 0));
+                }
+            },
+            _ = &mut *stop => {
+                f.flush().await.ok();
+                return Err(Dl::Fail("Stopped.".into()));
+            }
+        };
+        let Some(bytes) = chunk else { break };
+        f.write_all(&bytes).await.map_err(|e| Dl::Fail(e.to_string()))?;
+        *have += bytes.len() as u64;
+        got += bytes.len() as u64;
+        if last.elapsed() > Duration::from_millis(250) {
+            last = std::time::Instant::now();
+            send(a.file.into(), *have);
+        }
+    }
+    f.flush().await.map_err(|e| Dl::Fail(e.to_string()))?;
+    // The connection ended early without an error: the rest on the next try.
+    if *have < a.size {
+        return Err(retry(format!("Download of {} stopped early", a.file), got > 0));
+    }
     Ok(())
 }
 
@@ -628,6 +692,12 @@ mod tests {
         assert_eq!(latest().version, ADAPTERS.iter().map(|a| a.version).max().unwrap());
         assert_eq!(prefix_file(2), "prefix-v2.bin");
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn retries_wait_longer_each_time_up_to_30_seconds() {
+        let secs: Vec<u64> = (1..=RETRIES).map(|n| retry_pause(n).as_secs()).collect();
+        assert_eq!(secs, [2, 4, 8, 16, 30, 30]);
     }
 
     #[test]

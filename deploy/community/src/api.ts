@@ -6,6 +6,7 @@
  * views (home, ticker, search, profile) are in views.ts.
  */
 import { Env } from "./env";
+import { BOT } from "./bot";
 import { User } from "./auth";
 import {
   CONTACT_KINDS, POST_TYPES, REASONS, REPLY_KINDS, REPORT_REASONS,
@@ -443,6 +444,7 @@ function commentOut(r: Row, viewer: User | null, mod: boolean, postAuthor: strin
     parent_id: r.parent_id,
     author: r.deleted ? null : r.author_name ?? null,
     author_record: r.deleted || !record ? null : { resolved: record.resolved, hit_pct: record.hit_pct, avg_r: record.avg_r, open: record.open },
+    author_bot: !r.deleted && r.author_id === BOT,
     /** Written by the post's author. */
     by_op: !r.deleted && !!postAuthor && r.author_id === postAuthor,
     kind: r.kind ?? null,

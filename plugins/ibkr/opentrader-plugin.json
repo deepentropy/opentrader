@@ -1,7 +1,7 @@
 {
   "id": "ibkr",
   "name": "Interactive Brokers",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "OpenTrader",
   "description": "Your Interactive Brokers account in OpenTrader, through IB Gateway or TWS or by logging in directly (beta): balances, positions, orders and trading from the charts, and IBKR: chart symbols with the broker's own data (US stocks and funds, forex, futures).",
   "api": 3,
@@ -45,7 +45,7 @@
     { "key": "clientId", "label": "Client ID", "type": "number", "default": "17",
       "help": "Any number another API program connected to the same account does not use. Orders keep it: change it and the orders placed before can no longer be changed from OpenTrader." }
   ],
-  "setup": "IB Gateway or TWS: log in, then open Configure > Settings > API > Settings:\n1. Tick \"Enable ActiveX and Socket Clients\".\n2. Check that \"Socket port\" matches the Port setting of the plugin (4002 for IB Gateway paper, 4001 live; 7497 for TWS paper, 7496 live).\n3. Untick \"Read-Only API\" to trade from OpenTrader.\n4. Keep \"Allow connections from localhost only\" ticked, or add 127.0.0.1 to the trusted IPs.\nDirect login (beta): choose it as the Connection, then enter your username and password.\nThe plugin connects within a few seconds and retries while it cannot. Then choose Trade > Connect broker > Interactive Brokers.",
-  "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/ibkr",
+  "setup": "Setup guide: https://opentrader.markets/plugin-interactive-brokers.html",
+  "homepage": "https://opentrader.markets/plugin-interactive-brokers.html",
   "platforms": ["windows"]
 }

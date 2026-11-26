@@ -6,7 +6,7 @@
  *
  * A window of its own runs its own page (index.html?view=oakscript, OakScriptWindow.tsx) and asks its chart window
  * over app events: `LINK_REQUEST` (editor → chart window: hello, add/toggle a study, logs, in-place, and what the
- * chart window's script runtime must know: a script compiled, renamed or deleted) and `LINK_STATE` (chart window →
+ * chart window's script runtime must know: a script compiled or renamed) and `LINK_STATE` (chart window →
  * editor: the linked tab's studies, null when the tab is gone). The scripts themselves are shared through kv.
  */
 import { createEffect, createSignal, onCleanup } from "solid-js";
@@ -28,7 +28,7 @@ export const LINK_SHOW = "oakscript-link-show";
 export type LinkRequest = { from: string; tab: string } & (
   | { op: "hello" | "bye" }
   | { op: "toggle" | "add"; typeId: string }
-  | { op: "logs" | "in-place" | "deleted" | "renamed"; scriptId: string }
+  | { op: "logs" | "in-place" | "renamed"; scriptId: string }
   | { op: "compiled"; scriptId: string; source: string }
 );
 export type LinkState = { tab: string; indicators: string[] | null };
@@ -97,7 +97,6 @@ export type EditorHost = {
   inPlace: (tab: string, scriptId: string) => void;
   /** The script runtime of this window catches up with a change made in the editor window. */
   compiled: (scriptId: string, source: string) => void;
-  deleted: (scriptId: string) => void;
   renamed: (scriptId: string) => void;
 };
 
@@ -137,9 +136,6 @@ export function hostEditorWindow(host: EditorHost): () => string | null {
         break;
       case "compiled":
         host.compiled(r.scriptId, r.source);
-        break;
-      case "deleted":
-        host.deleted(r.scriptId);
         break;
       case "renamed":
         host.renamed(r.scriptId);

@@ -21,7 +21,7 @@ function setup(settings?: PaneChart["indicatorSettings"], more: Partial<PaneChar
   let edits!: ReturnType<typeof createChartEdits>;
   const undo = createUndoHistory((e, side) => edits.applyUndoEntry(e, side));
   edits = createChartEdits(
-    { tabOf, patchTab, activeTab: () => tabs()[0], activePaneState: () => tabs()[0].panes[0], patchActivePane: () => {} },
+    { tabs, tabOf, patchTab, activeTab: () => tabs()[0], activePaneState: () => tabs()[0].panes[0], patchActivePane: () => {} },
     undo,
     {
       drawingKeyFor: () => "",

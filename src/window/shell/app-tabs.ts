@@ -24,6 +24,7 @@ import {
   markEditedPanes,
   newPaneId,
   newTabId,
+  reviveStudies,
   saveTabs,
   type PaneChart,
   type TabChart,
@@ -264,6 +265,9 @@ export function createAppTabs(windowLabel: string) {
    *  keeping its id unless this window already has it. */
   function insertTab(tab: TabChart, index: number, active: boolean) {
     const arr = tabs().slice();
+    // Closed before one of its scripts was deleted: that script's studies don't come back.
+    const charts = (panes: PaneChart[]) => panes.map((p) => ({ ...p, ...reviveStudies(p) }));
+    tab = { ...tab, panes: charts(tab.panes), hiddenPanes: tab.hiddenPanes && charts(tab.hiddenPanes) };
     const t = arr.some((x) => x.id === tab.id) ? { ...tab, id: newTabId() } : tab;
     arr.splice(insertPosition(arr, !!t.pinned, index), 0, t);
     setTabs(arr);

@@ -10,6 +10,8 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import type { SavedLayout } from "../../data/layout-store";
 import { Dialog } from "../../components/Dialog";
+import { confirmDelete } from "../../components/Dialogs";
+import { translateWith } from "../../i18n/translator";
 
 type Props = {
   layouts: SavedLayout[];
@@ -38,6 +40,13 @@ function timeAgo(ms: number): string {
 }
 
 export function LayoutBrowserDialog(props: Props) {
+  /** The trash asks first (reference rule). */
+  const askDelete = (l: SavedLayout) =>
+    confirmDelete({
+      title: "Delete layout?",
+      text: translateWith("The saved layout \"{0}\" will be deleted. This cannot be undone.", l.name),
+      onConfirm: () => props.onDelete(l.id),
+    });
   const [query, setQuery] = createSignal("");
   let input!: HTMLInputElement;
 
@@ -127,7 +136,7 @@ export function LayoutBrowserDialog(props: Props) {
                 class="layout-browser-row-delete"
                 aria-label={`Delete ${l.name}`}
                 title="Delete layout"
-                onClick={() => props.onDelete(l.id)}
+                onClick={() => askDelete(l)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="16" height="16">
                   <path

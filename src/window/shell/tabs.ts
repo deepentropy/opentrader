@@ -22,6 +22,7 @@ import type { SessionId } from "../../data/datafeed";
 import type { IndicatorStyleOverrides } from "../chart/indicators/indicator-layer";
 import type { IndicatorOptions } from "../chart/indicators/indicator-options";
 import { currentStudies } from "../chart/indicators/retired-ids";
+import { scriptIdOfStudy, withoutDeletedScripts } from "../chart/indicators/script-studies";
 import { COMPARE_COLORS, reviveCompareStyle, type CompareStyleState } from "../chart/compare/compare-style";
 
 /** A study's persisted overrides — the inputs + plot styles the user set in the
@@ -416,7 +417,9 @@ export function reviveStudies(p: Partial<PaneChart>): Pick<PaneChart, "indicator
   const order = (ids: unknown) =>
     Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string").map((id) => studies.renamed.get(id) ?? id) : undefined;
   const seriesPane = typeof p.seriesPane === "string" && p.seriesPane ? studies.renamed.get(p.seriesPane) ?? p.seriesPane : undefined;
-  return { indicators: studies.ids, indicatorSettings: studies.settings, paneOrder: order(p.paneOrder), sourceOrder: order(p.sourceOrder), seriesPane };
+  // A script deleted since: its study has nothing to run, and no legend row to remove it by.
+  const kept = withoutDeletedScripts(studies.ids, studies.settings);
+  return { indicators: kept.ids, indicatorSettings: kept.settings, paneOrder: order(p.paneOrder), sourceOrder: order(p.sourceOrder), seriesPane };
 }
 
 /** One stored chart read back into the current shape. */
@@ -621,6 +624,24 @@ export function linkedTabCountInOtherWindows(color: LinkColor, exceptLabel: stri
       const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
       if (!Array.isArray(parsed)) continue;
       for (const t of parsed) if (t?.link?.color === color) n++;
+    }
+  } catch {
+    /* unreadable entry: count what was read */
+  }
+  return n;
+}
+
+/** Charts showing script `scriptId` in every open window (read from their persisted tab state, as above). */
+export function chartsShowingScript(scriptId: string): number {
+  let n = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith("ot:tabs:")) continue;
+      const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+      if (!Array.isArray(parsed)) continue;
+      for (const t of parsed as Partial<TabChart>[])
+        for (const p of t?.panes ?? []) if (p.indicators?.some((id) => scriptIdOfStudy(id) === scriptId)) n++;
     }
   } catch {
     /* unreadable entry: count what was read */

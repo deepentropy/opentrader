@@ -224,6 +224,12 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
     setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
     if (redoStack().length) setRedoStack([]);
   }
+  /** Rewrite the steps kept on both stacks; null drops a step. */
+  function rewrite(step: (e: UndoEntry) => UndoEntry | null) {
+    const all = (stack: UndoEntry[]) => stack.flatMap((e) => step(e) ?? []);
+    setUndoStack(all(undoStack()));
+    setRedoStack(all(redoStack()));
+  }
   function undo() {
     const stack = undoStack();
     const e = stack[stack.length - 1];
@@ -241,7 +247,7 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
     apply(e, "after");
   }
 
-  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, record, rollback, undo, redo };
+  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, record, rollback, rewrite, undo, redo };
 }
 
 export type UndoHistory = ReturnType<typeof createUndoHistory>;

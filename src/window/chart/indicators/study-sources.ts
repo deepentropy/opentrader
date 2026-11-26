@@ -97,6 +97,17 @@ export function withDescendants(
  *  reference: an alert on a study keeps its parent sources and the plot each source input reads). */
 export const SOURCES_KEY = "__sources";
 
+/** Key of the bars in view (chart bar times) in the inputs given to an alert on a study that reads them: the alert keeps
+ *  the ones it was made with, as the reference's do. */
+export const VISIBLE_RANGE_KEY = "__visibleRange";
+
+/** The bars in view of a study's inputs given to an alert, or null. */
+export function visibleRangeOf(inputs: unknown): { from: number; to: number } | null {
+  if (!inputs || typeof inputs !== "object") return null;
+  const v = (inputs as Record<string, unknown>)[VISIBLE_RANGE_KEY] as { from?: unknown; to?: unknown } | undefined;
+  return typeof v?.from === "number" && typeof v.to === "number" ? { from: v.from, to: v.to } : null;
+}
+
 /** What a source input value names: another study (its inputs, sources included, and plot) or a compared symbol
  *  (its price source); `label` = its name in the Source list. */
 export type SourceSpec = {

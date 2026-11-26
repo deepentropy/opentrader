@@ -1,10 +1,11 @@
 {
   "name": "opentrader",
-  "version": "0.4.33",
+  "version": "0.4.34",
   "description": "Free, open-source desktop charting and trading app (Rust + SolidJS).",
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-chart-library.mjs",
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
@@ -46,9 +47,9 @@
     "fancy-canvas": "^2.1.0",
     "flag-icons": "^7.5.0",
     "lightweight-charts": "^5.3.0",
-    "lightweight-charts-indicators": "^0.26.4",
+    "lightweight-charts-indicators": "^0.27.0",
     "monaco-editor": "^0.55.1",
-    "oakscriptjs": "^0.19.0",
+    "oakscriptjs": "^0.20.0",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {

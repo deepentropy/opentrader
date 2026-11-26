@@ -127,7 +127,21 @@ export function trackPanelOpened(model: string): void {
   track("assistant_opened", { model });
 }
 
-/** A model download (Activate, or Update to a newer fine-tune) ended. The error text stays out: it names folders. */
-export function trackModelDownload(o: { outcome: "done" | "stopped" | "failed"; update: boolean; seconds: number }): void {
-  track("assistant_model_download", { ...o, $ai_model: model() });
+/** A model download (Activate, or Update to a newer fine-tune) ended. The error text stays out (it names folders):
+ *  a failure goes as its kind. */
+export function trackModelDownload(o: { outcome: "done" | "stopped" | "failed"; update: boolean; seconds: number; error?: string }): void {
+  const { error, ...rest } = o;
+  track("assistant_model_download", { ...rest, ...(error ? { reason: downloadFailureKind(error) } : {}), $ai_model: model() });
+}
+
+/** The kind of a download error (src-tauri/src/local_model.rs): `http_<status>`, `network` (the connection failed or
+ *  dropped, after its retries), `checksum`, `busy` (one was already under way), or `disk` (the files could not be
+ *  written). */
+export function downloadFailureKind(error: string): string {
+  const http = /HTTP (\d{3})/.exec(error);
+  if (http) return `http_${http[1]}`;
+  if (/^Download of .* (failed|stopped)/.test(error)) return "network";
+  if (/checksum/.test(error)) return "checksum";
+  if (/already under way/.test(error)) return "busy";
+  return "disk";
 }

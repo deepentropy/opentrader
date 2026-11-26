@@ -11,6 +11,7 @@ import { translate, translateWith } from "../../i18n/translator";
  */
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
+import { confirmDelete } from "../../components/Dialogs";
 import { AnswerText, symbolsOf } from "./AnswerText";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
 import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAnswer, renameChat, running, send, stop, type AttachedFile, type ChatMessage, type ToolStep } from "../../data/assistant/session";
@@ -33,6 +34,14 @@ const suggestions = (ticker: string) => [
   translateWith("Set an alert when {0} crosses its last close +3%", ticker),
   translateWith("What does the Community say about {0}?", ticker),
 ];
+
+/** The whole conversation goes: asked first. */
+const askDeleteChat = (id: string, title: string) =>
+  confirmDelete({
+    title: "Delete chat?",
+    text: translateWith("The chat \"{0}\" will be deleted. This cannot be undone.", title),
+    onConfirm: () => deleteChat(id),
+  });
 
 export function AssistantPanel(props: { ticker: string }) {
   onMount(() => void refreshLocal().then(() => trackPanelOpened(localState(localInfo()))));
@@ -495,7 +504,7 @@ function ChatList(props: { onDone: () => void }) {
                 />
               </Show>
               <button type="button" class="asst-btn" onClick={() => setEditing(c.id)}>Rename</button>
-              <button type="button" class="asst-btn" onClick={() => deleteChat(c.id)}>Delete</button>
+              <button type="button" class="asst-btn" onClick={() => askDeleteChat(c.id, c.title)}>Delete</button>
             </div>
           )}
         </For>

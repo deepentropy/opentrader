@@ -20,7 +20,7 @@ import * as oakScript from "oakscriptjs/script";
 // built-in runs as a user script with the same module.
 import * as indicatorHelpers from "lightweight-charts-indicators/helpers";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
-import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
+import { isConventionStyle, readsVisibleRange, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
 import { BrokerEngine, brokerProperties, chartWithSymbols, DECLARATION_CHART } from "../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
@@ -113,7 +113,9 @@ function resend(id: number, type: "run" | "backtest"): OakResponse {
   return { id, type, ok: false, resend: true, error: { message: "The worker no longer has the bars of this run." } };
 }
 
-function metaOf(mod: UserModule): OakCompiledMeta {
+/** The meta of a calculate() module; `source`: its source (a module says whether it reads the visible range, as the
+ *  built-ins do, else its source tells). */
+function metaOf(mod: UserModule, source: string): OakCompiledMeta {
   const md = (mod.metadata ?? {}) as Record<string, unknown>;
   return {
     title: typeof md.title === "string" ? md.title : "Untitled",
@@ -134,6 +136,7 @@ function metaOf(mod: UserModule): OakCompiledMeta {
         ? (mod.defaultInputs as Record<string, unknown>)
         : undefined,
     hasAlertFunction: mod.hasAlertFunction === true || undefined,
+    usesVisibleRange: (typeof mod.usesVisibleRange === "boolean" ? mod.usesVisibleRange : readsVisibleRange(source)) || undefined,
   };
 }
 
@@ -171,6 +174,7 @@ function scriptMetaOf(run: oakScript.ScriptRunResult, source: string): OakCompil
     // A strategy's alert() calls: its conditions "Order fills and alert() function calls" and "alert() function
     // calls only".
     hasAlertFunction: run.hasAlertFunction || callsAlert(source) ? true : undefined,
+    usesVisibleRange: run.usesVisibleRange || readsVisibleRange(source) || undefined,
   };
 }
 
@@ -227,7 +231,7 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
     profile?.reset();
     compiled.set(req.scriptId, { kind: "convention", mod, profile });
     dropLiveRuns(req.scriptId);
-    return { id: req.id, type: "compile", ok: true, meta: metaOf(mod) };
+    return { id: req.id, type: "compile", ok: true, meta: metaOf(mod, req.source) };
   } catch (err) {
     return { id: req.id, type: "compile", ok: false, error: toScriptError(err, lineOffset) };
   } finally {

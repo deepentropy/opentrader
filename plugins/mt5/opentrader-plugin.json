@@ -1,7 +1,7 @@
 {
   "id": "mt5",
   "name": "MetaTrader 5",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "OpenTrader",
   "description": "Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account and trading from the charts.",
   "api": 1,
@@ -36,7 +36,7 @@
       "help": "The time zone of your broker's server, for the bar times. Automatic works for most brokers."
     }
   ],
-  "setup": "In MetaTrader 5:\n1. Tools > Options > Expert Advisors: tick \"Allow algorithmic trading\" and \"Allow WebRequest for listed URL\", and add http://127.0.0.1 to the list.\n2. Navigator > Expert Advisors: drag OpenTraderBridge onto any one chart and tick \"Allow Algo Trading\". Refresh the Navigator if it is not listed.\nThe plugin connects within a few seconds. Leave that chart open while you use OpenTrader.",
-  "homepage": "https://github.com/deepentropy/opentrader/tree/main/plugins/mt5",
+  "setup": "Setup guide: https://opentrader.markets/plugin-metatrader.html",
+  "homepage": "https://opentrader.markets/plugin-metatrader.html",
   "platforms": ["windows"]
 }

@@ -16,7 +16,7 @@ import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
 import { setSourceResolver, type Bar } from "oakscriptjs";
-import { alignToBars, sourceSpecsOf, SOURCES_KEY, type SourceSpec } from "../window/chart/indicators/study-sources";
+import { alignToBars, sourceSpecsOf, SOURCES_KEY, visibleRangeOf, VISIBLE_RANGE_KEY, type SourceSpec } from "../window/chart/indicators/study-sources";
 import { priceOf } from "../window/chart/series-transforms";
 import type { OHLC } from "../window/chart/chart-types";
 import type { ChartContext } from "oakscriptjs/script";
@@ -118,6 +118,14 @@ export function runStudy(
   const given = scriptBars(bars as Bar[], chart);
   // The inputs of a rule are a store proxy: a plain copy, which a user script's worker can receive.
   const plain = inputs && typeof inputs === "object" ? JSON.parse(JSON.stringify(inputs)) : inputs;
+  // The bars in view when the alert was made, as the study reads them.
+  const view = visibleRangeOf(plain);
+  if (view) {
+    const [l, r] = scriptBars([view.from, view.to].map((time) => ({ time, open: 0, high: 0, low: 0, close: 0, volume: 0 }) as Bar), chart);
+    chart.leftVisibleBarTime = (l.time as number) * 1000;
+    chart.rightVisibleBarTime = (r.time as number) * 1000;
+    delete (plain as Record<string, unknown>)[VISIBLE_RANGE_KEY];
+  }
   // A study calculated on other sources (study on study): their values first, read by its source inputs.
   const specs = sourceSpecsOf(plain);
   if (!specs) return { result: calculate(given, plain, chart), bars: given };

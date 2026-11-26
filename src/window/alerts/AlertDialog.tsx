@@ -31,6 +31,7 @@ import {
   type AlertOperator,
   type StudyConditionRef,
 } from "../../data/alert-store";
+import { alertDeleteName, confirmDeleteAlert } from "./confirm-delete-alert";
 import {
   callsGiveMessages,
   chartStudies,
@@ -1294,10 +1295,12 @@ export function AlertDialog(props: Props) {
                 <button
                   type="button"
                   class="ot-dlg-btn is-secondary ad-delete"
-                  onClick={() => {
-                    alertStore.remove(existing!.id);
-                    props.onClose();
-                  }}
+                  onClick={() =>
+                    confirmDeleteAlert(alertDeleteName(existing!), () => {
+                      alertStore.remove(existing!.id);
+                      props.onClose();
+                    })
+                  }
                 >
                   Delete
                 </button>

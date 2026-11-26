@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaTrader 5 plugin: setup guide · OpenTrader</title>
+  <meta name="description" content="Set up the MetaTrader 5 plugin: your broker's symbols on the charts, your account and trading from OpenTrader.">
+  <link rel="canonical" href="https://opentrader.markets/plugin-metatrader.html">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta property="og:site_name" content="OpenTrader">
+  <meta property="og:title" content="MetaTrader 5 plugin: setup guide · OpenTrader">
+  <meta property="og:description" content="Set up the MetaTrader 5 plugin: your broker's symbols on the charts, your account and trading from OpenTrader.">
+  <meta property="og:url" content="https://opentrader.markets/plugin-metatrader.html">
+  <meta property="og:image" content="https://opentrader.markets/assets/screenshot.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/site/icon-64.png">
+  <link rel="apple-touch-icon" href="assets/site/apple-touch-icon.png">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="top-logo" href="./"><img src="assets/site/logo.png" alt="OpenTrader" width="190" height="53"></a>
+  <nav aria-label="Main">
+    <details class="menu">
+      <summary aria-current="true">Features</summary>
+      <div class="menu-list">
+        <a href="stock-screener.html">Stock screener</a>
+        <a href="backtesting.html">Backtesting</a>
+        <a href="bar-replay.html">Bar replay</a>
+        <a href="technical-indicators.html">Indicators</a>
+        <a href="drawing-tools.html">Drawing tools</a>
+        <a href="scripting.html">Scripting</a>
+        <a href="embed.html">Embed on your site</a>
+        <a href="plugins.html">Plugins</a>
+        <a href="./#features">All features</a>
+      </div>
+    </details>
+    <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+    <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    <a class="btn btn-main" href="download.html">Download</a>
+  </nav>
+</header>
+
+<main>
+<section class="section privacy guide">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="./">OpenTrader</a> / <a href="plugins.html">Plugins</a> / <span aria-current="page">MetaTrader 5</span></nav>
+    <h1>MetaTrader 5 setup</h1>
+    <p>Your MetaTrader 5 broker in OpenTrader: its symbols and live prices on the charts, your account, and trading from the charts. Your login stays in the terminal. For Windows.</p>
+
+    <h2>Set up</h2>
+    <ol>
+      <li>In OpenTrader, open <strong>App settings</strong> from the account menu, then <strong>Plugins</strong>. Press <strong>Browse catalog</strong> and install <strong>MetaTrader 5</strong>, then turn it on (<strong>Enabled</strong>).</li>
+      <li>Under the plugin, tick your terminal's <strong>MQL5\Experts</strong> folder and press <strong>Copy OpenTraderBridge.ex5</strong>.</li>
+      <li>In MetaTrader 5, open <strong>Tools &gt; Options &gt; Expert Advisors</strong>. Tick <strong>Allow algorithmic trading</strong> and <strong>Allow WebRequest for listed URL</strong>, and add <code>http://127.0.0.1</code>.</li>
+      <li>In the Navigator, drag <strong>OpenTraderBridge</strong> from <strong>Expert Advisors</strong> onto any one chart and tick <strong>Allow Algo Trading</strong>. If it is not listed, right-click the Navigator and choose <strong>Refresh</strong>.</li>
+    </ol>
+    <p>The plugin shows <strong>Connected</strong> within a few seconds. Leave that chart open while you use OpenTrader.</p>
+
+    <h2>Trade</h2>
+    <p>Choose <strong>Trade &gt; Connect broker… &gt; MetaTrader 5</strong>, then <strong>Trade &gt; Turn trading on</strong>.</p>
+
+    <h2>After an update</h2>
+    <p>Remove the Expert Advisor from its chart and attach it again: MetaTrader keeps running the old copy until then.</p>
+
+    <h2>If something looks wrong</h2>
+    <ul>
+      <li><strong>Bars shifted by an hour:</strong> set the plugin's <strong>Server clock</strong> to New York close or Eastern European time.</li>
+      <li><strong>No sizes in the order book:</strong> many forex and CFD servers send none.</li>
+      <li><strong>Not connected:</strong> check the two boxes in the Expert Advisors options and that the Expert Advisor is still on its chart.</li>
+      <li><strong>A chart stays empty</strong> (OpenTrader 0.4.33 and earlier): it was opened before the plugin was turned on. Change its interval to load it.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>OpenTrader is an independent project, not affiliated with any trading platform or data provider. It is for charting and research only and is not financial advice. MIT license.</p>
+    <nav aria-label="Footer">
+      <a href="./">Home</a>
+      <a href="download.html">Download</a>
+      <a href="https://demo.opentrader.markets/">Online demo</a>
+      <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+      <a href="https://community.opentrader.markets/">Community</a>
+      <a href="community-rules.html">Community rules</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="legal.html">Legal notice</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

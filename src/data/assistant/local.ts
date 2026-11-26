@@ -62,7 +62,12 @@ export async function installLocal(): Promise<void> {
   setProgress(null);
   const stopped = r.status === "error" && r.error === "Stopped.";
   if (r.status === "error" && !stopped) setError(r.error);
-  trackModelDownload({ outcome: r.status === "ok" ? "done" : stopped ? "stopped" : "failed", update, seconds: Math.round((Date.now() - started) / 1000) });
+  trackModelDownload({
+    outcome: r.status === "ok" ? "done" : stopped ? "stopped" : "failed",
+    update,
+    seconds: Math.round((Date.now() - started) / 1000),
+    ...(r.status === "error" && !stopped ? { error: r.error } : {}),
+  });
   await refreshLocal();
 }
 

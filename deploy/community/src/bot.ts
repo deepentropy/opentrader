@@ -16,7 +16,7 @@
 import { Env } from "./env";
 import { User } from "./auth";
 import { utcDate } from "../../../src/community-shared/dates";
-import { HttpError, hotRank, json, newId, now } from "./util";
+import { HttpError, SUGGESTIONS, hotRank, json, newId, now } from "./util";
 
 /** UTC days since 1970. */
 const today = (at = now()) => Math.floor(at / 86_400);
@@ -110,9 +110,12 @@ const weekOf = (at: number) => {
   return Math.floor(at / DAY) * DAY - back * DAY;
 };
 
+/** A weekly thread per theme. Not in Suggestions: it holds suggestions alone. */
 export async function weeklyThreads(env: Env): Promise<string[]> {
   const monday = weekOf(now());
-  const { results } = await env.DB.prepare("SELECT id, title FROM communities WHERE kind = 'theme' ORDER BY sort_order").all<{ id: string; title: string }>();
+  const { results } = await env.DB.prepare("SELECT id, title FROM communities WHERE kind = 'theme' AND id <> ? ORDER BY sort_order")
+    .bind(SUGGESTIONS)
+    .all<{ id: string; title: string }>();
   const made: string[] = [];
   for (const c of results) {
     const p = await post(

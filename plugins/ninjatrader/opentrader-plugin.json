@@ -1,0 +1,25 @@
+{
+  "id": "ninjatrader",
+  "name": "NinjaTrader 8",
+  "version": "0.2.0",
+  "publisher": "OpenTrader",
+  "description": "NinjaTrader 8 in OpenTrader: futures history, tick charts, live prices and order book, and your account, positions and orders, read only. No trading. Not made, reviewed or approved by NinjaTrader: its terms may not allow using its data in another application. Read the terms of your NinjaTrader account before you use it.",
+  "api": 4,
+  "provides": ["datafeed", "broker"],
+  "exchange": "NT8",
+  "runtime": { "type": "external", "connectionFile": "{localAppData}/OpenTraderPlugins/ninjatrader.json" },
+  "install": [
+    {
+      "copy": "OpenTraderBridge.cs",
+      "to": {
+        "title": "AddOns folder of NinjaTrader 8",
+        "suggest": "{documents}/NinjaTrader 8/bin/Custom/AddOns",
+        "expect": "bin/Custom/AddOns"
+      }
+    }
+  ],
+  "settings": [],
+  "setup": "Not made or approved by NinjaTrader: check that the terms of your account allow this use.\nSetup guide: https://opentrader.markets/plugin-ninjatrader.html",
+  "homepage": "https://opentrader.markets/plugin-ninjatrader.html",
+  "platforms": ["windows"]
+}

@@ -5,6 +5,7 @@
  * tick stream in Watchlist.tsx. Local alerts (no server side).
  */
 import { createSignal, onMount, Show } from "solid-js";
+import { confirmDeleteAlert } from "../alerts/confirm-delete-alert";
 import { Dialog } from "../../components/Dialog";
 import { translateWith } from "../../i18n/translator";
 
@@ -66,10 +67,12 @@ export function AddAlertDialog(props: Props) {
           <button
             type="button"
             class="wl-dialog-btn wl-dialog-btn--danger"
-            onClick={() => {
-              props.onRemove();
-              props.onClose();
-            }}
+            onClick={() =>
+              confirmDeleteAlert(props.listName, () => {
+                props.onRemove();
+                props.onClose();
+              })
+            }
           >
             Remove
           </button>

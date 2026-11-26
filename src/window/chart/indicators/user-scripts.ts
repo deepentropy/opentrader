@@ -31,11 +31,13 @@ import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta, OakSourceData, OakSymbolData } from "../../oakscript/engine-types";
 import { BUILTIN_SOURCES, externalSource } from "oakscriptjs";
 import type { StudyCalcContext } from "./indicator-layer";
-import { typeIdOf } from "./study-id";
+import { addRequests, enterScope, noRequests, readRequests, seriesOf, type SymbolRequests } from "./symbol-requests";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 import { onPluginScriptsChanged } from "../../../data/plugin-scripts";
+import { USER_INDICATOR_PREFIX } from "./script-studies";
 
-export const USER_INDICATOR_PREFIX = "user:";
+export { scriptIdOfStudy, USER_INDICATOR_PREFIX } from "./script-studies";
+
 export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated" as const;
 
 export type OakScriptUpdatedDetail = AppEvents[typeof OAKSCRIPT_UPDATED_EVENT];
@@ -50,15 +52,6 @@ export function userIndicatorId(scriptId: string): string {
 
 /** Window event: open an OakScript in the editor panel ({ scriptId }). */
 export const OAKSCRIPT_OPEN_EVENT = "oakscript-open-script" as const;
-
-/** Script of a study on the chart (an OakScript indicator "user:<id>" or
- *  strategy "strategy:user:<id>", any instance), else null. */
-export function scriptIdOfStudy(studyId: string): string | null {
-  const id = typeIdOf(studyId);
-  if (id.startsWith(USER_INDICATOR_PREFIX)) return id.slice(USER_INDICATOR_PREFIX.length);
-  if (id.startsWith("strategy:" + USER_INDICATOR_PREFIX)) return id.slice(("strategy:" + USER_INDICATOR_PREFIX).length);
-  return null;
-}
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
 /** What calculate() returns while the study waits for its first result (worker run, other symbols' bars): the chart
@@ -77,7 +70,7 @@ type Run = {
   running: boolean;
   queued: QueuedRun | null;
   /** Bars of other symbols the script asked for (`request.security`): given with every run. */
-  requests: { symbol: string; timeframe: string }[];
+  requests: SymbolRequests;
   /** Message of the failed run for `key` (null = it did not fail). */
   error: string | null;
   /** Why the last run calculated every bar instead of the newest ones (null: it did not). */
@@ -134,11 +127,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.defaultInputs = meta?.defaultInputs ?? {};
   e.alertConditions = meta?.alertConditions;
   e.hasAlertFunction = meta?.hasAlertFunction;
-}
-
-/** The series a script runs on: its chart's symbol, timeframe and session. */
-function seriesOf(chart: ChartContext | undefined): string {
-  return `${chart?.tickerid ?? ""}|${chart?.timeframe ?? ""}|${chart?.sessionType ?? ""}`;
+  e.usesVisibleRange = meta?.usesVisibleRange;
 }
 
 async function runInWorker(
@@ -154,6 +143,9 @@ async function runInWorker(
   sources?: OakSourceData,
 ): Promise<void> {
   const engine = getOakEngine();
+  const requests = run.requests.list;
+  // The first compile of the script may move its study to or from a pane of its own.
+  let structural = false;
   try {
     if (rt.compiledGen !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -161,6 +153,7 @@ async function runInWorker(
       const meta = await engine.compile(scriptId, script.source);
       rt.compiledGen = engine.generation;
       scripts.saveCompiledMeta(scriptId, meta);
+      structural = (rt.entry.overlay ?? true) !== meta.overlay;
       applyMeta(rt.entry, script.name, meta);
     }
     // Daily and longer bars: put at the session open in the worker, as scripts read them; the result comes back on the
@@ -177,9 +170,7 @@ async function runInWorker(
     const missing = err instanceof OakEngineError ? err.detail.missing : undefined;
     if (missing?.length) {
       // The script reads other symbols: ask the chart for them and run again once they are loaded.
-      for (const m of missing) {
-        if (!run.requests.some((r) => r.symbol === m.symbol && r.timeframe === m.timeframe)) run.requests.push(m);
-      }
+      addRequests(requests, missing);
       run.key = null;
       return;
     }
@@ -195,9 +186,10 @@ async function runInWorker(
     run.queued = null;
     if (next && next.key !== run.key) {
       run.running = true;
+      if (structural) dispatchUpdated(scriptId, true);
       void runInWorker(rt, run, runKey, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key, next.sources);
     } else {
-      dispatchUpdated(scriptId, false);
+      dispatchUpdated(scriptId, structural);
     }
   }
 }
@@ -224,26 +216,16 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
-    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, resultSeries: null, running: false, queued: null, requests: [], error: null, fullRunReason: null }));
+    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, resultSeries: null, running: false, queued: null, requests: noRequests(), error: null, fullRunReason: null }));
     // The result before stays while a run calculates on the same series (a live update, more history); on another
     // series it would be drawn on bars it was not calculated on (#308): the study shows loading instead.
     const kept = run.resultSeries === seriesOf(chart) ? run.result : null;
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
     // them while a study reads them); one not loaded yet holds the run until it arrives.
-    let symbols: OakSymbolData | undefined;
-    let symbolsKey = "";
-    if (run.requests.length) {
-      symbols = { bars: {}, info: {} };
-      for (const r of run.requests) {
-        const b = symbolBars?.(r.symbol, r.timeframe);
-        if (b === undefined) return kept ?? PENDING_RESULT;
-        symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
-        const info = symbolInfo?.(r.symbol);
-        if (info) symbols.info[r.symbol] = info;
-        const last = b[b.length - 1];
-        symbolsKey += `|${r.symbol}:${r.timeframe}:${b.length}:${b[0]?.time}:${last?.time}:${last?.close}:${last?.volume}`;
-      }
-    }
+    enterScope(run.requests, `${seriesOf(chart)}|${JSON.stringify(typedInputs)}`);
+    const read = readRequests(run.requests.list, symbolBars, symbolInfo);
+    if (!read) return kept ?? PENDING_RESULT;
+    const { symbols, key: symbolsKey } = read;
     // Source inputs naming another source of the chart (study on study): its values, read now (the chart's
     // resolver is set around this call) and sent with the run.
     let sources: OakSourceData | undefined;

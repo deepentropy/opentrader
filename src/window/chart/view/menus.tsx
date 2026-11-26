@@ -4,6 +4,7 @@
  * rows, the TPO block actions, the plus button and pane menus.
  */
 import { promptNewWatchlist } from "../../right-rail/watchlist-prompts";
+import { priceAxisWidth } from "../axis-width";
 import { typeIdOf } from "../indicators/study-id";
 import { PriceScaleMode } from "lightweight-charts";
 import { MAIN_SOURCE_ID } from "../object-tree-sources";
@@ -672,7 +673,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     if (cx.chart && cx.host) {
       // Either side's axis (the series sharing a study pane has the other side).
       const lw = cx.leftAxisWidth();
-      const rw = cx.chart.priceScale("right").width();
+      const rw = priceAxisWidth(cx.chart, "right");
       const xRel = e.clientX - cx.host.getBoundingClientRect().left;
       const overScale = (rw > 0 && xRel >= cx.host.clientWidth - rw) || (lw > 0 && xRel <= lw);
       if (overScale) { openPriceScaleMenu(e); return; }

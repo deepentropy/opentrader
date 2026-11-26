@@ -38,6 +38,7 @@ import {
   type ISeriesMarkersPluginApi,
   type Time,
 } from "lightweight-charts";
+import type { ChartContext } from "oakscriptjs/script";
 import type { ChartTokens } from "./chart-tokens";
 import * as kv from "../../data/kv";
 import type { CandleStyleS } from "../header/chart-settings";
@@ -90,6 +91,15 @@ export type ChartTypeId =
   | "column" | "hilo"
   | "volFootprint" | "tpo" | "svp"
   | "ha" | "renko" | "pb" | "kagi" | "pnf" | "range";
+
+/** The chart types scripts tell apart (`chart.is_renko`...); every other one is standard. */
+export type ScriptChartType = NonNullable<ChartContext["chartType"]>;
+const SCRIPT_CHART_TYPES: Partial<Record<ChartTypeId, ScriptChartType>> = {
+  ha: "heikinashi", renko: "renko", pb: "linebreak", kagi: "kagi", pnf: "pnf", range: "range",
+};
+export function scriptChartType(type: ChartTypeId): ScriptChartType {
+  return SCRIPT_CHART_TYPES[type] ?? "standard";
+}
 
 export const DEFAULT_CHART_TYPE: ChartTypeId = "candle";
 

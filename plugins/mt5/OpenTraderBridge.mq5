@@ -24,7 +24,7 @@
 input string InpConnectionFile = "OpenTrader\\mt5.json"; // Connection file (terminals' common folder)
 
 #define API_VERSION 1
-#define PLUGIN_VERSION "0.4.0"
+#define PLUGIN_VERSION "0.4.1"
 #define TOASTS_API 8             // the app's Plugin API that has toasts; older apps do without
 #define RECONNECT_MS 3000
 #define LOST_MS 5000             // the trade server away this long: said to the user

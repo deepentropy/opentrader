@@ -19,6 +19,14 @@ export function isConventionStyle(source: string): boolean {
 /** Matches static import statements (incl. multi-line and side-effect form). */
 const IMPORT_RE = /^[ \t]*import\b[\s\S]*?from[ \t]*["'][^"']+["'][ \t]*;?|^[ \t]*import[ \t]*["'][^"']+["'][ \t]*;?/gm;
 
+/** The source reads the visible range of the chart (`chart.right_visible_bar_time`..., or the chart context's times of
+ *  a calculate() module): its study is calculated again when the user scrolls or zooms. Known before any bar runs, as
+ *  the reference's compile step knows it. Comments do not count. */
+export function readsVisibleRange(source: string): boolean {
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|(["'`])(?:\\.|(?!\1)[^\\])*\1/g, (m, quote?: string) => (quote ? m : " "));
+  return /\b(?:(?:left|right)_visible_bar_time|(?:left|right)VisibleBarTime|visibleRangeOf)\b/.test(code);
+}
+
 const IDENT = /^[A-Za-z_$][\w$]*$/;
 
 /** Local names an import statement binds: default, `* as ns`, `{ a, b as c }`. */

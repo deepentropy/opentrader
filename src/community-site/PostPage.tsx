@@ -254,6 +254,7 @@ export function PostPage(props: { id: string }) {
             <UserLink name={c().author} />
             <span class="cs-fog">{post.p?.suggestion ? "" : `${recordLine(c().author_record)} · `}{age(c().created_at)}{c().edited_at ? " · edited" : ""}</span>
             <Show when={c().kind}><span class="cs-type is-plain">{KIND_LABEL[c().kind!]}</span></Show>
+            <Show when={c().author_bot}><span class="cs-bot">bot</span></Show>
             <Show when={c().by_op}><span class="cs-type is-idea">Author</span></Show>
             <Show when={accepted()}><span class="cs-type is-answer">Accepted answer</span></Show>
           </div>

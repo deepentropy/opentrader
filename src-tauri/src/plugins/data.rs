@@ -91,6 +91,9 @@ pub struct Info {
     /// Values of the instrument shown with it (#383): circuit limits, price bands. `[{"name":…, "value":…}]`.
     #[serde(default)]
     pub fields: Vec<Value>,
+    /// The plugin's ticker the symbol trades as: a continuous future's contract. None: its own.
+    #[serde(default)]
+    pub trade_ticker: Option<String>,
 }
 
 /// An extra series of a symbol (`series` of `data.symbolInfo`): its name alone (`"OI"`), or with what differs from
@@ -877,27 +880,25 @@ fn market_of(kind: &str) -> &'static str {
     }
 }
 
-/// A chart pane shows `symbol` now (None: another symbol, or none). Returns whether a plugin serves it.
+/// A chart pane shows `symbol` now (None: another symbol, or none). Returns whether a plugin serves it. The symbol is
+/// kept either way: a plugin that serves it later streams it then (#409).
 pub fn set_chart(app: &AppHandle, owner: &str, symbol: Option<&str>) -> bool {
-    let routed = symbol.and_then(|s| route(app, s));
     {
         let mut subs = state(app).subs.locked();
-        match &routed {
-            Some(r) => subs.charts.insert(owner.to_string(), r.symbol.clone()),
+        match symbol {
+            Some(s) => subs.charts.insert(owner.to_string(), s.to_string()),
             None => subs.charts.remove(owner),
         };
     }
     push_subscriptions(app);
-    routed.is_some()
+    symbol.is_some_and(|s| route(app, s).is_some())
 }
 
-/// A window's watchlist symbols; returns the ones no plugin serves.
+/// A window's watchlist symbols (all kept, as a chart's); returns the ones no plugin serves.
 pub fn set_watchlist(app: &AppHandle, owner: &str, symbols: Vec<String>) -> Vec<String> {
-    let (mine, rest): (Vec<String>, Vec<String>) = symbols.into_iter().partition(|s| route(app, s).is_some());
-    let mine: Vec<String> = mine.iter().filter_map(|s| route(app, s)).map(|r| r.symbol).collect();
-    state(app).subs.locked().watchlists.insert(owner.to_string(), mine);
+    state(app).subs.locked().watchlists.insert(owner.to_string(), symbols.clone());
     push_subscriptions(app);
-    rest
+    symbols.into_iter().filter(|s| route(app, s).is_none()).collect()
 }
 
 /// A closed window's subscriptions.
@@ -1093,11 +1094,10 @@ pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>
 #[specta::specta]
 pub fn plugin_watch_ticks(app: AppHandle, window: tauri::Window, pane: String, symbol: Option<String>) {
     let owner = opentrader_core::commands::chart_owner(window.label(), &pane);
-    let routed = symbol.as_deref().and_then(|s| route(&app, s));
     {
         let mut charts = state(&app).tick_charts.locked();
-        match routed {
-            Some(r) => charts.insert(owner, r.symbol),
+        match symbol {
+            Some(s) => charts.insert(owner, s),
             None => charts.remove(&owner),
         };
     }

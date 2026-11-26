@@ -6,6 +6,7 @@
  * the time-sync click.
  */
 import { onCleanup } from "solid-js";
+import { priceAxisWidth } from "../axis-width";
 import { PriceScaleMode, type ISeriesApi, type SeriesType, type MouseEventParams, type Time } from "lightweight-charts";
 import { crosshairLockTime } from "../crosshair-lock";
 import { NEWS_LOLLIPOP_ID } from "../news-lollipop";
@@ -107,7 +108,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       // The axis under the pointer (both sides can show: the series in a
       // study pane it shares has the other side).
       const leftW = cx.leftAxisWidth();
-      const rightW = cx.chart.priceScale("right").width();
+      const rightW = priceAxisWidth(cx.chart, "right");
       const side = leftW > 0 && x < leftW ? "left" : rightW > 0 && x >= r.width - rightW ? "right" : null;
       if (!side) return false;
       const box = cx.paneBoxes().find((b) => e.clientY - r.top >= b.top && e.clientY - r.top < b.top + b.height);
@@ -547,7 +548,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
       const ts = cx.chart.timeScale();
       const rect = cx.host.getBoundingClientRect();
-      const x = e.clientX - rect.left - cx.chart.priceScale("left").width();
+      const x = e.clientX - rect.left - priceAxisWidth(cx.chart, "left");
       const y = e.clientY - rect.top;
       if (x < 0 || x >= ts.width() || y >= rect.height - ts.height()) return;
       let time = ts.coordinateToTime(x) as number | null;

@@ -4,6 +4,7 @@
  * button, with the scale geometry they are laid out on.
  */
 import { Show, createSignal } from "solid-js";
+import { priceAxisWidth } from "../axis-width";
 import { typeIdOf } from "../indicators/study-id";
 import { PriceScaleMode } from "lightweight-charts";
 import { readChartTokens } from "../chart-tokens";
@@ -91,12 +92,10 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
   const [legendLeft, setLegendLeft] = createSignal(0);
   function refreshScaleOverlays() {
     if (!cx.chart) return;
-    let lw = 0;
-    // The scale widget is not built before the first layout (width throws).
-    try { lw = cx.chart.options().leftPriceScale.visible ? cx.chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
+    const lw = priceAxisWidth(cx.chart, "left");
     setLegendLeft((v) => (v === lw ? v : lw));
     const side = currentTokens().scalesPlacement;
-    const w = cx.chart.priceScale(side).width();
+    const w = priceAxisWidth(cx.chart, side);
     const m = cx.mainPane();
     const box = cx.paneBoxes().find((b) => b.index === m);
     const h = box?.height ?? cx.chart.paneSize(m).height;

@@ -16,7 +16,8 @@ import { splitSymbol } from "../symbol-name";
 import { SessionSpec } from "./spec";
 import { localDay, localToUtc } from "./zone";
 import { isLocalSymbol, localSession } from "../local-series";
-import { isUnknownSymbol, noteSymbolError } from "../unknown-symbols";
+import { isTransientError } from "../connection";
+import { isNotFoundError, isUnknownSymbol, noteSymbolError } from "../unknown-symbols";
 
 /** Bottom-bar session choice: regular hours or the extended (whole traded)
  *  day. */
@@ -170,6 +171,8 @@ const resolved = new Map<string, SymbolSessions>();
 /** What each data plugin symbol's session was read from, to tell when its plugin answers otherwise. */
 const pluginInfos = new Map<string, string>();
 const pending = new Map<string, Promise<SymbolSessions>>();
+/** Symbols whose lookup was refused for good: a data plugin that serves their exchange later knows them. */
+const refused = new Set<string>();
 /** When each symbol's last lookup failed. A reactive look asks again only after FAILED_WAIT_MS: each resolve re-runs
  *  every look, and a long watchlist whose lookups were refused (the web server's rate limit) asked for them all again
  *  at each, thousands of calls a second (#358). */
@@ -202,6 +205,7 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
       : commands.getSymbolSession(`${exchange}:${ticker}`);
     p = info.then((r) => {
       if (r.status === "error") {
+        if (!isTransientError(r.error)) refused.add(key);
         noteSymbolError(key, r.error);
         throw new Error(r.error);
       }
@@ -225,6 +229,7 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
 export function forgetSymbolSessions(symbol: string): void {
   resolved.delete(keyOf(symbol).key);
   pluginInfos.delete(keyOf(symbol).key);
+  refused.delete(keyOf(symbol).key);
 }
 
 /** Ask the data plugins' symbols already resolved for their sessions again (a plugin connected, maybe as another
@@ -244,6 +249,46 @@ export async function refreshPluginSessions(which?: (symbol: string) => boolean)
   );
   if (changed) setVersion((v) => v + 1);
   return changed;
+}
+
+/** Waits before each try to recover symbols: a plugin that just connected may still be loading its symbols. */
+const RECOVER_WAITS_MS = [0, 3_000, 10_000, 30_000];
+let recovery = 0;
+
+/** Symbols asked for before a data plugin served their exchange (#409: a layout restored before its plugin was
+ *  installed or enabled) were refused, or given the built-in source's hours, which fit none of the plugin's bars. Ask
+ *  those of the exchanges `served` now again; `onRecovered` when a plugin described some: their charts must load
+ *  again. A newer call takes over. */
+export async function recoverPluginSymbols(served: () => Promise<ReadonlySet<string>>, onRecovered: () => void, which?: (symbol: string) => boolean): Promise<void> {
+  const mine = ++recovery;
+  for (const wait of RECOVER_WAITS_MS) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    const exchanges = await served().catch(() => new Set<string>());
+    if (mine !== recovery) return;
+    const lost = [...new Set([...refused, ...[...resolved.keys()].filter((k) => !pluginInfos.has(k))])];
+    let recovered = false;
+    let loading = false;
+    await Promise.all(
+      lost.filter((key) => exchanges.has(key.slice(0, key.indexOf(":"))) && (!which || which(key))).map(async (key) => {
+        const r = await commands.getSymbolSession(key).catch(() => null);
+        if (r?.status !== "ok") {
+          loading ||= !isNotFoundError(r?.error);
+          return;
+        }
+        refused.delete(key);
+        if (!r.data.intervals?.length) return;
+        resolved.set(key, new SymbolSessions(r.data));
+        pluginInfos.set(key, JSON.stringify(r.data));
+        failedAt.delete(key);
+        recovered = true;
+      }),
+    );
+    if (recovered) {
+      setVersion((v) => v + 1);
+      onRecovered();
+    }
+    if (!loading || mine !== recovery) return;
+  }
 }
 
 /** Sessions of `symbol` when already resolved, else null (and the resolve is

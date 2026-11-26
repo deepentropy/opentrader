@@ -1,0 +1,8 @@
+{
+  // The tests run in Node: its types are theirs alone, the Worker's code has none of them.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["."]
+}
