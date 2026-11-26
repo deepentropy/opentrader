@@ -43,7 +43,10 @@
         "screenshot": "https://opentrader.markets/assets/screenshot.png",
         "license": "https://opensource.org/licenses/MIT",
         "isAccessibleForFree": true,
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "offers": [
+          { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          { "@type": "Offer", "name": "Live market data", "price": "10", "priceCurrency": "USD", "description": "Monthly, cancel any time. Free during the beta until 31/12/2026." }
+        ],
         "sameAs": ["https://github.com/deepentropy/opentrader"]
       }
     ]
@@ -93,10 +96,10 @@
     <h1>Free stock charting for your desktop.</h1>
     <p class="hero-lede">OpenTrader is an open-source app for Windows, macOS and Linux. Charts, drawings, indicators, a stock screener, alerts and strategy testing in one window. Install it and it works: no account, no API key.</p>
     <div class="hero-actions">
-      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.4.19</small></a>
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.5.0</small></a>
       <a class="btn" href="https://demo.opentrader.markets/">Try it in your browser</a>
     </div>
-    <p class="hero-note">The <a href="https://demo.opentrader.markets/">online demo</a> is the same app, nothing to install. Quotes are delayed by 15 minutes there; live data is in beta in the desktop app.</p>
+    <p class="hero-note">The <a href="https://demo.opentrader.markets/">online demo</a> is the same app, nothing to install. Quotes are delayed by 15 minutes there. Live data comes with the desktop app's paid plan, $10 a month, cancel any time: free during the beta until 31/12/2026.</p>
     <div class="window">
       <img src="assets/screenshot.png" alt="OpenTrader with a daily chart of Intel, a volume indicator and a watchlist" width="1456" height="909" fetchpriority="high">
     </div>
@@ -267,7 +270,7 @@
     <div class="grid">
       <div>
         <h3>Is OpenTrader really free?</h3>
-        <p>Yes. The app is open source under the MIT license, with no paid tier for the charts, no ads and no account.</p>
+        <p>Yes. The app is open source under the MIT license, with no ads and no account needed. The one paid option is live market data: $10 a month, cancel any time, and free during the beta until 31/12/2026.</p>
       </div>
       <div>
         <h3>Which systems does it run on?</h3>
@@ -275,7 +278,7 @@
       </div>
       <div>
         <h3>Is the market data real time?</h3>
-        <p>In beta. US stock quotes are delayed by 15 minutes; in the desktop app, signing in with a Community account gives live data, free until 31/12/2026, then part of a paid plan. Daily history goes back to 2003, second and minute history to five years. It works from the first start, with nothing to configure.</p>
+        <p>With the paid plan, in beta. US stock quotes are delayed by 15 minutes for free. Live data is a paid plan at $10 a month, cancel any time; during the beta it is free until 31/12/2026: sign in with a Community account in the desktop app. Daily history goes back to 2003, second and minute history to five years. It works from the first start, with nothing to configure.</p>
       </div>
       <div>
         <h3>Can I write my own indicators and strategies?</h3>
@@ -300,7 +303,7 @@
       <p>One installer, nothing to configure. Or open the demo in your browser.</p>
     </div>
     <div class="hero-actions">
-      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.4.19</small></a>
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.5.0</small></a>
       <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
     </div>
   </div>
