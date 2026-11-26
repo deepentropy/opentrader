@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use chrono::{NaiveDate, Utc};
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 // ── Ticker details (`tickers/<T>`) ───────────────────────────────────────
@@ -253,7 +254,7 @@ pub async fn fetch_icon(encoded: &str) -> Result<(Vec<u8>, String)> {
 
 // ── Ticker list (`tickers`, paginated) ───────────────────────────────────
 
-/// One active US stock-market ticker from the reference list.
+/// One active US ticker from the reference list (exchange listings and the OTC market).
 #[derive(Deserialize, Serialize, Clone)]
 pub struct RefTicker {
     pub ticker: String,
@@ -263,11 +264,47 @@ pub struct RefTicker {
     /// right, unit, index, bond, structured, other.
     #[serde(default, rename = "type", deserialize_with = "null_as_empty")]
     pub kind: String,
-    /// Primary exchange (MIC).
+    /// Listing exchange as the reference names it (NASDAQ, NYSE, AMEX, CBOE, OTC), from the primary exchange's MIC
+    /// (`exchange_code`).
     #[serde(default, deserialize_with = "null_as_empty")]
     pub exchange: String,
     #[serde(default, deserialize_with = "null_as_empty")]
     pub currency: String,
+    /// "stocks" (exchange listings) or "otc".
+    #[serde(default, deserialize_with = "null_as_empty")]
+    pub market: String,
+    /// An OTC listing that is its company's primary one (the gateway's rule); None for an exchange listing.
+    #[serde(default)]
+    pub primary: Option<bool>,
+}
+
+impl RefTicker {
+    /// "secondary" for an OTC listing that is not its company's primary one (the screener's "Primary listing" leaves
+    /// it out, as the reference does), else "primary". Exchange listings are told apart by their type instead.
+    pub fn listing(&self) -> &'static str {
+        if self.market == "otc" && self.primary != Some(true) {
+            "secondary"
+        } else {
+            "primary"
+        }
+    }
+}
+
+/// The listing exchange as the reference's screener names it (measured 26/11/2026: NASDAQ, NYSE, AMEX for NYSE Arca
+/// and NYSE American, CBOE for Cboe BZX, OTC for the OTC market), from the primary exchange's MIC.
+fn exchange_code(mic: &str, market: &str) -> String {
+    if market == "otc" {
+        return "OTC".into();
+    }
+    match mic {
+        "XNAS" | "XNGS" | "XNCM" | "XNMS" => "NASDAQ",
+        "XNYS" => "NYSE",
+        "ARCX" | "XASE" => "AMEX",
+        "BATS" | "BATY" | "EDGX" | "EDGA" => "CBOE",
+        "IEXG" => "IEX",
+        other => other,
+    }
+    .into()
 }
 
 /// A missing text of the list reads empty (the screener shows no value).
@@ -284,29 +321,47 @@ struct TickerPage {
     next: Option<String>,
 }
 
-/// Every active ticker of the US stocks market (~13 pages of 1000): the first
-/// page, then `cursor=<next>` alone until `next` is null.
+/// Every active ticker of the US exchange listings and of the OTC market (~13 and ~18 pages of 1000): for each, the
+/// first page, then `cursor=<next>` alone until `next` is null.
 pub async fn fetch_reference_tickers() -> Result<Vec<RefTicker>> {
     fetch_reference_tickers_counted(None).await
 }
 
 /// The same, counting the bytes of its pages on `d` (the number of pages is not known before the last).
 pub async fn fetch_reference_tickers_counted(d: Option<&Download>) -> Result<Vec<RefTicker>> {
-    let mut query = vec![("limit", "1000".to_string())];
     let mut out = Vec::new();
-    for _page in 0..40 {
-        let body = read_body(get_raw("ticker list", "tickers", &query).await?, d, "ticker list").await?;
-        let page: TickerPage = serde_json::from_slice(&body).context("ticker list: unreadable answer")?;
-        out.extend(page.tickers.into_iter().filter(|r| !r.ticker.is_empty()).map(|mut r| {
-            r.currency = r.currency.to_uppercase();
-            r
-        }));
-        match page.next {
-            Some(next) if !next.is_empty() => query = vec![("cursor", next)],
-            _ => return Ok(out),
+    for market in ["stocks", "otc"] {
+        let mut query = vec![("limit", "1000".to_string()), ("market", market.to_string())];
+        let mut done = false;
+        for _page in 0..40 {
+            let body = read_body(get_raw("ticker list", "tickers", &query).await?, d, "ticker list").await?;
+            let page: TickerPage = serde_json::from_slice(&body).context("ticker list: unreadable answer")?;
+            out.extend(page.tickers.into_iter().filter(|r| !r.ticker.is_empty()).map(shape_ref));
+            if market == "otc" {
+                // A few tickers are in both lists (CFR, ET, SUN on 26/11/2026): the exchange listing is the one.
+                let mut seen = HashSet::new();
+                out.retain(|r| seen.insert(r.ticker.clone()));
+            }
+            match page.next {
+                Some(next) if !next.is_empty() => query = vec![("cursor", next)],
+                _ => {
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if !done {
+            return Err(anyhow!("ticker list: too many pages"));
         }
     }
-    Err(anyhow!("ticker list: too many pages"))
+    Ok(out)
+}
+
+/// A list row as the screener shows it: currency in capitals, the exchange as the reference names it.
+fn shape_ref(mut r: RefTicker) -> RefTicker {
+    r.currency = r.currency.to_uppercase();
+    r.exchange = exchange_code(&r.exchange, &r.market);
+    r
 }
 
 #[cfg(test)]
@@ -332,6 +387,22 @@ mod tests {
         let r = &page.tickers[0];
         assert_eq!((r.name.as_str(), r.kind.as_str(), r.exchange.as_str()), ("", "stock", "XNYS"));
         assert!(page.next.is_none());
+    }
+
+    #[test]
+    fn list_rows_take_the_reference_exchange_names_and_listing() {
+        let page: TickerPage = serde_json::from_str(
+            r#"{"tickers":[
+                {"ticker":"SPY","type":"etf","exchange":"ARCX","currency":"usd","market":"stocks","primary":null},
+                {"ticker":"AABB","type":"stock","exchange":"OTC Link","currency":"usd","market":"otc","primary":true},
+                {"ticker":"NSRGF","type":"stock","exchange":"OTC Link","currency":"usd","market":"otc","primary":false},
+                {"ticker":"AAPL","type":"stock","exchange":"XNAS","currency":"usd","market":"stocks"}],"next":null}"#,
+        )
+        .unwrap();
+        let rows: Vec<RefTicker> = page.tickers.into_iter().map(shape_ref).collect();
+        let got: Vec<(&str, &str, &str)> = rows.iter().map(|r| (r.ticker.as_str(), r.exchange.as_str(), r.listing())).collect();
+        assert_eq!(got, [("SPY", "AMEX", "primary"), ("AABB", "OTC", "primary"), ("NSRGF", "OTC", "secondary"), ("AAPL", "NASDAQ", "primary")]);
+        assert_eq!(rows[0].currency, "USD");
     }
 
     #[tokio::test]

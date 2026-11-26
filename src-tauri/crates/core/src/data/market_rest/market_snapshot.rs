@@ -99,7 +99,8 @@ pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
 
 /// The same, counting its bytes on `d` against the size the gateway tells (`X-Body-Length`, before compression).
 pub async fn fetch_market_snapshot_counted(d: Option<&Download>) -> Result<Vec<MarketRow>> {
-    let resp = get_raw("market snapshot", "snapshot", &[]).await?;
+    // The OTC market too: the screener lists it.
+    let resp = get_raw("market snapshot", "snapshot", &[("market", "all".into())]).await?;
     if let Some(d) = d {
         d.set_total(resp.headers().get("x-body-length").and_then(|v| v.to_str().ok()?.parse().ok()));
     }

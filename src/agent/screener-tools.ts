@@ -23,7 +23,7 @@ import {
   type Operation,
   type Screen,
 } from "../data/screener-catalog";
-import { planScreen, PRIMARY_UNIVERSE_CLAUSE } from "../data/screener-query";
+import { planScreen, PRIMARY_LISTING_CLAUSE, PRIMARY_UNIVERSE_CLAUSE } from "../data/screener-query";
 import { onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerScan, screenerValues } from "../data/screener-api";
 import { screenerPanel, screenerStore } from "../data/screener-store";
 import { scriptScreenStore } from "../data/script-screen-store";
@@ -421,7 +421,11 @@ export function createScreenerTools(): AgentTool[] {
         if (sortField && sortField !== "name" && !has(sortField)) throw new AgentError(`Unknown sort field "${sortField}".`);
         const res = await screenerScan({
           columns: out,
-          filter: [...(has(PRIMARY_UNIVERSE_CLAUSE.left) ? [PRIMARY_UNIVERSE_CLAUSE] : []), ...filters],
+          filter: [
+            ...(has(PRIMARY_UNIVERSE_CLAUSE.left) ? [PRIMARY_UNIVERSE_CLAUSE] : []),
+            ...(has(PRIMARY_LISTING_CLAUSE.left) ? [PRIMARY_LISTING_CLAUSE] : []),
+            ...filters,
+          ],
           sort: sortField ? { sortBy: sortField, sortOrder: sortArg?.order === "asc" ? "asc" : "desc" } : null,
           range: [0, limit],
           tickers: await scopeTickers(args.scope),

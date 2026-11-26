@@ -567,17 +567,20 @@ struct RefsCache {
     tickers: Vec<RefTicker>,
 }
 
-/// The saved reference list. `screener_refs.json` (before 15/10/2026) held
-/// the upstream type codes and field names; it is deleted on the first read.
+/// The saved reference list. Older files are deleted on the first read: `screener_refs.json` (before 15/10/2026) held
+/// the upstream type codes and field names, `screener_refs_v2.json` (before 27/11/2026) neither the OTC market nor
+/// the reference's exchange names.
 fn refs_cache_path() -> PathBuf {
-    crate::data::cache_root().join("screener_refs_v2.json")
+    crate::data::cache_root().join("screener_refs_v3.json")
 }
 
 /// The saved reference list and its day. An older day's list serves until today's arrives: names and types rarely
 /// change, and without them the first table matches no type or exchange filter.
 fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
     if let Some(dir) = refs_cache_path().parent() {
-        let _ = std::fs::remove_file(dir.join("screener_refs.json"));
+        for old in ["screener_refs.json", "screener_refs_v2.json"] {
+            let _ = std::fs::remove_file(dir.join(old));
+        }
     }
     let c: RefsCache = serde_json::from_slice(&std::fs::read(refs_cache_path()).ok()?).ok()?;
     let tickers = c

@@ -4,12 +4,12 @@
  * daily state file. Rebuilt after every poll and swapped in whole, so a scan
  * never waits on the network.
  */
-use crate::data::market_rest::{MarketRow, RefTicker};
+use crate::data::market_rest::{ExtHours, MarketRow, RefTicker};
 use crate::data::ticker_case;
 use crate::screener::clock;
 use crate::screener::state::StateFile;
 use chrono::NaiveDate;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// How a row's live values join the daily state.
@@ -85,6 +85,16 @@ impl Table {
         // The calendar walk is not free: resolve each distinct shown day once.
         let mut memo: HashMap<NaiveDate, Join> = HashMap::new();
         let updated_ms = market.iter().map(|m| m.updated_ms).filter(|t| *t > 0.0).reduce(f64::max);
+        // The snapshot holds the symbols that traded in its last sessions; the state, those with a trade in the last
+        // 10 sessions, as the reference lists them (its OTC symbols, measured 26/11/2026). The others show their
+        // last bar.
+        let quiet: Vec<MarketRow> = match &state {
+            Some(s) => {
+                let seen: HashSet<&str> = market.iter().map(|m| m.ticker.as_str()).collect();
+                (0..s.tickers.len()).filter(|&i| !seen.contains(s.tickers[i].as_str())).filter_map(|i| last_bar(s, i)).collect()
+            }
+            None => Vec::new(),
+        };
         let rows = market
             .into_iter()
             .map(|mut m| {
@@ -102,11 +112,49 @@ impl Table {
                 m.ticker = ticker_case::to_app(&m.ticker);
                 Row { m, r, st, join, day: shown }
             })
+            .chain(quiet.into_iter().map(|mut m| {
+                let r = ref_idx.get(m.ticker.as_str()).copied();
+                let st = st_idx.as_ref().and_then(|ix| ix.get(m.ticker.as_str()).copied());
+                let shown = clock::ny_date_ms(m.updated_ms);
+                let join = match (&state, shown) {
+                    (Some(s), Some(d)) => join_mode(s.asof, d),
+                    _ => Join::Missing,
+                };
+                m.ticker = ticker_case::to_app(&m.ticker);
+                Row { m, r, st, join, day: shown }
+            }))
             .collect();
         let session = clock::last_opened_session(chrono::Utc::now());
         Table { version, updated_ms, rows, refs, state, complete: true, session }
     }
 }
+
+/// The row of a symbol without a trade in the snapshot: its last bar from the state (`bar.*` columns), stamped at
+/// 16:00 New York that day. None when the state has no bar for it.
+fn last_bar(s: &StateFile, i: usize) -> Option<MarketRow> {
+    let day = NaiveDate::from_num_days_from_ce_opt(s.num("bar.day", i)? as i32 + EPOCH_DAYS_FROM_CE)?;
+    let close = s.num("close", i)?;
+    let prev_close = s.num("bar.prev_close", i);
+    let change = prev_close.map_or(0.0, |p| close - p);
+    let change_percent = prev_close.filter(|p| *p != 0.0).map_or(0.0, |p| 100.0 * (close / p - 1.0));
+    Some(MarketRow {
+        ticker: s.tickers[i].clone(),
+        last: close,
+        change,
+        change_percent,
+        open: s.num("bar.open", i).unwrap_or(close),
+        high: s.num("bar.high", i).unwrap_or(close),
+        low: s.num("bar.low", i).unwrap_or(close),
+        volume: s.num("bar.volume", i).unwrap_or(0.0),
+        prev_close,
+        live: false,
+        updated_ms: (clock::ny_midnight_sec(day)? + 16.0 * 3600.0) * 1000.0,
+        ext: ExtHours::default(),
+    })
+}
+
+/// Days from 0001-01-01 to 1970-01-01 (`bar.day` counts from the latter).
+const EPOCH_DAYS_FROM_CE: i32 = 719_163;
 
 /// How a row showing session `shown` joins a state built at the close of
 /// `asof`. A traded row shows the New York day of its update stamp; a row
@@ -128,6 +176,39 @@ mod tests {
 
     fn d(y: i32, m: u32, day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    #[test]
+    fn symbols_without_a_trade_show_their_last_bar() {
+        // OTCX last traded on Wed 18/11/2026 (day 20775 since 1970-01-01); AAPL is in the snapshot.
+        let col = |v: Vec<Option<f64>>| v;
+        let num: HashMap<String, Vec<Option<f64>>> = [
+            ("close", col(vec![Some(1.4), Some(200.0)])),
+            ("bar.day", col(vec![Some(20775.0), Some(20779.0)])),
+            ("bar.open", col(vec![Some(1.1), Some(199.0)])),
+            ("bar.high", col(vec![Some(1.5), Some(201.0)])),
+            ("bar.low", col(vec![Some(1.0), Some(198.0)])),
+            ("bar.volume", col(vec![Some(700.0), Some(1e6)])),
+            ("bar.prev_close", col(vec![Some(1.25), None])),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+        let state = StateFile { version: 1, asof: d(2026, 11, 20), tickers: vec!["OTCX".into(), "AAPL".into()], num, text: HashMap::new() };
+        let live = MarketRow {
+            ticker: "AAPL".into(), last: 201.0, change: 1.0, change_percent: 0.5, open: 200.0, high: 202.0, low: 199.0, volume: 5e5,
+            prev_close: Some(200.0), live: true, updated_ms: 1_795_800_000_000.0, ext: ExtHours::default(),
+        };
+        let t = Table::build(1, vec![live], Arc::new(Vec::new()), Some(Arc::new(state)));
+        assert_eq!(t.rows.len(), 2, "the snapshot's row and OTCX's last bar");
+        let otc = t.rows.iter().find(|r| r.m.ticker == "OTCX").unwrap();
+        assert_eq!((otc.m.open, otc.m.high, otc.m.low, otc.m.last, otc.m.volume), (1.1, 1.5, 1.0, 1.4, 700.0));
+        assert_eq!(otc.m.prev_close, Some(1.25));
+        assert!((otc.m.change - 0.15).abs() < 1e-9 && (otc.m.change_percent - 12.0).abs() < 1e-9);
+        assert!(!otc.m.live);
+        assert_eq!(otc.day, Some(d(2026, 11, 18)));
+        assert_eq!(otc.join, Join::AtClose);
+        assert_eq!(otc.st, Some(0));
     }
 
     #[test]

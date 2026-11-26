@@ -369,8 +369,10 @@ mod tests {
             ticker: "AAA".into(),
             name: "Aaa Inc".into(),
             kind: "stock".into(),
-            exchange: "XNAS".into(),
+            exchange: "NASDAQ".into(),
             currency: "usd".into(),
+            market: "stocks".into(),
+            primary: None,
         }];
         Table::build(7, rows, Arc::new(refs), state.map(Arc::new))
     }

@@ -284,11 +284,15 @@ export const UNIVERSE_CLAUSE: Clause = {
   right: ["stock", "preferred", "structured", "adr", "fund", "unit"],
 };
 
-/** "Primary listing" on (the market pill, on by default): one listing per company. The data has no primary-listing
- *  flag: the other securities of a company (preferred shares, units, structured products) are left out, its
- *  common shares, depositary receipts and closed-end funds stay. Measured on 03/11/2026: 6,015 symbols on, 6,889 off;
- *  the reference counts 5,534 exchange-listed symbols on, 6,663 off (it adds the OTC market, not served here). */
+/** "Primary listing" on (the market pill, on by default): one listing per company. Exchange listings have no
+ *  primary-listing flag: the other securities of a company (preferred shares, units, structured products) are left
+ *  out, its common shares, depositary receipts and closed-end funds stay. Measured on 03/11/2026: 6,015 symbols on,
+ *  6,889 off; the reference counted 5,534 exchange-listed symbols on, 6,663 off. */
 export const PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["stock", "adr", "fund"] };
+
+/** "Primary listing" on, the OTC market: only the OTC listings that are their company's primary one (the reference
+ *  lists 2,559 of its 7,786 OTC symbols so on 26/11/2026; the rule follows the security type, see the gateway). */
+export const PRIMARY_LISTING_CLAUSE: Clause = { left: "listing", operation: "in_range", right: ["primary"] };
 
 /** The ETF Screener's universe (the reference: ETFs and structured products): exchange-traded funds, notes and
  *  commodity trusts, plus the structured notes with "Primary listing" off (5,941 and 5,787 symbols on 03/11/2026;
@@ -296,11 +300,14 @@ export const PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_ra
 export const ETF_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["etf", "etn", "etv", "structured"] };
 export const ETF_PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["etf", "etn", "etv"] };
 
-/** The securities a screen scans. */
-export const universeClause = (s: Pick<Screen, "primaryListing" | "type">): Clause =>
-  screenType(s) === "etf"
-    ? s.primaryListing === false ? ETF_UNIVERSE_CLAUSE : ETF_PRIMARY_UNIVERSE_CLAUSE
-    : s.primaryListing === false ? UNIVERSE_CLAUSE : PRIMARY_UNIVERSE_CLAUSE;
+/** The securities a screen scans, by type and, with "Primary listing" on, by listing (`has`: the field exists). */
+export function universeClauses(s: Pick<Screen, "primaryListing" | "type">, has: (field: string) => boolean): Clause[] {
+  const primary = s.primaryListing !== false;
+  const byType = screenType(s) === "etf"
+    ? primary ? ETF_PRIMARY_UNIVERSE_CLAUSE : ETF_UNIVERSE_CLAUSE
+    : primary ? PRIMARY_UNIVERSE_CLAUSE : UNIVERSE_CLAUSE;
+  return primary && has(PRIMARY_LISTING_CLAUSE.left) ? [byType, PRIMARY_LISTING_CLAUSE] : [byType];
+}
 
 /** Extra hidden columns requested for every row (tooltip, currency unit). */
 export const EXTRA_FIELDS = ["description", "currency"] as const;
@@ -326,7 +333,7 @@ export function planScreen(s: Screen, known: (field: string) => boolean, tickers
   });
   const fields = columns.map((c) => fieldOf(c) as string);
   for (const x of EXTRA_FIELDS) if (has(x)) fields.push(x);
-  const filter: Clause[] = has(UNIVERSE_CLAUSE.left) ? [universeClause(s)] : [];
+  const filter: Clause[] = has(UNIVERSE_CLAUSE.left) ? universeClauses(s, has) : [];
   for (const f of s.filters) {
     if (!isActive(f)) continue;
     const cl = filterClauses(f);

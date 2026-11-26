@@ -28,7 +28,7 @@ struct DailyAnswer {
 /// when the date had no session (weekend / holiday / not-yet-published) or
 /// the lookup failed. A ticker without a close is left out.
 async fn fetch_daily_closes(date: NaiveDate) -> Option<HashMap<String, f64>> {
-    let answer: DailyAnswer = get_json("whole-market daily bars", &format!("daily/{date}"), &[("adjusted", "true".into())])
+    let answer: DailyAnswer = get_json("whole-market daily bars", &format!("daily/{date}"), &[("adjusted", "true".into()), ("market", "all".into())])
         .await
         .map_err(|e| eprintln!("[market_rest] {e}"))
         .ok()?;

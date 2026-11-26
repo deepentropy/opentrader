@@ -87,6 +87,8 @@ pub enum Reference {
     Type,
     Exchange,
     Currency,
+    /// "secondary" for an OTC listing that is not its company's primary one, else "primary" (`RefTicker::listing`).
+    Listing,
 }
 
 /// How a state field becomes a live value on the session after D (S).
@@ -237,6 +239,7 @@ const REFERENCE: &[(&str, Reference)] = &[
     ("type", Reference::Type),
     ("exchange", Reference::Exchange),
     ("currency", Reference::Currency),
+    ("listing", Reference::Listing),
 ];
 
 /// State fields and how each steps to the next session. The definitions
@@ -527,6 +530,7 @@ impl Field {
                     Reference::Type => &r?.kind,
                     Reference::Exchange => &r?.exchange,
                     Reference::Currency => &r?.currency,
+                    Reference::Listing => r?.listing(),
                 };
                 (!s.is_empty()).then_some(Val::Text(s))
             }
