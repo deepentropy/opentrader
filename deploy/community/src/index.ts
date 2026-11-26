@@ -63,7 +63,7 @@ async function readBody(request: Request, path: string): Promise<any> {
 /** Bursts from one connection: sign-ins, and writes (posts, comments, ratings, reports). */
 async function burstLimit(env: Env, request: Request, path: string): Promise<void> {
   const key = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" || path === "/check/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
+  const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" || path.startsWith("/auth/email") || path === "/check/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
   if (limiter && !(await limiter.limit({ key })).success) throw new HttpError(429, "Too many requests. Wait a minute and try again.");
 }
 
@@ -74,6 +74,10 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/auth\/start$/, ({ env, url }) => auth.start(env, url)],
   ["POST", /^\/auth\/verify$/, ({ env, request }) => auth.verify(env, request)],
   ["GET", /^\/auth\/callback\/(github|google|discord)$/, ({ env, request, url, params }) => auth.callback(env, request, url, params[0])],
+  ["GET", /^\/auth\/email$/, ({ env, url }) => auth.mailStart(env, url)],
+  ["POST", /^\/auth\/email$/, ({ env, request }) => auth.mailSend(env, request)],
+  ["POST", /^\/auth\/email\/code$/, ({ env, request }) => auth.mailCheck(env, request)],
+  ["POST", /^\/auth\/email\/name$/, ({ env, request }) => auth.mailName(env, request)],
   ["GET", /^\/auth\/dev$/, ({ env, request, url }) => auth.devLogin(env, request, url)],
   ["POST", /^\/auth\/token$/, ({ env, body }) => auth.token(env, body)],
   ["POST", /^\/auth\/logout$/, async ({ env, user }) => (user ? auth.logout(env, user) : json({ ok: true }))],
@@ -208,8 +212,8 @@ export default {
       // The payment provider's and GitHub's deliveries come in bursts from a few addresses.
       const raw = path === "/billing/webhook" || path === "/github/webhook";
       if (!raw) await burstLimit(env, request, path);
-      // The bot check's form and the webhooks' signed bodies are read by their handlers.
-      const body = raw || path === "/auth/verify" || path === "/check/verify" ? null : await readBody(request, path);
+      // The sign-in pages' forms and the webhooks' signed bodies are read by their handlers.
+      const body = raw || path === "/auth/verify" || path.startsWith("/auth/email") || path === "/check/verify" ? null : await readBody(request, path);
       const user = await auth.currentUser(env, request);
       res = await handler({ env, request, url, params, body, user, ctx });
     } catch (e) {

@@ -33,6 +33,9 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
+  /** E-mail sign-in: the sender (Email Service binding) and its address. Either unset, or no bot check: not offered. */
+  EMAIL?: SendEmail;
+  EMAIL_FROM?: string;
   /** Opens GitHub issues from suggestions (Issues: read and write on the project). Unset: "Promote" opens a prefilled new issue page instead. */
   GITHUB_ISSUES_TOKEN?: string;
   /** Secret of the project's GitHub webhook (issues events, POST /github/webhook): a suggestion's issue that closes. Unset: the hourly check alone. */

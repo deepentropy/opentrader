@@ -35,6 +35,8 @@
     }
   ],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
+  // E-mail sign-in codes (src/auth.ts), sent from EMAIL_FROM: its domain onboarded in Email Service (Email Sending).
+  "send_email": [{ "name": "EMAIL" }],
   // Live comments: one room per post (src/live.ts).
   "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PostRoom" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PostRoom"] }],
@@ -55,6 +57,8 @@
     "DISCORD_CLIENT_ID": "1567124030622924901",
     // Bot check at sign-in; its secret is TURNSTILE_SECRET.
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFx6K_eX2hXdUuKw",
+    // The sender of the e-mail sign-in codes.
+    "EMAIL_FROM": "no-reply@opentrader.markets",
     // Ticker communities only for known symbols; its token is GATEWAY_TOKEN.
     "GATEWAY_URL": "https://api.opentrader.markets",
     // The accounts the posting API (scripts/bot.mjs) may write as, besides OpenTrader-bot: deepentropy.
@@ -75,6 +79,8 @@
         "GITHUB_CLIENT_ID": "",
         "GOOGLE_CLIENT_ID": "",
         "DISCORD_CLIENT_ID": "",
+        // Not sent in a local run: wrangler logs each e-mail (the code) instead.
+        "EMAIL_FROM": "no-reply@opentrader.markets",
         // Turnstile's test keys: the check always passes.
         "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
         "TURNSTILE_SECRET": "1x0000000000000000000000000000000AA"
@@ -84,6 +90,7 @@
         { "name": "WRITE_LIMITER", "namespace_id": "2102", "simple": { "limit": 30, "period": 60 } }
       ],
       "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
+      "send_email": [{ "name": "EMAIL" }],
       "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PostRoom" }] },
       "d1_databases": [
         {

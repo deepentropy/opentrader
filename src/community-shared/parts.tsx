@@ -216,7 +216,7 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
   return (
     <div class="cm-signin">
       <div class="cm-signin-title">Sign in to Community</div>
-      <p class="cm-muted">Use an account you already have. Community keeps only a user name, never your e-mail address or a password.</p>
+      <p class="cm-muted">Use an account you already have, or your e-mail address: we send you a code. No password, and never a marketing e-mail.</p>
       <p class="cm-muted">
         By signing in you accept the <ExternalLink href={TERMS_URL}>terms of use</ExternalLink> and the{" "}
         <ExternalLink href={RULES_URL}>community rules</ExternalLink>.
@@ -236,7 +236,7 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
               {(p) => (
                 <button type="button" class="cm-btn is-provider" onClick={() => go(p)}>
                   <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="cm-provider-logo" /></Show>
-                  <span>{translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p)}</span>
+                  <span>{translateWith(p === "email" ? "Continue with e-mail" : "Continue with {0}", PROVIDER_LABELS[p] ?? p)}</span>
                 </button>
               )}
             </For>

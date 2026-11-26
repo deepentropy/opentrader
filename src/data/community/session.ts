@@ -24,7 +24,7 @@ const [signingIn, setSigningIn] = createSignal(false);
 /** The signed-in account (null: signed out), once `initSession` settled. */
 export { me, ready, signingIn };
 
-export const PROVIDER_LABELS: Record<string, string> = { google: "Google", github: "GitHub", discord: "Discord", dev: "Test account" };
+export const PROVIDER_LABELS: Record<string, string> = { google: "Google", github: "GitHub", discord: "Discord", email: "E-mail", dev: "Test account" };
 
 function randomString(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));

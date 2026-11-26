@@ -1,6 +1,9 @@
 /*
  * Sign-in with an existing account (GitHub, Google, Discord): no passwords,
- * no e-mail addresses stored, only the provider's user id and a name.
+ * no e-mail addresses stored, only the provider's user id and a name. Or with
+ * an e-mail address: a one-time code sent to it (no password either); the
+ * address is the account's identity and is kept, for account and billing
+ * messages only.
  *
  *   1. The app picks a random `state` and a PKCE verifier, and opens
  *      /auth/start?provider&state&challenge&redirect in the browser.
@@ -18,7 +21,7 @@
  * DEV_LOGIN=1 (local runs only) adds a "dev" provider that asks for a name.
  */
 import { Env } from "./env";
-import { HttpError, escapeHtml, json, nameFromProfile, newId, newToken, now, pkceMatches, senderHash, sha256Hex, str } from "./util";
+import { HttpError, NAME_RE, escapeHtml, json, nameFromProfile, newId, newToken, now, pkceMatches, senderHash, sha256Hex, str, timingSafeEqual } from "./util";
 
 const LOGIN_TTL = 15 * 60;
 /** New accounts a connection may make a day. */
@@ -82,6 +85,7 @@ const PROVIDERS: Record<string, Provider> = {
 
 export function enabledProviders(env: Env): string[] {
   const list = Object.keys(PROVIDERS).filter((p) => PROVIDERS[p].clientId(env) && PROVIDERS[p].clientSecret(env));
+  if (mailOn(env)) list.push("email");
   if (env.DEV_LOGIN === "1") list.push("dev");
   return list;
 }
@@ -106,8 +110,19 @@ export function page(title: string, body: string, status = 200, head = ""): Resp
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title>
 <style>body{font:15px system-ui,sans-serif;background:#131722;color:#d1d4dc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
 main{max-width:420px;padding:32px;background:#1e222d;border-radius:8px}h1{font-size:20px;margin:0 0 12px}input{font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:8px 0 12px;background:#131722;color:inherit;border:1px solid #434651;border-radius:4px}
-button{font:inherit;padding:8px 16px;background:#2962ff;color:#fff;border:0;border-radius:4px;cursor:pointer}</style>${head}</head><body><main><h1>${escapeHtml(title)}</h1>${body}</main></body></html>`;
-  return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+button{font:inherit;padding:8px 16px;background:#2962ff;color:#fff;border:0;border-radius:4px;cursor:pointer}
+.link{background:none;color:#2962ff;padding:0}.error{color:#f7525f}.muted{color:#787b86;font-size:13px}form+form{margin-top:16px}</style>${head}</head><body><main><h1>${escapeHtml(title)}</h1>${body}</main></body></html>`;
+  return new Response(html, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      // Sign-in pages carry the login's state: never kept, framed by another site or sent on as referrer.
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+      "content-security-policy": "frame-ancestors 'none'",
+      "referrer-policy": "no-referrer",
+    },
+  });
 }
 
 function finish(redirect: string, params: Record<string, string>): Response {
@@ -196,6 +211,7 @@ async function toProvider(env: Env, provider: string, state: string): Promise<Re
 <form method="get" action="/auth/dev"><input type="hidden" name="state" value="${escapeHtml(state)}"><input name="name" placeholder="Name" autofocus required pattern="[A-Za-z0-9_\\-]{3,20}"><button>Sign in</button></form>`,
     );
   }
+  if (provider === "email") return mailForm(state);
   const p = PROVIDERS[provider];
   const auth = new URL(p.authorize);
   auth.searchParams.set("client_id", p.clientId(env)!);
@@ -238,6 +254,238 @@ export async function callback(env: Env, request: Request, url: URL, provider: s
   if (!accessToken) return finish(login.redirect, { state, error: "token" });
   const profile = await p.profile(accessToken);
   return complete(env, request, state, login.redirect, provider, profile);
+}
+
+// ── E-mail sign-in ──────────────────────────────────────────────────────
+//
+// The address gets a 6-digit code tied to the sign-in that asked for it (its
+// state, itself tied to the app's PKCE verifier): a code read by someone else
+// opens nothing on its own. Guessing is bounded: MAIL_TRIES per code,
+// MAIL_PER_LOGIN codes per sign-in, MAIL_PER_HOUR / MAIL_PER_DAY codes per
+// address, so at most MAIL_PER_DAY * MAIL_TRIES guesses in a million a day.
+// Each sign-in passes the bot check first (the method is offered only with it).
+
+/** A code works this long after it was sent. */
+const MAIL_CODE_TTL = 10 * 60;
+const MAIL_TRIES = 5;
+const MAIL_PER_LOGIN = 3;
+/** Seconds before the same sign-in may ask for another code. */
+const MAIL_RESEND_AFTER = 60;
+const MAIL_PER_HOUR = 5;
+const MAIL_PER_DAY = 10;
+/** Codes one connection may have sent in an hour, to any addresses. */
+const MAIL_PER_SENDER_HOUR = 10;
+
+/** E-mail sign-in is offered: a sender, and the bot check (or a local run). */
+function mailOn(env: Env): boolean {
+  return !!env.EMAIL && !!env.EMAIL_FROM && (!!env.TURNSTILE_SITE_KEY || env.DEV_LOGIN === "1");
+}
+
+// The HTML form's own rule for an address (one dot at least in the domain), ASCII only.
+const MAIL_RE = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+
+/** The address in lower case, or null when it is not one. */
+export function normalizeMail(raw: string): string | null {
+  const s = raw.trim().toLowerCase();
+  return s.length <= 254 && MAIL_RE.test(s) ? s : null;
+}
+
+/** Six digits, uniform. */
+export function mailCode(): string {
+  const n = new Uint32Array(1);
+  // 4,294,000,000 is the last multiple of a million under 2^32: the values above it would favour low codes.
+  do crypto.getRandomValues(n);
+  while (n[0] >= 4_294_000_000);
+  return String(n[0] % 1_000_000).padStart(6, "0");
+}
+
+const mailCodeHash = (state: string, code: string) => sha256Hex(`mail:${state}:${code}`);
+
+type MailLogin = { redirect: string; mail: string | null; mail_code_hash: string | null; mail_code_at: number | null; mail_tries: number; mail_sent: number; mail_ok: number };
+
+/** The e-mail sign-in of `state`, still open and past the bot check. */
+async function mailLogin(env: Env, state: string): Promise<MailLogin | null> {
+  if (!mailOn(env) || !STATE_RE.test(state)) return null;
+  const login = await env.DB.prepare(
+    "SELECT redirect, verified, mail, mail_code_hash, mail_code_at, mail_tries, mail_sent, mail_ok FROM logins WHERE state = ? AND provider = 'email' AND code IS NULL AND created_at >= ?",
+  )
+    .bind(state, now() - LOGIN_TTL)
+    .first<MailLogin & { verified: number }>();
+  if (!login || (env.TURNSTILE_SITE_KEY && !login.verified)) return null;
+  return login;
+}
+
+const expired = () => page("Sign-in failed", "<p>This sign-in has expired. Start again from OpenTrader.</p>", 400);
+const hidden = (name: string, value: string) => `<input type="hidden" name="${name}" value="${escapeHtml(value)}">`;
+const error = (text: string | undefined) => (text ? `<p class="error" role="alert">${escapeHtml(text)}</p>` : "");
+
+function mailForm(state: string, problem?: string, value = "", status = 200): Response {
+  return page(
+    "Sign in with e-mail",
+    `<p>Enter your e-mail address: we send you a code to sign in. No password.</p>${error(problem)}
+<form method="post" action="/auth/email">${hidden("state", state)}
+<input type="email" name="email" value="${escapeHtml(value)}" placeholder="you@example.com" autocomplete="email" maxlength="254" required autofocus>
+<button>Send the code</button></form>
+<p class="muted">We use your address only to send sign-in codes and messages about your account and billing. Never marketing, never shared.</p>`,
+    status,
+  );
+}
+
+function codeForm(state: string, mail: string, problem?: string, status = 200): Response {
+  return page(
+    "Check your e-mail",
+    `<p>We sent a 6-digit code to <b>${escapeHtml(mail)}</b>. It works for ${MAIL_CODE_TTL / 60} minutes.</p>${error(problem)}
+<form method="post" action="/auth/email/code">${hidden("state", state)}
+<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456" required autofocus>
+<button>Sign in</button></form>
+${newCodeForm(state, mail)}`,
+    status,
+  );
+}
+
+/** Another code to the same address, or another address. */
+function newCodeForm(state: string, mail: string): string {
+  return `<form method="post" action="/auth/email">${hidden("state", state)}${hidden("email", mail)}
+<p class="muted">No e-mail? Look in your spam folder, or <button class="link">send a new code</button>. <a href="/auth/email?state=${encodeURIComponent(state)}" style="color:#2962ff">Use another address</a>.</p></form>`;
+}
+
+function nameForm(state: string, problem?: string, value = "", status = 200): Response {
+  return page(
+    "Choose your user name",
+    `<p>It is shown with what you post. 3 to 20 letters, digits, _ or -.</p>${error(problem)}
+<form method="post" action="/auth/email/name">${hidden("state", state)}
+<input name="name" value="${escapeHtml(value)}" autocomplete="username" pattern="[A-Za-z0-9_\\-]{3,20}" maxlength="20" required autofocus>
+<button>Create my account</button></form>`,
+    status,
+  );
+}
+
+/** GET /auth/email?state: the address form again (another address). */
+export async function mailStart(env: Env, url: URL): Promise<Response> {
+  const state = url.searchParams.get("state") ?? "";
+  const login = await mailLogin(env, state);
+  return login ? mailForm(state, undefined, login.mail ?? "") : expired();
+}
+
+/** POST /auth/email (form: state, email): sends a code. */
+export async function mailSend(env: Env, request: Request): Promise<Response> {
+  const form = await request.formData();
+  const state = String(form.get("state") ?? "");
+  const login = await mailLogin(env, state);
+  if (!login) return expired();
+  const typed = String(form.get("email") ?? "").slice(0, 300);
+  const mail = normalizeMail(typed);
+  if (!mail) return mailForm(state, "Enter a valid e-mail address.", typed, 400);
+  if (login.mail_sent >= MAIL_PER_LOGIN) return page("Too many codes", "<p>This sign-in sent all the codes it may. Start again from OpenTrader.</p>", 429);
+  const at = now();
+  const wait = login.mail_code_at ? login.mail_code_at + MAIL_RESEND_AFTER - at : 0;
+  if (wait > 0) return mailForm(state, `Wait ${wait} seconds before asking for another code.`, mail, 429);
+
+  const address = await sha256Hex(`mail:${mail}`);
+  const sender = await senderHash(request);
+  await env.DB.prepare("DELETE FROM mail_sends WHERE created_at < ?").bind(at - 86_400).run();
+  const counts = await env.DB.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM mail_sends WHERE address_hash = ?1 AND created_at >= ?3) AS hour,
+       (SELECT COUNT(*) FROM mail_sends WHERE address_hash = ?1) AS day,
+       (SELECT COUNT(*) FROM mail_sends WHERE sender_hash = ?2 AND created_at >= ?3) AS sender`,
+  )
+    .bind(address, sender, at - 3600)
+    .first<{ hour: number; day: number; sender: number }>();
+  if (!counts || counts.hour >= MAIL_PER_HOUR || counts.day >= MAIL_PER_DAY) {
+    return page("Too many codes", "<p>This address received too many codes. Try again later, or sign in another way.</p>", 429);
+  }
+  if (counts.sender >= MAIL_PER_SENDER_HOUR) return page("Too many codes", "<p>Your connection asked for too many codes. Try again in an hour.</p>", 429);
+
+  const code = mailCode();
+  // Taken in one statement: two forms sent at once cannot both pass the limits of the sign-in.
+  const took = await env.DB.prepare(
+    `UPDATE logins SET mail = ?, mail_code_hash = ?, mail_code_at = ?, mail_tries = 0, mail_sent = mail_sent + 1, mail_ok = 0
+       WHERE state = ? AND code IS NULL AND mail_sent < ? AND (mail_code_at IS NULL OR mail_code_at <= ?)`,
+  )
+    .bind(mail, await mailCodeHash(state, code), at, state, MAIL_PER_LOGIN, at - MAIL_RESEND_AFTER)
+    .run();
+  if (!took.meta.changes) return mailForm(state, "A code was just sent. Wait a minute before asking for another one.", mail, 429);
+  // Counted before the sending: a failed one counts too.
+  await env.DB.prepare("INSERT INTO mail_sends (address_hash, sender_hash, created_at) VALUES (?, ?, ?)").bind(address, sender, at).run();
+  try {
+    await env.EMAIL!.send({
+      to: mail,
+      from: { email: env.EMAIL_FROM!, name: "OpenTrader" },
+      subject: "Your OpenTrader sign-in code",
+      text: mailText(code),
+      html: mailHtml(code),
+    });
+  } catch (e) {
+    console.error("[mail]", (e as { code?: string }).code ?? e);
+    await env.DB.prepare("UPDATE logins SET mail_code_hash = NULL WHERE state = ?").bind(state).run();
+    return mailForm(state, "The code could not be sent to this address. Check it and try again in a minute.", mail, 502);
+  }
+  return codeForm(state, mail);
+}
+
+function mailText(code: string): string {
+  return `Your OpenTrader sign-in code is:
+
+${code}
+
+It works for ${MAIL_CODE_TTL / 60} minutes, for the sign-in you just started. Never give it to anyone: OpenTrader never asks for it.
+
+If you did not ask for it, ignore this e-mail: nobody can sign in without the code.`;
+}
+
+function mailHtml(code: string): string {
+  return `<div style="font:15px system-ui,sans-serif;color:#131722;max-width:480px">
+<p>Your OpenTrader sign-in code is:</p>
+<p style="font-size:28px;font-weight:600;letter-spacing:6px;margin:16px 0">${code}</p>
+<p>It works for ${MAIL_CODE_TTL / 60} minutes, for the sign-in you just started. Never give it to anyone: OpenTrader never asks for it.</p>
+<p style="color:#787b86;font-size:13px">If you did not ask for it, ignore this e-mail: nobody can sign in without the code.</p></div>`;
+}
+
+/** POST /auth/email/code (form: state, code) */
+export async function mailCheck(env: Env, request: Request): Promise<Response> {
+  const form = await request.formData();
+  const state = String(form.get("state") ?? "");
+  const login = await mailLogin(env, state);
+  if (!login || !login.mail) return expired();
+  const mail = login.mail;
+  const again = (text: string) =>
+    page("Sign-in code", `${error(text)}${newCodeForm(state, mail)}`, 400);
+  if (!login.mail_code_hash || !login.mail_code_at || now() - login.mail_code_at > MAIL_CODE_TTL) return again("This code no longer works. Ask for a new one.");
+  const code = String(form.get("code") ?? "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(code)) return codeForm(state, mail, "Enter the 6 digits of the code.", 400);
+  // The try is counted before the comparison: guesses sent at once cannot pass the limit.
+  const tried = await env.DB.prepare(
+    "UPDATE logins SET mail_tries = mail_tries + 1 WHERE state = ? AND code IS NULL AND mail_code_hash IS NOT NULL AND mail_tries < ? RETURNING mail_tries, mail_code_hash",
+  )
+    .bind(state, MAIL_TRIES)
+    .first<{ mail_tries: number; mail_code_hash: string }>();
+  if (!tried) return again("Too many wrong codes. Ask for a new one.");
+  if (!timingSafeEqual(await mailCodeHash(state, code), tried.mail_code_hash)) {
+    const left = MAIL_TRIES - tried.mail_tries;
+    if (left > 0) return codeForm(state, mail, left === 1 ? "Wrong code. 1 try left." : `Wrong code. ${left} tries left.`, 400);
+    await env.DB.prepare("UPDATE logins SET mail_code_hash = NULL WHERE state = ?").bind(state).run();
+    return again("Too many wrong codes. Ask for a new one.");
+  }
+  // Right: the code is spent.
+  const spent = await env.DB.prepare("UPDATE logins SET mail_code_hash = NULL, mail_ok = 1 WHERE state = ? AND mail_code_hash = ?").bind(state, tried.mail_code_hash).run();
+  if (!spent.meta.changes) return again("This code no longer works. Ask for a new one.");
+  const known = await env.DB.prepare("SELECT 1 FROM users WHERE provider = 'email' AND provider_id = ?").bind(mail).first();
+  if (known) return complete(env, request, state, login.redirect, "email", { id: mail, name: "" });
+  return nameForm(state);
+}
+
+/** POST /auth/email/name (form: state, name): a new account's user name. */
+export async function mailName(env: Env, request: Request): Promise<Response> {
+  const form = await request.formData();
+  const state = String(form.get("state") ?? "");
+  const login = await mailLogin(env, state);
+  if (!login || !login.mail || !login.mail_ok) return expired();
+  const name = String(form.get("name") ?? "").trim().slice(0, 40);
+  if (!NAME_RE.test(name)) return nameForm(state, "3 to 20 characters: letters, digits, _ or -.", name, 400);
+  const taken = await env.DB.prepare("SELECT 1 FROM users WHERE name_key = ?").bind(name.toLowerCase()).first();
+  if (taken) return nameForm(state, "This name is taken. Pick another one.", name, 409);
+  return complete(env, request, state, login.redirect, "email", { id: login.mail, name });
 }
 
 /** GET /auth/dev (DEV_LOGIN only) */
@@ -319,6 +567,8 @@ export type User = {
   /** Passed the bot check before posting (#219). */
   post_checked: number;
   token_hash: string;
+  /** The address of an e-mail account (account and billing messages); null for the other sign-ins. */
+  email?: string | null;
 };
 
 /** The signed-in user (Authorization: Bearer <token>), or null. */
@@ -328,7 +578,8 @@ export async function currentUser(env: Env, request: Request): Promise<User | nu
   if (!m) return null;
   const hash = await sha256Hex(m[1]);
   const row = await env.DB.prepare(
-    `SELECT u.id, u.name, u.role, u.created_at, u.banned_until, u.ban_reason, u.post_checked, s.expires_at, s.token_hash
+    `SELECT u.id, u.name, u.role, u.created_at, u.banned_until, u.ban_reason, u.post_checked, s.expires_at, s.token_hash,
+            CASE WHEN u.provider = 'email' THEN u.provider_id END AS email
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
   )
     .bind(hash)

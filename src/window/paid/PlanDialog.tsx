@@ -132,7 +132,11 @@ function SignInButtons(props: { onDone: () => void; beta?: boolean }) {
             onClick={() => signIn(p).then(props.onDone).then(props.beta ? refreshPass : goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
           >
             <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="plan-signin-logo" /></Show>
-            <span>{props.beta ? translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p) : translateWith("Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}</span>
+            <span>
+              {props.beta
+                ? translateWith(p === "email" ? "Continue with e-mail" : "Continue with {0}", PROVIDER_LABELS[p] ?? p)
+                : translateWith(p === "email" ? "Upgrade with e-mail" : "Upgrade with {0}", PROVIDER_LABELS[p] ?? p)}
+            </span>
           </button>
         )}
       </For>

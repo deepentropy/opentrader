@@ -151,7 +151,8 @@ export async function checkout(env: Env, user: User | null): Promise<Response> {
   if (planOf(r) === "rt" || r?.status === "past_due") throw new HttpError(409, "You already have a subscription. Manage it from your account.");
   if (!r) {
     // The same key for a checkout asked twice at once: one customer.
-    const customer = await stripe(env, "POST", "/v1/customers", { "metadata[user_id]": u.id, description: u.name }, `customer-${u.id}`);
+    // An e-mail account's address: the receipts and billing messages go there.
+    const customer = await stripe(env, "POST", "/v1/customers", { "metadata[user_id]": u.id, description: u.name, ...(u.email ? { email: u.email } : {}) }, `customer-${u.id}`);
     await env.DB.prepare("INSERT INTO subscriptions (user_id, customer_id, updated_at) VALUES (?, ?, ?) ON CONFLICT (user_id) DO NOTHING").bind(u.id, customer.id, now()).run();
     r = (await row(env, u.id))!;
   }
