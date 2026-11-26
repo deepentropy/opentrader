@@ -141,3 +141,37 @@ export async function askPoints(target: PointTarget, steps: PointStep[]): Promis
   }
   return out;
 }
+
+/** A study's point on the chart once it is added (dragged to change its inputs): a time and a price that share an
+ *  inline row (one anchor, moved both ways), or one time (a vertical line) or one price (a horizontal line). */
+export type PointItem = { kind: "all"; time: PointInput; price: PointInput } | { kind: "time" | "price"; input: PointInput };
+
+/** The points of a study's time and price inputs (reference: every visible time / price input, in order; the ones of
+ *  one inline row of a group are a pair when they are a time and a price, else each its own point). */
+export function pointItems(config: PointInput[]): PointItem[] {
+  const rows = new Map<string, PointInput[]>();
+  const order: (PointInput | PointInput[])[] = [];
+  for (const c of config.filter(isPointInput)) {
+    if (c.inline === undefined) {
+      order.push(c);
+      continue;
+    }
+    const key = `${c.inline}\u0000${c.group ?? ""}`;
+    const row = rows.get(key);
+    if (row) row.push(c);
+    else {
+      const made = [c];
+      rows.set(key, made);
+      order.push(made);
+    }
+  }
+  const single = (c: PointInput): PointItem => ({ kind: c.type === "time" ? "time" : "price", input: c });
+  const out: PointItem[] = [];
+  for (const o of order) {
+    if (!Array.isArray(o)) out.push(single(o));
+    else if (o.length === 2 && o[0].type !== o[1].type) {
+      out.push({ kind: "all", time: o[0].type === "time" ? o[0] : o[1], price: o[0].type === "price" ? o[0] : o[1] });
+    } else out.push(...o.map(single));
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askPoints, canPickOn, cancelPointRequest, pointRequest, pointSteps, setPickable, type PointInput } from "../point-request";
+import { askPoints, canPickOn, cancelPointRequest, pointItems, pointRequest, pointSteps, setPickable, type PointInput } from "../point-request";
 
 const t = (id: string, extra: Partial<PointInput> = {}): PointInput => ({ id, type: "time", ...extra });
 const p = (id: string, extra: Partial<PointInput> = {}): PointInput => ({ id, type: "price", ...extra });
@@ -70,5 +70,29 @@ describe("asking points", () => {
     expect(canPickOn(target)).toBe(true);
     setPickable(target, false);
     expect(canPickOn(target)).toBe(false);
+  });
+});
+
+describe("points on the chart of an added study (reference grouping)", () => {
+  it("pairs a time and a price of one inline row of a group; the rest are lone points, in order", () => {
+    const items = pointItems([
+      { id: "n", type: "int" },
+      t("t1", { inline: "E" }),
+      p("lvl"),
+      p("p1", { inline: "E" }),
+      t("t2", { inline: "F", group: "G" }),
+      p("p2", { inline: "F", group: "H" }),
+      t("t3", { inline: "R" }),
+      t("t4", { inline: "R" }),
+      p("hidden", { hidden: true }),
+    ]);
+    expect(items.map((i) => (i.kind === "all" ? `pair:${i.time.id}+${i.price.id}` : `${i.kind}:${i.input.id}`))).toEqual([
+      "pair:t1+p1",
+      "price:lvl",
+      "time:t2",
+      "price:p2",
+      "time:t3",
+      "time:t4",
+    ]);
   });
 });

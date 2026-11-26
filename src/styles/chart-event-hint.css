@@ -62,3 +62,45 @@
   background-color: var(--color-bg-primary);
 }
 .ot-point-pick__anchor.is-live { border-color: var(--color-brand); }
+
+/* The points of a study's time and price inputs (view/study-points.tsx): anchors (blue ring on the chart background),
+   the grey lines of lone inputs with a 7 px grab area, the axis labels of the selected study's values. */
+.ot-study-point__anchor {
+  position: absolute;
+  z-index: 5;
+  width: 12px;
+  height: 12px;
+  margin: -7px 0 0 -7px;
+  border: 1px solid var(--color-brand);
+  border-radius: 50%;
+  background-color: var(--color-bg-primary);
+  touch-action: none;
+}
+.ot-study-point__anchor:hover,
+.ot-study-point__anchor.is-dragging { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 30%, transparent); }
+.ot-study-point__vline,
+.ot-study-point__hline {
+  position: absolute;
+  z-index: 4;
+  touch-action: none;
+}
+.ot-study-point__vline { width: 7px; cursor: ew-resize; }
+.ot-study-point__hline { height: 7px; cursor: ns-resize; }
+.ot-study-point__vline > span,
+.ot-study-point__hline > span { position: absolute; pointer-events: none; }
+.ot-study-point__vline > span { left: 3px; top: 0; bottom: 0; width: 1px; }
+.ot-study-point__hline > span { top: 3px; left: 0; right: 0; height: 1px; }
+.ot-study-point__price,
+.ot-study-point__time {
+  position: absolute;
+  z-index: 5;
+  padding: 2px 6px;
+  border-radius: 2px;
+  color: var(--color-white);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ot-study-point__price { transform: translateY(-50%); }
+.ot-study-point__time { transform: translateX(-50%); margin-top: 3px; }

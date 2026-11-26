@@ -82,6 +82,7 @@ import { createTickerInfo } from "./view/ticker-info";
 import { createSymbolLoad } from "./view/symbol-load";
 import { createReplay } from "./view/replay";
 import { createPointPick } from "./view/point-pick";
+import { createStudyPoints } from "./view/study-points";
 import { createTradingLines } from "./view/trading-lines";
 import { createStrategyMarks } from "./view/strategy-marks";
 import { createLegend } from "./view/legend";
@@ -555,6 +556,7 @@ export function ChartView(props: ChartViewProps) {
     createLive,
     createReplay,
     createPointPick,
+    createStudyPoints,
     createTradingLines,
     createNews,
     createEvents,
@@ -716,6 +718,7 @@ export function ChartView(props: ChartViewProps) {
     PriceAxisOverlays,
     ReplaySelectLayer,
     PointPickLayer,
+    StudyPointsLayer,
     StudySettingsDialog,
     TradingLinesLayer,
   } = cx;
@@ -819,6 +822,7 @@ export function ChartView(props: ChartViewProps) {
       />
       <TradingLinesLayer epoch={coordEpoch()} />
       <ReplaySelectLayer />
+      <StudyPointsLayer />
       <PointPickLayer />
       <PriceAxisOverlays />
       <ExtraAxisOverlays />

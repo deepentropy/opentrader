@@ -56,6 +56,7 @@ import type { SourceMenuApi } from "./source-menu";
 import type { ScalesApi } from "./scales";
 import type { ReplayApi } from "./replay";
 import type { PointPickApi } from "./point-pick";
+import type { StudyPointsApi } from "./study-points";
 import type { TradingLinesApi } from "./trading-lines";
 import type { FutureAxisApi } from "./future-axis";
 import type { SeriesApi } from "./series";
@@ -306,6 +307,7 @@ export type ChartCx = ChartCore &
   ScalesApi &
   ReplayApi &
   PointPickApi &
+  StudyPointsApi &
   TradingLinesApi &
   FutureAxisApi &
   SeriesApi &
