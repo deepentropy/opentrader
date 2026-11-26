@@ -14,7 +14,8 @@ import { updateReady } from "../../data/app-update";
 import { zoom } from "../../data/app-zoom";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
-import { betaEnds, initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
+import { betaEnds, betaPrompt, initPaid, paidShown, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
+import { me, ready } from "../../data/community/session";
 import { getItem, setItem } from "../../data/kv";
 import { betaDay, betaText, showPlanDialog } from "../paid/PlanDialog";
 import { translateAs, translateWith } from "../../i18n/translator";
@@ -22,8 +23,9 @@ import { translateAs, translateWith } from "../../i18n/translator";
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
 const WEB_BUILD = import.meta.env.MODE === "web";
 const DESKTOP_DOWNLOAD_URL = "https://opentrader.markets/download.html";
-/** Set once the live data beta was told (src/data/kv.ts). */
+/** When the live data beta was first told (ms; src/data/kv.ts), and when a signed-out user was reminded of it. */
 const BETA_TOLD = "ot:live-beta-told";
+const BETA_REMINDED = "ot:live-beta-reminded";
 
 type Props = {
   /** Open App Settings (the main menu's Settings row). */
@@ -47,11 +49,15 @@ export function TabPanelActions(props: Props) {
     if (anchor() && btn) setAnchor(btn.getBoundingClientRect());
   }, { defer: true }));
   onMount(initPaid);
-  // The live data beta is told once, as soon as this user is on it or may sign in for it.
+  // The live data beta is told as soon as this user is on it or may sign in for it; still signed out a week later,
+  // once more.
   createEffect(() => {
-    if (betaEnds() === null || getItem(BETA_TOLD) !== null) return;
-    setItem(BETA_TOLD, "1");
-    untrack(showPlanDialog);
+    if (betaEnds() === null || !ready()) return;
+    const now = Date.now();
+    const step = betaPrompt(getItem(BETA_TOLD), getItem(BETA_REMINDED), !me(), now);
+    if (step === "tell" || step === "stamp") setItem(BETA_TOLD, String(now));
+    if (step === "remind") setItem(BETA_REMINDED, String(now));
+    if (step === "tell" || step === "remind") untrack(showPlanDialog);
   });
   const badgeTip = () =>
     realtimeActive()

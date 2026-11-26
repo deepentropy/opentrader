@@ -33,7 +33,7 @@ const session = vi.hoisted(() => ({ me: null as unknown }));
 vi.mock("../../community/session", () => ({ me: () => session.me, ready: () => true, initSession: async () => undefined }));
 
 import { CommunityError } from "../../community/api";
-import { betaEnds, onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, awaitPlan, refreshOffer, refreshPass, setCancelled, startCheckout } from "../plan";
+import { BETA_REMIND_AFTER, betaEnds, betaPrompt, onMarketTier, paidOffer, paidShown, planInfo, realtimeActive, awaitPlan, refreshOffer, refreshPass, setCancelled, startCheckout } from "../plan";
 
 const exp = () => Math.floor(Date.now() / 1000) + 900;
 const plan = (p: "free" | "rt") => ({ plan: p, status: p === "rt" ? "active" : "none", renews_at: null, cancel_at_period_end: false, billing: true });
@@ -201,6 +201,22 @@ describe("the live data beta", () => {
     await refreshOffer();
     expect(betaEnds()).toBeNull();
     expect(paidShown()).toBe(false);
+  });
+});
+
+describe("telling the beta", () => {
+  const told = 1_800_000_000_000;
+  it("tells it first, then reminds a signed-out user once, a week later", () => {
+    expect(betaPrompt(null, null, true, told)).toBe("tell");
+    expect(betaPrompt(String(told), null, true, told + BETA_REMIND_AFTER - 1)).toBeNull();
+    expect(betaPrompt(String(told), null, true, told + BETA_REMIND_AFTER)).toBe("remind");
+    expect(betaPrompt(String(told), String(told + BETA_REMIND_AFTER), true, told + 30 * BETA_REMIND_AFTER)).toBeNull();
+  });
+  it("does not remind a signed-in user", () => {
+    expect(betaPrompt(String(told), null, false, told + 2 * BETA_REMIND_AFTER)).toBeNull();
+  });
+  it("dates a dialog told before the reminder existed: the week starts now", () => {
+    expect(betaPrompt("1", null, true, told)).toBe("stamp");
   });
 });
 

@@ -99,6 +99,20 @@ export const betaEnds = (): number | null => {
   return end !== null && end > Date.now() / 1000 ? end : null;
 };
 
+/** A signed-out user who passed the beta's dialog by is told once more after this long. */
+export const BETA_REMIND_AFTER = 7 * 86_400_000;
+
+/**
+ * What the title bar does about the live data beta, from what it stored: `told` (when the beta's dialog was first
+ * shown, ms; "1" before the reminder existed) and `reminded`. "tell" shows the dialog for the first time, "remind"
+ * shows it again to a signed-out user a week later, "stamp" only dates an old "1" (the week counts from now).
+ */
+export function betaPrompt(told: string | null, reminded: string | null, signedOut: boolean, now = Date.now()): "tell" | "remind" | "stamp" | null {
+  if (told === null) return "tell";
+  if (!/^\d+$/.test(told) || Number(told) < 1e12) return "stamp";
+  return reminded === null && signedOut && now - Number(told) >= BETA_REMIND_AFTER ? "remind" : null;
+}
+
 /** Real-time data is on screen: offered to this user, or theirs. */
 export const paidShown = () => !!offer()?.open || betaEnds() !== null || info()?.plan === "rt" || info()?.status === "past_due";
 
