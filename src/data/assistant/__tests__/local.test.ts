@@ -19,7 +19,7 @@ vi.mock("../../../bindings", () => ({
 }));
 
 import { installLocal, localState, refreshLocal } from "../local";
-import { trackPanelOpened } from "../telemetry";
+import { downloadFailureKind, trackPanelOpened } from "../telemetry";
 
 const GB = 1024 ** 3;
 function info(over: Partial<LocalModelInfo> = {}): LocalModelInfo {
@@ -55,8 +55,18 @@ describe("assistant model in the usage statistics", () => {
     host.installed = true;
     await refreshLocal();
     await installLocal();
-    const downloads = sent.events.filter((e) => e.event === "assistant_model_download").map((e) => [e.props.outcome, e.props.update]);
-    expect(downloads).toEqual([["failed", false], ["stopped", false], ["done", false], ["done", true]]);
+    const downloads = sent.events.filter((e) => e.event === "assistant_model_download").map((e) => [e.props.outcome, e.props.update, e.props.reason]);
+    expect(downloads).toEqual([["failed", false, "disk"], ["stopped", false, undefined], ["done", false, undefined], ["done", true, undefined]]);
     expect(JSON.stringify(sent.events)).not.toContain("someone");
+  });
+
+  it("names a failed download by its kind", () => {
+    expect(downloadFailureKind("Download of model.gguf failed: HTTP 404")).toBe("http_404");
+    expect(downloadFailureKind("Download of model.gguf failed: error sending request")).toBe("network");
+    expect(downloadFailureKind("Download of model.gguf stopped: connection reset")).toBe("network");
+    expect(downloadFailureKind("Download of model.gguf stopped early")).toBe("network");
+    expect(downloadFailureKind("model.gguf is not the expected file (checksum): download it again.")).toBe("checksum");
+    expect(downloadFailureKind("The download is already under way.")).toBe("busy");
+    expect(downloadFailureKind("Access is denied. (os error 5)")).toBe("disk");
   });
 });
