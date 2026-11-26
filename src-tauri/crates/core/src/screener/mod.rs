@@ -38,6 +38,8 @@ use table::Table;
 use tokio::task::JoinHandle;
 use crate::host::{event, Event, HostRef};
 
+/// Wait after launch before the background prefetch first looks at the daily files, so the charts load first.
+const PREFETCH_DELAY: Duration = Duration::from_secs(30);
 /// REST snapshot poll cadence while a panel is open and the live feed is down.
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Wait before connecting to the live feed again after it failed.
@@ -134,6 +136,24 @@ impl Screener {
         }
         drop(owners);
         self.status()
+    }
+
+    /// Keep the daily state and the reference list on disk current while no panel is open: the first open of the
+    /// day then reads them instead of waiting for their downloads (from under a second to minutes when the gateway
+    /// is slow, measured 03/11/2026). Checked after launch, then every STATE_RECHECK, so a state published while the
+    /// app stays open (from 17:00 New York) is fetched too; an unchanged state costs a body-less answer.
+    pub fn start_prefetch(&self) {
+        let inner = self.inner.clone();
+        crate::rt::spawn(async move {
+            tokio::time::sleep(PREFETCH_DELAY).await;
+            loop {
+                // An open panel's task keeps them current itself.
+                if !inner.running.load(Ordering::SeqCst) {
+                    prefetch().await;
+                }
+                tokio::time::sleep(STATE_RECHECK).await;
+            }
+        });
     }
 
     /// Ask for custom lengths ("EMA137", "SMA150", "RSI21"); returns the ids accepted (lengths 1 to 500). Their
@@ -248,8 +268,9 @@ impl Sources {
         if stale && self.state_task.is_none() && self.state_checked.is_none_or(|t| t.elapsed() >= STATE_RECHECK) {
             self.state_checked = Some(Instant::now());
             let d = downloads.start("state");
+            let have = self.state.as_ref().map(|s| s.asof);
             self.state_task = Some(crate::rt::spawn(async move {
-                let s = state::fetch(Some(&d)).await;
+                let s = state::fetch_unless_cached(Some(&d), have, expected).await;
                 d.finish();
                 s.unwrap_or_else(|e| {
                     eprintln!("[screener] state: {e:#}");
@@ -518,6 +539,28 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
     }
 }
 
+/// One pass of the background prefetch: the state of the last closed session and today's reference list, each
+/// only when the copy on disk is older.
+async fn prefetch() {
+    let now = chrono::Utc::now();
+    let expected = clock::last_closed_session(now);
+    let have = state::cached_asof();
+    if have < expected {
+        if let Err(e) = state::fetch_unless_cached(None, have, expected).await {
+            eprintln!("[screener] prefetch state: {e:#}");
+        }
+    }
+    let today = clock::ny_date_ms(now.timestamp_millis() as f64);
+    if today.is_some() && refs_cache_day() != today {
+        match market_rest::fetch_reference_tickers_counted(None).await {
+            Ok(list) => {
+                let _ = tokio::task::spawn_blocking(move || write_refs_cache(today, &list)).await;
+            }
+            Err(e) => eprintln!("[screener] prefetch reference tickers: {e:#}"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct RefsCache {
     day: NaiveDate,
@@ -546,6 +589,16 @@ fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
         })
         .collect();
     Some((c.day, tickers))
+}
+
+/// The day of the saved reference list, read from the start of the file (`{"day":"…"`, the first field written)
+/// without parsing the list.
+fn refs_cache_day() -> Option<NaiveDate> {
+    use std::io::Read;
+    let mut head = [0u8; 32];
+    let n = std::fs::File::open(refs_cache_path()).ok()?.read(&mut head).ok()?;
+    let rest = std::str::from_utf8(&head[..n]).ok()?.strip_prefix("{\"day\":\"")?;
+    NaiveDate::parse_from_str(rest.get(..10)?, "%Y-%m-%d").ok()
 }
 
 fn write_refs_cache(day: Option<NaiveDate>, list: &[RefTicker]) {

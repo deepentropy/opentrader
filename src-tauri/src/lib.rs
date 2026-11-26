@@ -288,7 +288,9 @@ pub fn run() {
             let token_file = app.path().app_local_data_dir().unwrap_or_else(|_| data::cache_root()).join("gateway-install.json");
             app.manage(opentrader_core::start(&host, &provider, token_file));
             app.manage(provider);
-            app.manage(screener::Screener::default());
+            let screener = screener::Screener::default();
+            screener.start_prefetch();
+            app.manage(screener);
             app.manage(app_menu::Zoom::default());
             // Update check at startup, then hourly (app_update).
             app_update::init(app.handle());
