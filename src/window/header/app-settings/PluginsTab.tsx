@@ -4,7 +4,9 @@
  * (src-tauri/src/plugins, plugins/PROTOCOL.md).
  */
 import { createSignal, For, onCleanup, Show } from "solid-js";
-import { CheckField, SelectControl } from "../../../components/form";
+import { CheckField, SelectControl, Switch } from "../../../components/form";
+import { Icon } from "../../../components/Icon";
+import { Tooltip } from "../../../components/Tooltip";
 import type { CatalogEntry, InstallStep, PackagePreview, PluginInfo, PluginsStatus, SettingField } from "../../../bindings";
 import { translate, translateWith } from "../../../i18n/translator";
 import { openLink, plugins, type Result } from "./io";
@@ -13,6 +15,8 @@ import { PluginToastsSetting } from "./PluginToastsSetting";
 
 const PROTOCOL = "https://github.com/deepentropy/opentrader/blob/main/plugins/PROTOCOL.md";
 const capabilityLabel = (c: string) => (c === "broker" ? translate("Broker") : translate("Data"));
+/** The pages of a plugin card, one open at a time. */
+type Page = "setup" | "settings" | "symbols" | "logs";
 
 export function PluginsTab() {
   const [st, setSt] = createSignal<PluginsStatus | null>(null);
@@ -66,8 +70,7 @@ export function PluginsTab() {
     <div class="app-settings-network app-settings-plugins">
       <Section label="PLUGINS">
         <div class="app-settings-note app-settings-local-note">
-          Plugins connect OpenTrader to other applications on this computer: a data plugin adds the symbols it supplies, a broker plugin shows your
-          account and trades on it. A plugin runs with your rights: install only the ones you trust. OpenTrader keeps no password of theirs.
+          Plugins connect OpenTrader to other applications on this computer. A plugin runs with your rights: install only the ones you trust.
         </div>
       </Section>
       <Show when={st()}>
@@ -157,38 +160,30 @@ export function PluginsTab() {
             <Show when={error()}>{(e) => <span class="app-settings-field-error">{e()}</span>}</Show>
             <PluginToastsSetting />
             <Section label="PLUGIN API">
-              <div class="app-settings-note app-settings-local-note">
-                {s().listening
-                  ? translateWith("Listening on 127.0.0.1:{0}, for the enabled plugins only.", String(s().port))
-                  : translate("Listens while a plugin is enabled.")}
+              <div class="app-settings-plugin-api">
+                <span class="app-settings-field-label">Port</span>
+                <input
+                  class="app-settings-input app-settings-plugin-port"
+                  type="text"
+                  inputmode="numeric"
+                  data-name="plugins-port"
+                  value={port()}
+                  onInput={(e) => {
+                    e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "").slice(0, 5);
+                    setPort(e.currentTarget.value);
+                  }}
+                  onBlur={applyPort}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") applyPort();
+                  }}
+                />
+                <span class="app-settings-local-status">{s().listening ? translate("Listening on this computer") : translate("Listens while a plugin is enabled.")}</span>
+                <a class="app-settings-plugin-link" href="#" onClick={(e) => { e.preventDefault(); openLink(PROTOCOL, "plugin protocol"); }}>
+                  Protocol for developers
+                </a>
               </div>
+              <Show when={s().error}>{(e) => <span class="app-settings-field-error">{e()}</span>}</Show>
             </Section>
-            <Show when={s().error}>{(e) => <span class="app-settings-field-error">{e()}</span>}</Show>
-            <label class="app-settings-field">
-              <span class="app-settings-field-label">Port</span>
-              <input
-                class="app-settings-input"
-                type="text"
-                inputmode="numeric"
-                data-name="plugins-port"
-                value={port()}
-                onInput={(e) => {
-                  e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "").slice(0, 5);
-                  setPort(e.currentTarget.value);
-                }}
-                onBlur={applyPort}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applyPort();
-                }}
-              />
-            </label>
-            <div class="app-settings-note app-settings-local-note">
-              Developers: the protocol is described in{" "}
-              <a href="#" onClick={(e) => { e.preventDefault(); openLink(PROTOCOL, "plugin protocol"); }} data-no-translate>
-                {PROTOCOL.split("/main/")[1]}
-              </a>
-              .
-            </div>
           </>
         )}
       </Show>
@@ -207,7 +202,9 @@ function Capabilities(props: { list: string[] }) {
 function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (what: string, p: Promise<Result<PluginsStatus>>) => Promise<boolean> }) {
   const p = () => props.plugin;
   const m = () => p().manifest;
-  const [open, setOpen] = createSignal<"settings" | "logs" | "symbols" | null>(null);
+  const hasSetup = () => !!m().setup || (m().install ?? []).length > 0;
+  // A plugin enabled but not connected yet most likely needs its setup: that page opens first.
+  const [open, setOpen] = createSignal<Page | null>(hasSetup() && p().supported && p().enabled && !p().connected ? "setup" : null);
   const [logs, setLogs] = createSignal<string[]>([]);
   const stateText = () => {
     if (!p().supported) return translate("Does not run on this computer");
@@ -217,26 +214,47 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
     return translate("Waiting for the plugin to connect");
   };
   let timer: number | undefined;
-  const showLogs = () => {
+  const pick = (page: Page) => {
     window.clearInterval(timer);
-    if (open() === "logs") return setOpen(null);
-    setOpen("logs");
+    if (open() === page) return setOpen(null);
+    setOpen(page);
+    if (page !== "logs") return;
     const load = () => void plugins.logs(m().id).then(setLogs);
     load();
     timer = window.setInterval(load, 2000);
   };
   onCleanup(() => window.clearInterval(timer));
+  const pages = (): { id: Page; label: string }[] => [
+    ...(hasSetup() ? [{ id: "setup" as const, label: translate("Setup") }] : []),
+    { id: "settings", label: translate("Settings") },
+    ...(m().provides.includes("broker") ? [{ id: "symbols" as const, label: translate("Symbols") }] : []),
+    { id: "logs", label: translate("Log") },
+  ];
   return (
     <section class="app-settings-local-folder app-settings-plugin" data-name="plugin">
       <div class="app-settings-local-head">
         <span class={`app-settings-plugin-dot${p().connected ? " is-on" : p().enabled ? " is-waiting" : ""}`} />
-        <span class="app-settings-local-path" data-no-translate title={m().id}>
+        <span class="app-settings-local-path" data-no-translate title={m().description || m().id}>
           {m().name} {m().version}
         </span>
         <Capabilities list={m().provides} />
         <Show when={!p().verified}>
           <span class="app-settings-plugin-badge is-warning" title={translate("Not signed by OpenTrader")}>
             Unverified
+          </span>
+        </Show>
+        <Show when={m().homepage}>
+          {(url) => (
+            <Tooltip text={translate("Website")} side="top">
+              <button type="button" class="app-settings-plugin-icon" aria-label={translate("Website")} onClick={() => openLink(url(), "plugin homepage")}>
+                <Icon name="oak-external-link" size={18} />
+              </button>
+            </Tooltip>
+          )}
+        </Show>
+        <Show when={p().supported}>
+          <span data-name="plugin-enabled">
+            <Switch on={p().enabled} label={translate("Enabled")} onChange={(on) => void props.take(`enable:${m().id}`, plugins.setEnabled(m().id, on))} />
           </span>
         </Show>
       </div>
@@ -247,17 +265,7 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
           <span data-no-translate>{m().publisher}</span>
         </Show>
       </div>
-      <Show when={m().description}>
-        <div class="app-settings-local-status" data-no-translate>{m().description}</div>
-      </Show>
-      <CheckField
-        variant="settings"
-        label={translate("Enabled")}
-        disabled={!p().supported}
-        checked={p().enabled}
-        onChange={(on) => void props.take(`enable:${m().id}`, plugins.setEnabled(m().id, on))}
-      />
-      <Show when={m().provides.length > 1}>
+      <Show when={m().provides.length > 1 && p().enabled}>
         {/* A plugin that offers both: chart data and trading each on or off (one stays on). */}
         <div class="app-settings-plugin-uses" data-name="plugin-uses">
           <For each={m().provides}>
@@ -273,34 +281,34 @@ function PluginCard(props: { plugin: PluginInfo; busy: string | null; take: (wha
           </For>
         </div>
       </Show>
-      <For each={m().install ?? []}>{(step, i) => <InstallStepRow plugin={p()} step={step} index={i()} take={props.take} />}</For>
-      <Show when={m().setup}>
-        <div class="app-settings-plugin-setup" data-no-translate>{m().setup}</div>
-      </Show>
-      <div class="app-settings-local-head">
-        <Show when={(m().settings ?? []).length > 0}>
-          <button type="button" class="app-settings-btn" onClick={() => setOpen(open() === "settings" ? null : "settings")}>
-            Settings
-          </button>
-        </Show>
-        <Show when={m().provides.includes("broker")}>
-          <button type="button" class="app-settings-btn" data-name="plugin-symbols" onClick={() => setOpen(open() === "symbols" ? null : "symbols")}>
-            Symbols
-          </button>
-        </Show>
-        <button type="button" class="app-settings-btn" onClick={showLogs}>
-          Log
-        </button>
-        <Show when={m().homepage}>
-          {(url) => (
-            <button type="button" class="app-settings-btn" onClick={() => openLink(url(), "plugin homepage")}>
-              Website
+      <div class="app-settings-plugin-tabs" role="tablist">
+        <For each={pages()}>
+          {(pg) => (
+            <button
+              type="button"
+              role="tab"
+              class="app-settings-plugin-tab"
+              classList={{ "is-active": open() === pg.id }}
+              aria-selected={open() === pg.id}
+              data-name={`plugin-tab-${pg.id}`}
+              onClick={() => pick(pg.id)}
+            >
+              {pg.label}
             </button>
           )}
-        </Show>
-        <ConfirmButton label="New token" confirmLabel="The plugin connects again" onConfirm={() => void props.take(`token:${m().id}`, plugins.newToken(m().id))} />
-        <ConfirmButton label="Remove" confirmLabel="Remove the plugin" onConfirm={() => void props.take(`remove:${m().id}`, plugins.remove(m().id))} />
+        </For>
+        <span class="app-settings-plugin-tabs-end">
+          <ConfirmButton label="Remove" confirmLabel="Remove the plugin" onConfirm={() => void props.take(`remove:${m().id}`, plugins.remove(m().id))} />
+        </span>
       </div>
+      <Show when={open() === "setup"}>
+        <div class="app-settings-plugin-page" data-name="plugin-setup-page">
+          <For each={m().install ?? []}>{(step, i) => <InstallStepRow plugin={p()} step={step} index={i()} take={props.take} />}</For>
+          <Show when={m().setup}>
+            <div class="app-settings-plugin-setup" data-no-translate>{m().setup}</div>
+          </Show>
+        </div>
+      </Show>
       <Show when={open() === "settings"}>
         <PluginSettings plugin={p()} take={props.take} />
       </Show>
@@ -397,79 +405,91 @@ function PluginSettings(props: { plugin: PluginInfo; take: (what: string, p: Pro
     if (!(await props.take(`settings:${m().id}`, plugins.setSettings(m().id, values())))) return;
     for (const f of m().settings ?? []) if (f.type === "password") set(f.key, "");
   };
-  const field = (f: SettingField) => {
+  const control = (f: SettingField) => {
     switch (f.type) {
       case "password":
         return (
-          <>
-            <label class="app-settings-field">
-              <span class="app-settings-field-label" data-no-translate>{f.label}</span>
-              <input
-                class="app-settings-input"
-                type="password"
-                autocomplete="off"
-                placeholder={saved(f) ? translate("Saved") : ""}
-                value={values()[f.key]}
-                onInput={(e) => set(f.key, e.currentTarget.value)}
-              />
-            </label>
-            <Show when={saved(f)}>
-              <div class="app-settings-local-head">
-                <button type="button" class="app-settings-btn" data-name="plugin-forget-secret" onClick={() => void props.take(`forget:${m().id}`, plugins.forgetSecret(m().id, f.key))}>
-                  {translate("Forget")}
-                </button>
-              </div>
-            </Show>
-          </>
-        );
-      case "bool":
-        return <CheckField variant="settings" label={f.label} checked={values()[f.key] === "true"} onChange={(on) => set(f.key, on ? "true" : "false")} />;
-      case "select":
-        return (
-          <label class="app-settings-field">
-            <span class="app-settings-field-label" data-no-translate>{f.label}</span>
-            <SelectControl
-              value={values()[f.key]}
-              options={(f.options ?? []).map((o) => o.value)}
-              labelOf={(v) => (f.options ?? []).find((o) => o.value === v)?.label ?? v}
-              width={240}
-              onPick={(v) => set(f.key, v)}
-            />
-          </label>
-        );
-      default:
-        return (
-          <label class="app-settings-field">
-            <span class="app-settings-field-label" data-no-translate>{f.label}</span>
+          <span class="app-settings-plugin-control">
             <input
               class="app-settings-input"
-              type="text"
-              inputmode={f.type === "number" ? "decimal" : undefined}
+              type="password"
+              autocomplete="off"
+              placeholder={saved(f) ? translate("Saved") : ""}
               value={values()[f.key]}
               onInput={(e) => set(f.key, e.currentTarget.value)}
             />
-          </label>
+            <Show when={saved(f)}>
+              <button type="button" class="app-settings-btn" data-name="plugin-forget-secret" onClick={() => void props.take(`forget:${m().id}`, plugins.forgetSecret(m().id, f.key))}>
+                {translate("Forget")}
+              </button>
+            </Show>
+          </span>
+        );
+      case "bool":
+        return <CheckField variant="settings" label="" checked={values()[f.key] === "true"} onChange={(on) => set(f.key, on ? "true" : "false")} />;
+      case "select":
+        return (
+          <SelectControl
+            value={values()[f.key]}
+            options={(f.options ?? []).map((o) => o.value)}
+            labelOf={(v) => (f.options ?? []).find((o) => o.value === v)?.label ?? v}
+            width={240}
+            onPick={(v) => set(f.key, v)}
+          />
+        );
+      default:
+        return (
+          <input
+            class="app-settings-input"
+            type="text"
+            inputmode={f.type === "number" ? "decimal" : undefined}
+            value={values()[f.key]}
+            onInput={(e) => set(f.key, e.currentTarget.value)}
+          />
         );
     }
   };
   return (
-    <div class="app-settings-plugin-settings" data-name="plugin-settings" data-no-translate>
-      <For each={m().settings ?? []}>
-        {(f) => (
-          <Show when={shown(f)}>
-            {field(f)}
-            <Show when={f.help}>
-              <div class="app-settings-local-status">{f.help}</div>
+    <div class="app-settings-plugin-page" data-name="plugin-settings">
+      <div class="app-settings-plugin-form">
+        <For each={m().settings ?? []}>
+          {(f) => (
+            <Show when={shown(f)}>
+              <span class="app-settings-plugin-label" data-no-translate>
+                {f.label}
+                <Show when={f.help}>{(h) => <HelpIcon text={h()} data />}</Show>
+              </span>
+              <span class="app-settings-plugin-value" data-no-translate>{control(f)}</span>
             </Show>
-          </Show>
-        )}
-      </For>
-      <div class="app-settings-local-head">
-        <button type="button" class="app-settings-btn" data-name="plugin-settings-apply" onClick={() => void apply()}>
-          {translate("Apply")}
-        </button>
+          )}
+        </For>
+        <span class="app-settings-plugin-label">
+          Token
+          <HelpIcon text={translate("A new token makes the plugin connect again: the one it has stops working.")} />
+        </span>
+        <span class="app-settings-plugin-value">
+          <ConfirmButton label="New token" confirmLabel="The plugin connects again" onConfirm={() => void props.take(`token:${m().id}`, plugins.newToken(m().id))} />
+        </span>
       </div>
+      <Show when={(m().settings ?? []).length > 0}>
+        <div class="app-settings-local-head">
+          <button type="button" class="app-settings-btn" data-name="plugin-settings-apply" onClick={() => void apply()}>
+            {translate("Apply")}
+          </button>
+        </div>
+      </Show>
     </div>
+  );
+}
+
+/** (i) after a setting's name, its explanation in the tooltip; `data` when the plugin wrote it. */
+function HelpIcon(props: { text: string; data?: boolean }) {
+  return (
+    <Tooltip text={props.text} side="top" width="wide" noTranslate={props.data}>
+      <span class="ind3-info app-settings-plugin-help" tabindex="0">
+        <Icon name="st-settings-info" size={18} />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -488,10 +508,8 @@ function SymbolMap(props: { plugin: PluginInfo; take: (what: string, p: Promise<
     void props.take(`symbols:${id()}`, plugins.setSymbolMap(id(), map));
   };
   return (
-    <div class="app-settings-plugin-settings" data-name="plugin-symbol-map">
-      <div class="app-settings-local-status">
-        The broker's ticker of a chart symbol, when the plugin does not find it: EXCHANGE:SYMBOL on the left, the broker's name on the right.
-      </div>
+    <div class="app-settings-plugin-page" data-name="plugin-symbol-map">
+      <div class="app-settings-local-status">The broker's ticker for a chart symbol the plugin does not find.</div>
       <For each={rows()}>
         {(r, i) => (
           <div class="app-settings-plugin-map-row">

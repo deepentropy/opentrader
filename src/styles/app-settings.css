@@ -639,12 +639,61 @@
 .app-settings-plugin-dot.is-on { background: var(--color-minty-green-400); opacity: 1; }
 .app-settings-plugin-setup { white-space: pre-wrap; font-size: 12px; line-height: 16px; color: var(--color-content-secondary-neutral); }
 .app-settings-plugin-step { display: flex; flex-direction: column; gap: 6px; }
-/* Chart data / Trading of a plugin that provides both, under Enabled. */
-.app-settings-plugin-uses { display: flex; gap: 16px; padding-inline-start: 24px; }
+/* Chart data / Trading of an enabled plugin that provides both, under its state. */
+.app-settings-plugin-uses { display: flex; gap: 16px; }
 .app-settings-plugin-folder { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .app-settings-plugin-folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-.app-settings-plugin-settings { display: flex; flex-direction: column; gap: 8px; }
-.app-settings-plugin-log { max-height: 200px; overflow: auto; }
+.app-settings-plugin { gap: 8px; }
+.app-settings-plugin-icon {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-content-secondary-neutral);
+  cursor: pointer;
+}
+.app-settings-plugin-icon:hover { background: var(--color-container-fill-primary-neutral-normal); color: var(--ot-strong); }
+/* Setup / Settings / Symbols / Log: one page open at a time, under a divider; Remove at the end. Wraps on a narrow window. */
+.app-settings-plugin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-divider);
+}
+.app-settings-plugin-tab {
+  padding: 0 10px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-content-secondary-neutral);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.app-settings-plugin-tab:hover { background: var(--color-container-fill-primary-neutral-normal); color: var(--ot-strong); }
+.app-settings-plugin-tab.is-active { background: var(--color-container-fill-primary-neutral-normal); color: var(--ot-strong); font-weight: 600; }
+.app-settings-plugin-tabs-end { margin-inline-start: auto; }
+.app-settings-plugin-tabs .app-settings-btn { height: 28px; padding: 0 12px; }
+.app-settings-plugin-page { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.app-settings-plugin-page .app-settings-local-head { flex-wrap: wrap; }
+/* A plugin's settings: the name (with its (i) help) on the left, the control on the right. */
+.app-settings-plugin-form { display: grid; grid-template-columns: minmax(96px, max-content) minmax(0, 1fr); align-items: center; gap: 8px 16px; }
+.app-settings-plugin-label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--color-content-primary-neutral-semi-bold); }
+.app-settings-plugin-value { display: flex; align-items: center; min-width: 0; }
+.app-settings-plugin-control { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.app-settings-plugin-form .app-settings-input { height: 32px; }
+.app-settings-plugin-help { outline: none; }
+.app-settings-plugin-api { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.app-settings-plugins .app-settings-input.app-settings-plugin-port { width: 80px; height: 32px; }
+.app-settings-plugin-link { margin-inline-start: auto; font-size: 12px; color: var(--color-content-secondary-neutral); }
+.app-settings-plugin-link:hover { color: var(--ot-strong); }
+.app-settings-plugin-log { max-height: 200px; overflow: auto; margin: 0; }
 .app-settings-plugin-entry { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
 .app-settings-plugin-entry-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .app-settings-plugin-name { font-weight: 600; color: var(--ot-strong); }

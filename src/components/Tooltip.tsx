@@ -36,6 +36,8 @@ interface Props {
   icon?: string;
   /** 8px from the anchor instead of 4px. */
   farther?: boolean;
+  /** The text is data (a plugin's help, what the user wrote), not interface text: not looked up for translation. */
+  noTranslate?: boolean;
   children: JSX.Element;
 }
 
@@ -140,6 +142,7 @@ export function Tooltip(props: Props) {
             role="tooltip"
             class={`ot-tooltip ot-tooltip-${side()} ot-tooltip-${width()}${hasHotkey() ? " ot-tooltip-with-hotkey" : ""}`}
             style={style()}
+            data-no-translate={props.noTranslate ? "" : undefined}
           >
             <span class="ot-tooltip-label">
               {props.text}
