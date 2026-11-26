@@ -156,8 +156,9 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
       : undefined,
     watch: {
       // Research files, dev builds (a cargo target can sit in .tmp), agent worktrees (whose node_modules link to
-      // this one) and the browser tool's logs are not the app: watching them makes the dev server crawl and reload.
-      ignored: ["**/src-tauri/**", "**/.tmp/**", "**/.claude/**", "**/.playwright-mcp/**"],
+      // this one), the browser tool's logs and the deployed workers / site (deploy/, docs/) are not the app: watching
+      // them makes the dev server crawl and reload.
+      ignored: ["**/src-tauri/**", "**/.tmp/**", "**/.claude/**", "**/.playwright-mcp/**", "**/deploy/**", "**/docs/**"],
     },
     proxy: mode === "web" ? { "/api": { target: webServer, ws: true } } : undefined,
     fs: {

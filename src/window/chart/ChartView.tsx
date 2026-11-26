@@ -81,6 +81,7 @@ import { createWindowEvents } from "./view/window-events";
 import { createTickerInfo } from "./view/ticker-info";
 import { createSymbolLoad } from "./view/symbol-load";
 import { createReplay } from "./view/replay";
+import { createPointPick } from "./view/point-pick";
 import { createTradingLines } from "./view/trading-lines";
 import { createStrategyMarks } from "./view/strategy-marks";
 import { createLegend } from "./view/legend";
@@ -553,6 +554,7 @@ export function ChartView(props: ChartViewProps) {
     createSnapshot,
     createLive,
     createReplay,
+    createPointPick,
     createTradingLines,
     createNews,
     createEvents,
@@ -713,6 +715,7 @@ export function ChartView(props: ChartViewProps) {
     PaneControls,
     PriceAxisOverlays,
     ReplaySelectLayer,
+    PointPickLayer,
     StudySettingsDialog,
     TradingLinesLayer,
   } = cx;
@@ -816,6 +819,7 @@ export function ChartView(props: ChartViewProps) {
       />
       <TradingLinesLayer epoch={coordEpoch()} />
       <ReplaySelectLayer />
+      <PointPickLayer />
       <PriceAxisOverlays />
       <ExtraAxisOverlays />
       {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"

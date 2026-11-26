@@ -10,6 +10,9 @@ import { HEADER_MENUS, type HeaderMenuDef } from "./window/header/header-menus/r
 import { SymbolSearchDialog } from "./window/header/SymbolSearchDialog";
 import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
 import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
+import { ConfirmInputsHost } from "./window/chart/ConfirmInputsHost";
+import { confirmInputsOf } from "./window/chart/confirm-inputs";
+import { getIndicatorEntry } from "./window/chart/indicators/registry";
 import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
 import { appearanceFrom, cloneDraft, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
@@ -1275,9 +1278,15 @@ function App() {
           onClose={() => setCompareDialogOpen(false)}
         />
       </Show>
+      <ConfirmInputsHost />
       <Show when={indicatorsDialogOpen()}>
         <IndicatorsDialog
-          onAddIndicator={(id) => addIndicator(id, indicatorsParent() ?? undefined)}
+          onAddIndicator={(id) => {
+            // A script that asks for its inputs (points on the chart, Confirm Inputs): the dialog makes way for it.
+            const entry = getIndicatorEntry(id);
+            if (entry && confirmInputsOf(entry).length) setIndicatorsDialogOpen(false);
+            addIndicator(id, indicatorsParent() ?? undefined);
+          }}
           onClose={() => {
             setIndicatorsDialogOpen(false);
             setIndicatorsParent(null);

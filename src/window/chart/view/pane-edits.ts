@@ -32,6 +32,8 @@ export function createPaneEdits(t: PaneEditsTarget) {
     removeIndicator: (id: string) => live() && t.chartEdits.removeIndicatorFromPane(t.tabId, t.paneIndex, id),
     /** Persist a study's settings (no undo step: the eye, a scale given to a new request). */
     setIndicatorSettings: (id: string, s: PaneIndicatorSettings) => live() && t.chartEdits.setIndicatorSettingsForPane(t.tabId, t.paneIndex, id, s),
+    /** Some inputs of a study changed, as one undo step ("Reset points…"). */
+    patchStudyInputs: (id: string, patch: Record<string, unknown>) => live() && t.chartEdits.patchStudyInputs(t.tabId, t.paneIndex, id, patch),
     editStudySettings: (id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) =>
       live() && t.chartEdits.editStudySettings(t.tabId, t.paneIndex, id, patch, label, opts),
     editSources: (patch: SourcesPatch, label: string, opts?: { coalesce?: string }) =>

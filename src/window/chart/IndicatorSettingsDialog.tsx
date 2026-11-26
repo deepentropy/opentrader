@@ -125,6 +125,9 @@ type Props = {
   /** The inputs of an indicator used off the chart (the script screener): the Inputs tab only, "Apply" for Ok and no
    *  "Save as default". */
   inputsOnly?: boolean;
+  /** The inputs a script asks for when it is added (Pine `confirm`, reference "Confirm Inputs"): no "Defaults" menu,
+   *  Apply adds the study, Cancel / the close button / Escape / a click outside add nothing (`onCancel`). */
+  confirmInputs?: { onCancel: () => void };
   /** Rows of the caller under the inputs (the screener's "CALCULATION" section), in the same grid; `onOk` commits
    *  them with Ok / Apply. */
   extraRows?: () => JSX.Element;
@@ -455,6 +458,7 @@ export function IndicatorSettingsDialog(props: Props) {
   };
   const cancel = () => {
     if (previewed) props.onPreview?.(null);
+    props.confirmInputs?.onCancel();
     props.onClose();
   };
   /** A palette plot (Volume): its visible check row, then one colour row per
@@ -779,7 +783,7 @@ export function IndicatorSettingsDialog(props: Props) {
     if (cfg.type === "time") {
       return <DateTimeInput value={Number(inputDraft[cfg.id])} timeZone={props.strategy?.timeZone ?? props.timeZone ?? "UTC"} onChange={(ms) => setInputDraft(cfg.id, ms)} />;
     }
-    if (cfg.type === "int" || cfg.type === "float") {
+    if (cfg.type === "int" || cfg.type === "float" || cfg.type === "price") {
       // TPO "Ticks Per Row" with Auto rows: the computed size, disabled.
       const auto = props.tpo && cfg.id === "ticksPerRow" && !enabled(cfg);
       return (
@@ -830,12 +834,13 @@ export function IndicatorSettingsDialog(props: Props) {
       data-qa-id="indicator-properties-dialog"
       label={translateWith("{0} settings", props.title)}
       title={props.title}
-      onClose={ok}
+      onClose={props.confirmInputs ? cancel : ok}
       // Escape / Enter in the bubble phase: popovers (menus, colour panel) take their own Escape first (they stop it
       // in the capture phase). Enter in a field is the field's; the symbol search takes both.
       keys={{ capture: false }}
-      onEscape={() => (symbolSearch() ? false : ok())}
-      onEnter={(e) => (symbolSearch() || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? false : ok())}
+      onEscape={() => (symbolSearch() ? false : props.confirmInputs ? cancel() : ok())}
+      // Confirm Inputs: Enter does not apply (reference).
+      onEnter={(e) => (props.confirmInputs || symbolSearch() || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? false : ok())}
     >
       {/* Underline tabs (study dialog: a top bar, not the left rail). */}
       <div class="ind3-tabs" role="tablist">
@@ -1243,7 +1248,7 @@ export function IndicatorSettingsDialog(props: Props) {
       </div>
 
       <footer class="cp3-footer">
-        <div class="settings-defaults">
+        <div class="settings-defaults" style={props.confirmInputs ? { visibility: "hidden" } : undefined}>
           <button
             ref={defaultsBtn}
             type="button"

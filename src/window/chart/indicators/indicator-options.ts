@@ -149,6 +149,8 @@ export function statusLineInputs(
     if (cfg.type === "bool" || cfg.type === "color") continue;
     const display = (cfg as { display?: string }).display;
     if (display === "none" || display === "data_window") continue;
+    // Pine's default display of time and text area inputs is none: shown only when the script asks for it.
+    if (((cfg.type as string) === "time" || (cfg.type as string) === "text_area") && display === undefined) continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
     // A source naming another study, an enum field (its title).

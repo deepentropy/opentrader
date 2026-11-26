@@ -41,4 +41,16 @@ describe("status line inputs", () => {
     } as unknown as IndicatorRegistryEntry;
     expect(statusLineInputs(entry, { average: "ema" })).toBe("Exponential");
   });
+
+  it("leaves out time and text area inputs unless their display is set (Pine default: none)", () => {
+    const entry = {
+      inputConfig: [
+        { id: "t", type: "time", defval: 0 },
+        { id: "notes", type: "text_area", defval: "" },
+        { id: "shown", type: "time", defval: 0, display: "all" },
+        { id: "level", type: "price", defval: 1 },
+      ],
+    } as unknown as IndicatorRegistryEntry;
+    expect(statusLineInputs(entry, { t: 1, notes: "a", shown: 5, level: 101.5 })).toBe("5 101.5");
+  });
 });

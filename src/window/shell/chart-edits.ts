@@ -35,6 +35,8 @@ import { scriptIdOfStudy, withoutDeletedScripts, withoutStudies, withStudiesOn }
 import { sourceInputIds, sourceRef, withDescendants } from "../chart/indicators/study-sources";
 import { isScaleKey } from "../chart/scales/scale-layout";
 import { showConfirm } from "../../components/Dialogs";
+import { confirmInputsOf, confirmStudyInputs } from "../chart/confirm-inputs";
+import { cachedSymbolSessions } from "../../data/session";
 import type { ChildStudyParent } from "../../data/app-events";
 import type { DrawingStore } from "../drawings/drawing-store";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
@@ -43,6 +45,10 @@ import type { Drawing } from "lightweight-charts-drawing/core/types";
  *  in a new order, the pane order, the sources' drawing order, the series' scale (null = the chart's scales side)
  *  and pane (the group of the study pane it shares, null = a pane of its own), and the chart's drawings placed
  *  again with them (the drawings `key` holds, in their new order). */
+/** How a study is added: `confirm: false` skips the script's confirm inputs (an agent gives its inputs itself);
+ *  `inputs`: values over the study's defaults. */
+export type AddStudyOptions = { confirm?: boolean; inputs?: Record<string, unknown> };
+
 export type SourcesPatch = {
   studies?: Record<string, PaneIndicatorSettings>;
   compare?: Record<string, ComparePatch>;
@@ -241,19 +247,30 @@ export function createChartEdits(
   /** Add a study of type `typeId` (registry id) to the focused pane. Every
    *  call adds a new instance with its own settings, like the reference app
    *  (the same indicator can be on a chart several times). */
-  function addIndicator(typeId: string, parent?: ChildStudyParent) {
+  function addIndicator(typeId: string, parent?: ChildStudyParent, opts?: AddStudyOptions) {
     // The fixed range volume profile row picks its drawing tool, as in the reference app
     // (counted as a drawing tool, not as an indicator).
     if (typeId === FIXED_RANGE_VP_TOOL_ROW) {
       emitAppEvent("select-drawing-tool", { toolId: "fixed-range-volume-profile" });
       return;
     }
-    addStudyTo(activeTab().id, typeId, parent);
+    addStudyTo(activeTab().id, typeId, parent, opts);
   }
   /** Add a study to the focused pane of tab `tabId`, shown or not (an editor tab's chart, #325). */
-  function addStudyTo(tabId: string, typeId: string, parent?: ChildStudyParent) {
+  function addStudyTo(tabId: string, typeId: string, parent?: ChildStudyParent, opts?: AddStudyOptions) {
     const tab = tabOf(tabId);
     if (!tab) return;
+    // A script with `confirm` inputs asks for them first (points on the chart, then the Confirm Inputs dialog); it is
+    // added once they are given, not when they are cancelled.
+    const asking = getIndicatorEntry(typeId);
+    if (opts?.confirm !== false && asking && confirmInputsOf(asking).length) {
+      const base = loadIndicatorDefault(typeId)?.inputs ?? asking.defaultInputs ?? {};
+      const zone = cachedSymbolSessions(tab.panes[tab.activePane]?.symbol ?? "")?.timeZone;
+      void confirmStudyInputs({ tabId: tab.id, paneIndex: tab.activePane }, asking, { ...base }, zone).then((inputs) => {
+        if (inputs) addStudyTo(tabId, typeId, parent, { confirm: false, inputs });
+      });
+      return;
+    }
     // A user's own script is counted, not named.
     track("indicator_added", { indicator: typeId.startsWith("user:") ? "user-script" : typeId });
     const pane = tab.panes[tab.activePane] ?? tab.panes[0];
@@ -292,6 +309,8 @@ export function createChartEdits(
       }
       seed = { ...seed, inputs: { ...seed.inputs, [src]: sourceRef(parent.id, 0) }, options };
     }
+    // The values given for the confirm inputs.
+    if (opts?.inputs && seed) seed = { ...seed, inputs: { ...seed.inputs, ...opts.inputs } };
     // Adding a strategy opens its report (the reference app opens the footer panel).
     if (isStrategyId(typeId)) strategyTester.setCollapsed(false);
     const added: Partial<PaneChart> = {

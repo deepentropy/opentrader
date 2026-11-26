@@ -3,6 +3,7 @@
  * menus, the series / study / compared-symbol "More" menus with their alert
  * rows, the TPO block actions, the plus button and pane menus.
  */
+import { pointInputsOf, resetStudyPoints } from "../confirm-inputs";
 import { promptNewWatchlist } from "../../right-rail/watchlist-prompts";
 import { priceAxisWidth } from "../axis-width";
 import { typeIdOf } from "../indicators/study-id";
@@ -539,7 +540,15 @@ export function createMenus(cx: ChartCx): MenusApi {
     const arrange = cx.sourceArrangeRows(id);
     if (arrange.length) nodes.push(...arrange, { kind: "separator" });
     // A script's source: its own section after the placement rows.
+    // Reference: "Reset points…" (a study with time or price inputs) closes the source section.
     const source = sourceCodeMenuRows(id);
+    const entry = getIndicatorEntry(id);
+    if (entry && pointInputsOf(entry).length) {
+      source.push({
+        kind: "item", id: "reset-points", label: "Reset points…",
+        onSelect: () => void resetStudyPoints({ tabId: cx.props.tabId, paneIndex: cx.props.paneIndex }, entry).then((v) => { if (v) cx.edits.patchStudyInputs(id, v); }),
+      });
+    }
     if (source.length) nodes.push(...source, { kind: "separator" });
     nodes.push(
       cx.sourceCopyRow(id),

@@ -175,7 +175,8 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
   /** Add a study type to the focused chart and give its instance id. */
   function addStudy(typeId: string): string {
     const before = new Set(pane().indicators);
-    host.edits.addIndicator(typeId);
+    // Added at once: an agent sets the inputs itself (no confirm points or dialog).
+    host.edits.addIndicator(typeId, undefined, { confirm: false });
     const added = pane().indicators.find((id) => !before.has(id));
     if (!added) throw new AgentError(`"${typeId}" was not added. Call list_indicators for the ids.`);
     return added;

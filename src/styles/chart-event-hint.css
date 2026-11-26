@@ -34,3 +34,31 @@
   display: block;
   color: var(--color-white);
 }
+
+/* Points asked on the chart for a script's time and price inputs (view/point-pick.tsx): the layer takes the clicks;
+   the pointer's bar / price lines in the brand colour, the points already given in grey. */
+.ot-point-pick {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  cursor: crosshair;
+}
+.ot-point-pick__vline,
+.ot-point-pick__hline,
+.ot-point-pick__anchor {
+  position: absolute;
+  pointer-events: none;
+}
+.ot-point-pick__vline { width: 1px; }
+.ot-point-pick__hline { height: 1px; }
+.ot-point-pick__vline.is-live,
+.ot-point-pick__hline.is-live { background-color: var(--color-brand); }
+.ot-point-pick__anchor {
+  width: 8px;
+  height: 8px;
+  margin: -5px 0 0 -5px;
+  border: 1px solid;
+  border-radius: 50%;
+  background-color: var(--color-bg-primary);
+}
+.ot-point-pick__anchor.is-live { border-color: var(--color-brand); }

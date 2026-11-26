@@ -833,7 +833,7 @@ function withAlpha(color: string, a: number): string {
 
 /** Pass a wheel over the selection layer on to the chart canvas under it
  *  (zoom / scroll keep working while a bar is picked). */
-function forwardWheel(e: WheelEvent, host: HTMLElement) {
+export function forwardWheel(e: WheelEvent, host: HTMLElement) {
   const target = document
     .elementsFromPoint(e.clientX, e.clientY)
     .find((el) => host.contains(el) && el instanceof HTMLElement && el.tagName === "TD") ??

@@ -55,6 +55,7 @@ import type { LegendApi } from "./legend";
 import type { SourceMenuApi } from "./source-menu";
 import type { ScalesApi } from "./scales";
 import type { ReplayApi } from "./replay";
+import type { PointPickApi } from "./point-pick";
 import type { TradingLinesApi } from "./trading-lines";
 import type { FutureAxisApi } from "./future-axis";
 import type { SeriesApi } from "./series";
@@ -304,6 +305,7 @@ export type ChartCx = ChartCore &
   SourceMenuApi &
   ScalesApi &
   ReplayApi &
+  PointPickApi &
   TradingLinesApi &
   FutureAxisApi &
   SeriesApi &
