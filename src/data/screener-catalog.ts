@@ -470,6 +470,16 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "above", target: "value", right: { value: 1e7 } },
       { operation: "below", target: "value", right: { value: 1e6 } },
     ] } },
+  // The mean of each day's close × volume over the range, today included (the reference's value, though its title
+  // says the price times the average volume).
+  { id: "PriceAvgVolume", title: "Price × average volume", short: "Price × avg vol", category: "marketData", align: "right", fmt: "money", width: 99,
+    params: [{ key: "interval", title: "Date Range", default: "Interval10D", options: [
+      { value: "Interval10D", label: "10 days", short: "10D", field: "AvgValue.Traded_10d" },
+      { value: "Interval30D", label: "30 days", short: "30D", field: "AvgValue.Traded_30d" },
+      { value: "Interval60D", label: "60 days", short: "60D", field: "AvgValue.Traded_60d" },
+      { value: "Interval90D", label: "90 days", short: "90D", field: "AvgValue.Traded_90d" },
+    ] }],
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "PriceAvgVolume"]] } },
   { id: "Volatility", title: "Volatility", short: "Volatility", category: "marketData", align: "right", fmt: "percent", width: 86,
     params: [{ key: "interval", title: "Date Range", default: "Interval1D", options: [
       { value: "Interval1D", label: "1 day", short: "1D", field: "Volatility.D" },

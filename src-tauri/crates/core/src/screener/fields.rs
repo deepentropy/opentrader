@@ -113,6 +113,9 @@ pub enum Step {
     /// Mean volume of the last n bars, today included:
     /// (`|next` = sum of the last n-1 + volume) / n.
     AvgVolIncl(u32),
+    /// Mean close x volume of the last n bars, today included: (`|next` = the sum of the last n-1 + price x
+    /// volume) / n. The reference's "Price × average volume" is this mean, not the price times the average volume.
+    AvgTurnoverIncl(u32),
     /// Today's volume / `|next` (= average_volume_10d_calc at D).
     RelVol,
     /// 100 * (today's volume / the previous session's - 1); `volume_change|next` = D's volume.
@@ -264,6 +267,10 @@ const STATE: &[(&str, Step)] = &[
     ("average_volume_30d_calc", Step::AvgVolIncl(30)),
     ("average_volume_60d_calc", Step::AvgVolIncl(60)),
     ("average_volume_90d_calc", Step::AvgVolIncl(90)),
+    ("AvgValue.Traded_10d", Step::AvgTurnoverIncl(10)),
+    ("AvgValue.Traded_30d", Step::AvgTurnoverIncl(30)),
+    ("AvgValue.Traded_60d", Step::AvgTurnoverIncl(60)),
+    ("AvgValue.Traded_90d", Step::AvgTurnoverIncl(90)),
     ("relative_volume_10d_calc", Step::RelVol),
     ("volume_change", Step::VolChange),
     ("volume_change_abs", Step::VolChangeAbs),
@@ -347,7 +354,7 @@ const STATE_OPTIONAL: &[&str] = &[
     "Perf.5Y", "Perf.10Y", "Perf.All", "Recommend.All", "Recommend.MA", "Recommend.Other", "TechRating_1D", "MARating_1D", "OsRating_1D", "Mom",
     "Mom_14", "AO", "CCI20", "Stoch.K", "Stoch.D", "Stoch.K_14_1_3", "Stoch.D_14_1_3", "Volatility.W", "Volatility.M",
     "volume|1W", "volume|1M", "Value.Traded|1W", "Value.Traded|1M", "candlestick_patterns", "volume_change",
-    "volume_change_abs",
+    "volume_change_abs", "AvgValue.Traded_10d", "AvgValue.Traded_30d", "AvgValue.Traded_60d", "AvgValue.Traded_90d",
 ];
 
 /// The state key whose presence offers an optional field.
@@ -561,6 +568,7 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
                 perf(price?, base)
             }
             Step::AvgVolIncl(n) => Some((next()? + m.volume) / n as f64),
+            Step::AvgTurnoverIncl(n) => Some((next()? + price? * m.volume) / n as f64),
             Step::RelVol => {
                 let avg = next()?;
                 (avg > 0.0).then(|| m.volume / avg)

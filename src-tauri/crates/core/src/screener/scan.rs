@@ -570,6 +570,24 @@ mod tests {
     }
 
     #[test]
+    fn average_turnover_field() {
+        // AAA on 29/09: price 10, volume 1000; the 9 bars before hold 81,000 of close x volume.
+        let with_values = |mut st: StateFile| {
+            for (k, v) in [("AvgValue.Traded_10d", 9000.0), ("AvgValue.Traded_10d|next", 81000.0)] {
+                st.num.insert(k.to_string(), vec![Some(v), None, None]);
+            }
+            st
+        };
+        let t = table(Some(with_values(state((2026, 9, 28)))));
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, &t.rows[0]);
+        assert_eq!(v("AvgValue.Traded_10d"), Some(Val::Num(9100.0)));
+        let t = table(Some(with_values(state((2026, 9, 29)))));
+        assert_eq!(Field::parse("AvgValue.Traded_10d").unwrap().eval(&t, &t.rows[0]), Some(Val::Num(9000.0)));
+        let ids: Vec<String> = crate::screener::fields::catalog(&table(Some(state((2026, 9, 28))))).into_iter().filter(|f| f.available).map(|f| f.id).collect();
+        assert!(!ids.contains(&"AvgValue.Traded_10d".to_string()));
+    }
+
+    #[test]
     fn fundamentals_and_their_price_ratios() {
         // AAA: price 10, 100 shares (market cap 1000).
         let mut st = state((2026, 9, 28));

@@ -219,6 +219,12 @@ describe("filters and screens", () => {
     expect(configuredShort(C("Volume", { resolution: "TimeResolution1W" }))).toBe("Vol, 1W");
   });
 
+  it("price × average volume: one field per date range", () => {
+    expect(fieldOf(C("PriceAvgVolume"))).toBe("AvgValue.Traded_10d");
+    expect(fieldOf(C("PriceAvgVolume", { interval: "Interval90D" }))).toBe("AvgValue.Traded_90d");
+    expect(configuredShort(C("PriceAvgVolume", { interval: "Interval30D" }))).toBe("Price × avg vol, 30D");
+  });
+
   it("popular screens: 'Bullish and undervalued' and 'Large, efficient and innovative'", () => {
     const bull = POPULAR_SCREENS.find((p) => p.id === "11")!.screen();
     expect(bull.filters.find((f) => f.left.id === "TechnicalRating")).toMatchObject({ type: "CheckboxGroup", values: ["Buy", "StrongBuy"] });
