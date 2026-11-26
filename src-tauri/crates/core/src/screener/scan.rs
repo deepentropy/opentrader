@@ -570,6 +570,21 @@ mod tests {
     }
 
     #[test]
+    fn change_from_open_and_last_trade_fields() {
+        let mut a = mrow("AAA", 10.0, 1000.0, true, "2026-09-29T20:30:00Z");
+        a.open = 9.5;
+        let b = mrow("BBB", 4.0, 5000.0, true, "2026-09-28T20:30:00Z");
+        let mut t = Table::build(1, vec![a, b], Arc::new(vec![]), None);
+        // The latest session that opened: Tue 29/09; BBB last traded on Mon 28/09.
+        t.session = NaiveDate::from_ymd_opt(2026, 9, 29);
+        let v = |id: &str, i: usize| Field::parse(id).unwrap().eval(&t, &t.rows[i]);
+        assert_eq!(v("change_from_open_abs", 0), Some(Val::Num(0.5)));
+        assert_eq!((v("active_symbol", 0), v("active_symbol", 1)), (Some(Val::Num(1.0)), Some(Val::Num(0.0))));
+        let r = run(&t, &req(vec![clause("active_symbol", Op::Equal, Operand::Num(0.0))], None)).unwrap();
+        assert_eq!(tickers(&r), vec!["BBB"]);
+    }
+
+    #[test]
     fn average_turnover_field() {
         // AAA on 29/09: price 10, volume 1000; the 9 bars before hold 81,000 of close x volume.
         let with_values = |mut st: StateFile| {

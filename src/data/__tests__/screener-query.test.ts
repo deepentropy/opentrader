@@ -207,6 +207,17 @@ describe("filterClauses", () => {
     expect(filterClauses(box(C("TechnicalRating"), ["Buy", "StrongBuy"]))).toEqual([{ left: "TechRating_1D", operation: "in_range", right: ["Buy", "StrongBuy"] }]);
   });
 
+  it("compiles the filters with clauses of their own", () => {
+    // New high / low: the period's extreme is the day's.
+    expect(filterClauses(box(C("NewHighSimplified"), ["month_3"]))).toEqual([{ left: "High.3M", operation: "eless", right: "high" }]);
+    expect(filterClauses(box(C("NewLowSimplified"), ["weeks_52"]))).toEqual([{ left: "price_52_week_low", operation: "egreater", right: "low" }]);
+    expect(filterClauses(box(C("LastTradeTime"), ["false"]))).toEqual([{ left: "active_symbol", operation: "equal", right: 0 }]);
+    expect(filterClauses(box(C("SymbolType"), ["CommonStock", "PreferredStock"]))).toEqual([{ left: "type", operation: "in_range", right: ["stock", "preferred", "structured"] }]);
+    expect(filterClauses(box(C("Listing"), ["true"]))?.[0]).toMatchObject({ left: "type", operation: "in_range" });
+    expect(pillTexts(box(C("NewHighSimplified"), ["weeks_52"]))).toEqual({ primary: "New high", value: "52 weeks" });
+    expect(pillTexts(box(C("SymbolType"), ["DepositaryReceipt"]))).toEqual({ primary: "", value: "Depositary receipt" });
+  });
+
   it("compiles a relative date filter to the range of its days (New York calendar days, weeks from Monday)", () => {
     const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 1000;
     const end = (d: string) => day(d) + 86399;

@@ -38,6 +38,11 @@ pub enum Live {
     ChangeAbs,
     Gap,
     ChangeFromOpen,
+    /// Price - open.
+    ChangeFromOpenAbs,
+    /// 1 when the ticker traded in the latest session that has opened, else 0 (the reference's "Last trade time":
+    /// its symbols that did not trade in the session read no).
+    ActiveSymbol,
     ValueTraded,
     /// 100 * true range / low.
     VolatilityD,
@@ -186,6 +191,8 @@ const LIVE: &[(&str, Live)] = &[
     ("change_abs", Live::ChangeAbs),
     ("gap", Live::Gap),
     ("change_from_open", Live::ChangeFromOpen),
+    ("change_from_open_abs", Live::ChangeFromOpenAbs),
+    ("active_symbol", Live::ActiveSymbol),
     ("Value.Traded", Live::ValueTraded),
     ("Volatility.D", Live::VolatilityD),
     ("session_day", Live::SessionDay),
@@ -407,7 +414,7 @@ impl Field {
 
     pub fn eval<'a>(&self, t: &'a Table, row: &'a Row) -> Option<Val<'a>> {
         match *self {
-            Field::Live(f) => live(f, row).filter(|v| v.is_finite()).map(Val::Num),
+            Field::Live(f) => live(f, t, row).filter(|v| v.is_finite()).map(Val::Num),
             Field::Reference(f) => {
                 let r = t.reference(row);
                 let s: &str = match f {
@@ -472,7 +479,7 @@ fn ratio(t: &Table, row: &Row, r: Ratio) -> Option<f64> {
     }
 }
 
-fn live(f: Live, row: &Row) -> Option<f64> {
+fn live(f: Live, t: &Table, row: &Row) -> Option<f64> {
     let m = &row.m;
     let pos = |v: f64| (v > 0.0).then_some(v);
     let x = &m.ext;
@@ -516,6 +523,12 @@ fn live(f: Live, row: &Row) -> Option<f64> {
         Live::ChangeFromOpen => {
             let o = pos(m.open)?;
             (pos(m.last)? - o) / o * 100.0
+        }
+        Live::ChangeFromOpenAbs => pos(m.last)? - pos(m.open)?,
+        Live::ActiveSymbol => {
+            // The row's shown session (the snapshot carries no trade stamps on a closed day) with volume in it.
+            let session = t.session?;
+            if row.day.is_some_and(|d| d >= session) && m.volume > 0.0 { 1.0 } else { 0.0 }
         }
         Live::ValueTraded => pos(m.last)? * m.volume,
         Live::SessionDay => crate::screener::clock::ny_midnight_sec(row.day?)?,

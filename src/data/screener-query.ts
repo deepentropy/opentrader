@@ -224,6 +224,7 @@ export function filterClauses(f: Filter): Clause[] | null {
   const left = fieldOf(f.left);
   if (!left) return null;
   const cfg = COLUMN_BY_ID[f.left.id]?.filter;
+  if (f.type === "CheckboxGroup" && cfg?.type === "CheckboxGroup" && cfg.clauses) return cfg.clauses(f.values);
   if (f.type === "CheckboxGroup" && cfg?.type === "CheckboxGroup" && cfg.relativeDate) {
     const range = relativeDateRange(f.values[0]);
     return range ? [{ left, operation: "in_range", right: range }] : [];

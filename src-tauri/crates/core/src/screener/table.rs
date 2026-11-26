@@ -47,11 +47,14 @@ pub struct Table {
     /// No download it waits on is pending (the reference list, the daily state): filters on names, types and
     /// state values can match. Set by the poll loop; a table built here counts as complete.
     pub complete: bool,
+    /// The latest regular session that has opened when the table was built: a ticker whose last update is older
+    /// did not trade in it (the "Last trade time" filter).
+    pub session: Option<NaiveDate>,
 }
 
 impl Table {
     pub fn empty() -> Self {
-        Table { version: 0, updated_ms: None, rows: Vec::new(), refs: Arc::new(Vec::new()), state: None, complete: false }
+        Table { version: 0, updated_ms: None, rows: Vec::new(), refs: Arc::new(Vec::new()), state: None, complete: false, session: None }
     }
 
     pub fn state_asof(&self) -> Option<NaiveDate> {
@@ -100,7 +103,8 @@ impl Table {
                 Row { m, r, st, join, day: shown }
             })
             .collect();
-        Table { version, updated_ms, rows, refs, state, complete: true }
+        let session = clock::last_opened_session(chrono::Utc::now());
+        Table { version, updated_ms, rows, refs, state, complete: true, session }
     }
 }
 

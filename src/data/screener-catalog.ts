@@ -18,6 +18,7 @@
 import { formatted, translate } from "../i18n/translator";
 import { listText } from "../i18n/format";
 import { CANDLE_PATTERNS } from "./candle-patterns";
+import type { Clause } from "../bindings";
 
 export type ColumnRef = { id: string; params: Record<string, string> };
 
@@ -110,7 +111,10 @@ export type ColumnDef = {
         single?: boolean;
         /** The values are day ranges relative to today (the reference app Date filter, see RELATIVE_DATES): the
          *  column holds days as UNIX seconds. */
-        relativeDate?: boolean };
+        relativeDate?: boolean;
+        /** The clauses of the values picked when they are not "the field is one of them" (the reference's New high:
+         *  the period's high is today's). */
+        clauses?: (values: string[]) => Clause[] };
   /** Text shown for a raw cell value (a list of codes shown as names). */
   cellText?: (raw: string) => string;
   /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
@@ -256,6 +260,27 @@ const INDEX_NAME: Record<string, string> = Object.fromEntries(INDEXES);
 /** "SPX,NDX" → "S&P 500, NASDAQ 100" (the Index cell). */
 const indexNames = (raw: string) => raw.split(",").map((c) => INDEX_NAME[c] ?? c).join(", ");
 
+/** The reference's New high / New low filter (a filter only): the period's high (low) is today's. Its All Time
+ *  option has no data source (the history holds 5 years). */
+const NEW_EXTREME_FIELDS: Record<"High" | "Low", Record<string, string>> = {
+  High: { month_1: "High.1M", month_3: "High.3M", month_6: "High.6M", weeks_52: "price_52_week_high" },
+  Low: { month_1: "Low.1M", month_3: "Low.3M", month_6: "Low.6M", weeks_52: "price_52_week_low" },
+};
+function newExtreme(id: string, title: string, kind: "High" | "Low"): ColumnDef {
+  const fields = NEW_EXTREME_FIELDS[kind];
+  return {
+    id, title, short: title, category: "marketData", align: "left", fmt: "text", width: 90, field: fields.month_1, noColumn: true,
+    filter: { type: "CheckboxGroup", single: true, options: [["month_1", "1 month"], ["month_3", "3 months"], ["month_6", "6 months"], ["weeks_52", "52 weeks"]],
+      clauses: ([v]) => (fields[v] ? [{ left: fields[v], operation: kind === "High" ? "eless" : "egreater", right: kind === "High" ? "high" : "low" }] : []) },
+  };
+}
+/** The reference's symbol types as the reference list's security types (structured products are its preferreds:
+ *  55 of 62 on 26/11/2026). */
+const SYMBOL_TYPES: Record<string, string[]> = { CommonStock: ["stock"], PreferredStock: ["preferred", "structured"], DepositaryReceipt: ["adr"] };
+/** One listing per company: the rule of the market pill's "Primary listing" (screener-query's universe), with the
+ *  funds of the ETF Screener. */
+const PRIMARY_TYPES = ["stock", "adr", "fund", "etf", "etn", "etv"];
+
 // ── Fundamentals (state keys `f.*`, see the backend's fields.rs) ─────────────
 const FP_LABEL = { ttm: ["Trailing 12 months", "TTM"], fy: ["Annual", "FY"], fq: ["Quarterly", "FQ"], current: ["Current", "Current"] } as const;
 /** A fiscal period param: each option one field. */
@@ -380,6 +405,12 @@ export const COLUMNS: ColumnDef[] = [
   { id: "Sector", title: "Sector", short: "Sector", category: "securityInfo", align: "left", fmt: "text", width: 175, field: "sector", filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Industry", title: "Industry", short: "Industry", category: "securityInfo", align: "left", fmt: "text", width: 200, field: "industry", filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Exchange", title: "Exchange", short: "Exchange", category: "securityInfo", align: "left", fmt: "text", width: 99, field: "exchange" },
+  // Filters only, on the reference list's security type.
+  { id: "SymbolType", title: "Symbol type", short: "Symbol type", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "type", noColumn: true,
+    filter: { type: "CheckboxGroup", adaptive: true, options: [["CommonStock", "Common stock"], ["PreferredStock", "Preferred stock"], ["DepositaryReceipt", "Depositary receipt"]],
+      clauses: (values) => [{ left: "type", operation: "in_range", right: values.flatMap((v) => SYMBOL_TYPES[v] ?? []) }] } },
+  { id: "Listing", title: "Primary listing", short: "Primary listing", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "type", noColumn: true,
+    filter: { type: "CheckboxGroup", single: true, options: [["true", "Yes"]], clauses: () => [{ left: "type", operation: "in_range", right: PRIMARY_TYPES }] } },
   // Market data (regular hours)
   { id: "AverageVolume", title: "Average volume", short: "Avg vol", category: "marketData", align: "right", fmt: "volume", width: 90,
     params: [{ key: "interval", title: "Date Range", default: "Interval10D", options: [
@@ -421,6 +452,14 @@ export const COLUMNS: ColumnDef[] = [
     ] } },
   { id: "ChangeFromOpen", title: "Change from open %", short: "Chg from open %", category: "marketData", align: "right", fmt: "change", width: 90, params: RES_1D("change_from_open"),
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: BANDS } },
+  { id: "ChangeFromOpenAbs", title: "Change from open", short: "Chg from open", category: "marketData", align: "right", fmt: "signedPrice", width: 90,
+    params: RES_1D("change_from_open_abs"), filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above",
+      targets: [["value", "ChangeAbs", "PostMarketChangeAbs", "PreMarketChangeAbs", "PreMarketChangeFromOpenAbs", "ChangeFromOpenAbs"]], presets: [
+        { operation: "below", target: "value", right: { value: 1 } },
+        { operation: "between", target: "value", right: { left: 1, right: 10 } },
+        { operation: "between", target: "value", right: { left: 10, right: 100 } },
+        { operation: "above", target: "value", right: { value: 100 } },
+      ] } },
   { id: "Gap", title: "Gap %", short: "Gap %", category: "marketData", align: "right", fmt: "change", width: 74, params: RES_1D("gap"),
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: BANDS } },
   { id: "High", title: "High", short: "High", category: "marketData", align: "right", fmt: "price", width: 99,
@@ -429,6 +468,12 @@ export const COLUMNS: ColumnDef[] = [
   { id: "Low", title: "Low", short: "Low", category: "marketData", align: "right", fmt: "price", width: 99,
     params: TIMEBASED({ "1D": "low", "1M": "Low.1M", "3M": "Low.3M", "6M": "Low.6M", "52W": "price_52_week_low" }),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Low") } },
+  newExtreme("NewHighSimplified", "New high", "High"),
+  newExtreme("NewLowSimplified", "New low", "Low"),
+  // A filter only: did the ticker trade in the latest session that opened.
+  { id: "LastTradeTime", title: "Last trade time", short: "Last trade time", category: "marketData", align: "left", fmt: "text", width: 90, field: "active_symbol",
+    noColumn: true, filter: { type: "CheckboxGroup", single: true, options: [["true", "Yes"], ["false", "No"]],
+      clauses: ([v]) => [{ left: "active_symbol", operation: "equal", right: v === "true" ? 1 : 0 }] } },
   { id: "Open", title: "Open", short: "Open", category: "marketData", align: "right", fmt: "price", width: 99, params: RES_1D("open"),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Open"), presets: [
       { operation: "below", target: "value", right: { value: 10 } },

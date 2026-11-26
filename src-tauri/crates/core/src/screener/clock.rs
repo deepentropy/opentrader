@@ -66,6 +66,19 @@ pub fn last_closed_session(utc: DateTime<Utc>) -> Option<NaiveDate> {
     }
 }
 
+/// The last regular session that has opened at `utc` (09:30 New York): today's from the open on, else the one
+/// before.
+pub fn last_opened_session(utc: DateTime<Utc>) -> Option<NaiveDate> {
+    let local = utc + Duration::hours(ny_offset_hours(utc));
+    let today = local.date_naive();
+    let on_or_before = trading_day_on_or_before(today)?;
+    if on_or_before == today && local.time() < chrono::NaiveTime::from_hms_opt(9, 30, 0)? {
+        prev_trading_day(today)
+    } else {
+        Some(on_or_before)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +117,14 @@ mod tests {
         assert_eq!(last_closed_session(utc(2026, 9, 29, 20, 0)), NaiveDate::from_ymd_opt(2026, 9, 29));
         // Sun 27/09/2026 -> Fri 25.
         assert_eq!(last_closed_session(utc(2026, 9, 27, 15, 0)), NaiveDate::from_ymd_opt(2026, 9, 25));
+    }
+
+    #[test]
+    fn last_opened_session_flips_at_the_open() {
+        // Tue 29/09/2026: 13:29 UTC = 09:29 NY -> Mon 28; 13:30 UTC -> Tue 29. Thanksgiving 26/11/2026 -> Wed 25.
+        assert_eq!(last_opened_session(utc(2026, 9, 29, 13, 29)), NaiveDate::from_ymd_opt(2026, 9, 28));
+        assert_eq!(last_opened_session(utc(2026, 9, 29, 13, 30)), NaiveDate::from_ymd_opt(2026, 9, 29));
+        assert_eq!(last_opened_session(utc(2026, 11, 26, 18, 0)), NaiveDate::from_ymd_opt(2026, 11, 25));
     }
 
     #[test]
