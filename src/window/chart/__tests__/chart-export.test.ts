@@ -26,11 +26,12 @@ describe("buildChartCsv", () => {
     expect(buildChartCsv(source([1705320000], "America/New_York", true), "iso").split("\n")[1]).toBe("2024-01-15,100");
   });
 
-  it("builds 100,000 ISO rows in well under a second (#369)", () => {
+  it("builds 100,000 ISO rows fast (#369)", () => {
     const times = Array.from({ length: 100_000 }, (_, i) => 1420070400 + i * 3600);
     const t0 = performance.now();
     const csv = buildChartCsv(source(times, "Europe/Paris"), "iso");
-    expect(performance.now() - t0).toBeLessThan(1500);
+    // About 0.5 s on a desktop, up to 2 s on a shared CI runner; a formatter per row took 6 s on the desktop.
+    expect(performance.now() - t0).toBeLessThan(4000);
     expect(csv.split("\n")).toHaveLength(100_001);
   });
 });
