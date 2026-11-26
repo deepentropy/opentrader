@@ -1,0 +1,26 @@
+name: Keep the app release latest
+
+# Installed apps read releases/latest/download/latest.json for their updates, and
+# the website links to the newest app release. A plugin's release (tag
+# plugin-<name>-v<version>) published without --latest=false becomes the
+# repository's latest release and hides the app's: this marks the newest app
+# release (tag v<version>) latest again.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  latest:
+    if: ${{ !startsWith(github.event.release.tag_name, 'v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark the newest app release latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=50" --jq '[.[] | select(.draft == false and .prerelease == false and (.tag_name | test("^v[0-9]+[.][0-9]+[.][0-9]+$")))][0].id')
+          if [ -z "$id" ]; then echo "no app release"; exit 0; fi
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -f make_latest=true --silent

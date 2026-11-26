@@ -9,7 +9,7 @@ name: Release
 #     the installers as workflow artifacts only. No release is created.
 #
 # Outputs: Windows .exe (NSIS) + .msi, macOS universal .dmg + .app,
-# Linux .AppImage + .deb + .rpm, named OpenTrader_<platform>_<arch>.<ext>.
+# Linux .AppImage + .deb + .rpm, named OpenTrader_<version>_<platform>_<arch>.<ext>.
 # Plus the in-app update files (src-tauri/src/app_update.rs): a .sig per
 # updater bundle and latest.json in the release. Installed apps read
 # releases/latest/download/latest.json, so an update reaches users only once
@@ -192,9 +192,9 @@ jobs:
           projectPath: opentrader
           releaseId: ${{ needs.draft.outputs.release_id }}
           args: ${{ matrix.args }}
-          # Version-free names, so the README can link to
-          # releases/latest/download/<name> (e.g. OpenTrader_windows_x64-setup.exe).
-          assetNamePattern: '[name]_[platform]_[arch][setup][ext]'
+          # The version in the name (OpenTrader_0.5.1_windows_x64-setup.exe): the
+          # website finds each file by its end (docs/site.js), latest.json names them.
+          assetNamePattern: '[name]_[version]_[platform]_[arch][setup][ext]'
           # latest.json has one entry per installer (windows-x86_64-nsis / -msi),
           # and the app picks the one it was installed with. This sets only the
           # plain windows-x86_64 fallback: the NSIS installer (README download).

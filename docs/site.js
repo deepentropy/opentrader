@@ -12,11 +12,19 @@
 
 // Landing pages: pick the visitor's installer and show the latest release details.
 (function () {
-  var BASE = "https://github.com/deepentropy/opentrader/releases/latest/download/";
+  // Installer names carry the version (OpenTrader_0.5.1_windows_x64-setup.exe): each file is found by its end.
+  var FILES = {
+    "windows-exe": /_windows_x64-setup\.exe$/,
+    "windows-msi": /_windows_x64\.msi$/,
+    "macos-dmg": /_darwin_universal\.dmg$/,
+    "linux-appimage": /_linux_amd64\.AppImage$/,
+    "linux-deb": /_linux_amd64\.deb$/,
+    "linux-rpm": /_linux_x86_64\.rpm$/,
+  };
   var MAIN = {
-    windows: { label: "Download for Windows", file: "OpenTrader_windows_x64-setup.exe" },
-    macos: { label: "Download for macOS", file: "OpenTrader_darwin_universal.dmg" },
-    linux: { label: "Download for Linux", file: "OpenTrader_linux_amd64.AppImage" },
+    windows: { label: "Download for Windows", file: "windows-exe" },
+    macos: { label: "Download for macOS", file: "macos-dmg" },
+    linux: { label: "Download for Linux", file: "linux-appimage" },
   };
 
   function detectOs() {
@@ -29,11 +37,8 @@
   }
 
   var os = detectOs();
-
-  // Hero / call-to-action buttons: direct installer link when the system is known.
   if (os) {
     document.querySelectorAll("[data-download]").forEach(function (a) {
-      a.href = BASE + MAIN[os].file;
       var label = a.querySelector("[data-download-label]");
       if (label) label.textContent = MAIN[os].label;
     });
@@ -51,18 +56,31 @@
     return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear();
   }
 
-  // Latest release: version, date and file sizes. The static text stays if this fails.
-  if (!document.querySelector("[data-version], [data-file]")) return;
-  fetch("https://api.github.com/repos/deepentropy/opentrader/releases/latest")
+  // The newest app release (tag v<version>): the repository's plugins have releases of their own, so its
+  // "latest" release may be one of them. Version, date, sizes and direct links; the static text and the
+  // links to the release page stay if this fails.
+  if (!document.querySelector("[data-version], [data-file], [data-download]")) return;
+  fetch("https://api.github.com/repos/deepentropy/opentrader/releases?per_page=30")
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (rel) {
-      if (!rel || !rel.tag_name) return;
+    .then(function (list) {
+      var rel = (list || []).filter(function (r) { return !r.draft && !r.prerelease && /^v\d+\.\d+\.\d+$/.test(r.tag_name); })[0];
+      if (!rel) return;
+      var assets = {};
+      (rel.assets || []).forEach(function (a) {
+        for (var key in FILES) if (FILES[key].test(a.name)) assets[key] = a;
+      });
       document.querySelectorAll("[data-version]").forEach(function (e) { e.textContent = rel.tag_name; });
       document.querySelectorAll("[data-released]").forEach(function (e) { e.textContent = date(rel.published_at); });
-      (rel.assets || []).forEach(function (a) {
-        var e = document.querySelector('[data-file="' + a.name + '"] small');
-        if (e) e.textContent = size(a.size);
+      document.querySelectorAll("[data-file]").forEach(function (e) {
+        var a = assets[e.getAttribute("data-file")];
+        if (!a) return;
+        e.href = a.browser_download_url;
+        var small = e.querySelector("small");
+        if (small) small.textContent = size(a.size);
       });
+      if (os && assets[MAIN[os].file]) {
+        document.querySelectorAll("[data-download]").forEach(function (a) { a.href = assets[MAIN[os].file].browser_download_url; });
+      }
     })
     .catch(function () {});
 })();
