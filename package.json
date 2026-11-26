@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-chart-library.mjs",
     "start": "vite",
     "dev": "vite",
     "build": "vite build",

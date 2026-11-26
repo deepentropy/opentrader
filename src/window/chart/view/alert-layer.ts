@@ -3,6 +3,7 @@
  * they read, their hover / selection / drag and their menu.
  */
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
+import { priceAxisWidth } from "../axis-width";
 import { type ISeriesApi, type SeriesType } from "lightweight-charts";
 import { crosshairLockTime } from "../crosshair-lock";
 import { uiTheme } from "../../header/chart-settings";
@@ -180,7 +181,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
   function alertLabelAt(clientX: number, clientY: number): { series: ISeriesApi<SeriesType>; prim: AlertLabelsPrimitive; hit: AlertLabelHit; paneTop: number } | null {
     if (!cx.chart || !cx.host || alertLabelPrims.size === 0) return null;
     const hostRect = cx.host.getBoundingClientRect();
-    const plotLeft = hostRect.left + cx.chart.priceScale("left").width();
+    const plotLeft = hostRect.left + priceAxisWidth(cx.chart, "left");
     const plotW = cx.chart.timeScale().width();
     for (const [s, prim] of alertLabelPrims) {
       let paneEl: HTMLElement;

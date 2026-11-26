@@ -3,6 +3,7 @@
  * the Alt + S actions and the "Download chart data" source.
  */
 import { track } from "../../../data/analytics";
+import { priceAxisWidth } from "../axis-width";
 import { onCleanup, onMount } from "solid-js";
 import { readFontFamily } from "../chart-tokens";
 import { type PriceSource } from "../../header/chart-settings";
@@ -169,7 +170,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
     // At the top of the series' price axis.
     const side = cx.mainSide();
     const left = side === "left";
-    const w = cx.chart.priceScale(side).width();
+    const w = priceAxisWidth(cx.chart, side);
     const x = left ? 0 : leftW + cx.chart.paneSize(0).width;
     const top = cx.paneBoxes().find((b) => b.index === cx.mainPane())?.top ?? 0;
     const css = getComputedStyle(cx.paneRoot);
@@ -191,8 +192,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
   async function snapshotPicture(): Promise<ChartSnapshot | null> {
     if (!cx.chart) return null;
     const dpr = window.devicePixelRatio || 1;
-    let leftW = 0;
-    try { leftW = cx.chart.options().leftPriceScale.visible ? cx.chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
+    const leftW = priceAxisWidth(cx.chart, "left");
     // The image shows the latest bar's values, whatever the crosshair.
     refreshLegend();
     refreshIndicatorLegend();
