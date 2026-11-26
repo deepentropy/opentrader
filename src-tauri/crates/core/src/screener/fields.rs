@@ -171,6 +171,8 @@ pub enum Ratio {
     YieldOf(&'static str),
     /// 100 * (market cap / a past market cap - 1).
     McapPerf(&'static str),
+    /// 100 * (price / a past price - 1): the IPO offer price's performance.
+    PerfOver(&'static str),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -327,6 +329,7 @@ const RATIO: &[(&str, Ratio)] = &[
     ("f.ev_ebitda", Ratio::EvOver("f.ebitda_ttm")),
     ("f.div_yield_indicated", Ratio::YieldOf("f.div_indicated")),
     ("f.market_cap_perf_1y", Ratio::McapPerf("f.market_cap_1y")),
+    ("f.ipo_price_perf", Ratio::PerfOver("f.ipo_price")),
 ];
 
 /// Text fundamentals (every other `f.` key is a number).
@@ -342,12 +345,13 @@ const FUND_TEXT: &[&str] = &[
     "f.index_tracked",
     "f.management",
     "f.dividend_treatment",
+    "f.country",
 ];
 
 /// State keys a ratio reads (its field is offered when they are all in the state).
 fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
     match r {
-        Ratio::PriceOver(k) | Ratio::YieldOf(k) => vec![k],
+        Ratio::PriceOver(k) | Ratio::YieldOf(k) | Ratio::PerfOver(k) => vec![k],
         Ratio::Pe => vec!["f.eps_dil_ttm"],
         Ratio::Peg => vec!["f.eps_dil_ttm", "f.eps_dil_growth_ttm_yoy"],
         Ratio::Ev => vec!["shares", "f.total_debt_fq", "f.cash_fq"],
@@ -472,6 +476,7 @@ fn ratio(t: &Table, row: &Row, r: Ratio) -> Option<f64> {
         Ratio::Ev => ev(),
         Ratio::EvOver(k) => div(ev()?, num(k)?),
         Ratio::YieldOf(k) => Some(100.0 * num(k)? / price),
+        Ratio::PerfOver(k) => perf(price, num(k)?),
         Ratio::McapPerf(k) => {
             let before = num(k).filter(|v| *v > 0.0)?;
             Some(100.0 * (price * num("shares")? / before - 1.0))

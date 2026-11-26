@@ -230,6 +230,9 @@ describe("filterClauses", () => {
       expect(relativeDateRange("PreviousWeek", now)).toEqual([day("2026-11-16"), end("2026-11-22")]);
       expect(relativeDateRange("ThisMonth", now)).toEqual([day("2026-11-01"), end("2026-11-30")]);
     }
+    const now = new Date("2026-11-23T19:30:00Z");
+    expect(relativeDateRange("ThisYear", now)).toEqual([day("2026-01-01"), end("2026-12-31")]);
+    expect(relativeDateRange("Past12Months", now)).toEqual([day("2025-11-22"), end("2026-11-22")]);
     expect(relativeDateRange("Nope")).toBeNull();
     const [lo, hi] = relativeDateRange("ThisMonth")!;
     expect(filterClauses(box(C("EarningsRecent"), ["ThisMonth"]))).toEqual([{ left: "f.earnings_recent", operation: "in_range", right: [lo, hi] }]);

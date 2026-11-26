@@ -212,6 +212,9 @@ export function relativeDateRange(value: string, now = new Date()): [number, num
     const monday = today - ((new Date(today * 1000).getUTCDay() + 6) % 7) * DAY_SEC;
     lo = monday + r.from * 7 * DAY_SEC;
     hi = monday + (r.to * 7 + 6) * DAY_SEC;
+  } else if (r.unit === "year") {
+    lo = Date.UTC(y + r.from, 0, 1) / 1000;
+    hi = Date.UTC(y + r.to + 1, 0, 1) / 1000 - DAY_SEC;
   } else {
     lo = Date.UTC(y, m - 1 + r.from, 1) / 1000;
     hi = Date.UTC(y, m + r.to, 1) / 1000 - DAY_SEC;

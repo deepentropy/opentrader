@@ -585,6 +585,19 @@ mod tests {
     }
 
     #[test]
+    fn ipo_price_performance_and_country() {
+        // AAA: price 10, offered at 4.
+        let mut st = state((2026, 9, 28));
+        st.num.insert("f.ipo_price".to_string(), vec![Some(4.0), None, None]);
+        st.text.insert("f.country".to_string(), vec![Some("Canada".to_string()), None, None]);
+        let t = table(Some(st));
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, &t.rows[0]);
+        assert_eq!(v("f.ipo_price_perf"), Some(Val::Num(150.0)));
+        assert_eq!(v("f.country"), Some(Val::Text("Canada")));
+        assert_eq!(crate::screener::fields::text_values(&t, "f.country").unwrap(), vec!["Canada".to_string()]);
+    }
+
+    #[test]
     fn average_turnover_field() {
         // AAA on 29/09: price 10, volume 1000; the 9 bars before hold 81,000 of close x volume.
         let with_values = |mut st: StateFile| {

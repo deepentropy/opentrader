@@ -308,13 +308,27 @@ const fund = (id: string, title: string, short: string, category: Category, fmt:
 });
 /** The reference app Date filter of the recent earnings date: day ranges relative to today in New York, calendar
  *  days, weeks from Monday (its scanner's in_day_range / in_week_range / in_month_range, measured 23/11/2026). */
-export const RELATIVE_DATES: Record<string, { unit: "day" | "week" | "month"; from: number; to: number }> = {
+export const RELATIVE_DATES: Record<string, { unit: "day" | "week" | "month" | "year"; from: number; to: number }> = {
   Today: { unit: "day", from: 0, to: 0 },
   Yesterday: { unit: "day", from: -1, to: -1 },
   Previous5Days: { unit: "day", from: -5, to: -1 },
   ThisWeek: { unit: "week", from: 0, to: 0 },
   PreviousWeek: { unit: "week", from: -1, to: -1 },
   ThisMonth: { unit: "month", from: 0, to: 0 },
+  // The IPO offer date's ranges (the reference's day counts; "More than 5 years ago" counts 3,652 days as it does).
+  ThisYear: { unit: "year", from: 0, to: 0 },
+  Past3Months: { unit: "day", from: -91, to: -1 },
+  Past6Months: { unit: "day", from: -183, to: -1 },
+  Past12Months: { unit: "day", from: -366, to: -1 },
+  Past2Years: { unit: "day", from: -731, to: -1 },
+  Past3Years: { unit: "day", from: -1096, to: -1 },
+  Past5Years: { unit: "day", from: -1827, to: -1 },
+  Below1YearAgo: { unit: "day", from: -9999999, to: -366 },
+  Below5YearsAgo: { unit: "day", from: -9999999, to: -3652 },
+  Below10YearsAgo: { unit: "day", from: -9999999, to: -3653 },
+  Below15YearsAgo: { unit: "day", from: -9999999, to: -5479 },
+  Below20YearsAgo: { unit: "day", from: -9999999, to: -7306 },
+  Below25YearsAgo: { unit: "day", from: -9999999, to: -9132 },
 };
 const FUNDAMENTALS: ColumnDef[] = [
   // Security info
@@ -409,6 +423,34 @@ export const COLUMNS: ColumnDef[] = [
   { id: "SymbolType", title: "Symbol type", short: "Symbol type", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "type", noColumn: true,
     filter: { type: "CheckboxGroup", adaptive: true, options: [["CommonStock", "Common stock"], ["PreferredStock", "Preferred stock"], ["DepositaryReceipt", "Depositary receipt"]],
       clauses: (values) => [{ left: "type", operation: "in_range", right: values.flatMap((v) => SYMBOL_TYPES[v] ?? []) }] } },
+  // Share counts, free float, country, IPO (the gateway's security info, state keys `f.*`).
+  { id: "TotalSharesOutstanding", title: "Total common shares outstanding", short: "Shares outstanding", category: "securityInfo", align: "right", fmt: "volume",
+    width: 110, field: "f.shares_outstanding", filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
+  { id: "SharesFloat", title: "Free float", short: "Float", category: "securityInfo", align: "right", fmt: "volume", width: 99, field: "f.float_shares",
+    filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]], presets: [
+      { operation: "between", target: "value", right: { left: 1e9, right: null } },
+      { operation: "between", target: "value", right: { left: 1e8, right: 1e9 } },
+      { operation: "between", target: "value", right: { left: 1e7, right: 1e8 } },
+      { operation: "between", target: "value", right: { left: 1e6, right: 1e7 } },
+      { operation: "between", target: "value", right: { left: null, right: 1e6 } },
+    ] } },
+  { id: "FloatShares", title: "Free float %", short: "Float %", category: "securityInfo", align: "right", fmt: "percent", width: 86, field: "f.float_percent",
+    filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
+  { id: "Country", title: "Country or region of registration", short: "Registration", category: "securityInfo", align: "left", fmt: "text", width: 150,
+    field: "f.country", filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "IPOOfferDate", title: "IPO offer date", short: "IPO offer date", category: "securityInfo", align: "right", fmt: "date", width: 99, field: "f.ipo_date",
+    filter: { type: "CheckboxGroup", single: true, relativeDate: true, options: [
+      ["Today", "Current trading day"], ["Yesterday", "Previous day"], ["ThisWeek", "This week"], ["ThisMonth", "This month"], ["ThisYear", "This year"],
+      ["Past3Months", "Past 3 months"], ["Past6Months", "Past 6 months"], ["Past12Months", "Past 12 months"], ["Past2Years", "Past 2 years"],
+      ["Past3Years", "Past 3 years"], ["Past5Years", "Past 5 years"], ["Below1YearAgo", "More than 1 year ago"], ["Below5YearsAgo", "More than 5 years ago"],
+      ["Below10YearsAgo", "More than 10 years ago"], ["Below15YearsAgo", "More than 15 years ago"], ["Below20YearsAgo", "More than 20 years ago"],
+      ["Below25YearsAgo", "More than 25 years ago"]] } },
+  { id: "IPODealAmount", title: "IPO deal amount", short: "IPO deal amount", category: "securityInfo", align: "right", fmt: "money", width: 110, field: "f.ipo_deal_amount",
+    filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
+  { id: "IPOOfferPrice", title: "IPO offer price", short: "IPO offer price", category: "securityInfo", align: "right", fmt: "price", width: 99, field: "f.ipo_price",
+    filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: [["value", "High", "Low", "Open", "Price"]] } },
+  { id: "IPOOfferPricePerformance", title: "Offer price performance %", short: "Offer price perf %", category: "securityInfo", align: "right", fmt: "change", width: 90,
+    field: "f.ipo_price_perf", filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
   { id: "Listing", title: "Primary listing", short: "Primary listing", category: "securityInfo", align: "left", fmt: "text", width: 120, field: "type", noColumn: true,
     filter: { type: "CheckboxGroup", single: true, options: [["true", "Yes"]], clauses: () => [{ left: "type", operation: "in_range", right: PRIMARY_TYPES }] } },
   // Market data (regular hours)
