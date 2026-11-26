@@ -219,6 +219,21 @@ describe("filters and screens", () => {
     expect(configuredShort(C("Volume", { resolution: "TimeResolution1W" }))).toBe("Vol, 1W");
   });
 
+  it("more fundamentals: reference defaults, periods and filter targets", () => {
+    expect(fieldOf(C("CashNEquivalents"))).toBe("f.cash_eq_fy");
+    expect(fieldOf(C("Goodwill"))).toBe("f.goodwill_fq");
+    expect(fieldOf(C("FreeCashFlowGrowth"))).toBe("f.fcf_growth_ttm_yoy");
+    expect(fieldOf(C("FreeCashFlowGrowth", { period: "FiveYCAGR" }))).toBe("f.fcf_cagr_5y");
+    expect(fieldOf(C("TotalAssetsGrowth"))).toBe("f.total_assets_growth_fy_yoy");
+    expect(fieldOf(C("CapExPerShare"))).toBe("f.capex_ps_ttm");
+    // The reference's TTM sustainable growth rate is its fiscal year value.
+    expect(fieldOf(C("SustainableGrowthRate", { fiscalPeriod: "ttm" }))).toBe("f.sgr_fy");
+    expect(configuredShort(C("NetIncomeGrowth", { period: "QoQQuaterly" }))).toBe("Net income growth %, Quarterly QoQ");
+    expect(COLUMN_BY_ID.GrahamsNumber.filter).toMatchObject({ targets: [["value", "Price", "GrahamsNumber"]] });
+    expect(COLUMN_BY_ID.EarningsYield.filter).toMatchObject({ operations: ["between"] });
+    expect(COLUMN_BY_ID.ReportedEps).toBeUndefined();
+  });
+
   it("price × average volume: one field per date range", () => {
     expect(fieldOf(C("PriceAvgVolume"))).toBe("AvgValue.Traded_10d");
     expect(fieldOf(C("PriceAvgVolume", { interval: "Interval90D" }))).toBe("AvgValue.Traded_90d");

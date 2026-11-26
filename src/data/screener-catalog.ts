@@ -411,6 +411,114 @@ const FUNDAMENTALS: ColumnDef[] = [
   fund("ContinuousDivGrowth", "Continuous dividend growth", "Cont div growth", "dividends", "integer", "f.cont_div_growth"),
 ];
 
+// ── More fundamentals (#415): the reference columns, params and filter configs (its screener's column and filter
+// configs, 26/11/2026). Options its scanner leaves empty (the TTM of the turnover and return-on-capital ratios) and
+// half-year ones are left out. ─────────────────────────────────────────────────────────────────────────────────────
+/** A fiscal period param with its default (the options in the reference order). */
+const FPD = (def: keyof typeof FP_LABEL, ...opts: [period: keyof typeof FP_LABEL, field: string][]): ParamDef[] => [
+  { ...FP(...opts)[0], default: def },
+];
+const GROWTH_LABEL = { YoYTTM: "TTM YoY", YoYAnnual: "Annual YoY", YoYQuaterly: "Quarterly YoY", QoQQuaterly: "Quarterly QoQ", FiveYCAGR: "5 year CAGR" } as const;
+/** A growth period param: each option one field, the first the default. */
+const GROWTH = (...opts: [period: keyof typeof GROWTH_LABEL, field: string][]): ParamDef[] => [
+  { key: "period", title: "Period", default: opts[0][0], options: opts.map(([v, field]) => ({ value: v, label: GROWTH_LABEL[v], short: GROWTH_LABEL[v], field })) },
+];
+/** The reference filter configs: compared with a value or the column itself (other params), a value only, or a range
+ *  only. */
+const selfFilter = (id: string, ...more: string[]): ColumnDef["filter"] => ({ ...NUM_FILTER, targets: [["value", ...more, id]] } as ColumnDef["filter"]);
+const RANGE_FILTER: ColumnDef["filter"] = { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] };
+const more = (filter: ColumnDef["filter"] | "self", id: string, title: string, short: string, category: Category, fmt: Fmt,
+  source: string | ParamDef[], financial?: boolean): ColumnDef => ({
+  ...fund(id, title, short, category, fmt, source, financial),
+  filter: filter === "self" ? selfFilter(id) : filter,
+});
+/** Growth options: TTM, annual, quarterly YoY, quarterly QoQ (`f.<key>_growth_<period>`). */
+const growthOf = (key: string, ttm = true): [keyof typeof GROWTH_LABEL, string][] => [
+  ...(ttm ? [["YoYTTM", `f.${key}_growth_ttm_yoy`] as [keyof typeof GROWTH_LABEL, string]] : []),
+  ["YoYAnnual", `f.${key}_growth_fy_yoy`],
+  ["YoYQuaterly", `f.${key}_growth_fq_yoy`],
+  ["QoQQuaterly", `f.${key}_growth_fq_qoq`],
+];
+/** The quarter and year options of a balance (`f.<key>_fq`, `f.<key>_fy`). */
+const fqfy = (key: string, def: "fq" | "fy") => FPD(def, ["fq", `f.${key}_fq`], ["fy", `f.${key}_fy`]);
+/** The year and trailing twelve months options of a ratio (`f.<key>_fy`, `f.<key>_ttm`). */
+const fyttm = (key: string, def: "fy" | "ttm") => FPD(def, ["fy", `f.${key}_fy`], ["ttm", `f.${key}_ttm`]);
+/** The quarter, year and trailing twelve months options of an amount. */
+const fqfyttm = (key: string) => FPD("fy", ["fq", `f.${key}_fq`], ["fy", `f.${key}_fy`], ["ttm", `f.${key}_ttm`]);
+const MORE_FUNDAMENTALS: ColumnDef[] = [
+  // Financials
+  more("self", "CashNEquivalents", "Cash and equivalents", "Cash and equivalents", "financials", "money", fqfy("cash_eq", "fy"), true),
+  more("self", "Goodwill", "Goodwill (net)", "Goodwill", "financials", "money", fqfy("goodwill", "fq"), true),
+  more("self", "LTDebt", "Long-term debt", "LT debt", "financials", "money", fqfy("lt_debt", "fy"), true),
+  more("self", "STDebt", "Short-term debt", "ST debt", "financials", "money", fqfy("st_debt", "fy"), true),
+  more("self", "ResearchNDevelopment", "Research and development", "R&D", "financials", "money", fqfyttm("rnd"), true),
+  more("self", "TotalCurrentLiabilities", "Total current liabilities", "Current liabilities", "financials", "money", fqfy("current_liabilities", "fq"), true),
+  more("self", "NetIncomeFromContinuingOperations", "Net income from continuing operations", "Net income cont. ops", "financials", "money", fqfyttm("income_cont"), true),
+  more("self", "NetRevenue", "Net revenue", "Net revenue", "financials", "money", fqfyttm("net_revenue"), true),
+  more("self", "NetRevenueAfterProvision", "Net revenue after provision", "Net revenue after provision", "financials", "money", fqfyttm("net_revenue_ap"), true),
+  // Valuation (with the live price)
+  more(NUM_FILTER, "EvToFreeCashFlow", "Enterprise value to free cash flow", "EV/FCF", "valuation", "number", FP(["ttm", "f.ev_fcf"])),
+  more(NUM_FILTER, "EvToGrossProfit", "Enterprise value to gross profit ratio", "EV / gross profit", "valuation", "number", FP(["ttm", "f.ev_gross_profit"])),
+  more(RANGE_FILTER, "PriceToNetWorkingCapital", "Price to net working capital", "P/NWC", "valuation", "number", "f.price_wc"),
+  more(RANGE_FILTER, "EarningsYield", "Earnings yield %", "Earnings yield %", "valuation", "percent", FP(["ttm", "f.earnings_yield"])),
+  // Growth
+  more("self", "FreeCashFlowGrowth", "Free cash flow growth %", "FCF growth", "growth", "change", GROWTH(...growthOf("fcf"), ["FiveYCAGR", "f.fcf_cagr_5y"])),
+  more("self", "GrossProfitGrowth", "Gross profit growth %", "Gross profit growth", "growth", "change", GROWTH(...growthOf("gross_profit"))),
+  more("self", "NetIncomeGrowth", "Net income growth %", "Net income growth %", "growth", "change", GROWTH(...growthOf("net_income"), ["FiveYCAGR", "f.net_income_cagr_5y"])),
+  more("self", "TotalAssetsGrowth", "Total assets growth %", "Total assets growth", "growth", "change", GROWTH(...growthOf("total_assets", false))),
+  more("self", "CapexGrowth", "Capital expenditures growth %", "CapEx growth", "growth", "change", GROWTH(...growthOf("capex"))),
+  // Margins & ratios
+  more("self", "AltmanZScore", "Altman Z-score", "Alt Z-score", "margins", "number", fyttm("altman", "fy")),
+  more("self", "CashRatio", "Cash ratio", "Cash ratio", "margins", "number", fqfy("cash_ratio", "fy")),
+  more("self", "DebtToEbitda", "Debt to EBITDA ratio", "Debt/EBITDA", "margins", "number", fqfy("debt_ebitda", "fy")),
+  more("self", "DebtToRevenueRatio", "Debt to revenue ratio", "Debt to revenue ratio", "margins", "number", fyttm("debt_revenue", "fy")),
+  more("self", "EquityToAsset", "Equity to assets ratio", "Equity/assets", "margins", "number", fqfy("equity_assets", "fy")),
+  more("self", "EBITDAMargin", "EBITDA margin %", "EBITDA margin %", "margins", "percent", fyttm("ebitda_margin", "fy")),
+  more("self", "EffectiveInterestRateOnDebt", "Effective interest rate on debt %", "Effective int rate on debt %", "margins", "percent", fyttm("eff_interest_rate", "fy")),
+  more("self", "FixedAssetsTurnover", "Fixed assets turnover", "Fixed assets turn", "margins", "number", FP(["fy", "f.fixed_assets_turnover_fy"])),
+  more("self", "FScore", "Piotroski F-score", "F-score", "margins", "integer", fyttm("fscore", "fy")),
+  more(selfFilter("GrahamsNumber", "Price"), "GrahamsNumber", "Graham's number", "Graham's number", "margins", "price", fyttm("graham", "fy"), true),
+  more(RANGE_FILTER, "EbitdaPerEmployee", "EBITDA per employee", "EBITDA/employees", "margins", "money", FP(["fy", "f.ebitda_per_employee_fy"]), true),
+  more(RANGE_FILTER, "FreeCashFlowPerEmployee", "Free cash flow per employee", "FCF/employees", "margins", "money", FP(["fy", "f.fcf_per_employee_fy"]), true),
+  more(RANGE_FILTER, "NetIncomePerEmployee", "Net income per employee", "Net income / employees", "margins", "money", FP(["fy", "f.net_income_per_employee_fy"]), true),
+  more(RANGE_FILTER, "OperatingIncomePerEmployee", "Operating income per employee", "Op income / employees", "margins", "money", FP(["fy", "f.operating_income_per_employee_fy"]), true),
+  more(RANGE_FILTER, "ResearchNDevelopmentPerEmployee", "Research and development per employee", "R&D/employees", "margins", "money", FP(["fy", "f.rnd_per_employee_fy"]), true),
+  more(RANGE_FILTER, "TotalAssetsPerEmployee", "Total assets per employee", "Total assets / employees", "margins", "money", FP(["fy", "f.total_assets_per_employee_fy"]), true),
+  more(RANGE_FILTER, "TotalDebtPerEmployee", "Total debt per employee", "Total debt / employees", "margins", "money", FP(["fy", "f.total_debt_per_employee_fy"]), true),
+  more("self", "ReturnOnCapitalEmployed", "Return on capital employed %", "ROCE", "margins", "percent", FP(["fy", "f.roce_fy"])),
+  more("self", "DebtToAssets", "Debt to assets ratio", "Debt/assets", "margins", "number", fqfy("debt_assets", "fy")),
+  more("self", "ReturnOnTangibleEquity", "Return on tangible equity %", "ROTE", "margins", "percent", FP(["fy", "f.rote_fy"])),
+  more("self", "ReturnOnTangibleAssets", "Return on tangible assets %", "ROTA", "margins", "percent", FP(["fy", "f.rota_fy"])),
+  more("self", "ReturnOnTotalCapital", "Return on total capital %", "ROTC", "margins", "percent", FP(["fy", "f.rotc_fy"])),
+  more("self", "AssetsTurnover", "Asset turnover", "Asset turnover", "margins", "number", FP(["fy", "f.asset_turnover_fy"])),
+  more("self", "InventoryTurnover", "Inventory turnover", "Inventory turn", "margins", "number", FP(["fy", "f.inventory_turnover_fy"])),
+  more("self", "ReceivablesTurnover", "Total receivables turnover", "Receivables turn", "margins", "number", FP(["fy", "f.receivables_turnover_fy"])),
+  more("self", "CashDividendCoverageRatio", "Cash dividend coverage ratio", "Cash DCR", "margins", "number", fyttm("cash_div_coverage", "ttm")),
+  more("self", "InterestCoverage", "Interest coverage", "Int coverage", "margins", "number", fyttm("interest_coverage", "ttm")),
+  more("self", "NetDebtToEbitda", "Net debt to EBITDA ratio", "Net debt / EBITDA", "margins", "number", FP(["fy", "f.net_debt_ebitda_fy"])),
+  more("self", "EbitdaInterestCoverage", "EBITDA interest coverage", "EBITDA interest coverage", "margins", "number", fyttm("ebitda_interest_coverage", "ttm")),
+  more("self", "EbitdaLessCapexInterestCoverage", "EBITDA less CapEx interest coverage", "EBITDA less CapEx int cov", "margins", "number",
+    fyttm("ebitda_capex_interest_coverage", "ttm")),
+  more("self", "TotalDebtToCapital", "Total debt to capital", "Debt/capital", "margins", "number", fqfy("debt_capital", "fy")),
+  more(NUM_FILTER, "BuybackYield", "Buyback yield %", "Buyback yield %", "margins", "percent", "f.buyback_yield"),
+  more("self", "SloanRatio", "Sloan ratio %", "Sloan ratio %", "margins", "percent", fyttm("sloan", "fy")),
+  more("self", "SharesBuyback", "Shares buyback ratio %", "Shares buyback ratio %", "margins", "percent", fqfy("buyback_ratio", "fy")),
+  // The reference's TTM sustainable growth rate and ROE adjusted to book are its fiscal year values.
+  more("self", "SustainableGrowthRate", "Sustainable growth rate", "Sustainable growth rate", "margins", "percent", FPD("fy", ["fy", "f.sgr_fy"], ["ttm", "f.sgr_fy"])),
+  more("self", "ReturnOnCommonEquity", "Return on common equity %", "ROE (common)", "margins", "percent", fyttm("return_common_equity", "fy")),
+  more("self", "ROEAdjustedToBook", "Return on equity adjusted to book value %", "ROE adjusted to book", "margins", "percent",
+    FPD("fy", ["fy", "f.roe_adj_book_fy"], ["ttm", "f.roe_adj_book_fy"])),
+  more("self", "TobinsQ", "Tobin's Q (approximate)", "Tobin's Q", "margins", "number", fqfy("tobin_q", "fy")),
+  more("self", "NCAVPS", "Net current asset value per share", "NCAVPS", "margins", "price", fqfy("ncavps", "fq"), true),
+  more("self", "TangibleBookPerShare", "Tangible book value per share", "Tangible book per share", "margins", "price", fqfy("tangible_book_ps", "fq"), true),
+  more("self", "WorkingCapitalPerShare", "Working capital per share", "Working capital per share", "margins", "price", fqfy("wc_ps", "fq"), true),
+  more("self", "CapExPerShare", "Capital expenditures per share", "CapEx per share", "margins", "price",
+    FPD("ttm", ["fq", "f.capex_ps_fq"], ["fy", "f.capex_ps_fy"], ["ttm", "f.capex_ps_ttm"]), true),
+  more("self", "ZmijewskiScore", "Zmijewski score", "Zmijewski score", "margins", "number", fyttm("zmijewski", "fy")),
+  // Dividends
+  more("self", "DividendsPaid", "Total cash dividends paid", "Div paid", "dividends", "money", fqfyttm("dividends_paid"), true),
+];
+
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
   // Security info
@@ -702,6 +810,7 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "equal", target: "value", right: { value: 0 }, ...d("No dividend") },
     ] } },
   ...FUNDAMENTALS,
+  ...MORE_FUNDAMENTALS,
   // ETF: assets under management (shares outstanding x price).
   { id: "AssetsUnderManagement", title: "Assets under management", short: "AUM", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },

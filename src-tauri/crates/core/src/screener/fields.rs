@@ -153,8 +153,8 @@ pub enum Step {
     Candles,
 }
 
-/// A price ratio of the fundamentals: the live price (or market cap) against
-/// a financial value of the state.
+/// A ratio built from the state's fundamentals in the app: the live price (or
+/// market cap) against a financial value, or a yearly amount per employee.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ratio {
     /// Price / a per-share amount (P/S, P/B, P/CF, P/FCF, price to cash).
@@ -173,6 +173,14 @@ pub enum Ratio {
     McapPerf(&'static str),
     /// 100 * (price / a past price - 1): the IPO offer price's performance.
     PerfOver(&'static str),
+    /// Price / a per-share amount, none unless the amount is positive (price to working capital).
+    PriceOverPositive(&'static str),
+    /// Enterprise value / an amount, none unless the amount is positive (free cash flow, gross profit).
+    EvOverPositive(&'static str),
+    /// 100 * an amount / market cap (net buyback TTM: buyback yield).
+    CapYieldOf(&'static str),
+    /// A yearly amount / the employee count (needs no price).
+    PerEmployee(&'static str),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -330,6 +338,18 @@ const RATIO: &[(&str, Ratio)] = &[
     ("f.div_yield_indicated", Ratio::YieldOf("f.div_indicated")),
     ("f.market_cap_perf_1y", Ratio::McapPerf("f.market_cap_1y")),
     ("f.ipo_price_perf", Ratio::PerfOver("f.ipo_price")),
+    ("f.ev_fcf", Ratio::EvOverPositive("f.fcf_ttm")),
+    ("f.ev_gross_profit", Ratio::EvOverPositive("f.gross_profit_ttm")),
+    ("f.price_wc", Ratio::PriceOverPositive("f.wc_ps_fq")),
+    ("f.earnings_yield", Ratio::YieldOf("f.eps_dil_ttm")),
+    ("f.buyback_yield", Ratio::CapYieldOf("f.net_buyback_ttm")),
+    ("f.ebitda_per_employee_fy", Ratio::PerEmployee("f.ebitda_fy")),
+    ("f.fcf_per_employee_fy", Ratio::PerEmployee("f.fcf_fy")),
+    ("f.net_income_per_employee_fy", Ratio::PerEmployee("f.net_income_fy")),
+    ("f.operating_income_per_employee_fy", Ratio::PerEmployee("f.operating_income_fy")),
+    ("f.rnd_per_employee_fy", Ratio::PerEmployee("f.rnd_fy")),
+    ("f.total_assets_per_employee_fy", Ratio::PerEmployee("f.total_assets_fy")),
+    ("f.total_debt_per_employee_fy", Ratio::PerEmployee("f.total_debt_fy")),
 ];
 
 /// Text fundamentals (every other `f.` key is a number).
@@ -351,12 +371,13 @@ const FUND_TEXT: &[&str] = &[
 /// State keys a ratio reads (its field is offered when they are all in the state).
 fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
     match r {
-        Ratio::PriceOver(k) | Ratio::YieldOf(k) | Ratio::PerfOver(k) => vec![k],
+        Ratio::PriceOver(k) | Ratio::PriceOverPositive(k) | Ratio::YieldOf(k) | Ratio::PerfOver(k) => vec![k],
         Ratio::Pe => vec!["f.eps_dil_ttm"],
         Ratio::Peg => vec!["f.eps_dil_ttm", "f.eps_dil_growth_ttm_yoy"],
         Ratio::Ev => vec!["shares", "f.total_debt_fq", "f.cash_fq"],
-        Ratio::EvOver(k) => vec!["shares", "f.total_debt_fq", "f.cash_fq", k],
-        Ratio::McapPerf(k) => vec!["shares", k],
+        Ratio::EvOver(k) | Ratio::EvOverPositive(k) => vec!["shares", "f.total_debt_fq", "f.cash_fq", k],
+        Ratio::McapPerf(k) | Ratio::CapYieldOf(k) => vec!["shares", k],
+        Ratio::PerEmployee(k) => vec![k, "f.employees"],
     }
 }
 
@@ -461,26 +482,31 @@ fn ratio(t: &Table, row: &Row, r: Ratio) -> Option<f64> {
     }
     let s = t.state.as_ref()?;
     let i = row.st?;
-    let price = (row.m.last > 0.0).then_some(row.m.last)?;
+    // Every ratio but the per-employee ones moves with the live price.
+    let price = (row.m.last > 0.0).then_some(row.m.last);
     let num = |k: &str| s.num(k, i);
     let div = |a: f64, b: f64| (b != 0.0).then(|| a / b);
     // The app's enterprise value: market cap + total debt + minority interest - cash and short-term investments.
-    let ev = || Some(price * num("shares")? + num("f.total_debt_fq")? + num("f.minority_interest_fq").unwrap_or(0.0) - num("f.cash_fq")?);
+    let ev = || Some(price? * num("shares")? + num("f.total_debt_fq")? + num("f.minority_interest_fq").unwrap_or(0.0) - num("f.cash_fq")?);
     match r {
-        Ratio::PriceOver(k) => div(price, num(k)?),
-        Ratio::Pe => num("f.eps_dil_ttm").filter(|e| *e > 0.0).map(|e| price / e),
+        Ratio::PriceOver(k) => div(price?, num(k)?),
+        Ratio::Pe => Some(price? / num("f.eps_dil_ttm").filter(|e| *e > 0.0)?),
         Ratio::Peg => {
-            let pe = num("f.eps_dil_ttm").filter(|e| *e > 0.0).map(|e| price / e)?;
+            let pe = price? / num("f.eps_dil_ttm").filter(|e| *e > 0.0)?;
             num("f.eps_dil_growth_ttm_yoy").filter(|g| *g > 0.0).map(|g| pe / g)
         }
         Ratio::Ev => ev(),
         Ratio::EvOver(k) => div(ev()?, num(k)?),
-        Ratio::YieldOf(k) => Some(100.0 * num(k)? / price),
-        Ratio::PerfOver(k) => perf(price, num(k)?),
+        Ratio::YieldOf(k) => Some(100.0 * num(k)? / price?),
+        Ratio::PerfOver(k) => perf(price?, num(k)?),
         Ratio::McapPerf(k) => {
             let before = num(k).filter(|v| *v > 0.0)?;
-            Some(100.0 * (price * num("shares")? / before - 1.0))
+            Some(100.0 * (price? * num("shares")? / before - 1.0))
         }
+        Ratio::PriceOverPositive(k) => Some(price? / num(k).filter(|v| *v > 0.0)?),
+        Ratio::EvOverPositive(k) => Some(ev()? / num(k).filter(|v| *v > 0.0)?),
+        Ratio::CapYieldOf(k) => div(100.0 * num(k)?, price? * num("shares")?),
+        Ratio::PerEmployee(k) => div(num(k)?, num("f.employees").filter(|e| *e > 0.0)?),
     }
 }
 

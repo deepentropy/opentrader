@@ -646,6 +646,33 @@ mod tests {
     }
 
     #[test]
+    fn ratios_of_the_more_fundamentals() {
+        // AAA: price 10, 100 shares (market cap 1000), EV 1200.
+        let mut st = state((2026, 9, 28));
+        let col = |a: f64| vec![Some(a), Some(-a), None];
+        for (k, v) in [("f.eps_dil_ttm", 2.0), ("f.total_debt_fq", 300.0), ("f.cash_fq", 100.0), ("f.fcf_ttm", 60.0), ("f.gross_profit_ttm", 400.0), ("f.wc_ps_fq", 4.0), ("f.net_buyback_ttm", 20.0), ("f.ebitda_fy", 500.0), ("f.employees", 50.0)] {
+            st.num.insert(k.to_string(), col(v));
+        }
+        let t = table(Some(st));
+        let v = |id: &str, r: usize| Field::parse(id).unwrap().eval(&t, &t.rows[r]);
+        assert_eq!(v("f.ev_fcf", 0), Some(Val::Num(20.0)));
+        assert_eq!(v("f.ev_gross_profit", 0), Some(Val::Num(3.0)));
+        assert_eq!(v("f.price_wc", 0), Some(Val::Num(2.5)));
+        assert_eq!(v("f.earnings_yield", 0), Some(Val::Num(20.0)));
+        assert_eq!(v("f.buyback_yield", 0), Some(Val::Num(2.0)));
+        assert_eq!(v("f.ebitda_per_employee_fy", 0), Some(Val::Num(10.0)));
+        // A negative free cash flow, gross profit or working capital has no ratio; a loss has a negative yield; no
+        // employees, no per-employee value.
+        assert_eq!(v("f.ev_fcf", 1), None);
+        assert_eq!(v("f.price_wc", 1), None);
+        assert!(matches!(v("f.earnings_yield", 1), Some(Val::Num(y)) if y < 0.0));
+        assert_eq!(v("f.ebitda_per_employee_fy", 1), None);
+        let ids: Vec<String> = crate::screener::fields::catalog(&t).into_iter().map(|f| f.id).collect();
+        assert!(ids.contains(&"f.ev_fcf".to_string()) && ids.contains(&"f.ebitda_per_employee_fy".to_string()));
+        assert!(!ids.contains(&"f.total_assets_per_employee_fy".to_string()));
+    }
+
+    #[test]
     fn state_of_the_same_day_is_used_as_is_and_old_state_is_dropped() {
         let t = table(Some(state((2026, 9, 29))));
         let ema = Field::parse("EMA50").unwrap();
