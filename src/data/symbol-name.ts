@@ -4,6 +4,7 @@
  * provider listing one ticker on two exchanges can serve both.
  */
 import { defaultExchange } from "./providers";
+import { isSpreadSymbol, spreadLegs, spreadShortName } from "./spread-symbol";
 
 /** "EXCHANGE:TICKER" → its parts; bare tickers default to the active
  *  provider's default exchange. */
@@ -14,6 +15,11 @@ export function seedSymbol(_source: string, symbol: string): string {
 }
 
 export function splitSymbol(symbol: string): { exchange: string; ticker: string } {
+  // A formula: its first leg's exchange, its legs' tickers ("NASDAQ:AAPL/NASDAQ:MSFT" → NASDAQ, "AAPL/MSFT").
+  if (isSpreadSymbol(symbol)) {
+    const first = spreadLegs(symbol)[0] ?? "";
+    return { exchange: first.includes(":") ? first.slice(0, first.indexOf(":")) : defaultExchange(), ticker: spreadShortName(symbol) };
+  }
   const head = symbol.split(",")[0].trim();
   if (head.includes(":")) {
     const [exchange, ticker] = head.split(":");
@@ -22,8 +28,9 @@ export function splitSymbol(symbol: string): { exchange: string; ticker: string 
   return { exchange: defaultExchange(), ticker: head };
 }
 
-/** True for a full name ("NASDAQ:AAPL"). */
+/** True for a full name ("NASDAQ:AAPL"; a formula naming every leg in full). */
 export function isFullSymbol(symbol: string): boolean {
+  if (isSpreadSymbol(symbol)) return spreadLegs(symbol).every((leg) => leg.includes(":"));
   return symbol.includes(":");
 }
 

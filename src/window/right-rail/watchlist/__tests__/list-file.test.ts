@@ -32,6 +32,17 @@ describe("parseWatchlistFile", () => {
     expect(parseWatchlistFile(list(1001))).toEqual({ error: "count" });
   });
 
+  it("keeps formulas, without their spaces, named by their legs' tickers", () => {
+    const r = parseWatchlistFile("NASDAQ:AAPL/NASDAQ:MSFT\n(aapl + msft) / 2,NYSE:BAC/PB\nAAPL/MSFT");
+    if ("error" in r) throw new Error(r.error);
+    expect(r.extras.map((x) => [x.ticker, x.short])).toEqual([
+      ["NASDAQ:AAPL/NASDAQ:MSFT", "AAPL/MSFT"],
+      ["(AAPL+MSFT)/2", "(AAPL+MSFT)/2"],
+      ["NYSE:BAC/PB", "BAC/PB"],
+      ["AAPL/MSFT", "AAPL/MSFT"],
+    ]);
+  });
+
   it("does not read a file over 250 KB", () => {
     expect(listFileTooBig(250 * 1024)).toBe(false);
     expect(listFileTooBig(250 * 1024 + 1)).toBe(true);

@@ -632,7 +632,7 @@ function freeName(used: readonly string[], base: string, first = false): string 
  *  the row's section, null = extras), `null` = end of the list (header button). */
 export type AddAnchor = { section: string; after?: undefined } | { section: string | null; after: string } | null;
 
-const shortOf = (name: string) => name.slice(name.indexOf(":") + 1);
+const shortOf = (name: string) => tickerOf(name);
 
 function uniqueName(base: string): string {
   let name = base;

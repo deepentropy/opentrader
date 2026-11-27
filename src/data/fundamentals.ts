@@ -11,14 +11,15 @@
  */
 import { commands, type Fundamentals } from "../bindings";
 import { isTransientError, retryTransient } from "./connection";
+import { isSpreadSymbol } from "./spread-symbol";
 
 export type { Fundamentals, EarningsEvent, FundamentalPeriods, CompanyProfile, FilingEvent, NextEarnings } from "../bindings";
 
 const memo = new Map<string, Promise<Fundamentals | null>>();
 
-/** True for the symbols that have company fundamentals (not economic series). */
+/** True for the symbols that have company fundamentals (not economic series, imported series or formulas). */
 export function hasFundamentals(symbol: string): boolean {
-  return !/^(ECONOMICS|LOCAL):/i.test(symbol.trim());
+  return !/^(ECONOMICS|LOCAL):/i.test(symbol.trim()) && !isSpreadSymbol(symbol);
 }
 
 /** Fundamentals of `symbol`, or null when the company has none (or they cannot be read). */

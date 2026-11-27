@@ -12,6 +12,7 @@ import { commands, type Candle, type History, type TickerInfo } from "../binding
 import { isTransientError, retryTransient } from "./connection";
 import { isNotFoundError, noteSymbolError } from "./unknown-symbols";
 import { isLocalSymbol, localSnapshot, localTickerInfo } from "./local-series";
+import { evaluateSpread, isSpreadSymbol, parseSpread, spreadKeepsCurrency, spreadLegs, spreadQuote, spreadShortName } from "./spread-symbol";
 
 export type { TickerInfo } from "../bindings";
 
@@ -116,6 +117,7 @@ export const tickerInfoEpoch = infoEpoch;
 export function getTickerInfo(symbol: string): Promise<TickerInfo> {
   infoEpoch();
   if (isLocalSymbol(symbol)) return localTickerInfo(symbol);
+  if (isSpreadSymbol(symbol)) return spreadTickerInfo(symbol);
   const hit = infoCache.get(symbol);
   if (hit && Date.now() - hit.at < hit.ttl) return hit.p;
   const p = retryTransient(() => unwrap(commands.getTickerInfo(symbol)));
@@ -148,7 +150,66 @@ export function forgetTickerInfo(which?: (symbol: string) => boolean): void {
  *  while `wanted()` holds (see ./connection). */
 export function getTickerSnapshot(symbol: string, wanted?: () => boolean): Promise<Snapshot> {
   if (isLocalSymbol(symbol)) return localSnapshot(symbol);
+  if (isSpreadSymbol(symbol)) return spreadSnapshot(symbol, wanted);
   return retryTransient(() => unwrap(commands.getTickerSnapshot(symbol)) as Promise<Snapshot>, wanted);
+}
+
+/** A formula's reference data: its name with its legs' tickers, the exchange of its first leg (the reference's), a
+ *  currency only for a price in its legs' currency. */
+async function spreadTickerInfo(symbol: string): Promise<TickerInfo> {
+  const tree = parseSpread(symbol);
+  if (!tree) throw new Error(`unknown symbol: ${symbol}`);
+  const first = await getTickerInfo(spreadLegs(symbol)[0]);
+  const name = spreadShortName(symbol);
+  return {
+    ticker: name,
+    name,
+    exchange: first.exchange,
+    industry: null,
+    sector: null,
+    currency: spreadKeepsCurrency(tree) ? first.currency : null,
+    description: null,
+    homepageUrl: null,
+    totalEmployees: null,
+    marketCap: null,
+    figi: null,
+    symbolType: "spread",
+    securityType: null,
+    iconUrl: null,
+    sharesOutstanding: null,
+    root: null,
+    isin: null,
+    baseCurrency: null,
+    country: first.country,
+    currentContract: null,
+    expiration: null,
+    volumeType: null,
+  };
+}
+
+/** A formula's quote from its legs' (see spreadQuote); its volume is theirs summed. */
+async function spreadSnapshot(symbol: string, wanted?: () => boolean): Promise<Snapshot> {
+  const tree = parseSpread(symbol);
+  if (!tree) throw new Error(`unknown symbol: ${symbol}`);
+  const legs = spreadLegs(symbol);
+  const snaps = await Promise.all(legs.map((l) => getTickerSnapshot(l, wanted)));
+  const byLeg = new Map(legs.map((l, k) => [l, snaps[k]]));
+  const q = spreadQuote(tree, (l) => byLeg.get(l));
+  if (!q) throw new Error(`no quote: ${symbol}`);
+  // The day's range as a bar's: the formula of the highs, of the lows and the last price, the extremes of them.
+  const day = [q.last, evaluateSpread(tree, (l) => byLeg.get(l)?.dayHigh), evaluateSpread(tree, (l) => byLeg.get(l)?.dayLow)].filter((v) => !Number.isNaN(v));
+  return {
+    ticker: spreadShortName(symbol),
+    last: q.last,
+    change: q.change,
+    changePercent: q.changePercent,
+    dayHigh: Math.max(...day),
+    dayLow: Math.min(...day),
+    dayVolume: snaps.reduce((sum, s) => sum + (s.dayVolume ?? 0), 0),
+    extChangePercent: null,
+    source: snaps.some((s) => s.source === "live") ? "live" : "prev",
+    updatedMs: Math.max(0, ...snaps.map((s) => s.updatedMs ?? 0)),
+  };
 }
 
 /** Charts of the same symbol refresh their headline on the same period: one
@@ -159,7 +220,7 @@ const newsCache = new Map<string, { at: number; p: Promise<NewsItem[]> }>();
 /** Newest `limit` headlines tagged with `symbol`. Rejects on backend failure;
  *  a failure is not kept. */
 export function getLatestNews(symbol: string, limit = 1): Promise<NewsItem[]> {
-  if (isLocalSymbol(symbol)) return Promise.resolve([]);
+  if (isLocalSymbol(symbol) || isSpreadSymbol(symbol)) return Promise.resolve([]);
   const key = `${symbol}|${limit}`;
   const hit = newsCache.get(key);
   if (hit && Date.now() - hit.at < NEWS_SHARE_MS) return hit.p;

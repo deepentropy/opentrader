@@ -23,6 +23,7 @@ import { NumberField } from "../../components/form";
 import { Chevron } from "../../components/form/glyphs";
 import { createPopover } from "../../components/popover";
 import { Dialog } from "../../components/Dialog";
+import { tickerOf } from "../../data/symbol-name";
 
 const PRIMARY = ["USD", "EUR", "AUD", "GBP", "NZD", "CAD", "CHF"];
 const MORE = ["HKD", "JPY", "NOK", "RUB", "SEK", "SGD", "TRY", "ZAR", "BTC", "ETH", "MYR", "KRW", "USDT", "INR"];
@@ -123,7 +124,7 @@ function SettingsDialog() {
     replayBroker.changeSettings(next, keys.length === 1 ? `Change ${NAMES[keys[0]]}` : "Reset settings", paneId);
   };
   const symbol = replayBroker.symbol() ?? tradingUi.activeSymbol();
-  const ticker = symbol.includes(":") ? symbol.slice(symbol.indexOf(":") + 1) : symbol;
+  const ticker = tickerOf(symbol);
   // "Same as chart": the currency the symbol trades in.
   const [chartCurrency] = createResource(
     () => symbol,

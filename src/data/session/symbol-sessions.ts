@@ -16,6 +16,7 @@ import { splitSymbol } from "../symbol-name";
 import { SessionSpec } from "./spec";
 import { localDay, localToUtc } from "./zone";
 import { isLocalSymbol, localSession } from "../local-series";
+import { isSpreadSymbol, spreadLegs } from "../spread-symbol";
 import { isTransientError } from "../connection";
 import { isNotFoundError, isUnknownSymbol, noteSymbolError } from "../unknown-symbols";
 
@@ -184,7 +185,8 @@ const [version, setVersion] = createSignal(0);
 export const sessionsVersion = version;
 
 function keyOf(symbol: string): { key: string; exchange: string; ticker: string } {
-  const { exchange, ticker } = splitSymbol(symbol);
+  // A formula trades in the session of its first leg, with its price grid (the reference's).
+  const { exchange, ticker } = splitSymbol(isSpreadSymbol(symbol) ? (spreadLegs(symbol)[0] ?? symbol) : symbol);
   const ex = exchange.toUpperCase();
   const tk = ticker.toUpperCase();
   return { key: `${ex}:${tk}`, exchange: ex, ticker: tk };

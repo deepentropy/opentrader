@@ -1,4 +1,5 @@
 import { localNumber, numberFormat, typedNumber } from "../../i18n/format";
+import { isSpreadSymbol, spreadShortName } from "../../data/spread-symbol";
 /*
  * Number / time formatting of the trading panel and order ticket, in the interface language's marks ("1 234,50").
  */
@@ -95,6 +96,7 @@ export function parsePositive(s: string): number | null {
 
 /** The ticker of "EXCHANGE:TICKER". */
 export function tickerOf(symbol: string): string {
+  if (isSpreadSymbol(symbol)) return spreadShortName(symbol);
   const i = symbol.indexOf(":");
   return i >= 0 ? symbol.slice(i + 1) : symbol;
 }

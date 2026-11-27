@@ -54,6 +54,7 @@ import { createKeyboard } from "./watchlist/keyboard";
 import { createRowMenus } from "./watchlist/row-menus";
 import { createRows } from "./watchlist/rows";
 import { createHeaders } from "./watchlist/headers";
+import { tickerOf } from "../../data/symbol-name";
 import { createPopover } from "../../components/popover";
 
 export function Watchlist(props: WatchlistProps) {
@@ -527,7 +528,7 @@ export function Watchlist(props: WatchlistProps) {
               <For each={dragIds()}>
                 {(id) => (
                   <div class="watchlist-drag-item" classList={{ "watchlist-drag-item--section": isSectionId(id) }}>
-                    {isSectionId(id) ? sectionNameOf(id) : id.slice(id.indexOf(":") + 1)}
+                    {isSectionId(id) ? sectionNameOf(id) : tickerOf(id)}
                   </div>
                 )}
               </For>

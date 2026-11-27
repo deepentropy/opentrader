@@ -1,4 +1,6 @@
 import { translateWith } from "../i18n/translator";
+import { splitSymbol } from "./symbol-name";
+import { isSpreadSymbol } from "./spread-symbol";
 /*
  * Alert message placeholders: the "Add placeholder" menu of the message
  * editor, and the text each one gives when the alert fires.
@@ -214,8 +216,10 @@ function positionText(name: string, p: PositionHitValues): string | null {
 /** The message with its placeholders filled in. A placeholder without a value here stays as written. */
 export function fillPlaceholders(text: string, v: PlaceholderValues): string {
   const colon = v.symbol.indexOf(":");
-  const exchange = colon >= 0 ? v.symbol.slice(0, colon) : "";
-  const ticker = colon >= 0 ? v.symbol.slice(colon + 1) : v.symbol;
+  // A formula: its first leg's exchange, its legs' tickers (splitSymbol).
+  const spread = isSpreadSymbol(v.symbol);
+  const exchange = spread ? splitSymbol(v.symbol).exchange : colon >= 0 ? v.symbol.slice(0, colon) : "";
+  const ticker = spread ? splitSymbol(v.symbol).ticker : colon >= 0 ? v.symbol.slice(colon + 1) : v.symbol;
   const price = (p: number | null | undefined): string | null => (v.priceText && typeof p === "number" && Number.isFinite(p) ? v.priceText(p) : num(p));
   return text.replace(/\{\{(plot\("([^"]*)"\)|[a-z_][a-z0-9_.]*)\}\}/g, (all: string, name: string, plotTitle: string | undefined) => {
     if (plotTitle !== undefined) {

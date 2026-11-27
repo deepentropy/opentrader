@@ -101,6 +101,7 @@ import {
   type ExpiryKey,
 } from "./alert-dialog-state";
 import { PRESET_SEGMENTS, PRESET_TITLES, localTimeZone, schedulePreset, scheduleTitle, segmentText, type SchedulePreset } from "../../data/alert-schedule";
+import { tickerOf } from "../../data/symbol-name";
 
 type Props = {
   /** When set, edit this existing rule instead of creating one. */
@@ -1193,7 +1194,7 @@ export function AlertDialog(props: Props) {
                 <button type="button" class="ad-symbol-btn" data-name="symbols-button" onClick={() => setSymbolEdit(true)}>
                   {/* A level from a drawing: the drawing's chart sets the interval, shown with the symbol. */}
                   <span class="ad-symbol-text">
-                    {symbol().includes(":") ? symbol().split(":")[1] : symbol()}
+                    {tickerOf(symbol())}
                     {condition().right.kind === "drawing" ? `, ${alertIntervalText(ruleResolution(), true)}` : ""}
                   </span>
                   {arrow("m4.5 7 4.5 4 4.5-4")}

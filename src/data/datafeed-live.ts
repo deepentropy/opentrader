@@ -11,6 +11,7 @@ import { commands, events, type Candle, type PluginTicks } from "../bindings";
 import type * as gen from "../bindings";
 import { unwrap, type Finite } from "./datafeed-rest";
 import { isLocalSymbol } from "./local-series";
+import { isSpreadSymbol, spreadLegs } from "./spread-symbol";
 
 type BarField = "time" | "open" | "high" | "low" | "close" | "volume";
 
@@ -36,8 +37,25 @@ export type TradeTick = Omit<Finite<gen.TradeTick, "price">, "source"> & { sourc
  *  it "<window>:<pane>"), so multi-pane layouts each hold their own symbol
  *  instead of overwriting a single global slot. */
 export async function setChartSubscription(symbol: string | null, pane = "0"): Promise<void> {
+  // A formula streams its legs: the first in the pane's slot, the others in slots of their own ("<pane>~1"…).
+  const legs = isSpreadSymbol(symbol) ? spreadLegs(symbol!) : [symbol];
+  const had = legSlots.get(pane) ?? 1;
+  legSlots.set(pane, legs.length);
+  const slot = (k: number) => (k === 0 ? pane : `${pane}~${k}`);
   // An imported series has no live data.
-  await unwrap(commands.setChartSubscription(pane, isLocalSymbol(symbol) ? null : symbol));
+  const live = (s: string | null | undefined) => (s && !isLocalSymbol(s) ? s : null);
+  const calls = legs.map((leg, k) => unwrap(commands.setChartSubscription(slot(k), live(leg))));
+  for (let k = legs.length; k < had; k++) calls.push(unwrap(commands.setChartSubscription(slot(k), null)));
+  await Promise.all(calls);
+}
+
+/** How many slots each pane's symbol holds (a formula: one per leg). */
+const legSlots = new Map<string, number>();
+
+/** The symbols to stream for these: a formula's legs instead of it, an imported series' none. */
+function liveLegs(symbols: string[]): string[] {
+  const out = symbols.flatMap((s) => (isSpreadSymbol(s) ? spreadLegs(s) : [s])).filter((s) => !isLocalSymbol(s));
+  return [...new Set(out)];
 }
 
 /** Replace THIS WINDOW's watchlist subscription with this exact set. Several
@@ -45,7 +63,7 @@ export async function setChartSubscription(symbol: string | null, pane = "0"): P
  *  tab titles — see data/subscriptions.ts); the backend merges the per-window
  *  sets, so another window's union can't clobber this one. */
 export async function setWatchlistSubscription(symbols: string[]): Promise<void> {
-  await unwrap(commands.setWatchlistSubscription(symbols.filter((s) => !isLocalSymbol(s))));
+  await unwrap(commands.setWatchlistSubscription(liveLegs(symbols)));
 }
 
 export function onChartAggregate(fn: (ev: ChartAggregate) => void): Promise<UnlistenFn> {
@@ -80,7 +98,8 @@ export function onPluginTrade(fn: (ev: PluginTrade) => void): Promise<UnlistenFn
  *  real-time stream, sends its ticks. */
 export async function setTickSubscription(symbol: string | null, pane: string): Promise<void> {
   if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
-  await unwrap(commands.watchTicks(pane, isLocalSymbol(symbol) ? null : symbol));
+  // A formula has no trades.
+  await unwrap(commands.watchTicks(pane, isLocalSymbol(symbol) || isSpreadSymbol(symbol) ? null : symbol));
 }
 
 export function onTradeTick(fn: (ev: TradeTick) => void): Promise<UnlistenFn> {

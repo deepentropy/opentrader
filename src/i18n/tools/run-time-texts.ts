@@ -6,6 +6,14 @@
 import type { FoundText } from "./catalog";
 
 const GROUPS: Record<string, string[]> = {
+  "symbol search, the spread operator buttons (data/spread-symbol.ts SPREAD_OPERATORS)": [
+    "Division",
+    "Subtraction",
+    "Addition",
+    "Multiplication",
+    "Exponentiation",
+    "Reciprocal",
+  ],
   "drawing library, labels translated by i18n/drawing-labels.ts": [
     "Left Shoulder",
     "Head",

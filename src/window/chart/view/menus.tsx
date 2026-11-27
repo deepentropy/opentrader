@@ -41,6 +41,7 @@ import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
 import { formatted, translatePlural, translateWith } from "../../../i18n/translator";
 import { localNumber } from "../../../i18n/format";
+import { tickerOf } from "../../../data/symbol-name";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -344,7 +345,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const last = cx.latestBar()?.close ?? null;
     const p = last == null ? "—" : menuPrice(last);
     const hidden = !!props.seriesHidden;
-    const row = { ticker: full, short: full.split(":").pop() || full, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null };
+    const row = { ticker: full, short: tickerOf(full), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null };
     // Watchlist submenu: the active list first (Alt + W),
     // then the other lists by name; a row adds or removes the symbol and the
     // menu stays open; separator; "Create new list…".

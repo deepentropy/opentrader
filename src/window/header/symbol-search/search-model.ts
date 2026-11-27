@@ -23,6 +23,7 @@ import type { SymbolSearchResult } from "../../../bindings";
 import { searchResultToRow } from "../../../data/providers";
 import * as kv from "../../../data/kv";
 import type { SymbolSearchProps } from "./types";
+import { isSpreadSymbol, spreadLegs, spreadShortName, spreadTokenAt } from "../../../data/spread-symbol";
 
 /** Durable key for the Type filter chip, so the chosen filter survives both a
  *  query change (already independent state) and closing/reopening the modal or
@@ -72,6 +73,16 @@ function symbolTokens(text: string): { value: string; offset: number }[] {
 /** Token under the caret, ends inclusive. */
 export function tokenAt(text: string, pos: number): { value: string; offset: number } | null {
   return symbolTokens(text).find((t) => t.offset <= pos && pos <= t.offset + t.value.length) ?? null;
+}
+/** Exchange and ticker of a full name as the rows show them; a formula: its first leg's exchange and its legs'
+ *  tickers ("NASDAQ:AAPL/NASDAQ:MSFT" → NASDAQ, "AAPL/MSFT"). */
+export function symbolParts(symbol: string): { exchange: string; ticker: string } {
+  if (isSpreadSymbol(symbol)) {
+    const first = spreadLegs(symbol)[0] ?? "";
+    return { exchange: first.includes(":") ? first.slice(0, first.indexOf(":")) : "", ticker: spreadShortName(symbol) };
+  }
+  const colon = symbol.indexOf(":");
+  return { exchange: colon >= 0 ? symbol.slice(0, colon) : "", ticker: colon >= 0 ? symbol.slice(colon + 1) : symbol };
 }
 /** Names that contain a spread operator are quoted. */
 export const TOKEN_ESCAPE_RE = /[+\-/*]/;
@@ -139,6 +150,7 @@ export function createSymbolSearch(props: SymbolSearchProps) {
     if (props.watchlist || props.compare) return ""; // the Add-symbol / Compare dialogs open empty
     const a = props.activeSymbol;
     if (!a) return "";
+    if (isSpreadSymbol(a)) return spreadShortName(a);
     const colon = a.indexOf(":");
     return colon >= 0 ? a.slice(colon + 1) : a;
   })();
@@ -147,8 +159,14 @@ export function createSymbolSearch(props: SymbolSearchProps) {
   // upper-cased, and follows the caret as it moves.
   const [caret, setCaret] = createSignal(initialQuery.length);
   const multiMode = () => !!props.watchlist && query().includes(",");
+  // A formula ("AAPL/MS"): the search runs on the symbol under the caret, as in the reference.
+  const formulaMode = () => !multiMode() && isSpreadSymbol(query());
   const searchText = () =>
-    multiMode() ? (tokenAt(query(), caret())?.value.trim().toUpperCase() ?? "") : query();
+    multiMode()
+      ? (tokenAt(query(), caret())?.value.trim().toUpperCase() ?? "")
+      : formulaMode()
+        ? (spreadTokenAt(query(), caret())?.name ?? "")
+        : query();
   const [highlightIdx, setHighlightIdx] = createSignal(0);
   // Active "All types" filter — null = no type filter (the `type` parameter of the search).
   // Seeded from the persisted value so it survives reopen / reload.
@@ -259,9 +277,7 @@ export function createSymbolSearch(props: SymbolSearchProps) {
     return recentSymbols("search").map((sym) => {
       const cat = SYMBOLS.find((x) => x.symbolName === sym);
       if (cat) return { ...cat, titleHighlight: null, descriptionHighlight: null };
-      const colon = sym.indexOf(":");
-      const ticker = colon >= 0 ? sym.slice(colon + 1) : sym;
-      const exchange = colon >= 0 ? sym.slice(0, colon) : "";
+      const { exchange, ticker } = symbolParts(sym);
       return { symbolName: sym, ticker, description: historyNames()[sym] ?? "", marketType: "", exchange, category: "all" as SymbolCategoryId, titleHighlight: null, descriptionHighlight: null };
     });
   });
@@ -319,9 +335,7 @@ export function createSymbolSearch(props: SymbolSearchProps) {
     if (!props.compare) return [];
     return props.compare.recent().map((r) => {
       const cat = SYMBOLS.find((s) => s.symbolName === r.symbol);
-      const colon = r.symbol.indexOf(":");
-      const ticker = colon >= 0 ? r.symbol.slice(colon + 1) : r.symbol;
-      const exchange = colon >= 0 ? r.symbol.slice(0, colon) : "";
+      const { exchange, ticker } = symbolParts(r.symbol);
       const base: SymbolRow = cat ?? { symbolName: r.symbol, ticker, description: "", marketType: "", exchange, category: "all" as SymbolCategoryId };
       return { ...base, description: r.description || base.description, titleHighlight: null, descriptionHighlight: null };
     });
@@ -330,7 +344,7 @@ export function createSymbolSearch(props: SymbolSearchProps) {
   const listRows = () => (compareHome() ? recentRows() : rows());
 
   return {
-    category, setCategory, query, setQuery, caret, setCaret, multiMode, searchText, highlightIdx, setHighlightIdx,
+    category, setCategory, query, setQuery, caret, setCaret, multiMode, formulaMode, searchText, highlightIdx, setHighlightIdx,
     typeCode, setTypeCode, typeMenuOpen, setTypeMenuOpen, typeLabel, searching, economy, sources,
     countryPanel, setCountryPanel, countryQuery, setCountryQuery, countryRegions,
     rows, otherCount, categoryLabel, dialogTitle, compareHome, listRows,

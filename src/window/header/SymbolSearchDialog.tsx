@@ -36,15 +36,20 @@ import {
   setEconCategory,
   setEconCountry,
   setEconSource,
+  symbolParts,
   tokenAt,
 } from "./symbol-search/search-model";
 import type { SymbolSearchProps } from "./symbol-search/types";
+import { SPREAD_OPERATORS, insertOperator, spreadTokenAt } from "../../data/spread-symbol";
 
 type Props = SymbolSearchProps;
 
+/** What each operator button shows. */
+const OPERATOR_GLYPHS: Record<string, string> = { "/": "÷", "-": "−", "+": "+", "*": "×", "^": "^", "1/": "1/" };
+
 export function SymbolSearchDialog(props: Props) {
   const s = createSymbolSearch(props);
-  const { category, setCategory, query, setQuery, setCaret, multiMode, searchText, highlightIdx, setHighlightIdx } = s;
+  const { category, setCategory, query, setQuery, caret, setCaret, multiMode, formulaMode, searchText, highlightIdx, setHighlightIdx } = s;
   const { typeCode, setTypeCode, typeMenuOpen, setTypeMenuOpen, typeLabel, searching, economy, sources, setCountryPanel, setCountryQuery } = s;
   const { rows, otherCount, categoryLabel, dialogTitle, compareHome, listRows } = s;
 
@@ -85,11 +90,12 @@ export function SymbolSearchDialog(props: Props) {
   }
 
   /** Comma mode, row click: the row's full name replaces the token under the
-   *  caret (appended when there is none); nothing is added yet. */
+   *  caret (appended when there is none); nothing is added yet. So in a formula, where the token is the symbol
+   *  under the caret ("AAPL/MS" → "AAPL/NYSE:MS"). */
   function insertToken(row: FilteredRow) {
     const text = input.value;
     const pos = input.selectionStart ?? text.length;
-    const tok = tokenAt(text, pos);
+    const tok = formulaMode() ? spreadTokenAt(text, pos) : tokenAt(text, pos);
     const at = tok ? tok.offset : text.length;
     const name = TOKEN_ESCAPE_RE.test(row.symbolName) ? `'${row.symbolName}'` : row.symbolName;
     const next = text.slice(0, at) + name + text.slice(at + (tok ? tok.value.length : 0));
@@ -109,6 +115,31 @@ export function SymbolSearchDialog(props: Props) {
       .map((t) => t.toUpperCase());
     if (names.length) props.watchlist!.addMany(names);
     props.onClose();
+  }
+
+  /** A formula, Enter: the whole formula is the symbol (its legs get their listing, see toFullSymbol). */
+  function submitFormula(shift: boolean) {
+    const text = query().replace(/\s+/g, "").toUpperCase();
+    if (props.compare) addCompare(text, "percent");
+    else if (props.watchlist) {
+      props.watchlist.addMany([text]);
+      afterAction(shift);
+    } else {
+      props.onSelect(text);
+      props.onClose();
+    }
+  }
+
+  /** The spread operators (the reference's calculator button), not kept between openings. */
+  const [showOperators, setShowOperators] = createSignal(false);
+  function putOperator(sign: string) {
+    const next = insertOperator(query(), input.selectionStart ?? caret(), sign);
+    input.focus();
+    if (!next) return;
+    setQuery(next.text);
+    input.value = next.text;
+    input.setSelectionRange(next.caret, next.caret);
+    setCaret(next.caret);
   }
 
   /** Compare mode: add with a placement, clear the query, keep the dialog. */
@@ -148,6 +179,10 @@ export function SymbolSearchDialog(props: Props) {
   }
 
   function commit(row: FilteredRow | undefined, shift = false) {
+    if (formulaMode()) {
+      if (row) insertToken(row);
+      return;
+    }
     if (props.compare) {
       if (row) addCompare(row.symbolName, "percent");
       return;
@@ -194,6 +229,7 @@ export function SymbolSearchDialog(props: Props) {
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (multiMode()) submitMany();
+        else if (formulaMode()) submitFormula(e.shiftKey);
         else commit(listRows()[highlightIdx()], e.shiftKey);
       }
     };
@@ -276,6 +312,45 @@ export function SymbolSearchDialog(props: Props) {
                 </button>
               </Tooltip>
             </Show>
+            {/* Spread operators: they go in at the caret (see insertOperator). */}
+            <Show when={showOperators() && query()}>
+              <span class="symbol-search-operators">
+                <For each={[...SPREAD_OPERATORS, ["1/", "Reciprocal"] as const]}>
+                  {([sign, name]) => (
+                    <Tooltip text={name} side="bottom">
+                      <button
+                        type="button"
+                        aria-label={name}
+                        class="symbol-search-operator"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => putOperator(sign)}
+                      >
+                        {OPERATOR_GLYPHS[sign]}
+                      </button>
+                    </Tooltip>
+                  )}
+                </For>
+              </span>
+            </Show>
+            <Tooltip text={showOperators() ? "Hide spread operators" : "Show spread operators"} side="bottom">
+              <button
+                type="button"
+                aria-label={showOperators() ? "Hide spread operators" : "Show spread operators"}
+                aria-pressed={showOperators()}
+                class="symbol-search-operators-toggle"
+                classList={{ "is-active": showOperators() }}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setShowOperators((v) => !v);
+                  input.focus();
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor">
+                  <rect x="3.5" y="1.5" width="11" height="15" rx="2" />
+                  <path d="M6 5.5h6M6 9.5h1M8.5 9.5h1M11 9.5h1M6 12.5h1M8.5 12.5h1M11 12.5h1" stroke-linecap="round" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -400,9 +475,7 @@ export function SymbolSearchDialog(props: Props) {
                 <For each={props.compare!.added()}>
                   {(a) => {
                     const cat = () => rows().find((r) => r.symbolName === a.symbol);
-                    const colon = a.symbol.indexOf(":");
-                    const exchange = colon >= 0 ? a.symbol.slice(0, colon) : "";
-                    const ticker = colon >= 0 ? a.symbol.slice(colon + 1) : a.symbol;
+                    const { exchange, ticker } = symbolParts(a.symbol);
                     return (
                       <div class="symbol-search-row cmp-search-row is-added" data-role="added-symbol-item" data-symbol-name={a.symbol} role="option">
                         {compareInfo(ticker, a.description || cat()?.description || "", cat()?.logoSrc)}

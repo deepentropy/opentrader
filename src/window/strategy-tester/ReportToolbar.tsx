@@ -21,6 +21,7 @@ import { COMMUNITY_ENABLED } from "../../data/community/api";
 import { backtestTable, requestShare } from "../../data/community/share";
 import { shortIntervalLabel } from "../chart/interval-favorites";
 import { translate, translateWith } from "../../i18n/translator";
+import { tickerOf } from "../../data/symbol-name";
 
 type Props = {
   report: BacktestReport | null;
@@ -48,10 +49,10 @@ export function ReportToolbar(props: Props) {
     const all = r.performance.all;
     requestShare({
       attach: true,
-      title: translateWith("{0} backtest on {1}", props.strategyName ?? translate("Strategy"), (props.symbol ?? "").split(":").pop() ?? ""),
+      title: translateWith("{0} backtest on {1}", props.strategyName ?? translate("Strategy"), tickerOf(props.symbol ?? "")),
       body: backtestTable({
         strategy: props.strategyName ?? "a strategy",
-        symbol: (props.symbol ?? "").split(":").pop() ?? "",
+        symbol: tickerOf(props.symbol ?? ""),
         interval: shortIntervalLabel(props.interval ?? "1D"),
         currency: r.currency,
         netProfit: all.netProfit,

@@ -18,6 +18,7 @@ import type { CompareEntry } from "../../shell/tabs";
 import { chartTypeOf, compareColor, compareSeriesStyles, compareSource } from "./compare-style";
 import { SelectionMarkers, type BackgroundAt } from "../selection-markers";
 import { setSeriesScale } from "../scales/extra-axes";
+import { tickerOf } from "../../../data/symbol-name";
 import { lastAtOrBefore, lowerBound } from "../time-search";
 
 export class CompareLayer {
@@ -145,7 +146,7 @@ export class CompareLayer {
       priceLineVisible: st.priceLine,
       priceLineColor: compareColor(st),
       priceLineStyle: libLineStyle(2),
-      title: this.entry.symbol.split(":").pop() ?? this.entry.symbol,
+      title: tickerOf(this.entry.symbol),
       ...(priceFormat ? { priceFormat: { type: "custom" as const, formatter: priceFormat.format, minMove: priceFormat.minMove } } : {}),
     });
     // Its scale; on an extra axis that axis draws its last-value label.

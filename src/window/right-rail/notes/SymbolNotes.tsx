@@ -24,10 +24,11 @@ import {
 } from "../../../data/symbol-notes";
 import { ChartContextMenu, type CtxNode } from "../../chart/ChartContextMenu";
 import { translateWith } from "../../../i18n/translator";
+import { tickerOf } from "../../../data/symbol-name";
 
 /** Short name of a full symbol ("NASDAQ:AAPL" → "AAPL"). */
 export function shortSymbol(symbol: string): string {
-  return symbol.split(":").pop() ?? symbol;
+  return tickerOf(symbol);
 }
 
 const BACK_ICON = (

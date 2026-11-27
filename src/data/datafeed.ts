@@ -49,6 +49,7 @@ import { tickBarMs, tickBars, tickCount, ticksPerPage, type TickRow } from "./ti
 import { translateWith } from "../i18n/translator";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { serverNow } from "./server-clock";
+import { combineSpreadBars, isSpreadSymbol, normalizeSpread, parseSpread, spreadLegs, SpreadLiveBars } from "./spread-symbol";
 
 // Re-export so consumers have one import surface for the daily-aggregation
 // helpers as well as the feed itself.
@@ -264,7 +265,7 @@ export function setRealtimeData(read: () => boolean): void {
  *  data comes real-time (the gateway serves trades to real-time accounts only). True while its session is not known
  *  yet, so a restored tick chart keeps its interval. Reactive: reads the real-time state. */
 function servesTicks(symbol: string | null | undefined): boolean {
-  if (!symbol || isLocalSymbol(symbol) || isEconomicSymbol(symbol)) return false;
+  if (!symbol || isLocalSymbol(symbol) || isEconomicSymbol(symbol) || isSpreadSymbol(symbol)) return false;
   const sessions = cachedSymbolSessions(symbol);
   if (!sessions) return true;
   if (sessions.intervals.length === 0) return realtimeData();
@@ -356,6 +357,11 @@ export type SymbolInfo = {
  *  symbol into exchange/description/currency. A full name keeps its exchange;
  *  a bare ticker gets its primary listing. */
 export async function resolveSymbol(symbol: string): Promise<SymbolInfo> {
+  if (isSpreadSymbol(symbol)) {
+    const fullName = await toFullSymbol(symbol);
+    const info = await getTickerInfo(fullName);
+    return { exchange: exchangeName(info.exchange) || exchangeCode(info.exchange), ticker: info.ticker, fullName, description: info.name ?? "", currency: info.currency };
+  }
   const { ticker } = splitSymbol(symbol);
   const info = await getTickerInfo(symbol);
   const code = isFullSymbol(symbol) ? splitSymbol(symbol).exchange.toUpperCase() : exchangeCode(info.exchange);
@@ -375,10 +381,14 @@ const fullNames = new Map<string, Promise<string>>();
  *  per ticker per run). Rejects when the lookup fails. */
 export function toFullSymbol(symbol: string): Promise<string> {
   const s = symbol.trim().toUpperCase();
-  if (isFullSymbol(s)) return Promise.resolve(s);
+  const spread = isSpreadSymbol(s);
+  if (!spread && isFullSymbol(s)) return Promise.resolve(s);
   let p = fullNames.get(s);
   if (!p) {
-    p = resolveSymbol(s).then((r) => r.fullName);
+    // A formula: each leg's full name (see ./spread-symbol).
+    p = spread
+      ? normalizeSpread(s, toFullSymbol).then((r) => r ?? Promise.reject(new Error(`unknown symbol: ${symbol}`)))
+      : resolveSymbol(s).then((r) => r.fullName);
     p.catch(() => fullNames.delete(s));
     fullNames.set(s, p);
   }
@@ -485,6 +495,8 @@ export function pluginChartEvents(list: SymbolEvent[], onDay: (utcMidnight: numb
  *  tried again until it answers. A data plugin's symbol has its plugin's
  *  events. */
 export async function getEvents(symbol: string): Promise<ChartEvent[]> {
+  // A formula has no dividends, splits or earnings of its own.
+  if (isSpreadSymbol(symbol)) return [];
   const settled = <T>(call: () => Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>) =>
     retryTransient(async () => {
       const r = await call();
@@ -726,6 +738,7 @@ export function getBars(
 
 async function getBarsOnce(symbol: string, resolution: string, session: SessionId): Promise<BarsResult> {
   if (isLocalSymbol(symbol)) return localBars(symbol, resolution);
+  if (isSpreadSymbol(symbol)) return spreadBars(symbol, resolution, session);
   const ticks = tickCount(resolution);
   if (ticks !== null) return { bars: await tickHistory(symbol, ticks, null, session), daily: null, aggregate: null };
   // Guard the catch-all daily branch below: an unservable resolution (tick,
@@ -779,7 +792,7 @@ const YEAR_DAYS = 400;
  *  30 years can cost it a request per year (#347). The others read the series the daily chart reads, kept once
  *  read. */
 export async function getLastYearDailyBars(symbol: string, wanted?: () => boolean): Promise<Candle[]> {
-  if (!isLocalSymbol(symbol) && !isEconomicSymbol(symbol) && (await symbolSessions(symbol)).intervals.length) {
+  if (!isLocalSymbol(symbol) && !isSpreadSymbol(symbol) && !isEconomicSymbol(symbol) && (await symbolSessions(symbol)).intervals.length) {
     return retryTransient(async () => {
       const res = await commands.getDailyHistory(symbol, YEAR_DAYS, isAdjusted());
       if (res.status === "error") throw new Error(res.error);
@@ -787,6 +800,33 @@ export async function getLastYearDailyBars(symbol: string, wanted?: () => boolea
     }, wanted);
   }
   return (await getBars(symbol, "1D", "ETH", wanted)).bars;
+}
+
+/** Last close of each leg in the newest bars read, for the formulas' live bars (a leg without a live bar yet counts
+ *  it). */
+const legCloses = new Map<string, number>();
+
+/** A formula's bars, from its legs' bars of the same interval (see ./spread-symbol). The daily family combines the
+ *  daily bars and aggregates them: the reference's weekly formula bar is its daily ones' week. No tick bars: a
+ *  formula has no trades. */
+async function spreadBars(symbol: string, resolution: string, session: SessionId): Promise<BarsResult> {
+  const tree = parseSpread(symbol);
+  if (!tree) throw new Error(`unknown symbol: ${symbol}`);
+  if (tickCount(resolution) !== null) return { bars: [], daily: null, aggregate: null };
+  const legs = spreadLegs(symbol);
+  const parts = await Promise.all(legs.map((leg) => getBarsOnce(leg, resolution, session)));
+  legs.forEach((leg, k) => {
+    const last = parts[k].bars[parts[k].bars.length - 1]?.close;
+    if (last != null) legCloses.set(leg, last);
+  });
+  const partial = parts.some((p) => p.partial);
+  const aggregate = parts[0]?.aggregate ?? null;
+  if (parts.every((p) => p.daily)) {
+    const daily = combineSpreadBars(tree, legs, parts.map((p) => p.daily ?? []));
+    const bars = aggregate ? aggregateCandles(daily, aggregate, (await symbolSessions(symbol)).regular) : daily;
+    return { bars, daily, aggregate, partial };
+  }
+  return { bars: combineSpreadBars(tree, legs, parts.map((p) => p.bars)), daily: null, aggregate: null, partial };
 }
 
 /** Bars of an imported series: the whole series at once. */
@@ -816,6 +856,13 @@ export async function getBarsBefore(
 ): Promise<Candle[]> {
   // An economic series is loaded whole.
   if (isEconomicSymbol(symbol)) return [];
+  if (isSpreadSymbol(symbol)) {
+    const tree = parseSpread(symbol);
+    if (!tree || tickCount(resolution) !== null) return [];
+    const legs = spreadLegs(symbol);
+    const parts = await Promise.all(legs.map((leg) => getBarsBefore(leg, resolution, beforeSec, session, spanDays)));
+    return combineSpreadBars(tree, legs, parts);
+  }
   const ticks = tickCount(resolution);
   if (ticks !== null) return tickHistory(symbol, ticks, tickBarMs(beforeSec), session);
   if (isLocalSymbol(symbol)) return localBarsBefore(symbol, resolution, beforeSec, spanDays ?? dailyConfig(resolution).days);
@@ -907,6 +954,14 @@ export function getSecondBarsTail(
   const second = SECOND_INTERVALS[resolution];
   if (!second) return null;
   if (isLocalSymbol(symbol)) return Promise.resolve([]);
+  if (isSpreadSymbol(symbol)) {
+    const tree = parseSpread(symbol);
+    if (!tree) return Promise.resolve([]);
+    const legs = spreadLegs(symbol);
+    return Promise.all(legs.map((leg) => getSecondBarsTail(leg, resolution, sinceSec, session) ?? Promise.resolve([]))).then((parts) =>
+      combineSpreadBars(tree, legs, parts),
+    );
+  }
   return Promise.all([getSecondHistoryTail(symbol, second.mult, sinceSec, isAdjusted()), symbolSessions(symbol)]).then(
     ([rows, sessions]) => inSession(rows, sessions.spec(session)),
   );
@@ -1098,31 +1153,30 @@ export async function subscribeBars(
   onBar: (bar: LiveBar) => void,
   getSession: () => SessionId = () => "ETH",
 ): Promise<UnlistenFn> {
-  const isCharted = (s: string) => {
-    const sym = getSymbol();
-    return !!sym && s.toUpperCase() === sym.toUpperCase();
+  // A charted formula takes its legs' bars (see ./spread-symbol).
+  const spread = new SpreadLiveBars((leg) => legCloses.get(leg));
+  /** Pass on the bar of a tick for the charted symbol, or for a leg of the charted formula. */
+  const deliver = (symbol: string, make: () => LiveBar | null) => {
+    const sym = getSymbol()?.toUpperCase();
+    if (!sym) return;
+    const s = symbol.toUpperCase();
+    if (s === sym) {
+      const bar = make();
+      if (bar) onBar(bar);
+      return;
+    }
+    if (!spread.hasLeg(sym, s)) return;
+    const bar = make();
+    if (!bar) return;
+    legCloses.set(s, bar.close);
+    const combined = spread.update(sym, s, bar);
+    if (combined) onBar(combined);
   };
   const [offMinute, offSecond, offTrade, offPluginTrade] = await Promise.all([
-    onChartAggregate((tick) => {
-      if (!isCharted(tick.symbol)) return;
-      const bar = bucketLiveTick(getResolution(), tick, getSession());
-      if (bar) onBar(bar);
-    }),
-    onSecondAggregate((tick) => {
-      if (!isCharted(tick.symbol)) return;
-      const bar = bucketSecondBar(getResolution(), tick, getSession());
-      if (bar) onBar(bar);
-    }),
-    onChartTrade((tick) => {
-      if (!isCharted(tick.symbol)) return;
-      const bar = bucketTrade(getResolution(), tick, getSession());
-      if (bar) onBar(bar);
-    }),
-    onPluginTrade((trade) => {
-      if (!isCharted(trade.symbol)) return;
-      const bar = bucketPluginTrade(getResolution(), trade, getSession());
-      if (bar) onBar(bar);
-    }),
+    onChartAggregate((tick) => deliver(tick.symbol, () => bucketLiveTick(getResolution(), tick, getSession()))),
+    onSecondAggregate((tick) => deliver(tick.symbol, () => bucketSecondBar(getResolution(), tick, getSession()))),
+    onChartTrade((tick) => deliver(tick.symbol, () => bucketTrade(getResolution(), tick, getSession()))),
+    onPluginTrade((trade) => deliver(trade.symbol, () => bucketPluginTrade(getResolution(), trade, getSession()))),
   ]);
   return () => {
     offMinute();

@@ -41,6 +41,7 @@ import { lastNoteOf } from "../../data/symbol-notes";
 import { titleCase } from "../../data/title-case";
 import { AllNotesPage, NotesCard, SymbolNotesPage } from "./notes/SymbolNotes";
 import { serverNow } from "../../data/server-clock";
+import { tickerOf } from "../../data/symbol-name";
 
 const DASH = "—";
 
@@ -107,9 +108,7 @@ function fmtDomain(url: string | null | undefined): string {
 }
 function shortFromSymbol(symbol: string | undefined): string {
   if (!symbol) return "";
-  const head = symbol.split(",")[0].trim();
-  const tail = head.includes(":") ? head.slice(head.indexOf(":") + 1) : head;
-  return tail.trim().toUpperCase();
+  return tickerOf(symbol).trim().toUpperCase();
 }
 
 type Props = {

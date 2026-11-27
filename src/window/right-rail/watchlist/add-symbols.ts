@@ -6,7 +6,7 @@
 import { createSignal, onCleanup } from "solid-js";
 import { type Row } from "../../../data/watchlist";
 import { watchlistStore } from "../../../data/watchlist-store";
-import { resolveSymbol } from "../../../data/datafeed";
+import { isFullSymbol, resolveSymbol, tickerOf } from "../../../data/datafeed";
 import { type WatchlistCx } from "./context";
 import type { Accessor } from "solid-js";
 
@@ -47,7 +47,7 @@ export function createAddSymbols(cx: WatchlistCx): AddSymbolsApi {
   // Add a symbol from the search dialog at the current anchor (deduped). The
   // chart symbol and the dialog stay as they are.
   const addSymbol = (name: string) => {
-    const short = name.split(":").pop() || name;
+    const short = tickerOf(name);
     afterAdd(watchlistStore.addSymbols(
       [{ ticker: name, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }],
       addAnchor(),
@@ -59,11 +59,11 @@ export function createAddSymbols(cx: WatchlistCx): AddSymbolsApi {
   const addMany = (names: string[]) => {
     const anchor = addAnchor();
     void Promise.all(
-      names.map((n) => (n.includes(":") ? Promise.resolve(n) : resolveSymbol(n).then((i) => i.fullName).catch(() => n))),
+      names.map((n) => (isFullSymbol(n) ? Promise.resolve(n) : resolveSymbol(n).then((i) => i.fullName).catch(() => n))),
     ).then((full) => {
       afterAdd(watchlistStore.addSymbols(
         full.map((name) => ({
-          ticker: name, short: name.split(":").pop() || name, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null,
+          ticker: name, short: tickerOf(name), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null,
         })),
         anchor,
       ));

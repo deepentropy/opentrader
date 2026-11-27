@@ -19,6 +19,7 @@ import { createStore } from "solid-js/store";
 import { getTickerSnapshot, isEconomicSymbol, isLocalSymbol, onTradeTick, type TradeTick } from "./datafeed";
 import { setSubscription } from "./subscriptions";
 import { watchlistStore } from "./watchlist-store";
+import { evaluateSpread, isSpreadSymbol, parseSpread, spreadLegs, spreadQuote, type SpreadNode } from "./spread-symbol";
 
 /** Live per-symbol quote. Fields stay null until a tick carries them, so the
  *  static seed value shows until then. `last`/`change`/`changePercent`/`volume`/`dayHigh`/`dayLow` are the regular
@@ -43,7 +44,43 @@ const [quotes, setQuotes] = createStore<Record<string, LiveQuote>>({});
 
 /** Reactive read of one symbol's quote (undefined until a tick arrives). */
 export function quoteFor(symbol: string): LiveQuote | undefined {
-  return quotes[symbol.toUpperCase()];
+  const key = symbol.toUpperCase();
+  return isSpreadSymbol(key) ? spreadQuoteFor(key) : quotes[key];
+}
+
+const trees = new Map<string, { tree: SpreadNode | null; legs: string[] }>();
+
+/** A formula's quote from its legs' (their subscription streams the legs, see setWatchlistSubscription): its last
+ *  price and change (spreadQuote), the day's range as a bar's, the volumes summed. Undefined until every leg has
+ *  one. */
+function spreadQuoteFor(key: string): LiveQuote | undefined {
+  let f = trees.get(key);
+  if (!f) {
+    f = { tree: parseSpread(key), legs: spreadLegs(key) };
+    trees.set(key, f);
+  }
+  const { tree, legs } = f;
+  if (!tree) return undefined;
+  const qs = legs.map((l) => quotes[l]);
+  if (qs.some((q) => !q)) return undefined;
+  const byLeg = new Map(legs.map((l, k) => [l, qs[k]]));
+  const q = spreadQuote(tree, (l) => byLeg.get(l));
+  if (!q) return undefined;
+  const day = [q.last, evaluateSpread(tree, (l) => byLeg.get(l)?.dayHigh ?? undefined), evaluateSpread(tree, (l) => byLeg.get(l)?.dayLow ?? undefined)].filter(
+    (v) => !Number.isNaN(v),
+  );
+  return {
+    last: q.last,
+    change: q.change,
+    changePercent: q.changePercent,
+    extChangePercent: null,
+    volume: qs.reduce((sum, x) => sum + (x.volume ?? 0), 0),
+    dayHigh: Math.max(...day),
+    dayLow: Math.min(...day),
+    time: Math.max(0, ...qs.map((x) => x.time ?? 0)) || null,
+    receivedMs: Math.max(...qs.map((x) => x.receivedMs)),
+    source: qs.some((x) => x.source === "live") ? "live" : qs.some((x) => x.source === "prev") ? "prev" : null,
+  };
 }
 
 function applyTick(t: TradeTick): void {

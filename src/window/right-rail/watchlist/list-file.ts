@@ -4,6 +4,7 @@
  */
 import type { Group, Row } from "../../../data/watchlist";
 import { MAX_LIST_ITEMS } from "../../../data/watchlist-limit";
+import { isSpreadSymbol, spreadShortName } from "../../../data/spread-symbol";
 
 /** Largest file read, in KB. */
 export const MAX_LIST_FILE_KB = 250;
@@ -20,8 +21,8 @@ export const listFileTooBig = (bytes: number): boolean => bytes / 1024 > MAX_LIS
  *  are separated by commas, tabs or new lines (not spaces: a cell of several
  *  words stays one row); an item starting with `###` names a section, and the
  *  symbols after it belong to it until the next one. Symbols before any
- *  section are ungrouped. Items may be bare ("AAPL") or exchange-qualified
- *  ("NASDAQ:AAPL"); dupes are dropped, and empty sections are discarded.
+ *  section are ungrouped. Items may be bare ("AAPL"), exchange-qualified
+ *  ("NASDAQ:AAPL") or formulas ("NASDAQ:AAPL/NASDAQ:MSFT"); dupes are dropped, and empty sections are discarded.
  *  Refused: text with control characters or no item ("format"), more than
  *  MAX_LIST_FILE_ITEMS items ("count"). */
 export function parseWatchlistFile(text: string): { groups: Group[]; extras: Row[] } | { error: ListFileError } {
@@ -44,10 +45,12 @@ export function parseWatchlistFile(text: string): { groups: Group[]; extras: Row
       current = g.rows;
       continue;
     }
-    if (seen.has(tok)) continue;
-    seen.add(tok);
-    const short = tok.includes(":") ? tok.slice(tok.indexOf(":") + 1) : tok;
-    current.push({ ticker: tok, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
+    // A formula ("NASDAQ:AAPL/NASDAQ:MSFT", "AAPL / MSFT") is kept without its spaces.
+    const ticker = isSpreadSymbol(tok) ? tok.replace(/\s+/g, "") : tok;
+    if (seen.has(ticker)) continue;
+    seen.add(ticker);
+    const short = isSpreadSymbol(ticker) ? spreadShortName(ticker) : ticker.includes(":") ? ticker.slice(ticker.indexOf(":") + 1) : ticker;
+    current.push({ ticker, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
   }
   return { groups: groups.filter((g) => g.rows.length > 0), extras };
 }

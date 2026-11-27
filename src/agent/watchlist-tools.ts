@@ -10,6 +10,7 @@ import { allFlags, FLAG_COLORS as FLAGS } from "../data/symbol-flags";
 import { MAX_LIST_ITEMS, listItemCount } from "../data/watchlist-limit";
 import { setActiveRailTab } from "../window/shell/app-dialogs";
 import { AgentError, type AgentTool } from "./mcp";
+import { tickerOf } from "../data/symbol-name";
 
 const names = () => watchlistStore.shownLists().map((l) => l.name).join(", ");
 
@@ -47,7 +48,7 @@ function checkRoom(have: number, adding: number, what: string): void {
   }
 }
 
-const rowOf = (ticker: string): Row => ({ ticker, short: ticker.split(":").pop() || ticker, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
+const rowOf = (ticker: string): Row => ({ ticker, short: tickerOf(ticker), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
 
 /** Show a list in the watchlist panel. */
 function show(l: WatchList): void {
