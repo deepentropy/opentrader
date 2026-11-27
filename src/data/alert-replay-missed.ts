@@ -22,6 +22,7 @@ import { deliverStrategyFill, fillBarTime, strategyReplayReport } from "./alert-
 import { loadIndicatorLibrary } from "../window/chart/indicators/registry";
 import * as kv from "./kv";
 import { isDailyInterval } from "./interval";
+import { serverNow } from "./server-clock";
 
 /** The previous run whose missed bars were read (they are read once). */
 const REPLAYED_KEY = "alerts.replayed-run.v1";
@@ -78,7 +79,7 @@ async function replayInputs(rule: AlertRule, barsBy: Map<string, ChartBar[]>, se
     return bars.map((b) => at.get(b.time) ?? null);
   };
   /** The close of bar i (now for the bar in progress). */
-  const closeAt = (i: number) => Math.min(bars[i].time + stepSec, bars[i + 1]?.time ?? Infinity, Date.now() / 1000);
+  const closeAt = (i: number) => Math.min(bars[i].time + stepSec, bars[i + 1]?.time ?? Infinity, serverNow() / 1000);
   // A compared symbol as the source: the bars read are its own (its price).
   const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
   if (left.kind === "indicator" && !leftSeries) return null;
@@ -143,7 +144,7 @@ async function replayBars(cache: Map<string, ChartBar[]>, symbol: string, resolu
 /** Read the rules evaluated in the window over the bars since the previous
  *  run and deliver what they find. `previous`: per symbol, the time (UNIX
  *  seconds) of its last quote in the previous run. Returns the fires found. */
-export async function replayMissedFires(previous: Record<string, number | null | undefined>, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
+export async function replayMissedFires(previous: Record<string, number | null | undefined>, nowSec = Math.floor(serverNow() / 1000)): Promise<number> {
   let found = 0;
   const barsBy = new Map<string, ChartBar[]>();
   for (const rule of engineRules()) {

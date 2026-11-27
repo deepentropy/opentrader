@@ -92,6 +92,7 @@ import { createTimeAxis } from "./view/time-axis";
 import { createStudySync } from "./view/study-sync";
 import { createStudySettings } from "./view/study-settings";
 import { createPaneEdits } from "./view/pane-edits";
+import { serverNow } from "../../data/server-clock";
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
 let paneSyncSeq = 0;
@@ -691,7 +692,7 @@ export function ChartView(props: ChartViewProps) {
       cx.paintLive(null, appended);
     }
     cx.updateCountdown();
-    cx.setStatusClock(Date.now());
+    cx.setStatusClock(serverNow());
     for (const f of [...cx.onShownHooks]) f();
   }
   let wasShown = !hidden();

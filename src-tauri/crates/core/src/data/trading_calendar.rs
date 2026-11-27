@@ -21,7 +21,7 @@
  * dates for 2019 and 2021-2026 (its list has no 2020 entries, and adds
  * 23/12/2027, which no rule here produces).
  */
-use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use std::collections::HashSet;
 
 /// `n`-th (1-based) `weekday` of a month.
@@ -239,7 +239,7 @@ pub fn ny_date(sec: i64) -> Option<NaiveDate> {
 
 /// Today's New York date.
 pub fn ny_today() -> NaiveDate {
-    ny_date(Utc::now().timestamp()).unwrap_or_else(|| Utc::now().date_naive())
+    ny_date(crate::clock::utc().timestamp()).unwrap_or_else(|| crate::clock::utc().date_naive())
 }
 
 #[cfg(test)]

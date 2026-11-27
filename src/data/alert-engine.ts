@@ -58,6 +58,7 @@ import { clearStudyCaches, fetchedBars, indicatorOperandValue, INDICATOR_POLL_MS
 import { deliverFire } from "./alert-delivery";
 import { evaluateAlertCalls, evaluateStrategy } from "./alert-strategies";
 import { replayMissedOnce } from "./alert-replay-missed";
+import { serverNow } from "./server-clock";
 
 export { onAlertFire } from "./alert-delivery";
 
@@ -146,7 +147,7 @@ function conditionValues(c: AlertRule, ctx: EvalContext, timeSec: number, ref: n
 function onTick(t: TradeTick): void {
   const symbol = t.symbol.toUpperCase();
   lastTicks.set(symbol, t);
-  const now = Date.now();
+  const now = serverNow();
   const bar = minuteBarOf(t);
   // Every quote moves the range, read or not.
   const range = ranges.take(symbol, bar, now / 1000);
@@ -359,7 +360,7 @@ export function startAlertEngine(windowLabel = "main"): void {
     // symbol trades. One timer for the nearest expiry, re-armed on changes
     // (delay capped: setTimeout overflows past ~24.8 days).
     createEffect(() => {
-      const now = Date.now();
+      const now = serverNow();
       let next = Infinity;
       for (const r of engineRules()) {
         if (r.expiresAt == null) continue;

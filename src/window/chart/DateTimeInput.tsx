@@ -25,6 +25,7 @@ import {
 } from "../bottom-bar/GoToDateDialog";
 import { TimeInput } from "../bottom-bar/TimeInput";
 import { timestamp } from "../../backtester/pine";
+import { serverNow } from "../../data/server-clock";
 
 type Props = {
   /** UNIX ms. */
@@ -134,7 +135,7 @@ export function DateTimeInput(props: Props) {
                               role="cell"
                               aria-label={ariaDay(d)}
                               aria-colindex={dowMondayFirst(d) + 1}
-                              class={"goto-dialog-cal-day" + (ymd(d) === ymd(current().date) ? " is-accent" : "") + (ymd(d) === ymd(new Date()) ? " is-current" : "")}
+                              class={"goto-dialog-cal-day" + (ymd(d) === ymd(current().date) ? " is-accent" : "") + (ymd(d) === ymd(new Date(serverNow())) ? " is-current" : "")}
                               onClick={() => {
                                 commit(d, current().minutes);
                                 input.value = ymd(d);

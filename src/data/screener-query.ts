@@ -25,6 +25,7 @@ import {
   type Screen,
 } from "./screener-catalog";
 import { valueText } from "./screener-format";
+import { serverNow } from "./server-clock";
 
 // ── Filter state ──────────────────────────────────────────────────────────
 
@@ -200,7 +201,7 @@ const DAY_SEC = 86400;
 
 /** UNIX seconds of the first and last second of a relative date range (RELATIVE_DATES) around `now`'s day in New
  *  York; null for an unknown range. Days are UTC midnights, as the column holds them. */
-export function relativeDateRange(value: string, now = new Date()): [number, number] | null {
+export function relativeDateRange(value: string, now = new Date(serverNow())): [number, number] | null {
   const r = RELATIVE_DATES[value];
   if (!r) return null;
   const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })

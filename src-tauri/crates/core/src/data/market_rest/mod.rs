@@ -104,6 +104,9 @@ async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Re
             .send()
             .await
             .map_err(|e| ApiError::transport(what, format!("request failed: {}", e.without_url())))?;
+        if let Some(ms) = resp.headers().get(crate::clock::HEADER).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<f64>().ok()) {
+            crate::clock::observe(ms, crate::clock::Source::Gateway);
+        }
         let status = resp.status();
         if status.is_success() {
             crate::data::install_token::mark_served();

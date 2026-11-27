@@ -16,6 +16,7 @@ import * as kv from "./kv";
 import { oneOf, persisted } from "./persisted";
 import { intervalSeconds, isDailyInterval, parseInterval } from "./interval";
 import type { WallDate, WallTime } from "../window/chart/day-key";
+import { serverNow } from "./server-clock";
 
 /** Which charts a replay covers (the header "Replay mode" menu). */
 export type ReplayMode = "ActiveChart" | "AllCharts";
@@ -753,7 +754,7 @@ export function selectRandom(inSession: (sec: number) => boolean = () => true) {
   const s = cur();
   const first = firstAvailableOf(s);
   if (first === null) return;
-  const now = Date.now() / 1000;
+  const now = serverNow() / 1000;
   let t = first;
   for (let i = 0; i < 10; i++) {
     t = first + Math.round((now - first) * Math.random());

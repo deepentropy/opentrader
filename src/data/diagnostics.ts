@@ -13,6 +13,7 @@ import { replayStarted, replayTiming, replayUpdateInterval } from "./replay";
 import { appUpdateStatus } from "./app-update";
 import { zoom } from "./app-zoom";
 import { currentLanguage } from "../i18n/language";
+import { serverClockOffset } from "./server-clock";
 import { getIndicatorEntry, indicatorName, loadIndicatorLibrary } from "../window/chart/indicators/registry";
 import type { AppTabs } from "../window/shell/app-tabs";
 import type { DrawingStore } from "../window/drawings/drawing-store";
@@ -55,6 +56,8 @@ export type Diagnostics = {
   plugins: { name: string; version: string; provides: string[]; enabled: boolean; connected: boolean }[];
   /** Desktop: the proxy's type only (no server or credentials) and the update state with its error. */
   network?: { proxy: string; update: string };
+  /** The server clock (#422): how far this computer's clock is behind it, and where its time came from. */
+  clock?: { offsetMs: number; source: string | null };
   errors: LoggedError[];
   at: number;
 };
@@ -117,6 +120,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
       ])
     : [null, null, null];
   const proxy = desktop ? await commands.getProxySettings().catch(() => null) : null;
+  const reading = await commands.serverClock().catch(() => null);
   const update = appUpdateStatus();
   const plugins = status?.plugins ?? [];
   await loadIndicatorLibrary().catch(() => undefined);
@@ -138,6 +142,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
     language: currentLanguage(),
     tabs: { count: host?.tabs.tabs().length ?? 0, layout: tab?.layout ?? "", charts: tab?.panes.length ?? 0 },
     charts,
+    clock: { offsetMs: serverClockOffset(), source: reading?.source ?? null },
     replay: on ? { on, timing: TIMING_NAMES[replayTiming()] ?? replayTiming(), update: replayUpdateInterval() } : { on },
     plugins: plugins.map((p) => ({
       name: p.manifest.name,
@@ -204,6 +209,7 @@ export function formatDiagnostics(d: Diagnostics): string {
       }`,
     );
   }
+  if (d.clock) lines.push(`- Clock: ${clockLine(d.clock)}`);
   if (d.network) lines.push(`- Proxy: ${d.network.proxy}; app update: ${d.network.update.replace(/\n/g, " ")}`);
   if (d.errors.length) {
     lines.push(`- Recent errors (oldest first):`);
@@ -216,6 +222,14 @@ export function formatDiagnostics(d: Diagnostics): string {
 }
 
 /** The report, read now, as Markdown. */
+/** "3.2 s behind the server (gateway)": how far off this computer's clock is. */
+export function clockLine(c: { offsetMs: number; source: string | null }): string {
+  if (c.source === null) return "no server time, the computer's clock";
+  const s = (Math.abs(c.offsetMs) / 1000).toFixed(1);
+  if (s === "0.0") return `on time with the server (${c.source})`;
+  return `${s} s ${c.offsetMs > 0 ? "behind" : "ahead of"} the server (${c.source})`;
+}
+
 export async function diagnosticsText(): Promise<string> {
   return formatDiagnostics(await collectDiagnostics());
 }

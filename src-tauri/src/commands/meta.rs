@@ -24,6 +24,31 @@ pub fn get_provider_capabilities(provider: State<'_, Provider>) -> ProviderCapab
     core::provider_capabilities(&provider)
 }
 
+/// The server clock (#422), see `opentrader_core::clock`.
+#[tauri::command]
+#[specta::specta]
+pub fn server_clock() -> opentrader_core::clock::Reading {
+    core::server_clock()
+}
+
+/// The server clock moved by a second or more: the windows read it again.
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerClockChanged {
+    /// How far the computer's clock is behind the server's, in milliseconds.
+    pub offset: f64,
+}
+
+/// Tell the windows and the plugins when the server clock moves.
+pub fn init_server_clock(app: &tauri::AppHandle) {
+    use tauri_specta::Event as _;
+    let app = app.clone();
+    opentrader_core::clock::on_change(move || {
+        let _ = ServerClockChanged { offset: opentrader_core::clock::reading().offset }.emit(&app);
+        crate::plugins::tell_clock(&app);
+    });
+}
+
 /// Write a PNG snapshot and a page showing it to temp files and open the page
 /// in the default web browser (the local backing for "Open image in new tab").
 #[tauri::command]

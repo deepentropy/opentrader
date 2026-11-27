@@ -6,7 +6,7 @@ use super::corporate_actions::split_epoch;
 use super::{get_json, seg, Candle};
 use crate::data::trading_calendar;
 use anyhow::Result;
-use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, NaiveDate};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -163,7 +163,7 @@ pub async fn fetch_second_tail(
     adjusted: bool,
 ) -> Result<Vec<Candle>> {
     let from_ms = ((since_sec.max(0.0)) as i64) * 1000;
-    let to_ms = Utc::now().timestamp_millis();
+    let to_ms = crate::clock::utc().timestamp_millis();
     fetch_aggs(
         ticker,
         mult,
@@ -215,7 +215,7 @@ pub async fn fetch_daily_aggs(
 /// plan's history floor, so the first bar marks the plan floor and not the
 /// listing date. A range wholly outside the plan answers `NOT_ENTITLED`.
 pub async fn probe_oldest_bar(ticker: &str, timespan: &str) -> Result<(Option<NaiveDate>, bool)> {
-    let to = Utc::now().date_naive();
+    let to = crate::clock::utc().date_naive();
     let from = to - ChronoDuration::days(30 * 366);
     let answer: BarsAnswer = get_json(
         "entitlement probe",

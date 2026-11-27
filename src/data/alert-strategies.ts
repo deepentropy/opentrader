@@ -17,6 +17,7 @@ import { DEFAULT_SESSION } from "./alert-bars";
 import { ALERTS_CHART, CLOSED_BARS, fetchedBars, INDICATOR_COMPUTE_MS, liveBarState, newCallsRun, pollDrawingBars, runStudy, studyAlertCallsNow, type AlertCallsRun } from "./alert-studies";
 import { deliverFire } from "./alert-delivery";
 import { ruleRuntimes } from "./alert-rule-state";
+import { serverNow } from "./server-clock";
 
 /** Fire the alert() calls of `rule` that the newest run allows. */
 export function evaluateAlertCalls(rule: AlertRule, price: number): void {
@@ -145,7 +146,7 @@ export function evaluateStrategy(rule: AlertRule, price: number): void {
   if (rule.op !== "strategy_alerts" && run.report) {
     const newest = run.given[run.given.length - 1];
     const runtime = ruleRuntimes.get(rule.id);
-    const { fire, state } = newStrategyFills(runtime.strategy, run.report, newest ? newest.time * 1000 : Date.now());
+    const { fire, state } = newStrategyFills(runtime.strategy, run.report, newest ? newest.time * 1000 : serverNow());
     runtime.strategy = state;
     for (const e of fire) deliverStrategyFill(rule, e, price, fillBarTime(e.fill.time, run.bars, run.given));
   }

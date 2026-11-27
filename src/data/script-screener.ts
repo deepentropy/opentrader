@@ -44,6 +44,7 @@ import {
   type ScriptRow,
   type SessionBar,
 } from "./script-screen";
+import { serverNow } from "./server-clock";
 
 /** Trading days of daily history per interval: ~3 years of daily bars, ~5 years of weekly and monthly ones (within
  *  the recent history window, so no archive download). */
@@ -173,7 +174,7 @@ export async function runScriptScan(spec: ScanSpec, ev: ScanEvents): Promise<voi
 
 /** Bars of a symbol on the interval, regular session, oldest first; `forming`: the newest one is not closed yet. */
 async function symbolBars(symbol: string, spec: ScanSpec, live: Map<string, SessionBar>): Promise<{ candles: Candle[]; forming: boolean }> {
-  const now = Date.now() / 1000 - DATA_DELAY_SEC;
+  const now = serverNow() / 1000 - DATA_DELAY_SEC;
   const mins = intradayMinutes(spec.interval);
   if (mins !== null) {
     const { bars } = await getBars(symbol, spec.interval, "RTH");
@@ -219,6 +220,7 @@ async function scanSymbol(
     const context = {
       ...scriptChartContext(symbol, spec.interval, "RTH"),
       realtime: false,
+      now: serverNow(),
       lastBarConfirmed: true,
       lastBarNew: true,
     };

@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
@@ -90,7 +90,7 @@ pub struct AlertEngineInfo {
 }
 
 fn now_sec() -> f64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0.0, |d| d.as_secs_f64())
+    opentrader_core::clock::now_ms() / 1000.0
 }
 
 /// Create the engine with what the previous run saved. Call from `setup`.

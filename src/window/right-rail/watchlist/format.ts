@@ -7,6 +7,7 @@ import { marketSession } from "../../../data/market-session";
 import { cachedSymbolSessions } from "../../../data/session";
 import { localNumber } from "../../../i18n/format";
 import { groupThousands } from "../../chart/price-format";
+import { serverNow } from "../../../data/server-clock";
 
 export function isNegative(v: string): boolean {
   return v.startsWith("−") || v.startsWith("-");
@@ -51,7 +52,7 @@ export function fmtVolume(v: number): string {
  *  (Ext column + amber status dot), "closed" = grey dot. A symbol whose
  *  session is not resolved yet shows neither (as "regular"). */
 export type MarketState = "regular" | "extended" | "closed";
-export function marketState(symbol: string, now: Date = new Date()): MarketState {
+export function marketState(symbol: string, now: Date = new Date(serverNow())): MarketState {
   const s = marketSession(symbol, now);
   return s === "closed" ? "closed" : s === "pre" || s === "post" ? "extended" : "regular";
 }

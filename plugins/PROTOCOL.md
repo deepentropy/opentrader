@@ -1,6 +1,6 @@
 # OpenTrader Plugin API
 
-Plugin API version **11**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). Version 8 adds a data plugin's word that its symbols' info changed (`data.symbolInfoChanged`), short messages that go away by themselves (`plugin.toast`) and a data plugin's scripts (`data.scripts`). Version 9 adds the ticker a symbol trades as (`tradeTicker`). Version 10 adds what scripts read of an instrument (`root`, `expiration`, `isin`, `baseCurrency`, `country`, `sector`, `industry`, `volumeType`). Version 11 adds the bid and ask of a quote (`bid`, `ask`, `bidSize`, `askSize` in `data.quote`). A plugin of an earlier version works unchanged.
+Plugin API version **12**. Version 2 adds `exchanges` (a data plugin serving several exchanges). Version 3 adds `password` settings, settings shown for another setting's value (`when`), a data folder for each plugin (`OPENTRADER_PLUGIN_DATA`), prompts to the user (`plugin.prompt`) and what the plugin is used for (`provides` in `plugin.configure`). Version 4 adds a data plugin's ready-made watchlists (`data.watchlists`). Version 5 adds a data plugin's symbol events: dividends, splits and earnings (`data.events`). Version 6 adds a symbol's extra series such as its open interest (`series`) and its instrument values (`fields`). Version 7 adds a broker's own tabs in the account manager, such as Holdings (`pages` in `broker.state`). Version 8 adds a data plugin's word that its symbols' info changed (`data.symbolInfoChanged`), short messages that go away by themselves (`plugin.toast`) and a data plugin's scripts (`data.scripts`). Version 9 adds the ticker a symbol trades as (`tradeTicker`). Version 10 adds what scripts read of an instrument (`root`, `expiration`, `isin`, `baseCurrency`, `country`, `sector`, `industry`, `volumeType`). Version 11 adds the bid and ask of a quote (`bid`, `ask`, `bidSize`, `askSize` in `data.quote`). Version 12 adds the app's server clock (`plugin.clock`) and a plugin's server time (`data.serverTime`). A plugin of an earlier version works unchanged.
 
 A plugin is a program outside OpenTrader that supplies:
 
@@ -118,6 +118,22 @@ A newer connection of the same plugin replaces the older one. When the plugin is
 | app → plugin | `plugin.promptAnswer` | notification | `{"id":"…","value":"…"}`: the user's answer to a prompt with an `input`; `value` is `null` when they cancelled. |
 | plugin → app | `plugin.promptDone` | notification | `{"id":"…"}`: closes the prompt (what it waited for happened). |
 | plugin → app | `plugin.toast` | notification | A short message that goes away by itself (Plugin API 8), see below. |
+| app → plugin | `plugin.clock` | notification | The app's server clock (Plugin API 12), see below. |
+| plugin → app | `data.serverTime` | notification | Your server's time (Plugin API 12), see below. |
+
+### Server clock
+
+The app keeps one clock for the market's time: the countdown, the market status, the session's day, and the time of a quote sent without one. It takes it from its own data server, so a computer whose clock is wrong still shows the right time. Between two readings it runs on its own, so a change of the computer's clock does not move it. Without a server time, it is the computer's clock.
+
+`plugin.clock` (app → plugin, Plugin API 12) is sent after `plugin.configure` and whenever the clock moves by a second or more:
+
+```json
+{"time":1795783190223,"offset":3001,"source":"gateway"}
+```
+
+`time` is the server time (UNIX milliseconds) when it was sent, `offset` how far the computer's clock is behind it (milliseconds, negative when ahead), `source` where it came from (`"gateway"`, `"plugin"`, or `null` for the computer's clock). A plugin that stamps its quotes with the computer's clock adds `offset` to its times. Times the source gives (an exchange's time of a trade) need nothing.
+
+`data.serverTime` (plugin → app, Plugin API 12): `{"time":1795783190223}`, your server's time in UNIX milliseconds, just read (from a connection's answer or messages). The app uses it when it has no time of its own data server: the app's comes first. Send it when you connect and every few minutes, not with every quote.
 
 ### Prompts
 
@@ -258,7 +274,7 @@ Send this for every subscribed ticker on each price change. Several per second a
 |---|---|
 | `price` | The last price, or the bid when the source has no trades. |
 | `minute` | The forming 1-minute bar. It updates the chart's last bar at every minute-based interval. |
-| `time` | When the price was quoted. On a seconds chart, the quote's price goes into the seconds bar of that time, with the volume the `minute` bar (else the `day` bar) gained since the quote before. |
+| `time` | When the price was quoted: the exchange's time when the source gives one, else the computer's clock plus the `offset` of `plugin.clock`. Left out, the app's server clock stamps it. On a seconds chart, the quote's price goes into the seconds bar of that time, with the volume the `minute` bar (else the `day` bar) gained since the quote before. |
 | `day` | The forming daily bar. It updates daily, weekly and monthly charts. |
 | `prevClose` | The previous session's close. It gives the change shown in watchlists. |
 | `bid`, `ask`, `bidSize`, `askSize` | Optional (Plugin API 11): the best bid and ask and their sizes. A chart of the symbol draws them as its bid and ask lines and labels. Send them in each quote where they changed; a quote without them keeps the last ones. |

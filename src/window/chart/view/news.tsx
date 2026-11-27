@@ -8,6 +8,7 @@ import { getLatestNews, isSecondResolution, type NewsItem } from "../../../data/
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { type ChartCx } from "./context";
 import type { Accessor, JSX, Setter } from "solid-js";
+import { serverNow } from "../../../data/server-clock";
 
 /** What createNews adds to the chart context. */
 export interface NewsApi {
@@ -43,7 +44,7 @@ export function createNews(cx: ChartCx): NewsApi {
         .then((list) => {
           if (!alive) return;
           const it = list[0] ?? null;
-          const fresh = it && Date.now() - it.published < NEWS_MAX_AGE_MS ? it : null;
+          const fresh = it && serverNow() - it.published < NEWS_MAX_AGE_MS ? it : null;
           if (lastId !== undefined && fresh && fresh.id !== lastId) setNewsHasNew(true);
           lastId = fresh?.id ?? null;
           setNews(fresh);
@@ -127,7 +128,7 @@ export function createNews(cx: ChartCx): NewsApi {
                 }}
               >
                 <div class="ot-news-item-header">
-                  <span><time title={formatNewsDate(news()!.published)}>{formatAgo(news()!.published, Date.now())}</time></span>
+                  <span><time title={formatNewsDate(news()!.published)}>{formatAgo(news()!.published, serverNow())}</time></span>
                   <span>{news()!.publisher}</span>
                 </div>
                 <div class="ot-news-item-title">{news()!.title}</div>

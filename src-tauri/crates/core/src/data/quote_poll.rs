@@ -86,7 +86,7 @@ async fn run_poller(app: HostRef, mut rx: mpsc::Receiver<SubscribeMsg>) {
     loop {
         tokio::select! {
             _ = ticker.tick() => {
-                if p.due(Utc::now()) {
+                if p.due(crate::clock::utc()) {
                     p.poll().await;
                 }
             }

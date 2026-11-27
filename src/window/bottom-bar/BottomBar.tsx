@@ -22,6 +22,7 @@ import { lastGotoDate, queryGotoContext, rememberGotoDate } from "../chart/goto-
 import type { TimezoneEntry } from "../../data/timezones";
 import { isAdjusted, isIntradayInterval, setAdjusted as storeAdjusted } from "../../data/datafeed";
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
+import { serverNow } from "../../data/server-clock";
 
 export type DateRangeId = "1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
 
@@ -109,7 +110,7 @@ export function BottomBar(props: Props) {
   // chart's interval and stay highlighted only while that interval still
   // matches their preset (mirrors the mock).
   const [pickedRange, setPickedRange] = createSignal<DateRangeId | null>(null);
-  const [clock, setClock] = createSignal(formatClock(new Date(), props.timezoneIana));
+  const [clock, setClock] = createSignal(formatClock(new Date(serverNow()), props.timezoneIana));
   // Popover anchors (drop-up menus open above their trigger).
   const [tzAnchor, setTzAnchor] = createSignal<DOMRect | null>(null);
   const [sessionAnchor, setSessionAnchor] = createSignal<DOMRect | null>(null);
@@ -150,7 +151,7 @@ export function BottomBar(props: Props) {
   });
 
   onMount(() => {
-    const tick = () => setClock(formatClock(new Date(), props.timezoneIana));
+    const tick = () => setClock(formatClock(new Date(serverNow()), props.timezoneIana));
     tick();
     const id = window.setInterval(tick, 1000);
     const measure = () => {
@@ -189,7 +190,7 @@ export function BottomBar(props: Props) {
     });
   });
   // Re-render the clock immediately when the timezone changes.
-  createEffect(() => setClock(formatClock(new Date(), props.timezoneIana)));
+  createEffect(() => setClock(formatClock(new Date(serverNow()), props.timezoneIana)));
 
   return (
     <div class="chart-controls-bar bottom-bar" data-is-chart-toolbar-component="true">

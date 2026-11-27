@@ -22,6 +22,7 @@ import { normalizeTime, TimeInput } from "./TimeInput";
 import { createDialogKeys } from "../../components/Dialog";
 import { createPopover } from "../../components/popover";
 import * as kv from "../../data/kv";
+import { serverNow } from "../../data/server-clock";
 
 type Props = {
   anchor: DOMRect;
@@ -156,7 +157,7 @@ const TAB_KEY = "ot:goto-dialog-tab";
 type TabId = "date" | "customrange";
 
 export function GoToDateDialog(props: Props) {
-  const today = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; })();
+  const today = (() => { const t = new Date(serverNow()); t.setHours(0, 0, 0, 0); return t; })();
   // Date tab start: the last submitted date + time of the session, else today
   // 00:00; a DWM chart shows it at 00:00 (the reference app `resetToDayStart`).
   const initial = props.initial ? wallToDate(props.initial) : today;
@@ -174,7 +175,7 @@ export function GoToDateDialog(props: Props) {
   // date, then arm the other (first click = From, second = To). They start on
   // the active chart's first / last fully visible bars, else on now.
   const nowWall = (): WallTime => {
-    const n = new Date();
+    const n = new Date(serverNow());
     return { y: n.getFullYear(), m: n.getMonth(), d: n.getDate(), minutes: n.getHours() * 60 + n.getMinutes() };
   };
   const rangeStart = props.initialRange ?? { from: nowWall(), to: nowWall() };

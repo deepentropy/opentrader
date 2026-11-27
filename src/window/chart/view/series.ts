@@ -19,6 +19,7 @@ import { isEconomicSymbol, isIntradayInterval, isLocalSymbol, splitSymbol } from
 import { cachedSymbolSessions } from "../../../data/session";
 import { barsSpan } from "./helpers";
 import { type ChartCx } from "./context";
+import { serverNow } from "../../../data/server-clock";
 
 /** What createSeries adds to the chart context. */
 export interface SeriesApi {
@@ -74,7 +75,7 @@ export function createSeries(cx: ChartCx): SeriesApi {
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
     if (!last || typeof last.time !== "number" || isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol)) return false;
     const sessions = cachedSymbolSessions(props.symbol ?? "");
-    return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
+    return countdownText(props.interval ?? "1D", serverNow() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
   }
   const dataExtras = () => ({
     subMinute: cx.subMinute ?? undefined,

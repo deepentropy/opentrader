@@ -18,6 +18,7 @@ import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
 import { localNumber } from "../../../i18n/format";
 import type { Setter } from "solid-js";
+import { serverNow } from "../../../data/server-clock";
 
 /** A compared symbol as an alert source: "Microsoft Corp. (NASDAQ)", its
  *  last value and price format. */
@@ -176,7 +177,7 @@ export function createCompare(cx: ChartCx): CompareApi {
     const last = cx.raw[cx.raw.length - 1].time as number;
     const have0 = bars.length ? (bars[0].time as number) : Infinity;
     const have1 = bars.length ? (bars[bars.length - 1].time as number) : -Infinity;
-    const now = Date.now() / 1000;
+    const now = serverNow() / 1000;
     const step = Number(iv) * 60 || 60;
     const needOld = first < have0 - step;
     const needNew = last > have1 + step && have1 < now - 2 * step;

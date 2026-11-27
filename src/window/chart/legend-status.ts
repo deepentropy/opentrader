@@ -13,6 +13,7 @@ import type { SymbolSessions } from "../../data/session";
 import { cachedSymbolSessions, localDay, localToUtc, weekdayOf, zoneOffsetFinder } from "../../data/session";
 import { zoneCity } from "../../data/symbol-info";
 import { translateWith } from "../../i18n/translator";
+import { serverNow } from "../../data/server-clock";
 
 export type MarketStatusKind = "open" | "pre" | "post" | "closed" | "holiday";
 
@@ -32,7 +33,7 @@ export const STATUS_ITEMS: Record<MarketStatusKind, { title: string; color: stri
 };
 
 /** The legend pill's status: a weekday with no session reads "Holiday". */
-export function pillStatus(symbol: string | undefined, status: "open" | "pre" | "post" | "closed", sec = Date.now() / 1000): MarketStatusKind {
+export function pillStatus(symbol: string | undefined, status: "open" | "pre" | "post" | "closed", sec = serverNow() / 1000): MarketStatusKind {
   if (status !== "closed" || !symbol) return status;
   const s = cachedSymbolSessions(symbol);
   return s ? marketStatusAt(s, sec) : status;

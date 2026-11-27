@@ -263,7 +263,7 @@ impl Sources {
                 }
             }));
         }
-        let expected = clock::last_closed_session(chrono::Utc::now());
+        let expected = clock::last_closed_session(crate::clock::utc());
         let stale = self.state.as_ref().map(|s| s.asof) < expected;
         if stale && self.state_task.is_none() && self.state_checked.is_none_or(|t| t.elapsed() >= STATE_RECHECK) {
             self.state_checked = Some(Instant::now());
@@ -391,7 +391,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
             return;
         }
         let started = Instant::now();
-        let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
+        let today = clock::ny_date_ms(crate::clock::utc().timestamp_millis() as f64);
         let wanted: Vec<String> = inner.custom.locked().iter().cloned().collect();
         src.start(today, &wanted, &inner.downloads).await;
 
@@ -542,7 +542,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
 /// One pass of the background prefetch: the state of the last closed session and today's reference list, each
 /// only when the copy on disk is older.
 async fn prefetch() {
-    let now = chrono::Utc::now();
+    let now = crate::clock::utc();
     let expected = clock::last_closed_session(now);
     let have = state::cached_asof();
     if have < expected {

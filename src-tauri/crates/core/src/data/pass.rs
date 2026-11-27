@@ -98,7 +98,7 @@ pub async fn wait_live(timeout: std::time::Duration) -> bool {
 
 /// The pass the gateway calls send now, if any.
 pub fn current() -> Option<String> {
-    cell().borrow().usable(chrono::Utc::now().timestamp()).map(str::to_string)
+    cell().borrow().usable(crate::clock::utc().timestamp()).map(str::to_string)
 }
 
 /// The pass and the session's key, once this device's real-time stream session
@@ -106,7 +106,7 @@ pub fn current() -> Option<String> {
 pub fn current_live() -> Option<(String, String)> {
     let s = cell().borrow();
     let session = s.session.clone()?;
-    s.usable(chrono::Utc::now().timestamp()).map(|p| (p.to_string(), session))
+    s.usable(crate::clock::utc().timestamp()).map(|p| (p.to_string(), session))
 }
 
 /// Real-time data is asked for (a usable pass): the tier the entitlements are probed for.

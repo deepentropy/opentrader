@@ -114,7 +114,7 @@ pub async fn get_second_history_tail(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     if let Some(r) = plugin::route(&app, &symbol) {
-        let to = chrono::Utc::now().timestamp() as f64;
+        let to = opentrader_core::clock::now();
         return plugin::bars(&app, &r, "second", mult, since_sec + 1.0, to, 5_000).await;
     }
     plugin::refuse_idle(&app, &symbol)?;

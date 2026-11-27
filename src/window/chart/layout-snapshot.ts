@@ -15,6 +15,7 @@
  * A maximized chart is alone in the image (the hidden charts take no part).
  */
 
+import { serverNow } from "../../data/server-clock";
 /** One piece of a legend line; no colour = the chart's text colour. */
 export type LegendRun = { text: string; color?: string };
 
@@ -214,7 +215,7 @@ export async function layoutSnapshot(grid: HTMLElement, theme: SnapshotTheme, ti
   const font = shots[0].fontFamily;
   const pos = place(shots, dpr);
   const lineH = Math.ceil(FONT_SIZE * LINE_SPACING * dpr);
-  const header = [`Created with OpenTrader, ${snapshotDate(new Date(), timeZone)}`];
+  const header = [`Created with OpenTrader, ${snapshotDate(new Date(serverNow()), timeZone)}`];
   const headerH = lineH * header.length;
   let w = 0;
   let h = 0;

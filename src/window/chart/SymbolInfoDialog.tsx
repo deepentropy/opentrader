@@ -19,6 +19,7 @@ import { symbolInfoGroups, type InfoField } from "../../data/symbol-info";
 import { fieldText, pluginFields } from "../../data/plugin-fields";
 import { sessionTimeline } from "./legend-status";
 import { SessionTimelineView } from "./LegendStatusPopup";
+import { serverNow } from "../../data/server-clock";
 
 type Props = { symbol: string; onClose: () => void };
 
@@ -30,7 +31,7 @@ export function SymbolInfoDialog(props: Props) {
   // A data plugin's instrument values (circuit limits…): a group of their own after the symbol's (#383).
   const plugin = pluginFields(() => props.symbol);
   const [allDays, setAllDays] = createSignal(false);
-  const [now, setNow] = createSignal(Math.floor(Date.now() / 1000));
+  const [now, setNow] = createSignal(Math.floor(serverNow() / 1000));
   const groups = createMemo(() => {
     const i = info();
     const exchange = splitSymbol(props.symbol).exchange;
@@ -60,7 +61,7 @@ export function SymbolInfoDialog(props: Props) {
   });
 
   onMount(() => {
-    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000);
+    const timer = setInterval(() => setNow(Math.floor(serverNow() / 1000)), 30_000);
     onCleanup(() => clearInterval(timer));
   });
 

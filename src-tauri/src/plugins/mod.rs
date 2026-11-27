@@ -342,6 +342,7 @@ pub fn init(app: &AppHandle) {
                     // OpenAlgo plugin dropped a watchlist subscription that came before its exchanges). The
                     // subscriptions follow from this same task, so they reach the plugin in this order.
                     configure(&handle, &plugin);
+                    clock_to(&handle, &plugin);
                     data::connected(&handle, &plugin);
                     broker::connected(&handle, &plugin);
                     changed(&handle);
@@ -380,6 +381,12 @@ pub fn init(app: &AppHandle) {
                         None => log(&handle, &plugin, "[error] plugin.toast: no message"),
                     }
                 }
+                Ok(HubEvent::Notification { method, params, .. }) if method == "data.serverTime" => {
+                    // A plugin's server time (Plugin API 12): the clock takes it when the gateway gave none.
+                    if let Some(ms) = params.get("time").and_then(|v| v.as_f64()) {
+                        opentrader_core::clock::observe(ms, opentrader_core::clock::Source::Plugin);
+                    }
+                }
                 Ok(HubEvent::Notification { plugin, method, params }) if method == "log" => {
                     let level = params.get("level").and_then(|v| v.as_str()).unwrap_or("info");
                     let message = params.get("message").and_then(|v| v.as_str()).unwrap_or_default();
@@ -411,6 +418,26 @@ fn configure(app: &AppHandle, id: &str) {
     }
     let provides = installed_manifest(app, id).map(|m| in_use(&m, &off)).unwrap_or_default();
     let _ = state.hub.notify(id, "plugin.configure", serde_json::json!({ "settings": all, "provides": provides }));
+}
+
+/// The app's server clock for a plugin (`plugin.clock`, Plugin API 12): a plugin that stamps its quotes with the
+/// computer's clock adds `offset` to stay with the server.
+fn clock_to(app: &AppHandle, id: &str) {
+    let state = app.state::<Plugins>();
+    if state.hub.connected(id).is_none_or(|h| h.api < 12) {
+        return;
+    }
+    let r = opentrader_core::clock::reading();
+    let params = serde_json::json!({ "time": r.now.round(), "offset": r.offset.round(), "source": r.source });
+    let _ = state.hub.notify(id, "plugin.clock", params);
+}
+
+/// Tell the connected plugins that the server clock moved.
+pub fn tell_clock(app: &AppHandle) {
+    let ids: Vec<String> = app.state::<Plugins>().config.locked().plugins.keys().cloned().collect();
+    for id in ids {
+        clock_to(app, &id);
+    }
 }
 
 /// Make the running state follow the config: the plugins allowed in, the API listening or not, the connection files,

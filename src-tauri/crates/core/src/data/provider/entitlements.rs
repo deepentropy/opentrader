@@ -100,7 +100,7 @@ fn write_cache(provider: &str, credential: &str, ent: &Entitlements) {
 /// is rolling, and a plan change must be picked up).
 fn is_stale(ent: &Entitlements) -> bool {
     DateTime::parse_from_rfc3339(&ent.checked_at)
-        .map(|t| t.with_timezone(&Utc).date_naive() != Utc::now().date_naive())
+        .map(|t| t.with_timezone(&Utc).date_naive() != crate::clock::utc().date_naive())
         .unwrap_or(true)
 }
 

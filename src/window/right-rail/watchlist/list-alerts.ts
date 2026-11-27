@@ -13,6 +13,7 @@ import { alertSettings } from "../../../data/alert-settings";
 import { playAlertSound } from "../../../data/alert-sounds";
 import { setSubscription } from "../../../data/subscriptions";
 import { cachedSymbolSessions, localDay } from "../../../data/session";
+import { serverNow } from "../../../data/server-clock";
 
 // ── List alerts (module singleton) ───────────────────────────────────────────
 // Notify when a symbol of a list with an alert moves by at least the list's
@@ -41,7 +42,7 @@ function fireListAlert(title: string, body: string, listId: string, symbol: stri
     resolution: "1D",
     name: title,
     message: body,
-    fireTime: Date.now(),
+    fireTime: serverNow(),
     barTime: null,
     soundFile: LIST_ALERT_SOUND,
     logoUrl: null,
@@ -82,7 +83,7 @@ createRoot(() => {
   createEffect(() => {
     if (currentWindowLabel() !== "main") return;
     // Drop fired keys older than a week (one per symbol and day).
-    const today = Math.floor(Date.now() / 86400000);
+    const today = Math.floor(serverNow() / 86400000);
     let pruned = false;
     for (const k of [...firedAlerts]) {
       const d = Number(k.split(":").pop());
@@ -102,7 +103,7 @@ createRoot(() => {
         // Once per symbol per trading day (exchange day; local day until the
         // symbol's session is known).
         const tz = cachedSymbolSessions(r.ticker)?.timeZone;
-        const day = tz ? localDay(tz, Date.now() / 1000) : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+        const day = tz ? localDay(tz, serverNow() / 1000) : Math.floor((serverNow() - new Date().getTimezoneOffset() * 60000) / 86400000);
         const key = `${list.id}:${r.short.toUpperCase()}:${day}`;
         if (firedAlerts.has(key)) continue;
         firedAlerts.add(key);

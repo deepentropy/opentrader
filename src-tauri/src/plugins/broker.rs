@@ -124,7 +124,7 @@ fn state(app: &AppHandle) -> &PluginBroker {
 }
 
 fn now_ms() -> f64 {
-    chrono::Utc::now().timestamp_millis() as f64
+    opentrader_core::clock::now_ms()
 }
 
 fn notice(app: &AppHandle, level: &str, message: String) {

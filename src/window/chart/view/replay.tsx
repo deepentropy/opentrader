@@ -50,6 +50,7 @@ import { replayBroker } from "../../../data/trading/replay-broker";
 import type { Bar } from "../../../backtester/types";
 import { type ChartCx } from "./context";
 import { translate, translateWith } from "../../../i18n/translator";
+import { serverNow } from "../../../data/server-clock";
 
 /** Chart styles Bar Replay does not run on (the reference app: price-based styles and
  *  the profile styles). */
@@ -209,7 +210,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
     if (!f || need === null) return Promise.resolve();
     const sym = props.symbol ?? "";
     const sess = props.session ?? "RTH";
-    const now = Date.now() / 1000;
+    const now = serverNow() / 1000;
     if (need === "full") {
       const days = chunkDays(interval());
       const from = fullFrom;
@@ -304,7 +305,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
       bars = raw.slice(0, k + 1);
       // The ticks after the chosen bar: from the first tick of the next one.
       const next = raw[k + 1];
-      fromMs = next ? tickBarMs(next.time as number) : Date.now();
+      fromMs = next ? tickBarMs(next.time as number) : serverNow();
     } else {
       const rows = await getBarsBefore(props.symbol ?? "", interval(), point, props.session ?? "RTH").catch(() => null);
       if (g !== gen) return false;
@@ -373,7 +374,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
       }
       cx.raw = toOHLC(rows);
       fullFrom = before;
-      open = before < Date.now() / 1000;
+      open = before < serverNow() / 1000;
       cx.historyExhausted = false;
     }
     // No bar at all: nothing to replay. (At the first available time no
@@ -411,7 +412,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
         if (g !== gen || f !== feed) return false;
         f.seed(toOHLC(rows ?? []).filter((b) => (b.time as number) >= from), point);
         nextFrom = before;
-        if (before > Date.now() / 1000) f.subDone = true;
+        if (before > serverNow() / 1000) f.subDone = true;
       } else {
         f.subDone = true;
       }

@@ -40,6 +40,7 @@ import { translateWith } from "../../i18n/translator";
 import { lastNoteOf } from "../../data/symbol-notes";
 import { titleCase } from "../../data/title-case";
 import { AllNotesPage, NotesCard, SymbolNotesPage } from "./notes/SymbolNotes";
+import { serverNow } from "../../data/server-clock";
 
 const DASH = "—";
 
@@ -311,9 +312,9 @@ export function WatchlistDetail(props: Props) {
 
   // Live clock tick (60s) so the session label flips at session boundaries
   // without a symbol change — the detail panel updates the label in place.
-  const [now, setNow] = createSignal(new Date());
+  const [now, setNow] = createSignal(new Date(serverNow()));
   onMount(() => {
-    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    const id = window.setInterval(() => setNow(new Date(serverNow())), 60_000);
     onCleanup(() => window.clearInterval(id));
   });
 

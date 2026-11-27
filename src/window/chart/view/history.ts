@@ -43,6 +43,7 @@ import type { SessionId } from "../../../data/session";
 import { lastAtOrBefore, lowerBound } from "../time-search";
 import { pendingRange } from "../pending-range";
 import { shownRangeStart, tradingDaysBetween, wantsPastWindow } from "../past-window";
+import { serverNow } from "../../../data/server-clock";
 
 export type GotoOpts = {
   /** Centre the target even when it is already in view (the reference app Go to). */
@@ -357,7 +358,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
 
   /** Newer page of a window of past bars: [from, to), `to` at most now. */
   function newerPage(sym: string, int: string, gen: number, from: number) {
-    const to = Math.min(Date.now() / 1000, from + Math.ceil((historyPageDays(int) * 7) / 5 + 1) * 86400);
+    const to = Math.min(serverNow() / 1000, from + Math.ceil((historyPageDays(int) * 7) / 5 + 1) * 86400);
     if (!newerPrefetch || newerPrefetch.gen !== gen || newerPrefetch.from !== from) {
       // The trading days from `from`'s day on, holidays counted in.
       newerPrefetch = { gen, from, to, rows: fetchOlder(sym, int, to, tradingDaysBetween(from, to)) };
@@ -402,7 +403,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     newerPrefetch = null;
     const lastSec = cx.allBars[cx.allBars.length - 1].time as number;
     const newer = rows.filter((r) => (r.time as number) > lastSec);
-    pastWindowEnd = page.to < Date.now() / 1000 ? page.to : null;
+    pastWindowEnd = page.to < serverNow() / 1000 ? page.to : null;
     if (newer.length > 0) appendNewer(newer);
     if (pastWindowEnd === null) cx.refreshControlBars();
     else newerPage(props.symbol ?? "", props.interval ?? "1D", page.gen, pastWindowEnd);
@@ -904,7 +905,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const gen = fetchGen;
     // Half a page of the interval on each side: about the bars of a first load.
     const side = Math.ceil(historyPageDays(int) / 2);
-    const now = Date.now() / 1000;
+    const now = serverNow() / 1000;
     const end = Math.min(now, toSec + Math.ceil((side * 7) / 5) * 86400);
     const rangeDays = Math.ceil(((toSec - fromSec) / 86400) * (5 / 7));
     loadingMore = true;

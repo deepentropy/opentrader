@@ -4,7 +4,7 @@ use super::{get_bytes, get_json, get_raw, seg, DayMemo, TICKER_MEMO_CAP};
 use crate::screener::progress::{read_body, Download};
 use crate::data::gateway::{ApiError, ErrorCode, BASE, MARKET};
 use anyhow::{anyhow, Context, Result};
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -103,7 +103,7 @@ pub(super) static LISTING_DATES: DayMemo<String, Option<NaiveDate>> = DayMemo::n
 /// `None` when unknown (also for a ticker the reference data does not
 /// know); the error of a failed lookup (not memoised then).
 pub async fn listing_date(ticker: &str) -> Result<Option<NaiveDate>, ApiError> {
-    let today = Utc::now().date_naive();
+    let today = crate::clock::utc().date_naive();
     if let Some(date) = LISTING_DATES.get(ticker, |as_of| *as_of == today) {
         return Ok(*date);
     }
@@ -139,7 +139,7 @@ pub(super) static TICKER_CHANGES: DayMemo<String, Vec<(NaiveDate, String)>> = Da
 /// reference data has no history for it (`NOT_FOUND`); the error of a failed
 /// lookup (not memoised then).
 pub async fn ticker_changes(ticker: &str) -> Result<Arc<Vec<(NaiveDate, String)>>, ApiError> {
-    let today = Utc::now().date_naive();
+    let today = crate::clock::utc().date_naive();
     if let Some(changes) = TICKER_CHANGES.get(ticker, |as_of| *as_of == today) {
         return Ok(changes);
     }

@@ -13,7 +13,7 @@
  * day can hold.
  */
 use crate::data::session::SymbolSession;
-use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone};
 use chrono_tz::Tz;
 use std::collections::HashSet;
 
@@ -169,7 +169,7 @@ impl SessionCalendar {
 
     /// Exchange-local today.
     pub fn today(&self) -> NaiveDate {
-        Utc::now().with_timezone(&self.tz).date_naive()
+        crate::clock::utc().with_timezone(&self.tz).date_naive()
     }
 
     /// Last date a fetch window should reach: the later of the UTC and the
@@ -177,7 +177,7 @@ impl SessionCalendar {
     /// before) still gets today's bars, and a zone west of UTC keeps the
     /// UTC date it had.
     pub fn window_end(&self) -> NaiveDate {
-        self.today().max(Utc::now().date_naive())
+        self.today().max(crate::clock::utc().date_naive())
     }
 
     /// Up to `n` trading days ending at (and including) `end`, ascending.

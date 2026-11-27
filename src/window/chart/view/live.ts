@@ -23,6 +23,7 @@ import { cachedSymbolSessions } from "../../../data/session";
 import { setDataForType, type OHLC } from "../chart-types";
 import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
+import { serverNow } from "../../../data/server-clock";
 
 /** Shortest time between two live paints: 30 per second. The reference app's live updates come 25 ms apart at the
  *  closest (277 ms median), measured on a busy symbol. */
@@ -451,7 +452,7 @@ export function createLive(cx: ChartCx): LiveApi {
      *  the tail would ask again for the same empty window all night. Unknown sessions poll. */
     const closed = () => {
       const s = cachedSymbolSessions(sym);
-      const now = Date.now() / 1000;
+      const now = serverNow() / 1000;
       return !!s && s.status(now) === "closed" && s.status(now - FEED_LAG_SEC) === "closed";
     };
     /** Batch-merge refreshed bars at/after `lastTime`, then paint ONCE

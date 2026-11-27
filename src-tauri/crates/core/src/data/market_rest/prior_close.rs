@@ -1,7 +1,7 @@
 //! Close of the session before the last completed one, for the whole
 //! market at once: the baseline of a closed session's change.
 use super::get_json;
-use chrono::{Datelike, Duration as ChronoDuration, NaiveDate, Utc, Weekday};
+use chrono::{Datelike, Duration as ChronoDuration, NaiveDate, Weekday};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -54,7 +54,7 @@ pub(super) static PRIOR_CLOSES: OnceLock<Mutex<Option<(NaiveDate, Arc<HashMap<St
 /// baseline. Resolved at most once per calendar day.
 pub(super) async fn prior_session_closes() -> Arc<HashMap<String, f64>> {
     let memo = PRIOR_CLOSES.get_or_init(|| Mutex::new(None));
-    let today = Utc::now().date_naive();
+    let today = crate::clock::utc().date_naive();
     let mut guard = memo.lock().await;
     if let Some((as_of, closes)) = guard.as_ref() {
         if *as_of == today {

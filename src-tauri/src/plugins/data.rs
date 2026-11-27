@@ -684,7 +684,7 @@ fn base_seconds(resolution: &str) -> u64 {
 }
 
 fn now() -> f64 {
-    chrono::Utc::now().timestamp() as f64
+    opentrader_core::clock::now()
 }
 
 /// Bars of `unit` × `mult` in one trading day at most: its traded hours, and one more for a bar its open or close cuts

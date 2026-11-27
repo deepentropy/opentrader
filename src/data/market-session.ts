@@ -5,11 +5,12 @@
  * state, the chart legend status and the chart's pre/post-market price label.
  */
 import { cachedSymbolSessions, type MarketSession } from "./session";
+import { serverNow } from "./server-clock";
 
 export type { MarketSession } from "./session";
 
 /** Market state of `symbol` at `now`, or null until its sessions resolve.
  *  Reactive: re-reads once the session arrives (sessionsVersion). */
-export function marketSession(symbol: string, now: Date = new Date()): MarketSession | null {
+export function marketSession(symbol: string, now: Date = new Date(serverNow())): MarketSession | null {
   return cachedSymbolSessions(symbol)?.status(now.getTime() / 1000) ?? null;
 }

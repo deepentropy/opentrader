@@ -172,6 +172,7 @@ routes!(
     get_revenue_breakdown,
     get_data_provider,
     get_provider_capabilities,
+    server_clock,
     screener_open,
     screener_close,
     screener_scan,
@@ -337,6 +338,10 @@ async fn get_data_provider(state: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
 
 async fn get_provider_capabilities(state: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
     ok(core::provider_capabilities(&state.provider))
+}
+
+async fn server_clock(_: &Shared, _: &HeaderMap, _: &Bytes) -> Answer {
+    ok(core::server_clock())
 }
 
 // ── Screener (owners prefixed with the client, so tabs stay apart) ──

@@ -21,6 +21,7 @@ import { type ChartCx } from "./context";
 import type { MarketSession } from "../../../data/session";
 import type { Setter } from "solid-js";
 import { lastAtOrBefore, lowerBound } from "../time-search";
+import { serverNow } from "../../../data/server-clock";
 
 /** What createDecorations adds to the chart context. */
 export interface DecorationsApi {
@@ -197,11 +198,11 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
    *  itself (daily/weekly/monthly, or intraday on the regular session).
    *  Colour by session; label text black/white from the background. No
    *  overnight ("night") price: the data plan has none. */
-  const [statusClock, setStatusClock] = createSignal(Date.now());
+  const [statusClock, setStatusClock] = createSignal(serverNow());
   /** Market state of the charted symbol's own market (re-read every 15 s). */
   const marketSession = () => marketSessionOf(props.symbol ?? "", new Date(statusClock())) ?? undefined;
   onMount(() => {
-    const id = window.setInterval(() => { if (!hidden()) setStatusClock(Date.now()); }, 15_000);
+    const id = window.setInterval(() => { if (!hidden()) setStatusClock(serverNow()); }, 15_000);
     onCleanup(() => window.clearInterval(id));
   });
 
@@ -396,7 +397,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     const text = last && timeBased && !isEconomicSymbol(props.symbol) && !isLocalSymbol(props.symbol)
       ? countdownText(
           props.interval ?? "1D",
-          Date.now() / 1000,
+          serverNow() / 1000,
           typeof last.time === "number" ? (last.time as number) : undefined,
           props.session ?? "RTH",
           cachedSymbolSessions(props.symbol ?? ""),

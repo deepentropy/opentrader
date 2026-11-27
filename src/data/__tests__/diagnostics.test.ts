@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { formatDiagnostics, type Diagnostics } from "../diagnostics";
+import { clockLine, formatDiagnostics, type Diagnostics } from "../diagnostics";
 import { logConsoleError, recentErrors, reportError, resetErrorReports } from "../error-reports";
 
 const base: Diagnostics = {
@@ -63,6 +63,13 @@ describe("diagnostic info", () => {
     expect(text).toContain("- Bar Replay: off");
     expect(text).toContain("- Recent errors: none");
     expect(text).not.toContain("Plugins");
+  });
+
+  it("says how far off the computer's clock is (#422)", () => {
+    expect(formatDiagnostics({ ...base, clock: { offsetMs: 3020, source: "gateway" } })).toContain("- Clock: 3.0 s behind the server (gateway)");
+    expect(clockLine({ offsetMs: -1500, source: "plugin" })).toBe("1.5 s ahead of the server (plugin)");
+    expect(clockLine({ offsetMs: 30, source: "gateway" })).toBe("on time with the server (gateway)");
+    expect(clockLine({ offsetMs: 0, source: null })).toBe("no server time, the computer's clock");
   });
 
   it("keeps the last errors, cleaned, counting repeats, whether statistics run or not", () => {

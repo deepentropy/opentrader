@@ -22,6 +22,7 @@ import {
   type Timeline,
   type TimelineSegment,
 } from "./legend-status";
+import { serverNow } from "../../data/server-clock";
 
 const REPLAY_PATH = "M8 13 4 9l4-4zm4 0L8 9l4-4z";
 
@@ -40,8 +41,8 @@ export function LegendStatusPopup(props: Props) {
   let el!: HTMLDivElement;
   const [pos, setPos] = createSignal<{ left: number; top: number } | null>(null);
   // The countdown and the time marker follow the clock.
-  const [clock, setClock] = createSignal(Date.now());
-  const timer = window.setInterval(() => setClock(Date.now()), 10_000);
+  const [clock, setClock] = createSignal(serverNow());
+  const timer = window.setInterval(() => setClock(serverNow()), 10_000);
   onCleanup(() => window.clearInterval(timer));
 
   onMount(() => {

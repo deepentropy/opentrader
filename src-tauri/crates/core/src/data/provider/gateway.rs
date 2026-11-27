@@ -25,7 +25,7 @@ use crate::data::symbol::SymbolRef;
 use crate::data::market_rest::economics;
 use crate::data::{daily_archive, gateway, market_rest, market_stream, quote_poll, ticker_case, trading_calendar};
 use anyhow::Result;
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate};
 use std::sync::OnceLock;
 use crate::host::HostRef;
 
@@ -215,7 +215,7 @@ fn us_equity_session() -> SymbolSession {
     static SESSION: OnceLock<SymbolSession> = OnceLock::new();
     SESSION
         .get_or_init(|| {
-            let (from, to) = (trading_calendar::floor_year(), Utc::now().year() + 1);
+            let (from, to) = (trading_calendar::floor_year(), crate::clock::utc().year() + 1);
             let early = trading_calendar::early_closes_spec(from, to);
             let corrected = |id: &str, name: &str, session: &str, short_day: &str| Subsession {
                 corrections: format!("{short_day}:{early}"),

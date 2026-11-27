@@ -60,6 +60,7 @@ import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 import { windowResult, type DrawWindow } from './draw-window';
 import { fromPost, packPlots, withField } from './packed-points';
 import { callAnswered, seriesOf } from './symbol-requests';
+import { serverNow } from '../../../data/server-clock';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -821,7 +822,7 @@ export class IndicatorLayer {
     this.error = null;
     this.loading = false;
     try {
-      const ctx: StudyCalcContext = { ...this.scriptChart, ...this.chartState(), chartId: this.chartId, studyId: this.studyId };
+      const ctx: StudyCalcContext = { ...this.scriptChart, ...this.chartState(), now: serverNow(), chartId: this.chartId, studyId: this.studyId };
       const store = this.otherSymbols;
       const used = new Set<string>();
       this.usedSymbols = used;

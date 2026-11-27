@@ -3,7 +3,7 @@
 use super::cache::{rest_cache_root, REST_CACHE_DIR};
 use super::{get_json, DayMemo, TICKER_MEMO_CAP};
 use crate::data::gateway::ApiError;
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -127,7 +127,7 @@ pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Splits>> {
 /// Memoised already-executed splits for `ticker` (newest-first), or the lookup error.
 async fn splits_cached(ticker: &str) -> Result<Arc<Splits>, ApiError> {
     let ticker = ticker.to_string();
-    let today = Utc::now().date_naive();
+    let today = crate::clock::utc().date_naive();
     if let Some(splits) = SPLITS.get(&ticker, |as_of| *as_of == today) {
         return Ok(splits);
     }
@@ -149,7 +149,7 @@ async fn splits_cached(ticker: &str) -> Result<Arc<Splits>, ApiError> {
 /// executes after the archive file was cached).
 #[cfg(test)]
 pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
-    SPLITS.insert(ticker.to_string(), Utc::now().date_naive(), Arc::new(Splits { list: splits, corrected: None }));
+    SPLITS.insert(ticker.to_string(), crate::clock::utc().date_naive(), Arc::new(Splits { list: splits, corrected: None }));
 }
 
 /// The executed splits of `ticker` (newest-first) for the chart markers and
@@ -191,7 +191,7 @@ pub async fn dividend_events(ticker: &str) -> Result<Vec<DividendEvent>, ApiErro
 /// lookup error (not memoised, so the next call asks again).
 async fn dividends_cached(ticker: &str) -> Result<Vec<DividendEvent>, ApiError> {
     let ticker = ticker.to_string();
-    let today = Utc::now().date_naive();
+    let today = crate::clock::utc().date_naive();
     if let Some(evs) = DIVIDENDS.get(&ticker, |as_of| *as_of == today) {
         return Ok((*evs).clone());
     }

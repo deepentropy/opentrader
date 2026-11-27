@@ -104,7 +104,7 @@ pub fn traded(ticker: &str, ms: f64, price: f64, high: f64, low: f64) -> Option<
 
 /// A polled snapshot, with what the stream knows better.
 pub fn polled(tick: LiveTick) -> LiveTick {
-    quotes().locked().polled(tick, Utc::now().timestamp_millis() as f64)
+    quotes().locked().polled(tick, crate::clock::now_ms())
 }
 
 impl Quotes {

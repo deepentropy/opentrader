@@ -48,6 +48,7 @@ import { builtFromServed, finestServed, servedMinuteSizes } from "./interval";
 import { tickBarMs, tickBars, tickCount, ticksPerPage, type TickRow } from "./tick-bars";
 import { translateWith } from "../i18n/translator";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { serverNow } from "./server-clock";
 
 // Re-export so consumers have one import surface for the daily-aggregation
 // helpers as well as the feed itself.
@@ -584,7 +585,7 @@ function sessionOpenMinutes(spec: SessionSpec, sec: number): number[] {
 function sessionBaseMinutes(spec: SessionSpec, mins: number, served: number[], onGrid = false): number | null {
   // Bars on the source's clock grid: the served size as it is, else the largest that builds it.
   if (onGrid && served.includes(mins)) return null;
-  const opens = spec.always || onGrid ? [0] : sessionOpenMinutes(spec, Date.now() / 1000);
+  const opens = spec.always || onGrid ? [0] : sessionOpenMinutes(spec, serverNow() / 1000);
   if (served.includes(mins) && (spec.always || opens.every((m) => m % mins === 0))) return null;
   const sizes = served.filter((m) => m <= mins && mins % m === 0);
   if (sizes.length === 0) throw new Error(`no served bar size builds ${mins}-minute bars`);

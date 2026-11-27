@@ -74,8 +74,8 @@ impl Table {
         let ref_idx: HashMap<&str, usize> =
             refs.iter().enumerate().map(|(i, r)| (r.ticker.as_str(), i)).collect();
         let st_idx = state.as_ref().map(|s| s.index());
-        let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64)
-            .unwrap_or_else(|| chrono::Utc::now().date_naive());
+        let today = clock::ny_date_ms(crate::clock::utc().timestamp_millis() as f64)
+            .unwrap_or_else(|| crate::clock::utc().date_naive());
         // Session of the not-yet-traded rows: the last session before today.
         let quiet_day = if clock::trading_day_on_or_before(today) == Some(today) {
             clock::prev_trading_day(today)
@@ -124,7 +124,7 @@ impl Table {
                 Row { m, r, st, join, day: shown }
             }))
             .collect();
-        let session = clock::last_opened_session(chrono::Utc::now());
+        let session = clock::last_opened_session(crate::clock::utc());
         Table { version, updated_ms, rows, refs, state, complete: true, session }
     }
 }

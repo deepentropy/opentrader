@@ -52,6 +52,7 @@ import { isStrategyId } from "../window/chart/indicators/strategy-entries";
 import { setActiveRailTab } from "../window/shell/app-dialogs";
 import { AgentError, type AgentTool } from "./mcp";
 import { inEnglish } from "../i18n/translator";
+import { serverNow } from "../data/server-clock";
 
 /** The focused chart, as the alerts need it. */
 export type AlertChart = { symbol: string; interval: string; session?: string; drawings: () => Drawing[] };
@@ -79,7 +80,7 @@ const same = (a: string, b: unknown) => typeof b === "string" && a.toLowerCase()
 function expiryOf(v: unknown): number | null {
   if (v === undefined || v === null || v === "") return null;
   const ms = typeof v === "number" ? v * 1000 : Date.parse(String(v).replace(" ", "T"));
-  if (!Number.isFinite(ms) || ms <= Date.now()) throw new AgentError('"expires": a future date "YYYY-MM-DD", "YYYY-MM-DD HH:MM" or UNIX seconds.');
+  if (!Number.isFinite(ms) || ms <= serverNow()) throw new AgentError('"expires": a future date "YYYY-MM-DD", "YYYY-MM-DD HH:MM" or UNIX seconds.');
   return ms;
 }
 

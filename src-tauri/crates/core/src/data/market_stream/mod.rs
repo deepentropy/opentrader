@@ -535,6 +535,9 @@ async fn wait_for_auth(ws: &mut WsStream) -> Result<Option<String>> {
         let frame = frame.context("stream closed before auth")?;
         let Message::Text(txt) = frame else { continue };
         for m in messages(&txt) {
+            if let Some(ms) = m.get("serverTime").and_then(|v| v.as_f64()) {
+                crate::clock::observe(ms, crate::clock::Source::Gateway);
+            }
             match field(&m, "type") {
                 Some("status") if field(&m, "status") == Some("authenticated") => return Ok(field(&m, "session").map(str::to_string)),
                 Some("error") => return Err(AuthRefused(error_text(&m)).into()),

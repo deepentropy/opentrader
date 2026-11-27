@@ -14,6 +14,7 @@ import { isBandOperator, isMovingOperator, isPercentOperator } from "../../data/
 import { ISO_WEEKDAYS, PRESET_SEGMENTS, localTimeZone, schedulePreset, type SchedulePreset } from "../../data/alert-schedule";
 import { sectionOf } from "../chart/custom-intervals";
 import { isValidWebhookUrl, type ConditionFields, type SideKind } from "./alert-form";
+import { serverNow } from "../../data/server-clock";
 
 // ── Condition editor ──
 
@@ -111,7 +112,7 @@ export function openingFields(existing: AlertRule | undefined, first: AlertCondi
 export type ExpiryKey = "open" | "eod" | "1w" | "1m" | "custom";
 
 /** Expiry time of a choice, from `now` (epoch ms; null = open-ended). */
-export function expiryTime(key: ExpiryKey, customMs: number | null, now = Date.now()): number | null {
+export function expiryTime(key: ExpiryKey, customMs: number | null, now = serverNow()): number | null {
   const d = new Date(now);
   if (key === "eod") {
     d.setHours(23, 59, 0, 0);

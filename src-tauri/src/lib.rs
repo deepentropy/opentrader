@@ -62,6 +62,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::events::get_revenue_breakdown,
             commands::meta::get_data_provider,
             commands::meta::get_provider_capabilities,
+            commands::meta::server_clock,
             commands::meta::open_snapshot,
             commands::images::save_drawing_image,
             commands::images::read_drawing_image,
@@ -187,6 +188,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             data::types::LiveTicks,
             data::types::ChartQuote,
             plugins::data::PluginTrade,
+            commands::meta::ServerClockChanged,
             plugins::data::PluginWatchlistsChanged,
             plugins::data::PluginScriptsChanged,
             plugins::data::PluginSymbolInfoChanged,
@@ -301,6 +303,7 @@ pub fn run() {
             agent::init(app.handle());
             // Settings > Plugins (the Plugin API listens while a plugin is enabled).
             plugins::init(app.handle());
+            commands::meta::init_server_clock(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

@@ -5,6 +5,7 @@
  * depends on a window system; the program it runs in plugs in as a `Host`.
  */
 pub mod alerts;
+pub mod clock;
 pub mod commands;
 pub mod data;
 pub mod error;

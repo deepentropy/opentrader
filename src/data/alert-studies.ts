@@ -25,6 +25,7 @@ import { alertCallsOf, conditionBars, type StudyAlertCall } from "./alert-study-
 import { outputByKey, outputSeries, outputValue } from "./alert-outputs";
 import { barBucket, DEFAULT_SESSION, engineRules, resolutionMs } from "./alert-bars";
 import { isDailyInterval } from "./interval";
+import { serverNow } from "./server-clock";
 
 /** Chart id the strategy runs of the alerts report under (the Strategy Tester shows charts' runs only). */
 export const ALERTS_CHART = "alerts";
@@ -71,7 +72,7 @@ export function liveBarState(symbol: string, resolution: string, session: string
   const last = bars[bars.length - 1];
   const sessions = cachedSymbolSessions(symbol);
   if (!last || !sessions) return CLOSED_BARS;
-  const now = Date.now();
+  const now = serverNow();
   let forming: boolean;
   if (isDailyInterval(resolution)) {
     forming = barBucket(symbol, resolution, session as SessionId, now) === last.time * 1000;
@@ -104,6 +105,7 @@ export function runStudy(
   const chart: ChartContext & Record<string, unknown> = {
     ...scriptChartContext(symbol, resolution, session),
     ...state,
+    now: serverNow(),
     // Bars of other symbols (request.security of another ticker): loaded on the first request, read by the next poll.
     bars: (s, tf) => alertSymbols.bars(s, tf, resolution),
     symbolInfo: (s) => alertSymbols.symbolInfo(s),

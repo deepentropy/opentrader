@@ -49,6 +49,7 @@ pub const SERVED: &[&str] = &[
     "get_revenue_breakdown",
     "get_data_provider",
     "get_provider_capabilities",
+    "server_clock",
     "screener_open",
     "screener_close",
     "screener_scan",
@@ -303,6 +304,11 @@ pub fn data_provider(provider: &Provider) -> String {
 
 pub fn provider_capabilities(provider: &Provider) -> ProviderCapabilities {
     entitlements::full_capabilities(provider)
+}
+
+/// The server clock (#422): the window measures its own offset from `now` and the round trip.
+pub fn server_clock() -> crate::clock::Reading {
+    crate::clock::reading()
 }
 
 // ── Screener ──

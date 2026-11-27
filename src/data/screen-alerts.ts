@@ -15,6 +15,7 @@ import { planScreen } from "./screener-query";
 import { screenerStore } from "./screener-store";
 import type { Screen } from "./screener-catalog";
 import { watchlistStore } from "./watchlist-store";
+import { serverNow } from "./server-clock";
 
 const OWNER = "alerts:screener";
 /** Symbols moving in one update that fire one alert each; more fire one alert listing them. */
@@ -58,7 +59,7 @@ export function startScreenAlerts(): void {
       // Read on every evaluation: a new daily state adds fields (the fundamentals).
       const known = new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
       const has = (f: string) => known.has(f);
-      const now = Date.now();
+      const now = serverNow();
       for (const rule of rules) {
         if (rule.expiresAt != null && now >= rule.expiresAt) {
           alertStore.setEnabled(rule.id, false, "expired");

@@ -11,6 +11,7 @@ import { magnifierInterval } from './magnifier';
 import type { ChartContext } from 'oakscriptjs/script';
 import type { Bar } from './types';
 import type { IntrabarsRef } from './worker-types';
+import { serverNow } from '../data/server-clock';
 
 export interface Intrabars {
   /** Series key (symbol, lower timeframe, session, adjustment); the worker caches the bars under it. */
@@ -40,7 +41,7 @@ function toBars(rows: Candle[]): Bar[] {
 }
 
 /** Trading days (the datafeed window unit) between `fromSec` and now, with a margin. */
-const spanDays = (fromSec: number) => Math.ceil(((Date.now() / 1000 - fromSec) / 86400) * (252 / 365)) + 5;
+const spanDays = (fromSec: number) => Math.ceil(((serverNow() / 1000 - fromSec) / 86400) * (252 / 365)) + 5;
 
 /** Merge newer rows into a time-ascending series (newer rows replace the overlapping ones). */
 function merge(old: Bar[], newer: Bar[]): Bar[] {
@@ -67,7 +68,7 @@ export async function intrabarsFor(symbol: string, interval: string, session: Se
     const now = Date.now();
     if ((!entry || fromSec < entry.requestedFrom) && !(entry && now - entry.failedAt < RETRY_MS)) {
       const load = (async () => {
-        const rows = toBars(await getBarsBefore(symbol, ltf, Math.ceil(now / 1000) + 86400, session, spanDays(fromSec)));
+        const rows = toBars(await getBarsBefore(symbol, ltf, Math.ceil(serverNow() / 1000) + 86400, session, spanDays(fromSec)));
         cache.set(key, { key, version: ++versions, interval: ltf, bars: rows, requestedFrom: fromSec, refreshedAt: now, failedAt: 0, pending: null });
       })();
       cache.set(key, {
@@ -86,7 +87,7 @@ export async function intrabarsFor(symbol: string, interval: string, session: Se
       const last = e.bars[e.bars.length - 1]?.time ?? fromSec;
       e.refreshedAt = now;
       e.pending = (async () => {
-        const rows = toBars(await getBarsBefore(symbol, ltf, Math.ceil(now / 1000) + 86400, session, spanDays(last) + 1));
+        const rows = toBars(await getBarsBefore(symbol, ltf, Math.ceil(serverNow() / 1000) + 86400, session, spanDays(last) + 1));
         const bars = merge(e.bars, rows.filter((b) => b.time >= last));
         cache.set(key, { ...e, bars, version: bars === e.bars ? e.version : ++versions, pending: null });
       })();

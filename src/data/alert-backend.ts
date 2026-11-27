@@ -39,6 +39,7 @@ import * as kv from "./kv";
 import { ruleSignature } from "./alert-rule-state";
 import { onTradeTick } from "./datafeed";
 import { intervalSeconds, parseInterval as parseIntervalId, type IntervalUnit } from "./interval";
+import { serverNow } from "./server-clock";
 
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -287,7 +288,7 @@ let started = false;
 let lastKey: string | null = null;
 
 function sync(): void {
-  const now = Date.now();
+  const now = serverNow();
   const { rules, grids, key } = compileBackendRules(Math.floor(now / 1000), Math.floor(now / RENEW_MS));
   if (key === lastKey) return;
   lastKey = key;
@@ -324,7 +325,7 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
       price: f.price,
       barTime: f.barTime == null ? null : f.barTime * 1000,
       offline: f.offline,
-      fireTime: f.offline ? f.time * 1000 : Date.now(),
+      fireTime: f.offline ? f.time * 1000 : serverNow(),
     });
   });
 
@@ -399,10 +400,10 @@ function runWindowEngine(deliver: (fire: BackendFire) => void, previous: Record<
   const toFire = (f: EvalFire, offline: boolean): BackendFire | null => {
     const rule = alertStore.rule(f.ruleId);
     if (!rule || !rule.enabled) return null;
-    return { rule, price: f.price, barTime: f.barTime == null ? null : f.barTime * 1000, offline, fireTime: offline ? f.time * 1000 : Date.now() };
+    return { rule, price: f.price, barTime: f.barTime == null ? null : f.barTime * 1000, offline, fireTime: offline ? f.time * 1000 : serverNow() };
   };
   const push = () => {
-    const now = Date.now();
+    const now = serverNow();
     const { rules, grids, key } = compileBackendRules(Math.floor(now / 1000), Math.floor(now / RENEW_MS));
     if (key === lastKey) return;
     lastKey = key;
@@ -435,7 +436,7 @@ function runWindowEngine(deliver: (fire: BackendFire) => void, previous: Record<
     // The latest minute bar, as the backend gets it with a quote (its open is not read).
     const p = t.tradePrice;
     const bar = t.tradeTime != null && p != null ? { time: t.tradeTime, open: p, high: t.tradeHigh ?? p, low: t.tradeLow ?? p, close: p } : null;
-    for (const f of engine.sample(t.symbol.toUpperCase(), t.price, bar, Date.now() / 1000)) {
+    for (const f of engine.sample(t.symbol.toUpperCase(), t.price, bar, serverNow() / 1000)) {
       const fire = toFire(f, false);
       if (fire) deliver(fire);
     }
