@@ -23,6 +23,7 @@ import * as billing from "./billing";
 import { payPage, payScript } from "./pay-page";
 import * as suggestions from "./suggestions";
 import * as botApi from "./bot-api";
+import * as backtests from "./backtests";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -107,6 +108,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/bot\/communities\/([^/]+)\/posts$/, ({ env, request, params, body }) => botApi.post(env, request, params[0], body)],
   ["PATCH", /^\/bot\/(comments|posts)\/([a-z0-9]+)$/, ({ env, request, params, body }) => botApi.change(env, request, params[0], params[1], body)],
   ["DELETE", /^\/bot\/(comments|posts)\/([a-z0-9]+)$/, ({ env, request, params }) => botApi.change(env, request, params[0], params[1], null)],
+  ["PUT", /^\/bot\/backtests\/([a-z0-9]+)\/(.+)$/, ({ env, request, params }) => botApi.putBacktestFile(env, request, params[0], params[1])],
   ["POST", /^\/github\/webhook$/, ({ env, request }) => suggestions.webhook(env, request)],
   ["POST", /^\/mod\/bot$/, ({ env, user, body }) => bot.runJob(env, user, body)],
   ["POST", /^\/mod\/community-ban$/, ({ env, user, body }) => members.communityBan(env, user, body)],
@@ -150,6 +152,7 @@ const ROUTES: [string, RegExp, Handler][] = [
 
   ["GET", /^\/images\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0])],
   ["GET", /^\/images\/c\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0], "comments")],
+  ["GET", /^\/backtests\/([a-z0-9]+)\/(.+)$/, ({ env, params }) => backtests.serveFile(env, params[0], params[1])],
   ["GET", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.getPost(env, user, params[0])],
   ["PATCH", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editPost(env, user, params[0], body)],
   ["DELETE", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.deletePost(env, user, params[0])],
@@ -209,8 +212,9 @@ export default {
         return file.status === 404 && !isFile(url.pathname) ? notFound(env, url) : file;
       }
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
-      // The payment provider's and GitHub's deliveries come in bursts from a few addresses.
-      const raw = path === "/billing/webhook" || path === "/github/webhook";
+      // The payment provider's and GitHub's deliveries come in bursts from a few addresses; a backtest's files come
+      // in hundreds, sent with the posting key, as they are (not JSON).
+      const raw = path === "/billing/webhook" || path === "/github/webhook" || (request.method === "PUT" && path.startsWith("/bot/backtests/"));
       if (!raw) await burstLimit(env, request, path);
       // The sign-in pages' forms and the webhooks' signed bodies are read by their handlers.
       const body = raw || path === "/auth/verify" || path.startsWith("/auth/email") || path === "/check/verify" ? null : await readBody(request, path);

@@ -1,8 +1,8 @@
 /*
  * Community API client (deploy/community): ticker communities (US stocks and
  * ETFs) and General; posts typed idea / analysis / question / post-mortem,
- * ideas with locked levels settled in R; replies; the readers' "useful"
- * reasons; members' feature suggestions; reports and moderation; and the
+ * ideas with locked levels settled in R; backtests; replies; the readers'
+ * thumbs up or down; members' feature suggestions; reports and moderation; and the
  * website's page views. Reading
  * needs no account; the session token (./session.ts) is sent when there is one.
  */
@@ -23,6 +23,8 @@ export const COMMUNITY_ENABLED = import.meta.env.VITE_COMMUNITY_ENABLED !== "0";
 export const GENERAL = "c:general";
 /** Members' feature suggestions (their own page on the website). */
 export const SUGGESTIONS = "c:suggestions";
+/** Strategy scripts backtested on many stocks, posted by the project (their own page on the website). */
+export const BACKTESTS = "c:backtests";
 
 // The server's answers, typed once for the server and its clients.
 export type * from "../../community-shared/contract";
@@ -108,6 +110,8 @@ const qs = (o: Record<string, string | number | null | undefined>) =>
     .join("&");
 
 export const api = {
+  /** A file of a backtest post: the per-stock table, a stock's bars and trades, the script. */
+  backtestFile: <T>(postId: string, file: "stocks.json" | `s/${string}.json`) => request<T>("GET", `/backtests/${enc(postId)}/${file}`),
   providers: () => request<{ providers: string[] }>("GET", "/auth/providers"),
   me: () => request<Me>("GET", "/me"),
   updateMe: (fields: { name?: string; bio?: string }) => request<Me>("PATCH", "/me", fields),

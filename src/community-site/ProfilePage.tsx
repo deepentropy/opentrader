@@ -6,13 +6,12 @@
  * found their posts useful, the record by direction, their tickers.
  */
 import { For, Show, createEffect, createResource, createSignal } from "solid-js";
-import { api, type Post, type PostType, type Profile, type ProfileReply, type Reason } from "../data/community/api";
+import { api, type Post, type PostType, type Profile, type ProfileReply } from "../data/community/api";
 import { me } from "../data/community/session";
-import { errorText } from "../community-shared/parts";
+import { Thumb, errorText } from "../community-shared/parts";
 import { go, navigate } from "./router";
 import { Avatar, DOWN, FOG, TickerTag, TypeTag, UP, age, date, fmtR, outcome, price, rColor, signInPath, tickerName } from "./ui";
 
-const REASON_LABEL: Record<Reason, string> = { thesis: "Clear thesis", risk: "Well-defined risk", data: "Good data", view: "Changed my view", vague: "Vague" };
 
 /** The cumulative R after each settled idea, a dot per idea (green won, red lost). */
 function Curve(props: { points: Profile["curve"] }) {
@@ -149,7 +148,6 @@ export function ProfilePage(props: { name: string }) {
             ...((counts().question ?? 0) > 0 ? [{ id: "question" as Tab, label: `Questions ${counts().question}` }] : []),
             { id: "replies", label: `Replies ${counts().replies ?? 0}` },
           ];
-          const maxReason = () => Math.max(1, ...d().reasons.map((x) => x.n));
           return (
             <>
               <div class="cs-profhead">
@@ -215,16 +213,12 @@ export function ProfilePage(props: { name: string }) {
                 </main>
                 <aside class="cs-right is-post">
                   <section>
-                    <h5>What readers found useful</h5>
-                    <div class="cs-note">Reasons given on {d().user.name}'s posts</div>
-                    <For each={d().reasons}>
-                      {(v) => (
-                        <div class="cs-reason">
-                          <div class="cs-reason-top"><span>{REASON_LABEL[v.reason]}</span><span class="cs-fog">{v.n}</span></div>
-                          <div class="cs-reason-bar"><div style={{ width: `${Math.round((v.n / maxReason()) * 100)}%` }} /></div>
-                        </div>
-                      )}
-                    </For>
+                    <h5>What readers thought</h5>
+                    <div class="cs-note">Thumbs on {d().user.name}'s posts</div>
+                    <div class="cs-thumbs-total">
+                      <span title="Useful"><Thumb /> {d().thumbs.up}</span>
+                      <span title="Not useful"><Thumb down /> {d().thumbs.down}</span>
+                    </div>
                   </section>
                   <section>
                     <h5>By direction</h5>

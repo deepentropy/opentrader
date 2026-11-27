@@ -93,6 +93,8 @@ export function parseCommunityId(id: string): { kind: "ticker" | "theme"; key: s
 
 /** Members' feature suggestions (suggestions.ts): kept out of the market feeds and search. */
 export const SUGGESTIONS = "c:suggestions";
+/** Strategy scripts backtested on many stocks (backtests.ts): posted by the project through the posting API only. */
+export const BACKTESTS = "c:backtests";
 /** The project whose GitHub issues track the suggestions. */
 export const GITHUB_REPO = "deepentropy/opentrader";
 

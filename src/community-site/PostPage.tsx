@@ -1,6 +1,7 @@
 /*
  * A post: its type, ticker and author's record; an idea's locked levels and
- * where it stands; the chart snapshot; the text; "Was this useful? Say why.";
+ * where it stands; the chart snapshot; the text (a backtest: its rules, data,
+ * results and stocks, Backtest.tsx); "Was this useful?" thumbs up or down;
  * the replies (each with its kind and snapshot, the answers under it, the
  * author's marked "Author"), and the reply box. Right: an idea's log, the
  * author's last ideas, more on the ticker. Comments arrive live.
@@ -14,24 +15,19 @@ import { CommunityError, api, imageUrl, type Comment, type Idea, type Post, type
 import { withPostingCheck } from "../data/community/posting-check";
 import { me } from "../data/community/session";
 import { showConfirm } from "../components/Dialogs";
-import { BanForm, ErrorBanner, MarkdownBody, PostingCheckPrompt, ReasonForm, ReportForm, errorText } from "../community-shared/parts";
+import { BanForm, ErrorBanner, MarkdownBody, PostingCheckPrompt, ReasonForm, ReportForm, Thumb, errorText } from "../community-shared/parts";
 import { KINDS, KIND_LABEL, createPostThread, type FormKind } from "../community-shared/post-thread";
 import { SnapshotPicker } from "./SnapshotPicker";
+import { BacktestBody } from "./Backtest";
 import { SuggestedBy, SupportButton } from "./SuggestionsPage";
 import { go, navigate } from "./router";
 import {
-  Avatar, DirTag, FOG, OriginTag, Pills, STATUS_LABEL, StatusTag, TYPE_LABEL, TickerTag, TypeTag, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
+  Avatar, DirTag, FOG, OriginTag, Pills, STATUS_LABEL, StatusTag, TYPE_LABEL, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
 } from "./ui";
 
 const APP_URL = "https://opentrader.markets/download.html";
 
-const REASONS: { id: Reason; label: string }[] = [
-  { id: "thesis", label: "Clear thesis" },
-  { id: "data", label: "Good data" },
-  { id: "view", label: "Changed my view" },
-  { id: "risk", label: "Well-defined risk" },
-  { id: "vague", label: "Not useful: vague" },
-];
+const THUMBS: Reason[] = ["up", "down"];
 
 /** "daily close > 148.20", "trade < 52.00": what triggers the entry. */
 export function triggerText(i: Idea): string {
@@ -357,14 +353,17 @@ export function PostPage(props: { id: string }) {
           <main id="cs-main" class="cs-center is-wide">
             <div class="cs-crumbs">
               <Show when={!p().suggestion}><a href="/" onClick={go("/")}>Home</a> / </Show>
-              <a href={communityHref(p().community.id)} onClick={go(communityHref(p().community.id))}>{ticker()}</a> / {TYPE_LABEL[p().type]}
+              <a href={communityHref(p().community.id)} onClick={go(communityHref(p().community.id))}>{ticker()}</a>
+              <Show when={!p().backtest}> / {TYPE_LABEL[p().type]}</Show>
             </div>
-            <div class="cs-tags">
-              <TypeTag type={p().type} />
-              <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
-              <OriginTag post={p()} />
-              <Show when={p().suggestion} fallback={<TickerTag id={p().community.id} size="mid" />}><StatusTag status={p().suggestion!.status} /></Show>
-            </div>
+            {/* The breadcrumb says the community and the type: tags only for what it doesn't. */}
+            <Show when={p().idea || p().origin || p().suggestion}>
+              <div class="cs-tags">
+                <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
+                <OriginTag post={p()} />
+                <Show when={p().suggestion}><StatusTag status={p().suggestion!.status} /></Show>
+              </div>
+            </Show>
             <h1 class="cs-post-title">{p().title}</h1>
             <Show
               when={p().suggestion}
@@ -372,8 +371,15 @@ export function PostPage(props: { id: string }) {
                 <div class="cs-byline">
                   <Avatar name={p().author} />
                   <UserLink name={p().author} />
-                  <Show when={p().author_bot} fallback={<span class="cs-fog">{recordLong(p().author_record)} · posted {age(p().created_at)} ago{p().edited_at ? " · edited" : ""}</span>}>
-                    <span class="cs-bot">bot</span><span class="cs-fog">posted {age(p().created_at)} ago</span>
+                  <Show
+                    when={p().author_bot || p().backtest}
+                    fallback={<span class="cs-fog">{recordLong(p().author_record)} · posted {age(p().created_at)} ago{p().edited_at ? " · edited" : ""}</span>}
+                  >
+                    <Show when={p().author_bot}><span class="cs-bot">bot</span></Show>
+                    <span class="cs-fog">
+                      posted {date(p().created_at)}
+                      <Show when={p().backtest}>{(b) => <> · script by <span data-no-translate>{b().strategy.author}</span></>}</Show>
+                    </span>
                   </Show>
                   <Show when={p().locked}><span class="cs-type is-plain">Locked</span></Show>
                 </div>
@@ -463,7 +469,9 @@ export function PostPage(props: { id: string }) {
               </figure>
             </Show>
 
-            <Show when={p().body}><MarkdownBody text={p().body} class="cs-post-body" /></Show>
+            <Show when={p().backtest} fallback={<Show when={p().body}><MarkdownBody text={p().body} class="cs-post-body" /></Show>}>
+              <BacktestBody post={p()} />
+            </Show>
             <Show when={p().source_url}><p class="cs-note">Imported test content · <a href={p().source_url!}>source</a></p></Show>
             <div class="cs-post-acts">
               <Actions type="post" id={p().id} own={p().own} deleted={p().deleted} removed={p().removed} author={p().author} body={p().body} target="post" />
@@ -496,18 +504,17 @@ export function PostPage(props: { id: string }) {
               </div>
             </Show>
             <Show when={!p().suggestion && !p().deleted && !p().removed}>
-              <div class="cs-rate">
-                <div class="cs-rate-head">
-                  <h5>{p().own ? "What readers found useful" : "Was this useful? Say why."}</h5>
-                  <span class="cs-fog">{p().useful_count} reader{p().useful_count === 1 ? "" : "s"} found it useful · {p().flag_count} flagged</span>
-                </div>
+              <div class="cs-rate is-thumbs">
+                <h5>{p().own ? "What readers thought" : "Was this useful?"}</h5>
                 <div class="cs-rate-btns">
-                  <For each={REASONS}>
+                  <For each={THUMBS}>
                     {(r) => {
-                      const mine = () => ratings().mine.includes(r.id);
+                      const mine = () => ratings().mine.includes(r);
+                      const label = r === "up" ? "Useful" : "Not useful";
                       return (
-                        <button type="button" class={"cs-btn" + (mine() ? " is-picked" : "")} aria-pressed={mine()} disabled={p().own} onClick={() => rate(r.id)}>
-                          {r.label}<span class="cs-rate-n">{ratings().reasons[r.id] ?? 0}</span>
+                        <button type="button" class={"cs-btn cs-thumb" + (mine() ? " is-picked" : "")} aria-pressed={mine()} aria-label={label} title={label} disabled={p().own} onClick={() => rate(r)}>
+                          <Thumb down={r === "down"} />
+                          <span class="cs-rate-n">{r === "up" ? p().useful_count : p().flag_count}</span>
                         </button>
                       );
                     }}
@@ -566,7 +573,7 @@ export function PostPage(props: { id: string }) {
                 <For each={ideaLog(p())}>{(e) => <div class="cs-log"><span class="cs-fog">{e.d}</span><span>{e.e}</span></div>}</For>
               </section>
             </Show>
-            <Show when={p().author && !p().author_bot && !p().suggestion}>
+            <Show when={p().author && !p().author_bot && !p().suggestion && !p().backtest}>
               <section>
                 <h5>{p().author}'s last {Math.max(1, (authorIdeas() ?? []).length)} idea{(authorIdeas() ?? []).length === 1 ? "" : "s"}</h5>
                 <div class="cs-note">Every idea counts, including the bad ones.</div>

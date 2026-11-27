@@ -154,7 +154,7 @@ export function createPostThread(opts: {
     }
   };
 
-  /** A reason why the post is useful (or vague), on or off. */
+  /** A thumb up or down, on or off (the other one goes). */
   const rate = async (reason: Reason) => {
     const p = post.p;
     if (!p) return;

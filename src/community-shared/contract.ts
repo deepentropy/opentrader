@@ -7,9 +7,10 @@
 
 // ── Words ───────────────────────────────────────────────────────────────
 
-/** The market posts' types, the ones a member picks (suggestions are posted on their own page). */
+/** The market posts' types, the ones a member picks (suggestions are posted on their own page, backtests by the
+ *  project through the posting API). */
 export const POST_TYPES = ["idea", "analysis", "question", "postmortem"] as const;
-export type PostType = (typeof POST_TYPES)[number] | "suggestion";
+export type PostType = (typeof POST_TYPES)[number] | "suggestion" | "backtest";
 
 export type Direction = "long" | "short";
 /** An idea's entry triggers on a daily close through it, or on a trade through it. */
@@ -23,8 +24,8 @@ export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
 export const REPLY_KINDS = ["data", "counterpoint", "question", "update", "support"] as const;
 export type ReplyKind = (typeof REPLY_KINDS)[number];
 
-/** Why readers found a post useful; "vague": not useful. */
-export const REASONS = ["thesis", "data", "view", "risk", "vague"] as const;
+/** A reader's rating of a post: useful or not. */
+export const REASONS = ["up", "down"] as const;
 export type Reason = (typeof REASONS)[number];
 
 export const REPORT_REASONS = ["spam", "manipulation", "harassment", "illegal", "other"] as const;
@@ -88,6 +89,54 @@ export type Suggestion = {
   external_author: string | null;
 };
 
+/** One stock's (or the median stock's) result over a period. Shares are fractions (0.55 = 55%); null: no trade. */
+export type BacktestStats = {
+  trades: number;
+  win_rate: number | null;
+  profit_factor: number | null;
+  /** Average closed-trade return. */
+  avg_trade: number | null;
+  /** Net return of the account. */
+  ret: number | null;
+  max_dd: number | null;
+};
+/** The median stock over a period: its stats, the stocks that traded, the share of them with a profit, and the
+ *  average of all their trades together. */
+export type BacktestSummary = BacktestStats & { stocks: number; profitable: number | null; pooled_avg_trade: number | null };
+/** "full": the whole period; "in": up to the split (where the optimized setting was chosen); "out": after it. */
+export type BacktestPeriods<T> = { full: T; in: T; out: T };
+
+/** A public strategy script backtested on many stocks; the per-stock tables, bars and trades are files on the server
+ *  (`/backtests/<post id>/stocks.json`, `s/<SYMBOL>.json`). */
+export type Backtest = {
+  strategy: { name: string; author: string };
+  /** The rules, as short code-like lines. */
+  rules: string;
+  interval: string;
+  /** First bar, split between in- and out-of-sample, last bar (unix seconds). */
+  first: number;
+  split: number;
+  last: number;
+  universe: { label: string; rule: string; count: number };
+  costs: { capital: number; order: string; commission: number; slippage: number };
+  inputs: { title: string; default: number; optimized: number; from: number; to: number; step: number }[];
+  /** How the optimized setting was chosen. */
+  selection: string;
+  summary: { default: BacktestPeriods<BacktestSummary>; optimized: BacktestPeriods<BacktestSummary> };
+  /** The app's strategy that runs the script (`strategy:<key>`): "Open in OpenTrader" adds it with the inputs. */
+  app_study: string | null;
+};
+export type BacktestStockRow = { symbol: string; name: string; default: BacktestPeriods<BacktestStats | null>; optimized: BacktestPeriods<BacktestStats | null> };
+export type BacktestTrade = { side: "long" | "short"; entry_time: number; entry_price: number; exit_time: number | null; exit_price: number | null; qty: number; profit: number | null; ret: number | null };
+export type BacktestStock = {
+  symbol: string;
+  name: string;
+  interval: string;
+  bars: { t: number[]; o: number[]; h: number[]; l: number[]; c: number[] };
+  default: { trades: BacktestTrade[]; metrics: BacktestPeriods<BacktestStats | null> };
+  optimized: { trades: BacktestTrade[]; metrics: BacktestPeriods<BacktestStats | null> };
+};
+
 /** A trader's settled ideas: how many, the share that hit the target, the average R; and the open ones. */
 export type TrackRecord = { resolved: number; hit_pct: number | null; avg_r: number | null; open: number };
 /** A track record with its counts behind it: the targets hit, the R summed. */
@@ -102,6 +151,7 @@ export type Post = {
   title: string;
   body: string;
   excerpt: string;
+  /** Thumbs up (a suggestion: its supporters) and down. */
   useful_count: number;
   flag_count: number;
   comment_count: number;
@@ -120,6 +170,8 @@ export type Post = {
   idea: Idea | null;
   /** A suggestion's status and issue (useful_count: its supporters). */
   suggestion?: Suggestion | null;
+  /** A backtest's summary (its files are on the server). */
+  backtest?: Backtest | null;
   /** A question's accepted reply. */
   answer_id: string | null;
   /** A post-mortem's idea. */
@@ -222,7 +274,8 @@ export type Profile = {
   curve: { at: number; r: number; result: number }[];
   outcomes: { target: number; stopped: number; expired: number };
   counts: Partial<Record<PostType | "replies", number>>;
-  reasons: { reason: Reason; n: number }[];
+  /** Readers' thumbs on the member's posts. */
+  thumbs: { up: number; down: number };
   by_direction: (RecordTotals & { direction: Direction })[];
   tickers: { ticker: string; n: number }[];
   watching: boolean;

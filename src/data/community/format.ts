@@ -8,10 +8,10 @@ import { date, dateTime } from "../../community-shared/dates";
 import type { Idea, Post, PostType, SuggestionStatus, TrackRecord } from "./api";
 import { translate, translatePlural, translateWith } from "../../i18n/translator";
 
-export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion" };
-export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions" };
-/** The market posts' types (suggestions are listed apart). */
-export const TYPES: Exclude<PostType, "suggestion">[] = [...POST_TYPES];
+export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion", backtest: "Backtest" };
+export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions", backtest: "Backtests" };
+/** The market posts' types a member writes (suggestions and backtests are listed apart). */
+export const TYPES: Exclude<PostType, "suggestion" | "backtest">[] = [...POST_TYPES];
 
 export const STATUS_LABEL: Record<SuggestionStatus, string> = { review: "Under review", planned: "Planned", progress: "In progress", shipped: "Shipped", declined: "Declined" };
 

@@ -1,0 +1,13 @@
+script/chartart-bb-rsi on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=1 filledOrders=1 marginCalls=0 finalEquity=99998.6554 minEquity=99998.6554
+orders by kind: entry/STOP=1
+openPL=-0.3446 maxDD=1.3498 (0.000013498) maxRunUp=0.0052 (5.20005173e-8) buyHold=498697.5388 (4.986975388)
+all: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=1
+long: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+short: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=1
+trades:
+  #1 S "RSI_BB_S" in "RSI_BB_S"@667 0.0691 out OPEN@899 0.4137 q=1 pnl=-2.3446 (-2.193059583) cm=1 ru=0 dd=1.3498 cum=-3.3446 eq%=-0.00002344623446
+  digest 1-1: 07eac19ca47511
+orders:
+  667 sell entry STOP "RSI_BB_S" 0.0691 x1
+  digest 1-1: 0c42e68e3bf53f

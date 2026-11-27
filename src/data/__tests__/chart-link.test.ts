@@ -11,6 +11,17 @@ describe("chart links (#350)", () => {
     expect(chartLinkOf("?symbol=ARRY&interval=abc")).toEqual({ symbol: "ARRY" });
     for (const q of ["", "?interval=60", "?symbol=", "?symbol=A%20B", "?symbol=A:B:C", "?symbol=:ARRY", `?symbol=${"A".repeat(65)}`]) expect(chartLinkOf(q)).toBeNull();
   });
+  it("reads one of the app's strategies and its inputs, nothing else", () => {
+    const inputs = encodeURIComponent(JSON.stringify({ "RSI Period Length": 5, in_1: 240 }));
+    expect(chartLinkOf(`?symbol=AAPL&interval=60&study=strategy:chartart-bb-rsi&inputs=${inputs}`)).toEqual({
+      symbol: "AAPL", interval: "60", study: "strategy:chartart-bb-rsi", inputs: { "RSI Period Length": 5, in_1: 240 },
+    });
+    expect(chartLinkOf("?symbol=AAPL&study=strategy:chartart-bb-rsi&inputs=%5B1%5D")).toEqual({ symbol: "AAPL", study: "strategy:chartart-bb-rsi" });
+    expect(chartLinkOf(`?symbol=AAPL&study=strategy:chartart-bb-rsi&inputs=${encodeURIComponent('{"a":{"b":1}}')}`)).toEqual({ symbol: "AAPL", study: "strategy:chartart-bb-rsi" });
+    for (const study of ["user:abc", "strategy:user:abc", "javascript:alert(1)", "strategy:"]) {
+      expect(chartLinkOf(`?symbol=AAPL&study=${encodeURIComponent(study)}&inputs=${inputs}`)).toEqual({ symbol: "AAPL" });
+    }
+  });
   it("gives the app's interval ids", () => {
     expect(["1", "15", "1H", "4h", "D", "1D", "W", "M", "3M", "30S"].map(linkInterval)).toEqual(["1", "15", "60", "240", "1D", "1D", "1W", "1M", "3M", "30S"]);
     expect(linkInterval("0")).toBeUndefined();

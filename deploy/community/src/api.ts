@@ -10,7 +10,7 @@ import { BOT } from "./bot";
 import { User } from "./auth";
 import {
   CONTACT_KINDS, POST_TYPES, REASONS, REPLY_KINDS, REPORT_REASONS,
-  type Comment, type Community, type CommunityRef, type Idea, type Me, type Post, type PostDetail, type PostList, type PostType, type Ratings, type Reason, type RecordTotals, type SharedChart,
+  type Comment, type Community, type CommunityRef, type Backtest, type Idea, type Me, type Post, type PostDetail, type PostList, type PostType, type Ratings, type Reason, type RecordTotals, type SharedChart,
   type Suggestion, type SuggestionStatus,
 } from "../../../src/community-shared/contract";
 import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
@@ -21,7 +21,7 @@ import { notify, notifyStatement } from "./notify";
 import { emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
 import { takeSnapshot } from "./snapshots";
 import { cancelForDeletedAccount } from "./billing";
-import { GITHUB_REPO, HttpError, LIMITS, NAME_RE, SUGGESTIONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
+import { BACKTESTS, GITHUB_REPO, HttpError, LIMITS, NAME_RE, SUGGESTIONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
 
 /** A database row: the columns its query selects (the answers sent are typed by the API contract). */
 type Row = Record<string, any>;
@@ -250,6 +250,7 @@ export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = tr
     author_bot: r.author_role === "bot",
     idea: shown ? ideaOut(r) : null,
     suggestion: suggestionOut(r),
+    backtest: shown && r.backtest ? (JSON.parse(r.backtest) as Backtest) : null,
     answer_id: r.answer_id ?? null,
     linked: r.linked_id ? { id: r.linked_id, title: r.linked_title ?? null, status: r.linked_status ?? null, result_r: r.linked_r ?? null } : null,
     // The shared chart: its state in the post (lists: symbol and interval only), its picture as a path on this server.
@@ -337,21 +338,24 @@ async function attachment(env: Env, u: User, body: any): Promise<{ chart: Shared
   return { chart: parseChart(body?.chart), image: parseImage(body?.image, body?.image_type) };
 }
 
-/** POST /communities/:id/posts {type, title, body, idea?, linked_id?, origin?, snapshot_id? | chart+image} */
-export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any): Promise<Response> {
+/** POST /communities/:id/posts {type, title, body, idea?, linked_id?, origin?, snapshot_id? | chart+image}; a backtest
+ *  comes from the posting API only, with its summary checked (backtests.ts). */
+export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any, backtest?: string): Promise<Response> {
   const u = writer(user);
   // Apps from before post types send none: an analysis; their theme communities are General now.
-  const type = (str(body?.type) || "analysis") as PostType | "suggestion";
-  // A suggestion goes to Suggestions, and only a suggestion does (suggestions.ts).
+  const type = (str(body?.type) || "analysis") as PostType;
+  // A suggestion goes to Suggestions, a backtest to Backtests, and only they do (suggestions.ts, backtests.ts).
   const suggestion = type === "suggestion";
+  const isBacktest = type === "backtest";
   if (suggestion !== (id === SUGGESTIONS)) throw new HttpError(400, "Suggestions go on the Suggestions page.");
-  if (!suggestion && !(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
-  if (id.startsWith("c:") && !suggestion) id = GENERAL;
+  if (isBacktest !== (id === BACKTESTS) || isBacktest !== !!backtest) throw new HttpError(400, "Backtests are posted by the project.");
+  if (!suggestion && !isBacktest && !(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
+  if (id.startsWith("c:") && !suggestion && !isBacktest) id = GENERAL;
   const origin = postOrigin(type, body?.origin);
   const title = text(body?.title, "The title", LIMITS.titleMin, LIMITS.titleMax);
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
-  if (!id.startsWith("t:") && id !== GENERAL && !suggestion) throw new HttpError(400, "Post on a ticker, or in General.");
+  if (!id.startsWith("t:") && id !== GENERAL && !suggestion && !isBacktest) throw new HttpError(400, "Post on a ticker, or in General.");
   const community = await ensureCommunity(env, id);
   await notBannedIn(env, u, community.id);
   requirePostingCheck(env, u);
@@ -389,7 +393,7 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   const cols: Row = {
     id: postId, community_id: community.id, author_id: u.id, title, body: content, score: 0, hot: hotRank(0, at), created_at: at,
     chart: chart ? JSON.stringify(chart) : null, has_image: image ? 1 : 0, sender_hash: sender, content_hash: contentHash,
-    type, linked_id: linked, origin, ...idea,
+    type, linked_id: linked, origin, backtest: backtest ?? null, ...idea,
     // Its author is its first supporter.
     ...(suggestion ? { sg_status: "review", sg_updated_at: at, useful_count: 1 } : {}),
   };
@@ -612,7 +616,7 @@ export async function deleteComment(env: Env, user: User | null, id: string): Pr
 
 // ── Ratings ─────────────────────────────────────────────────────────────
 
-/** POST /posts/:id/rate {reason, on} — a reason on or off; "vague" and the useful reasons exclude each other. */
+/** POST /posts/:id/rate {reason: "up" | "down", on} — a thumb on or off; a reader gives one or the other. */
 export async function ratePost(env: Env, user: User | null, id: string, body: any): Promise<Response> {
   const u = writer(user);
   const reason = str(body?.reason);
@@ -623,22 +627,13 @@ export async function ratePost(env: Env, user: User | null, id: string, body: an
   if (post.author_id === u.id) throw new HttpError(403, "Readers rate a post, not its author.");
   await notBannedIn(env, u, post.community_id);
   const on = body?.on !== false;
-  const stmts: D1PreparedStatement[] = [];
-  if (on) {
-    stmts.push(
-      reason === "vague"
-        ? env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason <> 'vague'").bind(u.id, id)
-        : env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason = 'vague'").bind(u.id, id),
-      env.DB.prepare("INSERT OR IGNORE INTO ratings (user_id, target_type, target_id, reason, created_at) VALUES (?, 'post', ?, ?, ?)").bind(u.id, id, reason, now()),
-    );
-  } else {
-    stmts.push(env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason = ?").bind(u.id, id, reason));
-  }
+  const stmts: D1PreparedStatement[] = [env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ?").bind(u.id, id)];
+  if (on) stmts.push(env.DB.prepare("INSERT INTO ratings (user_id, target_type, target_id, reason, created_at) VALUES (?, 'post', ?, ?, ?)").bind(u.id, id, reason, now()));
   stmts.push(
     env.DB.prepare(
       `UPDATE posts SET
-         useful_count = (SELECT COUNT(DISTINCT user_id) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason <> 'vague'),
-         flag_count = (SELECT COUNT(*) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason = 'vague')
+         useful_count = (SELECT COUNT(*) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason = 'up'),
+         flag_count = (SELECT COUNT(*) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason = 'down')
        WHERE id = ?1`,
     ).bind(id),
   );

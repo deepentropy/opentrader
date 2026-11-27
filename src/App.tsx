@@ -12,7 +12,7 @@ import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
 import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
 import { ConfirmInputsHost } from "./window/chart/ConfirmInputsHost";
 import { confirmInputsOf } from "./window/chart/confirm-inputs";
-import { getIndicatorEntry } from "./window/chart/indicators/registry";
+import { getIndicatorEntry, loadIndicatorLibrary } from "./window/chart/indicators/registry";
 import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
 import { appearanceFrom, cloneDraft, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
@@ -578,7 +578,26 @@ function App() {
         });
         broadcastLink("symbol", full);
         if (iv) broadcastLink("interval", iv);
+        if (link.study) void addLinkStudy(link.study, link.inputs ?? {});
       });
+  };
+  /** The strategy a link adds (a community backtest's "Open in OpenTrader"), its inputs given by id or title, at
+   *  once: no confirm points, as the settings are given. */
+  const addLinkStudy = async (typeId: string, inputs: NonNullable<ChartLink["inputs"]>) => {
+    await loadIndicatorLibrary();
+    const entry = getIndicatorEntry(typeId);
+    if (!entry) return;
+    const config = (entry.inputConfig ?? []) as { id: string; title?: string }[];
+    const before = new Set(activePaneState().indicators);
+    addIndicator(typeId, undefined, { confirm: false });
+    const added = activePaneState().indicators.find((id) => !before.has(id));
+    const values = Object.fromEntries(
+      Object.entries(inputs).flatMap(([k, v]) => {
+        const c = config.find((x) => x.id === k) ?? config.find((x) => x.title === k);
+        return c ? [[c.id, v]] : [];
+      }),
+    );
+    if (added && Object.keys(values).length) patchStudyInputs(activeTab().id, activeTab().activePane, added, values);
   };
   /** A link the app opens: a Community post (its panel) or a chart (a new tab). */
   const openLink = (link: OpenedLink) => {

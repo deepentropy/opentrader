@@ -6,6 +6,7 @@
  *   /t/NVDA/about     its moderators and log             /p/<id>           a post
  *   /submit?to=&type= new post                           /search?q=        search
  *   /u/<name>         a trader's profile                 /suggestions      feature suggestions
+ *   /backtests        strategy backtests (one opens at /p/<id>)
  *   /suggestions/new  suggest a feature (a suggestion opens at /p/<id>)
  *   /notifications, /account, /mod (moderation queue), /contact, /signin?next=
  *
@@ -19,6 +20,7 @@ export type Route =
   | { page: "home" }
   | { page: "ticker"; ticker: string }
   | { page: "general" }
+  | { page: "backtests" }
   | { page: "about"; community: string }
   | { page: "post"; id: string }
   | { page: "submit"; to: string | null; type: string | null }
@@ -39,7 +41,7 @@ export function parseRoute(path: string, search: string): Route {
   const parts = path.split("/").filter(Boolean).map((p) => decodeURIComponent(p));
   const [a, b, c] = parts;
   if (a === "t" && b) return c === "about" ? { page: "about", community: `t:${b.toUpperCase()}` } : { page: "ticker", ticker: b.toUpperCase() };
-  if (a === "c") return c === "about" ? { page: "about", community: "c:general" } : { page: "general" };
+  if (a === "c") return c === "about" ? { page: "about", community: "c:general" } : b === "backtests" ? { page: "backtests" } : { page: "general" };
   switch (a) {
     case undefined:
     case "following":
@@ -54,6 +56,8 @@ export function parseRoute(path: string, search: string): Route {
       return { page: "search", q: q.get("q") ?? "" };
     case "suggestions":
       return b === "new" ? { page: "suggest" } : { page: "suggestions" };
+    case "backtests":
+      return { page: "backtests" };
     case "tickers":
     case "notifications":
     case "account":

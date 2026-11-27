@@ -179,6 +179,7 @@
 .cm-chip:hover { background: var(--color-toolbar-button-background-hover); }
 .cm-chip.is-on { border-color: var(--color-brand); background: var(--ot-tint-blue-16); color: var(--color-text-primary); }
 .cm-chip[disabled] { opacity: 0.6; pointer-events: none; }
+.cm-thumb { display: inline-flex; align-items: center; gap: 4px; }
 .cm-action.is-on { color: var(--color-brand); }
 .cm-notice { display: flex; align-items: flex-start; gap: 8px; margin: 8px 16px; padding: 6px 8px; border-radius: 6px; background: rgba(41, 98, 255, 0.12); color: var(--color-toolbar-button-text); font-size: 12px; }
 .cm-notice span { flex: 1; }

@@ -25,6 +25,7 @@ import { Home } from "./Home";
 import { PostPage } from "./PostPage";
 import { Compose } from "./Compose";
 import { GeneralPage, TickerPage } from "./TickerPage";
+import { BacktestsPage } from "./Backtest";
 import { SearchPage } from "./SearchPage";
 import { ProfilePage } from "./ProfilePage";
 import { TickersPage } from "./TickersPage";
@@ -98,6 +99,7 @@ function Site() {
           <Match when={r().page === "home"}><Home /></Match>
           <Match when={r().page === "ticker" && (r() as { ticker: string }).ticker}>{(t) => <TickerPage ticker={t()} />}</Match>
           <Match when={r().page === "general"}><GeneralPage /></Match>
+          <Match when={r().page === "backtests"}><BacktestsPage /></Match>
           <Match when={r().page === "post" && (r() as { id: string }).id}>{(id) => <PostPage id={id()} />}</Match>
           <Match when={r().page === "submit" && (r() as Extract<Route, { page: "submit" }>)}>{(s) => <Compose to={s().to} type={s().type} />}</Match>
           <Match when={r().page === "search"}><SearchPage q={(r() as { q: string }).q} /></Match>

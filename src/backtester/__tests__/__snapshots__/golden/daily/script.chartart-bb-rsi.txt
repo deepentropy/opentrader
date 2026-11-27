@@ -1,0 +1,17 @@
+script/chartart-bb-rsi on daily: 1500 bars, first 1546405200, last 1728964800
+trades=3 filledOrders=3 marginCalls=0 finalEquity=99778.4 minEquity=99768.05
+orders by kind: entry/STOP=3
+openPL=-167.2 maxDD=271.59 (0.002715091446) maxRunUp=37.62 (0.0003760585268) buyHold=23532.08 (0.2353208)
+all: netProfit=-54.4 grossProfit=29.78 grossLoss=84.18 commissionPaid=0 profitFactor=0.3537657401 totalTrades=2 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=-27.2 avgWinTrade=29.78 avgLosTrade=84.18 largestWinTrade=29.78 largestLosTrade=84.18 avgBarsInTrade=298 maxContractsHeld=1
+long: netProfit=-84.18 grossProfit=0 grossLoss=84.18 commissionPaid=0 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-84.18 avgWinTrade=- avgLosTrade=84.18 largestWinTrade=- largestLosTrade=84.18 avgBarsInTrade=315 maxContractsHeld=1
+short: netProfit=29.78 grossProfit=29.78 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=1 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=29.78 avgWinTrade=29.78 avgLosTrade=- largestWinTrade=29.78 largestLosTrade=- avgBarsInTrade=281 maxContractsHeld=1
+trades:
+  #1 S "RSI_BB_S" in "RSI_BB_S"@252 225.8 out "RSI_BB_L"@532 196.02 q=1 pnl=29.78 (0.1318866253) cm=0 ru=37.62 dd=47.97 cum=29.78 eq%=0.0002978
+  #2 L "RSI_BB_L" in "RSI_BB_L"@532 196.02 out "RSI_BB_S"@846 111.84 q=1 pnl=-84.18 (-0.4294459749) cm=0 ru=5.37 dd=131.39 cum=-54.4 eq%=-0.0008415493866
+  #3 S "RSI_BB_S" in "RSI_BB_S"@846 111.84 out OPEN@1499 279.04 q=1 pnl=-167.2 (-1.494992847) cm=0 ru=32.86 dd=187.41 cum=-221.6 eq%=-0.001672910063
+  digest 1-3: 0a620128188b83
+orders:
+  252 sell entry STOP "RSI_BB_S" 225.8 x1
+  532 buy entry STOP "RSI_BB_L" 196.02 x2
+  846 sell entry STOP "RSI_BB_S" 111.84 x2
+  digest 1-3: 02516011d91886

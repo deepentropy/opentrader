@@ -1,0 +1,17 @@
+script/chartart-bb-rsi on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=3 filledOrders=3 marginCalls=0 finalEquity=99777.4585 minEquity=99767.1085
+orders by kind: entry/STOP=3
+openPL=-167.22 maxDD=272.06968 (0.002719899375) maxRunUp=37.6 (0.0003758595254) buyHold=23540.92 (0.2354092)
+all: netProfit=-55.3215 grossProfit=29.31818 grossLoss=84.63968 commissionPaid=0.8415 profitFactor=0.3463881243 totalTrades=2 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=-27.66075 avgWinTrade=29.31818 avgLosTrade=84.63968 largestWinTrade=29.31818 largestLosTrade=84.52786 avgBarsInTrade=298 maxContractsHeld=1
+long: netProfit=-84.52786 grossProfit=0 grossLoss=84.52786 commissionPaid=0.30786 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-84.52786 avgWinTrade=- avgLosTrade=84.52786 largestWinTrade=- largestLosTrade=84.52786 avgBarsInTrade=315 maxContractsHeld=1
+short: netProfit=29.20636 grossProfit=29.31818 grossLoss=0.11182 commissionPaid=0.53364 profitFactor=262.1908424 totalTrades=1 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=29.20636 avgWinTrade=29.31818 avgLosTrade=- largestWinTrade=29.31818 largestLosTrade=- avgBarsInTrade=281 maxContractsHeld=1
+trades:
+  #1 S "RSI_BB_S" in "RSI_BB_S"@252 225.78 out "RSI_BB_L"@532 196.04 q=1 pnl=29.31818 (0.1297231425) cm=0.42182 ru=37.37422 dd=48.21578 cum=29.31818 eq%=0.0002931818
+  #2 L "RSI_BB_L" in "RSI_BB_L"@532 196.04 out "RSI_BB_S"@846 111.82 q=1 pnl=-84.52786 (-0.4307458508) cm=0.30786 ru=5.15396 dd=131.60604 cum=-55.20968 eq%=-0.0008450308523
+  #3 S "RSI_BB_S" in "RSI_BB_S"@846 111.82 out OPEN@1499 279.04 q=1 pnl=-167.61086 (-1.497437101) cm=0.11182 ru=32.72818 dd=187.54182 cum=-222.93236 eq%=-0.001677036362
+  digest 1-3: 11de3a9a4c6702
+orders:
+  252 sell entry STOP "RSI_BB_S" 225.78 x1
+  532 buy entry STOP "RSI_BB_L" 196.04 x2
+  846 sell entry STOP "RSI_BB_S" 111.82 x2
+  digest 1-3: 15f3f633674150

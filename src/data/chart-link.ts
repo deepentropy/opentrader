@@ -2,11 +2,12 @@
  * Chart links (#350). The web version opened on `/chart/?symbol=NASDAQ:ARRY&interval=60` shows that symbol and
  * interval on the charts of its tab; the desktop app opens `opentrader://chart?symbol=…&interval=…`, and a web chart
  * link pasted in "Open link from clipboard", in a new tab (the reference app opens a link in a new tab). The tab
- * menu's "Copy link" gives the web link of the tab's chart.
+ * menu's "Copy link" gives the web link of the tab's chart. A link may also add one of the app's strategies with its
+ * inputs (`&study=strategy:<key>&inputs={…}`): a backtest post of the community opens so.
  */
 import { parseInterval } from "./interval";
 
-export type ChartLink = { symbol: string; interval?: string };
+export type ChartLink = { symbol: string; interval?: string; study?: string; inputs?: Record<string, number | string | boolean> };
 
 /** The public web version: the links the desktop app copies open there. */
 export const WEB_APP_URL = "https://demo.opentrader.markets";
@@ -41,13 +42,38 @@ export function linkInterval(raw: string | null | undefined): string | undefined
   }
 }
 
-/** The chart link of an address's query (`?symbol=…&interval=…`); null without a symbol. */
+/** A study a link may add: one of the app's own strategies (never a script from the link). */
+const STUDY = /^strategy:[a-z0-9-]{1,64}$/;
+
+/** A link's inputs: input id or title → number, text or switch; anything else drops them all. */
+function linkInputs(raw: string | null): ChartLink["inputs"] | undefined {
+  if (!raw || raw.length > 2000) return undefined;
+  try {
+    const o = JSON.parse(raw) as unknown;
+    if (!o || typeof o !== "object" || Array.isArray(o)) return undefined;
+    const entries = Object.entries(o);
+    const value = (v: unknown) => typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length <= 200);
+    return entries.length <= 30 && entries.every(([k, v]) => k.length > 0 && k.length <= 64 && value(v)) ? (o as ChartLink["inputs"]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The chart link of an address's query (`?symbol=…&interval=…&study=…&inputs=…`); null without a symbol. */
 export function chartLinkOf(search: string | URLSearchParams): ChartLink | null {
   const q = typeof search === "string" ? new URLSearchParams(search) : search;
   const symbol = q.get("symbol")?.trim().toUpperCase() ?? "";
   if (!symbol || symbol.length > 64 || !SYMBOL.test(symbol)) return null;
+  const link: ChartLink = { symbol };
   const interval = linkInterval(q.get("interval"));
-  return interval ? { symbol, interval } : { symbol };
+  if (interval) link.interval = interval;
+  const study = q.get("study") ?? "";
+  if (STUDY.test(study)) {
+    link.study = study;
+    const inputs = linkInputs(q.get("inputs"));
+    if (inputs) link.inputs = inputs;
+  }
+  return link;
 }
 
 /** The chart link of a link the app opens: `opentrader://chart?…`, or a chart page of the web version

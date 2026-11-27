@@ -25,6 +25,7 @@ import { meanReversionVf } from './mean-reversion-vf';
 import { tomukasScaleIn } from './tomukas-scale-in';
 import { auroraKama } from './aurora-kama';
 import { hmaCrossoverAtr } from './hma-crossover-atr';
+import { chartartBbRsi } from './chartart-bb-rsi';
 
 /** Strategies written as OakScript scripts (Pine v6 sources), validated against the reference app
  *  (.tmp/oakscript-strategies). */
@@ -56,4 +57,6 @@ export const SCRIPT_STRATEGIES: ScriptStrategy[] = [
   tomukasScaleIn,
   auroraKama,
   hmaCrossoverAtr,
+  // Posted in the community's Backtests (its trades match the backtest there).
+  chartartBbRsi,
 ];

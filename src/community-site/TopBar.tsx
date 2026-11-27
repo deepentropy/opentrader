@@ -27,6 +27,7 @@ const NAV = [
   { id: "home", label: "Home", href: "/" },
   { id: "tickers", label: "Tickers", href: "/tickers" },
   { id: "search", label: "Search", href: "/search" },
+  { id: "backtests", label: "Backtests", href: "/backtests" },
   { id: "suggestions", label: "Suggestions", href: "/suggestions" },
 ];
 
@@ -37,6 +38,7 @@ export function TopBar() {
     const p = route().page;
     if (p === "ticker" || p === "general" || p === "tickers" || p === "about") return "tickers";
     if (p === "search") return "search";
+    if (p === "backtests") return "backtests";
     if (p === "suggestions" || p === "suggest") return "suggestions";
     return p === "home" ? "home" : "";
   };

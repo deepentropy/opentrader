@@ -9,20 +9,14 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { showConfirm } from "../../../components/Dialogs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, imageUrl, type Comment, type Reason, type SharedChart } from "../../../data/community/api";
+import { COMMUNITY_URL, api, imageUrl, type Comment, type Reason, type SharedChart } from "../../../data/community/api";
 import { chartBridge } from "../../../data/community/chart-share";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
-import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, TypeBadges, errorText } from "../../../community-shared/parts";
+import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, Thumb, TypeBadges, errorText } from "../../../community-shared/parts";
 import { KINDS, KIND_LABEL, createPostThread, type FormKind } from "../../../community-shared/post-thread";
 import { translatePlural, translateWith } from "../../../i18n/translator";
 
-const REASONS: { id: Reason; label: string }[] = [
-  { id: "thesis", label: "Clear thesis" },
-  { id: "data", label: "Good data" },
-  { id: "view", label: "Changed my view" },
-  { id: "risk", label: "Well-defined risk" },
-  { id: "vague", label: "Vague" },
-];
+const THUMBS: Reason[] = ["up", "down"];
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;
@@ -276,6 +270,9 @@ export function PostView(props: Props) {
                   <Show when={p().idea}><IdeaLevels idea={p().idea!} /></Show>
                   <Show when={!p().idea}><div class="cm-meta"><PostState post={p()} /></div></Show>
                   <Show when={p().body}><MarkdownBody text={p().body} class="cm-post-body" /></Show>
+                  <Show when={p().backtest}>
+                    <div class="cm-muted cm-origin"><ExternalLink href={`${COMMUNITY_URL}/p/${p().id}`}>Every stock, trade and chart on the website</ExternalLink></div>
+                  </Show>
                   <Show when={p().image_url || p().chart}>
                     <SharedChartBlock imagePath={p().image_url} chart={p().chart} auto={props.openChart} />
                   </Show>
@@ -284,14 +281,13 @@ export function PostView(props: Props) {
                   </Show>
                   <Show when={!p().deleted && !p().removed}>
                     <div class="cm-rate">
-                      <div class="cm-muted">
-                        {p().own ? "What readers found useful" : "Useful? Say why"}{" · "}{translateWith("{0} found it useful", p().useful_count)}{p().flag_count ? ` · ${translateWith("{0} flagged", p().flag_count)}` : ""}
-                      </div>
+                      <div class="cm-muted">{p().own ? "What readers thought" : "Was this useful?"}</div>
                       <div class="cm-rate-btns">
-                        <For each={REASONS}>
+                        <For each={THUMBS}>
                           {(r) => (
-                            <button type="button" class={"cm-chip" + (ratings().mine.includes(r.id) ? " is-on" : "")} aria-pressed={ratings().mine.includes(r.id)} disabled={p().own} onClick={() => rate(r.id)}>
-                              {r.label} <span>{ratings().reasons[r.id] ?? 0}</span>
+                            <button type="button" class={"cm-chip cm-thumb" + (ratings().mine.includes(r) ? " is-on" : "")} aria-pressed={ratings().mine.includes(r)}
+                              aria-label={r === "up" ? "Useful" : "Not useful"} title={r === "up" ? "Useful" : "Not useful"} disabled={p().own} onClick={() => rate(r)}>
+                              <Thumb down={r === "down"} /> <span>{r === "up" ? p().useful_count : p().flag_count}</span>
                             </button>
                           )}
                         </For>

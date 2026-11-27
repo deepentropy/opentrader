@@ -8,7 +8,7 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { POST_TYPES, type HomeView, type PostList, type Profile, type Reason, type RecordTotals, type SearchView, type TickerView } from "../../../src/community-shared/contract";
+import { POST_TYPES, type HomeView, type PostList, type Profile, type RecordTotals, type SearchView, type TickerView } from "../../../src/community-shared/contract";
 import { POST_SELECT, findCommunity, ideaOut, order, postsOut, requireUser } from "./api";
 import { RECORD_COLUMNS, dailyBars, nyTime, quotes, recordOf, recordsOf, reference, round2 } from "./ideas";
 import { HttpError, SUGGESTIONS, json, now, parseCommunityId, str } from "./util";
@@ -311,8 +311,6 @@ export async function search(env: Env, user: User | null, url: URL): Promise<Res
 
 // ── Profiles ────────────────────────────────────────────────────────────
 
-const REASON_LABELS: Reason[] = ["thesis", "risk", "data", "view"];
-
 async function userByName(env: Env, name: string): Promise<Row> {
   const u = await env.DB.prepare("SELECT id, name, bio, role, created_at FROM users WHERE name_key = ?").bind(str(name).toLowerCase()).first<Row>();
   if (!u) throw new HttpError(404, "No such member.");
@@ -342,11 +340,11 @@ export async function profile(env: Env, user: User | null, name: string): Promis
   const hold = median(settled.filter((s) => s.triggered_at).map((s) => (s.resolved_at - s.triggered_at) / DAY));
   const { results: typeCounts } = await env.DB.prepare(`SELECT p.type, COUNT(*) AS n FROM posts p WHERE ${live} GROUP BY p.type`).bind(u.id).all<{ type: string; n: number }>();
   const replies = await env.DB.prepare("SELECT COUNT(*) AS n FROM comments WHERE author_id = ? AND deleted = 0 AND removed = 0").bind(u.id).first<{ n: number }>();
-  const { results: reasons } = await env.DB.prepare(
-    `SELECT r.reason, COUNT(*) AS n FROM ratings r JOIN posts p ON p.id = r.target_id AND r.target_type = 'post' WHERE ${live} AND r.reason <> 'vague' GROUP BY r.reason`,
+  const thumbs = await env.DB.prepare(
+    `SELECT COALESCE(SUM(p.useful_count), 0) AS up, COALESCE(SUM(p.flag_count), 0) AS down FROM posts p WHERE ${live} AND p.sg_status IS NULL`,
   )
     .bind(u.id)
-    .all<{ reason: string; n: number }>();
+    .first<{ up: number; down: number }>();
   const { results: dirs } = await env.DB.prepare(`SELECT p.direction, ${RECORD_COLUMNS} FROM posts p WHERE ${live} AND p.type = 'idea' GROUP BY p.direction`).bind(u.id).all<Row>();
   const { results: tickers } = await env.DB.prepare(
     `SELECT p.community_id AS id, COUNT(*) AS n FROM posts p WHERE ${live} AND p.community_id LIKE 't:%' GROUP BY p.community_id ORDER BY n DESC LIMIT 5`,
@@ -364,7 +362,7 @@ export async function profile(env: Env, user: User | null, name: string): Promis
     curve,
     outcomes,
     counts: { ...Object.fromEntries(typeCounts.map((t) => [t.type, t.n])), replies: replies?.n ?? 0 },
-    reasons: REASON_LABELS.map((r) => ({ reason: r, n: reasons.find((x) => x.reason === r)?.n ?? 0 })).sort((a, b) => b.n - a.n),
+    thumbs: { up: thumbs?.up ?? 0, down: thumbs?.down ?? 0 },
     by_direction: dirs.filter((d) => d.direction).map((d) => ({ direction: d.direction, ...recordOf(d) })),
     tickers: tickers.map((t) => ({ ticker: t.id.slice(2), n: t.n })),
     watching,

@@ -13,7 +13,7 @@
 import { Env } from "./env";
 import { BOT } from "./bot";
 import { utcDate } from "../../../src/community-shared/dates";
-import { SUGGESTIONS, THEME_RE, TICKER_RE, escapeHtml } from "./util";
+import { BACKTESTS, SUGGESTIONS, THEME_RE, TICKER_RE, escapeHtml } from "./util";
 
 const SITE = "OpenTrader Community";
 const DEFAULT_DESCRIPTION = "Discussions per ticker and per theme: stocks, options, penny stocks, crypto. Free and open source.";
@@ -90,6 +90,7 @@ export function canonicalPath(parts: string[]): string | null {
     case "c":
       if (!b || !THEME_RE.test(b) || (c !== undefined && c !== "about")) return null;
       if (b === "suggestions" && !c) return "/suggestions";
+      if (b === "backtests" && !c) return "/backtests";
       // Former theme communities: General took them in.
       return `/c/general${c ? "/about" : ""}`;
     case "p":
@@ -97,6 +98,8 @@ export function canonicalPath(parts: string[]): string | null {
       return b && c === undefined ? `/${a}/${enc(b)}` : null;
     case "suggestions":
       return c === undefined && (b === undefined || b === "new") ? `/suggestions${b ? "/new" : ""}` : null;
+    case "backtests":
+      return b === undefined ? "/backtests" : null;
     case "following":
       return b === undefined ? "/" : null;
     case "search":
@@ -164,15 +167,16 @@ async function pageFor(env: Env, parts: string[]): Promise<Page> {
   if (c === "about") return { title: `About ${a === "t" ? `$${b.toUpperCase()}` : "General"} · ${SITE}`, noindex: true };
   if (a === "suggestions") return b === "new" ? { title: `Suggest a feature · ${SITE}`, noindex: true } : suggestions(env);
   if (a === "tickers") return tickers(env);
+  if (a === "backtests") return community(env, BACKTESTS, "/backtests");
   if (a === "p") return post(env, b);
   if (a === "u") return member(env, b);
   if (a === "t") return ticker(env, b.toUpperCase());
-  if (a === "c") return general(env);
+  if (a === "c") return community(env, "c:general", "/c/general");
   return { title: `${UTILITY[a]} · ${SITE}`, noindex: true };
 }
 
 function nav(): string {
-  return `<nav><a href="/">${SITE}</a> · <a href="/tickers">Tickers</a> · <a href="/c/general">General</a> · <a href="/suggestions">Suggestions</a></nav>`;
+  return `<nav><a href="/">${SITE}</a> · <a href="/tickers">Tickers</a> · <a href="/c/general">General</a> · <a href="/backtests">Backtests</a> · <a href="/suggestions">Suggestions</a></nav>`;
 }
 
 function postList(rows: ListRow[], empty: string): string {
@@ -202,11 +206,12 @@ async function home(env: Env): Promise<Page> {
   return { title: SITE, content: `${nav()}<h1>${SITE}</h1><p>${h(DEFAULT_DESCRIPTION)}</p><h2>Latest posts</h2>${postList(results, "No posts yet.")}` };
 }
 
-async function general(env: Env): Promise<Page> {
-  const c = await env.DB.prepare("SELECT title, description FROM communities WHERE id = 'c:general'").first<{ title: string; description: string }>();
-  const title = c?.title ?? "General";
-  const { results } = await env.DB.prepare(`${LIST_SELECT} WHERE p.community_id = 'c:general' AND p.removed = 0 AND p.deleted = 0 ORDER BY p.created_at DESC LIMIT ?`)
-    .bind(LIST_MAX)
+/** General or Backtests: a theme community's posts. */
+async function community(env: Env, id: string, path: string): Promise<Page> {
+  const c = await env.DB.prepare("SELECT title, description FROM communities WHERE id = ?").bind(id).first<{ title: string; description: string }>();
+  const title = c?.title ?? path.split("/").pop()!;
+  const { results } = await env.DB.prepare(`${LIST_SELECT} WHERE p.community_id = ? AND p.removed = 0 AND p.deleted = 0 ORDER BY p.created_at DESC LIMIT ?`)
+    .bind(id, LIST_MAX)
     .all<ListRow>();
   const description = c?.description || `${title} discussions.`;
   return { title: `${title} · ${SITE}`, description, content: `${nav()}<h1>${h(title)}</h1><p>${h(description)}</p>${postList(results, "No posts yet.")}` };
@@ -263,7 +268,7 @@ async function post(env: Env, id: string): Promise<Page> {
   if (!p) return { title: `Post not found · ${SITE}`, description: "This post doesn't exist.", content: `${nav()}<h1>Post not found</h1><p>This post doesn't exist.</p>`, noindex: true, status: 404 };
   if (p.removed) return { title: `Removed post · ${p.community} · ${SITE}`, description: "This post was removed by the moderators.", noindex: true };
   const where =
-    p.community_id === SUGGESTIONS ? `<a href="/suggestions">Suggestions</a>` : p.community_id.startsWith("t:") ? `<a href="/t/${h(encodeURIComponent(p.community_id.slice(2)))}">${h(p.community)}</a>` : `<a href="/c/general">${h(p.community)}</a>`;
+    p.community_id === SUGGESTIONS ? `<a href="/suggestions">Suggestions</a>` : p.community_id === BACKTESTS ? `<a href="/backtests">Backtests</a>` : p.community_id.startsWith("t:") ? `<a href="/t/${h(encodeURIComponent(p.community_id.slice(2)))}">${h(p.community)}</a>` : `<a href="/c/general">${h(p.community)}</a>`;
   const { results: comments } = await env.DB.prepare(
     `SELECT k.body, k.created_at, u.name AS author FROM comments k LEFT JOIN users u ON u.id = k.author_id
      WHERE k.post_id = ? AND k.removed = 0 AND k.deleted = 0 ORDER BY k.created_at LIMIT ?`,
@@ -313,6 +318,7 @@ async function sitemap(env: Env): Promise<Response> {
     url("/"),
     url("/tickers"),
     url("/c/general"),
+    url("/backtests"),
     url("/suggestions"),
     ...communities.map((c) => url(`/t/${encodeURIComponent(c.id.slice(2))}`)),
     ...posts.map((p) => url(`/p/${p.id}`, p.at)),

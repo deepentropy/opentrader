@@ -4,7 +4,7 @@
  * chart snapshot; and (data/community/format.ts) how figures read.
  */
 import { For, Show } from "solid-js";
-import { GENERAL, SUGGESTIONS, imageUrl, type Post, type PostType, type SuggestionStatus } from "../data/community/api";
+import { BACKTESTS, GENERAL, SUGGESTIONS, imageUrl, type Post, type PostType, type SuggestionStatus } from "../data/community/api";
 import { STATUS_LABEL, TYPE_LABEL } from "../data/community/format";
 import { longIntervalLabel, shortIntervalLabel } from "../window/chart/interval-favorites";
 import { go } from "./router";
@@ -33,14 +33,16 @@ export function DirTag(props: { dir: "long" | "short" }) {
   return <span class="cs-type is-dir">{props.dir === "long" ? "Long" : "Short"}</span>;
 }
 
-/** "NVDA" for `t:NVDA`, "General" for General, "Suggestions". */
+/** "NVDA" for `t:NVDA`, "General" for General, "Suggestions", "Backtests". */
 export function tickerName(communityId: string): string {
   if (communityId === SUGGESTIONS) return "Suggestions";
+  if (communityId === BACKTESTS) return "Backtests";
   return communityId === GENERAL ? "General" : communityId.replace(/^t:/, "").replace(/^\$/, "");
 }
 
 export function communityHref(communityId: string): string {
   if (communityId === SUGGESTIONS) return "/suggestions";
+  if (communityId === BACKTESTS) return "/backtests";
   return communityId === GENERAL ? "/c/general" : `/t/${encodeURIComponent(tickerName(communityId))}`;
 }
 
