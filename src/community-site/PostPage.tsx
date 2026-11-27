@@ -29,6 +29,15 @@ const APP_URL = "https://opentrader.markets/download.html";
 
 const THUMBS: Reason[] = ["up", "down"];
 
+/** A speech bubble: the post's replies. */
+function CommentIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12a8 8 0 0 1-11.8 7L4 20.5l1.4-4.6A8 8 0 1 1 21 12Z" />
+    </svg>
+  );
+}
+
 /** "daily close > 148.20", "trade < 52.00": what triggers the entry. */
 export function triggerText(i: Idea): string {
   const side = i.ref_price < i.entry ? ">" : "<";
@@ -56,6 +65,8 @@ export function PostPage(props: { id: string }) {
   const [snap, setSnap] = createSignal<string | null>(null);
   const [picking, setPicking] = createSignal(false);
   const [sort, setSort] = createSignal<"useful" | "oldest">("useful");
+  // The reply box opens from the post bar's comment button.
+  const [composing, setComposing] = createSignal(false);
   const [supported, setSupported] = createSignal(false);
   const [why, setWhy] = createSignal("");
   // "Open in OpenTrader" (#233): the browser hands opentrader:// to the app; a page that keeps the focus means none answered.
@@ -144,6 +155,7 @@ export function PostPage(props: { id: string }) {
     if (await t.send(parentId, text, parentId ? null : snap() ? { snapshotId: snap()! } : null)) {
       setSnap(null);
       setPicking(false);
+      if (!parentId) setComposing(false);
     }
   };
 
@@ -473,7 +485,28 @@ export function PostPage(props: { id: string }) {
               <BacktestBody post={p()} />
             </Show>
             <Show when={p().source_url}><p class="cs-note">Imported test content · <a href={p().source_url!}>source</a></p></Show>
-            <div class="cs-post-acts">
+            {/* The post's bar: thumbs with the score between them, the replies (a click opens the reply box), the actions. */}
+            <div class="cs-post-acts cs-postbar">
+              <Show when={!p().suggestion && !p().deleted && !p().removed}>
+                <div class={"cs-vote" + (ratings().mine.includes("up") ? " is-up" : ratings().mine.includes("down") ? " is-down" : "")}>
+                  <For each={THUMBS}>
+                    {(r) => {
+                      const mine = () => ratings().mine.includes(r);
+                      const label = r === "up" ? "Useful" : "Not useful";
+                      const button = (
+                        <button type="button" class={"cs-vote-btn" + (mine() ? " is-on" : "")} aria-pressed={mine()} aria-label={label} title={p().own ? "Readers rate a post, not its author" : label} disabled={p().own} onClick={() => rate(r)}>
+                          <Thumb down={r === "down"} />
+                        </button>
+                      );
+                      return r === "up" ? <>{button}<span class="cs-vote-n" title={`${p().useful_count} useful, ${p().flag_count} not useful`}>{p().useful_count - p().flag_count}</span></> : button;
+                    }}
+                  </For>
+                </div>
+              </Show>
+              <button type="button" class={"cs-bar-btn" + (composing() ? " is-on" : "")} aria-expanded={composing()} title={p().locked ? "Locked: no new replies" : "Reply"}
+                onClick={() => (p().locked || p().deleted || p().removed ? document.getElementById("cs-replies")?.scrollIntoView({ behavior: "smooth" }) : needUser(() => setComposing((x) => !x))())}>
+                <CommentIcon /><span>{p().comment_count}</span>
+              </button>
               <Actions type="post" id={p().id} own={p().own} deleted={p().deleted} removed={p().removed} author={p().author} body={p().body} target="post" />
             </div>
             <Show when={isPost("edit")}><Editor initial={p().body} placeholder="Text" action="Save" onSubmit={(t) => saveEdit("post", t)} /></Show>
@@ -503,37 +536,18 @@ export function PostPage(props: { id: string }) {
                 </div>
               </div>
             </Show>
-            <Show when={!p().suggestion && !p().deleted && !p().removed}>
-              <div class="cs-rate is-thumbs">
-                <h5>{p().own ? "What readers thought" : "Was this useful?"}</h5>
-                <div class="cs-rate-btns">
-                  <For each={THUMBS}>
-                    {(r) => {
-                      const mine = () => ratings().mine.includes(r);
-                      const label = r === "up" ? "Useful" : "Not useful";
-                      return (
-                        <button type="button" class={"cs-btn cs-thumb" + (mine() ? " is-picked" : "")} aria-pressed={mine()} aria-label={label} title={label} disabled={p().own} onClick={() => rate(r)}>
-                          <Thumb down={r === "down"} />
-                          <span class="cs-rate-n">{r === "up" ? p().useful_count : p().flag_count}</span>
-                        </button>
-                      );
-                    }}
-                  </For>
-                </div>
-              </div>
-            </Show>
             <ErrorBanner text={error()} onClose={() => setError(null)} />
 
-            <div class="cs-head is-strong is-replies">
+            <Show when={p().locked}><p class="cs-note">Locked: no new replies.</p></Show>
+            <div class="cs-head is-strong is-replies" id="cs-replies">
               <h3>{p().comment_count} {p().comment_count === 1 ? "reply" : "replies"}</h3>
               <Pills items={[{ id: "useful", label: "Most useful" }, { id: "oldest", label: "Oldest" }]} value={sort()} onChange={setSort} label="Sort replies" />
             </div>
             <For each={tops()} fallback={<p class="cs-note">No replies yet.</p>}>{(c) => <Reply c={c} />}</For>
 
-            <Show when={!p().deleted && !p().removed}>
-              <Show when={!p().locked} fallback={<p class="cs-note">Locked: no new replies.</p>}>
-                <PostingCheckPrompt />
-                <div class="cs-reply-box">
+            <Show when={!p().deleted && !p().removed && !p().locked && composing()}>
+              <PostingCheckPrompt />
+              <div class="cs-reply-box">
                   <textarea
                     class="cs-textarea"
                     placeholder={
@@ -543,6 +557,7 @@ export function PostPage(props: { id: string }) {
                     }
                     value={draft()}
                     onInput={(e) => setDraft(e.currentTarget.value)}
+                    ref={(el) => setTimeout(() => el.focus())}
                   />
                   <Show when={!p().own && !p().suggestion}>
                     <div class="cs-row is-kinds">
@@ -560,9 +575,9 @@ export function PostPage(props: { id: string }) {
                     <Show when={!p().suggestion}>
                       <button type="button" class="cs-btn" onClick={needUser(() => setPicking((x) => !x))}>{snap() ? "Snapshot attached" : "Attach OpenTrader snapshot"}</button>
                     </Show>
+                    <button type="button" class="cs-btn" onClick={() => setComposing(false)}>Cancel</button>
                   </div>
                 </div>
-              </Show>
             </Show>
           </main>
 

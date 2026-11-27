@@ -660,10 +660,19 @@ select.cs-input { padding-inline-end: 8px; }
 }
 .cs-sg-home { justify-content: space-between; margin-top: 12px; font-size: 13px; }
 
+/* The post's bar: thumbs around the score, the replies button, the actions. */
+.cs-postbar { margin-top: 20px; gap: 8px 14px; }
+.cs-vote, .cs-bar-btn { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; background: var(--cs-slate); color: var(--cs-chalk); }
+.cs-vote-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 16px; background: none; color: inherit; cursor: pointer; }
+.cs-vote-btn:hover:not(:disabled) { background: var(--cs-slate-hover); }
+.cs-vote-btn:disabled { cursor: default; opacity: 0.6; }
+.cs-vote-n { min-width: 18px; font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.cs-vote.is-up { background: var(--cs-up); color: var(--color-white); }
+.cs-vote.is-down { background: var(--cs-down); color: var(--color-white); }
+.cs-vote.is-up .cs-vote-btn:hover, .cs-vote.is-down .cs-vote-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.cs-bar-btn { gap: 6px; padding: 0 14px; border: 0; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cs-bar-btn:hover, .cs-bar-btn.is-on { background: var(--cs-slate-hover); }
 /* ── Backtests ───────────────────────────────────────────────────────── */
-.cs-rate.is-thumbs { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; }
-.cs-thumb { gap: 6px; }
-.cs-thumb .cs-rate-n { margin-inline-start: 0; }
 .cs-thumbs-total { display: flex; gap: 20px; font-size: 15px; font-weight: 600; }
 .cs-thumbs-total span { display: inline-flex; align-items: center; gap: 6px; }
 .cs-bt section { margin-top: 28px; }
