@@ -202,7 +202,7 @@ export function Watchlist(props: WatchlistProps) {
     commitListRename,
     copyList,
     createList,
-    onUploadFile,
+    onUploadFiles,
     openList,
     removeAlert,
     renameList,
@@ -437,15 +437,16 @@ export function Watchlist(props: WatchlistProps) {
         />
       </Show>
 
-      {/* Hidden picker backing the menu's "Upload list…" action. */}
+      {/* Hidden picker backing the menu's "Upload list…" action (several files: one list each). */}
       <input
         ref={uploadInput}
         type="file"
         accept=".txt,text/plain"
+        multiple
         style={{ display: "none" }}
         onChange={(e) => {
-          const file = e.currentTarget.files?.[0];
-          if (file) onUploadFile(file);
+          const files = [...(e.currentTarget.files ?? [])];
+          if (files.length) void onUploadFiles(files);
           e.currentTarget.value = ""; // allow re-uploading the same file
         }}
       />

@@ -5,7 +5,7 @@
 import { createEffect } from "solid-js";
 import { watchlistStore, consumeOpenListRequest, clearFiredForList, sectionId } from "../../../data/watchlist-store";
 import { showConfirm, showNotice } from "../../../components/Dialogs";
-import { formatted, translateWith } from "../../../i18n/translator";
+import { formatted, translatePlural, translateWith } from "../../../i18n/translator";
 import { numberText } from "../../../i18n/format";
 import { promptCopyWatchlist, promptNewWatchlist } from "../watchlist-prompts";
 import { type ListFileError, MAX_LIST_FILE_KB, listFileTooBig, parseWatchlistFile } from "./list-file";
@@ -20,7 +20,7 @@ export interface ListActionsApi {
   commitListRename: () => void;
   copyList: () => void;
   createList: () => void;
-  onUploadFile: (file: File) => void;
+  onUploadFiles: (files: File[]) => Promise<void>;
   openList: () => void;
   removeAlert: () => void;
   renameList: () => void;
@@ -40,6 +40,19 @@ function refuseListFile(error: ListFileError): void {
       text: 'The file holds no list of symbols. Separate them with commas or put one per line, for example "NASDAQ:AAPL,NYSE:F" or "AAPL,F,MSFT".',
     });
   }
+}
+
+/** Make a list of a file, named after it; else why it makes none ("empty": a file that parses to no rows, which
+ *  never made a list nor a message; "warned": the store refused it and said why). */
+async function importListFile(file: File): Promise<ListFileError | "empty" | "warned" | null> {
+  if (listFileTooBig(file.size)) return "size";
+  const parsed = parseWatchlistFile(await file.text());
+  if ("error" in parsed) return parsed.error;
+  const { groups, extras } = parsed;
+  if (!groups.length && !extras.length) return "empty";
+  // Imported lists start in "default" (file) order — see importList — so
+  // rows keep the file's order and don't reshuffle as live quotes arrive.
+  return watchlistStore.importList(file.name.replace(/\.[^.]+$/, ""), groups, extras) ? null : "warned";
 }
 
 export function createListActions(cx: WatchlistCx): ListActionsApi {
@@ -82,20 +95,35 @@ export function createListActions(cx: WatchlistCx): ListActionsApi {
     const a = watchlistStore.active();
     if (a) promptCopyWatchlist(`${a.name} copy`, (name) => watchlistStore.copyActive(name));
   };
-  // "Upload list…": open the hidden file picker; parsed in onUploadFile.
+  // "Upload list…": open the hidden file picker (several files at once); read in onUploadFiles.
   const uploadList = () => cx.uploadInput?.click();
-  const onUploadFile = (file: File) => {
-    if (listFileTooBig(file.size)) return refuseListFile("size");
-    void file.text().then((text) => {
-      const parsed = parseWatchlistFile(text);
-      if ("error" in parsed) return refuseListFile(parsed.error);
-      const { groups, extras } = parsed;
-      if (groups.length || extras.length) {
-        // Imported lists start in "default" (file) order — see importList — so
-        // rows keep the file's order and don't reshuffle as live quotes arrive.
-        watchlistStore.importList(file.name.replace(/\.[^.]+$/, ""), groups, extras);
-      }
-    });
+  // One list per file, in the picked order; the last one made is opened. A
+  // single file that makes no list says why; for several files, one notice
+  // names the files left out and a toast counts the lists made.
+  const onUploadFiles = async (files: File[]) => {
+    const refused: string[] = [];
+    let made = 0;
+    for (const file of files) {
+      const error = await importListFile(file);
+      if (error === null) made++;
+      else if (error === "empty") continue;
+      else if (files.length > 1) refused.push(file.name);
+      else if (error !== "warned") refuseListFile(error);
+    }
+    if (files.length < 2) return;
+    if (made) showToast(formatted(translatePlural(made, { one: "{0} list uploaded", other: "{0} lists uploaded" })));
+    if (refused.length) {
+      showNotice({
+        title: "Some files made no list",
+        text: formatted(
+          translateWith(
+            "Not uploaded: {0}. A file holds symbols separated by commas or one per line, and is at most {1} KB.",
+            refused.join(", "),
+            numberText(MAX_LIST_FILE_KB),
+          ),
+        ),
+      });
+    }
   };
   // "Open list…": the search-and-switch picker.
   const openList = () => setOpenListOpen(true);
@@ -129,7 +157,7 @@ export function createListActions(cx: WatchlistCx): ListActionsApi {
     commitListRename,
     copyList,
     createList,
-    onUploadFile,
+    onUploadFiles,
     openList,
     removeAlert,
     renameList,
