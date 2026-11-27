@@ -11,7 +11,9 @@
  *   ("" = the chart's), daily and longer bars at the session open of their
  *   trading day as the chart bars the studies see.
  * - They cover the chart's loaded history: when the chart pages back, the
- *   older bars of an intraday timeframe follow (daily bars are loaded whole).
+ *   older bars of an intraday timeframe follow (daily bars are loaded whole;
+ *   a timeframe below the chart's: its last 100,000 bars at most, as many as
+ *   a script is given).
  * - Live updates of each symbol in use are merged; a symbol no study reads
  *   any more is dropped with its live subscription.
  * - A symbol that cannot be loaded (unknown, not served) answers no bars,
@@ -22,7 +24,7 @@
  * - Bar Replay: the bars after the replay time are left out (`setCutoff`), as
  *   the reference app replays the other series of the chart with it.
  */
-import type { Bar } from "oakscriptjs";
+import { MAX_INTRABARS, type Bar } from "oakscriptjs";
 import type { SessionId } from "../../../data/session";
 import type { SymbolEvents, SymbolInfo } from "oakscriptjs/script";
 import {
@@ -432,8 +434,7 @@ export class OtherSymbolBars {
   }
 
   /** Older bars of an intraday timeframe back to the chart's first bar (a lower-timeframe entry: back to the time
-   *  its study asks for). A timeframe below the chart's is not extended (its whole history under a long chart would
-   *  be far too many bars); ticks go back MAX_TICKS at most. */
+   *  its study asks for). A timeframe below the chart's goes back MAX_INTRABARS bars at most, ticks MAX_TICKS. */
   private extend(key: string, e: Entry): void {
     const target = e.lower ? e.wantFrom : this.chartFirst;
     if (!e.bars || e.failed || e.exhausted || e.extending || !Number.isFinite(target)) return;
@@ -442,10 +443,17 @@ export class OtherSymbolBars {
     if (ticks !== null && e.bars.length * ticks >= MAX_TICKS) return;
     const first = e.bars.length ? (e.bars[0].time as number) : Infinity;
     if (first <= target || !Number.isFinite(first)) return;
-    const seconds = Number(e.resolution) * 60 || 0;
-    if (!e.lower && seconds && this.chartSeconds && seconds < this.chartSeconds) return;
+    let spanDays = Math.ceil((first - target) / 86400) + 1;
+    // Below the chart's timeframe (`request.security_lower_tf`): the last MAX_INTRABARS bars at most, the ones a
+    // script is given, in pages of what is left of them (a whole long chart's span of seconds in one request is
+    // millions of bars).
+    const seconds = intervalSeconds(e.resolution);
+    if (!e.lower && seconds && this.chartSeconds && seconds < this.chartSeconds) {
+      const left = MAX_INTRABARS - e.bars.length;
+      if (left <= 0) return;
+      spanDays = Math.min(spanDays, Math.ceil((left * seconds) / 86400));
+    }
     e.extending = true;
-    const spanDays = Math.ceil((first - target) / 86400) + 1;
     getBarsBefore(e.symbol, e.resolution, first, e.session, spanDays)
       .then((rows) => {
         if (!this.alive(key, e) || !e.bars) return;
