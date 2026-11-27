@@ -36,11 +36,18 @@ const usage = () => {
 const kind = (k) => (k === "comment" || k === "post" ? `${k}s` : usage());
 
 const send = async (method, path, body, raw) => {
-  const res = await fetch(url + path, {
-    method,
-    headers: { authorization: `Bearer ${token}`, "content-type": raw ? "application/octet-stream" : "application/json" },
-    body: raw ?? (body && JSON.stringify(body)),
-  });
+  const once = () =>
+    fetch(url + path, {
+      method,
+      headers: { authorization: `Bearer ${token}`, "content-type": raw ? "application/octet-stream" : "application/json" },
+      body: raw ?? (body && JSON.stringify(body)),
+    });
+  let res = await once();
+  // A file upload is tried again: right after a deploy, some requests still reach the previous version for a while.
+  for (let n = 1; raw && n <= 5 && (res.status === 404 || res.status === 429 || res.status >= 500); n++) {
+    await new Promise((r) => setTimeout(r, 2000 * n));
+    res = await once();
+  }
   const answer = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.error(`${method} ${path}: ${res.status} ${answer.error ?? ""}`);
