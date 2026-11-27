@@ -716,7 +716,7 @@ select.cs-input { padding-inline-end: 8px; }
 .cs-bt-tags .cs-type { gap: 5px; }
 .cs-bt-strip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 28px; padding: 10px 0 2px; }
 .cs-bt-stat-v { color: var(--color-white); font-size: 20px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.cs-bt-strip-note { margin-inline-start: auto; font-size: 12px; }
+.cs-bt-hint { border-bottom: 1px dotted var(--cs-fog); cursor: help; }
 .cs-center.cs-bt-list { border-inline-end: 0; }
 .cs-bt .cs-btn + .cs-note, .cs-bt .cs-table + .cs-btn { margin-top: 4px; }
 @media (max-width: 720px) {

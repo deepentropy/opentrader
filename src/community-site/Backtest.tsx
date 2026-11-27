@@ -11,7 +11,7 @@ import {
   BACKTESTS, api, type Backtest, type BacktestPeriod, type BacktestStats, type BacktestStock, type BacktestStockRow, type BacktestSummary, type BacktestTrade, type Post,
 } from "../data/community/api";
 import { errorText } from "../community-shared/parts";
-import { DOWN, FOG, INK, Pills, UP, UserLink, age, tfLong } from "./ui";
+import { DOWN, FOG, INK, Pills, UP, UserLink, age, tfLong, tfShort } from "./ui";
 import { go } from "./router";
 
 type Setting = "default" | "optimized";
@@ -388,7 +388,7 @@ export function BacktestBody(props: { post: Post }) {
   const costs = () => {
     const c = b().costs;
     const fees = c.commission === 0 && c.slippage === 0 ? "no commission, no slippage" : `commission ${c.commission}, slippage ${c.slippage}`;
-    return `${c.capital.toLocaleString("en-US")} starting capital, ${c.order} per order, ${fees} (the script's own settings)`;
+    return `${c.capital.toLocaleString("en-US")} starting capital, ${c.order} per order, ${fees}`;
   };
   return (
     <div class="cs-bt">
@@ -400,11 +400,12 @@ export function BacktestBody(props: { post: Post }) {
       <section>
         <h3 class="cs-bt-h3">Data</h3>
         <dl class="cs-bt-facts">
-          <dt>Timeframe</dt><dd>{tfLong(b().interval)} bars, regular session, split-adjusted</dd>
+          <dt>Timeframe</dt>
+          <dd><span class="cs-bt-hint" title={`${tfLong(b().interval)} bars, regular trading hours (RTH), split-adjusted`}>{tfShort(b().interval).toUpperCase()}</span></dd>
           <dt>Period</dt><dd>{span(periodOf("full"))}</dd>
           <dt>In-sample</dt><dd>{span(periodOf("in"))}</dd>
           <dt>Out-of-sample</dt><dd>{span(periodOf("out"))}. A stock listed later splits at 60% of its own history.</dd>
-          <dt>Stocks</dt><dd>{b().universe.label}: {b().universe.rule} <a href="#cs-bt-stocks" onClick={(e) => { e.preventDefault(); browse(setting()); }}>See the list</a></dd>
+          <dt>Stocks</dt><dd>{b().universe.label} <a href="#cs-bt-stocks" onClick={(e) => { e.preventDefault(); browse(setting()); }}>See the list</a></dd>
           <dt>Costs</dt><dd>{costs()}</dd>
         </dl>
       </section>
@@ -469,7 +470,7 @@ export function BacktestTags(props: { backtest: Backtest }) {
   );
 }
 
-/** The headline figures: the median stock out-of-sample, with the setting that did best there. */
+/** The headline figures: the median stock out-of-sample, with the setting that did best there (not said: figures only). */
 export function BacktestStrip(props: { backtest: Backtest }) {
   const b = () => props.backtest;
   const best = (): Setting => ((b().summary.optimized.out?.median.avg_trade ?? -Infinity) > (b().summary.default.out?.median.avg_trade ?? -Infinity) ? "optimized" : "default");
@@ -484,7 +485,6 @@ export function BacktestStrip(props: { backtest: Backtest }) {
         {cell("Win rate", share(out()!.median.win_rate))}
         {cell("Profit factor", ratio(out()!.median.profit_factor))}
         {cell("Stocks in profit", share(out()!.profitable))}
-        <div class="cs-bt-strip-note cs-fog">Out-of-sample · {best() === "default" ? "author's settings" : "optimized"}</div>
       </div>
     </Show>
   );
