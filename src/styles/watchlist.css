@@ -509,16 +509,14 @@ html.theme-light .watchlist-col-guide {
 
 /* Left-edge colour flag in the row's 15px gutter; a 12px flag SVG tinted by
  * the symbol's flag colour. At x=0, lined up with the header's flag-sort
- * button. */
+ * button. Its shown/hover states: "Row flag spot" below. */
 .watchlist-row > .watchlist-flag {
   position: absolute;
   inset-inline-start: 0;
   top: 0;
   bottom: 0;
-  width: 13px;
-  display: flex;
+  width: 15px;
   align-items: center;
-  pointer-events: none;
 }
 .watchlist-row > .watchlist-flag svg {
   display: block;
@@ -1009,10 +1007,8 @@ html.theme-light .watchlist-col-guide {
   inset-inline-start: 2px;
   top: 0;
   bottom: 0;
-  width: 13px;
-  display: flex;
+  width: 15px;
   align-items: center;
-  pointer-events: none;
 }
 .watchlist-tile > .watchlist-flag svg {
   display: block;
@@ -1219,6 +1215,115 @@ html.theme-dark .watchlist-menu {
   display: block;
   width: 18px;
   height: 18px;
+}
+
+/* ── Row flag spot + colour strip (watchlist/flag-spot.tsx) ────────────── */
+/* Shown when the symbol is flagged, else as a grey flag while the row is
+ * hovered; darker under the pointer. */
+.watchlist-flag-spot {
+  display: none;
+  color: var(--wl-flag, #c9c9c9);
+  cursor: default;
+}
+html.theme-dark .watchlist-flag-spot {
+  color: var(--wl-flag, #555);
+}
+.watchlist-flag-spot.is-flagged,
+.watchlist-flag-spot.is-open,
+.watchlist-row:hover > .watchlist-flag-spot,
+.watchlist-tile:hover > .watchlist-flag-spot {
+  display: flex;
+}
+.watchlist-flag-spot:hover {
+  color: var(--wl-flag-hover, var(--color-cold-gray-300));
+}
+html.theme-dark .watchlist-flag-spot:hover {
+  color: var(--wl-flag-hover, #636363);
+}
+
+/* The strip: beside the flag, centred on it, with an arrow pointing at it. */
+.wl-flag-strip {
+  --wl-strip-bg: #fff;
+  --wl-strip-shadow: var(--color-cold-gray-150);
+  --wl-strip-hover-dot: #fff;
+  position: fixed;
+  z-index: 1000;
+  transform: translateY(-50%);
+}
+html.theme-dark .wl-flag-strip {
+  --wl-strip-bg: #555;
+  --wl-strip-shadow: #464646;
+  --wl-strip-hover-dot: #000;
+}
+.wl-flag-strip__wrap {
+  padding-block: 10px;
+  padding-inline: 6px 10px;
+}
+.wl-flag-strip__box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  background-color: var(--wl-strip-bg);
+  box-shadow: 0 0 6px 0 var(--wl-strip-shadow);
+}
+.wl-flag-strip__arrow {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: -12px;
+  width: 12px;
+  height: 12px;
+  overflow: hidden;
+  transform: translateY(-50%);
+}
+.wl-flag-strip__arrow::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 9px;
+  width: 12px;
+  height: 12px;
+  background: var(--wl-strip-bg);
+  box-shadow: 0 0 6px 0 var(--wl-strip-shadow);
+  transform: rotate(45deg);
+}
+/* A colour: a 16 px dot in a 24 px button; under the pointer a half-dark
+ * centre; the current one a ring around a dot. */
+.wl-flag-strip__color {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.wl-flag-strip__dot,
+.wl-flag-strip__ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+.wl-flag-strip__dot {
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.wl-flag-strip__hover-dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--wl-strip-hover-dot);
+  opacity: 0.5;
+}
+.wl-flag-strip__color:hover .wl-flag-strip__hover-dot {
+  display: block;
+}
+.wl-flag-strip__ring svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* ── Watchlist dialogs (Open list…, Add alert…) + toast ─────────────────── */

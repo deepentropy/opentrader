@@ -6,8 +6,7 @@ import { For, Show } from "solid-js";
 import type { Group, Row } from "../../../data/watchlist";
 import { WL_ICONS } from "./ui";
 import { sectionId } from "../../../data/watchlist-store";
-import { flagOf } from "../../../data/symbol-flags";
-import { FlagMarker } from "./markers";
+import { FlagSpot } from "./flag-spot";
 import { NotesMark } from "../notes/SymbolNotes";
 import { emitAppEvent } from "../../../data/app-events";
 import { isUnknownSymbol } from "../../../data/unknown-symbols";
@@ -163,7 +162,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
       onContextMenu={(e) => openContext(e, r, section)}
       onDragStart={(e) => onItemDragStart(e, r.ticker)}
     >
-      <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
+      <FlagSpot row={r} selectedRows={cx.selectedRows} toggleFlags={(rows) => cx.toggleFlags(rows)} />
       <div class="watchlist-cell watchlist-symbol">
         <Show when={settings().logo}>
           <span class="ot-ticker-logo ot-ticker-logo--sm watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
@@ -224,7 +223,7 @@ export function createRows(cx: WatchlistCx): RowsApi {
         onContextMenu={(e) => openContext(e, r, section)}
         onDragStart={(e) => onItemDragStart(e, r.ticker)}
       >
-        <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
+        <FlagSpot row={r} selectedRows={cx.selectedRows} toggleFlags={(rows) => cx.toggleFlags(rows)} />
         <Show when={settings().logo}>
           <span class="ot-ticker-logo ot-ticker-logo--md watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
         </Show>
