@@ -258,6 +258,7 @@ Send this for every subscribed ticker on each price change. Several per second a
 |---|---|
 | `price` | The last price, or the bid when the source has no trades. |
 | `minute` | The forming 1-minute bar. It updates the chart's last bar at every minute-based interval. |
+| `time` | When the price was quoted. On a seconds chart, the quote's price goes into the seconds bar of that time, with the volume the `minute` bar (else the `day` bar) gained since the quote before. |
 | `day` | The forming daily bar. It updates daily, weekly and monthly charts. |
 | `prevClose` | The previous session's close. It gives the change shown in watchlists. |
 | `fields` | Optional: instrument values that changed (see [Instrument values](#instrument-values)). A quote of `fields` alone may leave out `price`. |

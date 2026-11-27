@@ -427,7 +427,8 @@ export function createLive(cx: ChartCx): LiveApi {
     onCleanup(() => { alive = false; window.clearInterval(timer); onShownHooks.delete(onShow); });
   });
 
-  // Seconds REST refresh. When the key is entitled to the 1-second stream,
+  // Seconds REST refresh. When the key is entitled to the 1-second stream, or
+  // the symbol is a data plugin's (its quotes, #421),
   // live bars arrive through subscribeBars and this refetch re-anchors them to
   // the authoritative REST buckets; without the stream (or while it is
   // disconnected) this is the only live path — the per-minute snapshot

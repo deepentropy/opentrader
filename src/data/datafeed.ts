@@ -17,7 +17,7 @@
  * Time is UNIX seconds everywhere (lightweight-charts UTCTimestamp), matching
  * the backend `Candle.time`.
  */
-import { commands, type Candle, type EconomicCountry, type SymbolEvent, type SymbolSearchResult } from "../bindings";
+import { commands, type Candle, type EconomicCountry, type PluginTrade, type SymbolEvent, type SymbolSearchResult } from "../bindings";
 import {
   getSecondHistory,
   getSecondHistoryTail,
@@ -30,6 +30,7 @@ import { isTransientError, retryTransient } from "./connection";
 import {
   onChartAggregate,
   onChartTrade,
+  onPluginTrade,
   onSecondAggregate,
   type ChartAggregate,
   type ChartTrade,
@@ -1038,12 +1039,32 @@ export function bucketSecondBar(
   };
 }
 
+/** Bucket a data plugin's quote, taken as a trade, into a bar for a second-family `resolution` (#421): the plugin's
+ *  minute bars cannot form these. The bar takes its price and adds its volume. Null for any other family (the
+ *  plugin's minute and daily bars update those), an interval the plugin can't build, and outside the chosen session. */
+export function bucketPluginTrade(resolution: string, trade: PluginTrade, session: SessionId = "ETH"): LiveBar | null {
+  const second = SECOND_INTERVALS[resolution];
+  if (!second) return null;
+  const sessions = cachedSymbolSessions(trade.symbol);
+  if (!sessions || !pluginBuilds(sessions, resolution) || !sessions.spec(session).contains(trade.time)) return null;
+  const { price } = trade;
+  return {
+    time: Math.floor(trade.time / second.mult) * second.mult,
+    open: price,
+    high: price,
+    low: price,
+    close: price,
+    volume: trade.volume,
+    volumeIsIncrement: true,
+  };
+}
+
 /** Subscribe to live bars for the symbol/resolution given by the accessors,
  *  reading them per-tick so the same listener follows symbol/interval changes.
- *  Three sources: the per-minute aggregates (minute + daily families), the
+ *  Four sources: the per-minute aggregates (minute + daily families), the
  *  1-second stream (second family; only flows when the key is entitled — see
- *  ./providers/capabilities) and a subscriber's trades (minute + daily
- *  families). Ticks for other symbols and non-bucketable
+ *  ./providers/capabilities), a subscriber's trades (minute + daily
+ *  families) and a data plugin's quotes as trades (second family). Ticks for other symbols and non-bucketable
  *  resolutions are filtered out; `onBar` fires only with a resolution-bucketed
  *  {@link LiveBar}. Returns one unlisten handle for all. Declaring the symbol
  *  subscription on the backend is a separate concern — call
@@ -1058,7 +1079,7 @@ export async function subscribeBars(
     const sym = getSymbol();
     return !!sym && s.toUpperCase() === sym.toUpperCase();
   };
-  const [offMinute, offSecond, offTrade] = await Promise.all([
+  const [offMinute, offSecond, offTrade, offPluginTrade] = await Promise.all([
     onChartAggregate((tick) => {
       if (!isCharted(tick.symbol)) return;
       const bar = bucketLiveTick(getResolution(), tick, getSession());
@@ -1074,10 +1095,16 @@ export async function subscribeBars(
       const bar = bucketTrade(getResolution(), tick, getSession());
       if (bar) onBar(bar);
     }),
+    onPluginTrade((trade) => {
+      if (!isCharted(trade.symbol)) return;
+      const bar = bucketPluginTrade(getResolution(), trade, getSession());
+      if (bar) onBar(bar);
+    }),
   ]);
   return () => {
     offMinute();
     offSecond();
     offTrade();
+    offPluginTrade();
   };
 }

@@ -7,7 +7,7 @@
  * poll vs WebSocket) and emits these events.
  */
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { commands, events, type Candle, type PluginTicks } from "../bindings";
+import { commands, events, type Candle, type PluginTicks, type PluginTrade } from "../bindings";
 import type * as gen from "../bindings";
 import { unwrap, type Finite } from "./datafeed-rest";
 import { isLocalSymbol } from "./local-series";
@@ -61,6 +61,11 @@ export function onChartTrade(fn: (ev: ChartTrade) => void): Promise<UnlistenFn> 
 /** The live ticks of the data plugins' symbols on a tick chart (#376). */
 export function onPluginTicks(fn: (ev: PluginTicks) => void): Promise<UnlistenFn> {
   return events.pluginTicks.listen((e) => fn(e.payload));
+}
+
+/** The quotes of the data plugins' charted symbols as trades: the live source of their seconds bars (#421). */
+export function onPluginTrade(fn: (ev: PluginTrade) => void): Promise<UnlistenFn> {
+  return events.pluginTrade.listen((e) => fn(e.payload));
 }
 
 /** A pane shows `symbol` on a tick interval (null: no tick chart): its data plugin streams its ticks. */

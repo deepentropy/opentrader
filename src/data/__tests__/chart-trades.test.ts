@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SymbolSession } from "../../bindings";
+import type { PluginTrade, SymbolSession } from "../../bindings";
 
 // A subscriber's trades made into the forming bar of each interval.
 const mocks = vi.hoisted(() => ({ getSymbolSession: vi.fn() }));
@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}), e
 vi.mock("../../bindings", () => ({ commands: { getSymbolSession: mocks.getSymbolSession } }));
 vi.mock("../kv", () => ({ getItem: () => null, setItem: () => undefined, removeItem: () => undefined, onExternalChange: () => () => undefined }));
 
-import { bucketTrade } from "../datafeed";
+import { bucketPluginTrade, bucketTrade } from "../datafeed";
 import type { ChartTrade } from "../datafeed-live";
 import { symbolSessions } from "../session";
 
@@ -26,7 +26,9 @@ const US: SymbolSession = {
   variableTickSize: "",
   intervals: [],
 };
-mocks.getSymbolSession.mockImplementation(async () => ({ status: "ok", data: US }));
+// A data plugin's symbol that serves 5-second and 1-minute bars.
+const PLUGIN = "NFO:NIFTY1!";
+mocks.getSymbolSession.mockImplementation(async (symbol: string) => ({ status: "ok", data: symbol === PLUGIN ? { ...US, intervals: ["5S", "1"] } : US }));
 
 const SYM = "NASDAQ:AAPL";
 // Wed 25/11/2026, New York = UTC-5.
@@ -63,5 +65,27 @@ describe("bucketTrade", () => {
   it("leaves the seconds charts to the one-second bars", async () => {
     await symbolSessions(SYM);
     expect(bucketTrade("5S", trade(at(15, 0), true))).toBeNull();
+  });
+});
+
+describe("bucketPluginTrade", () => {
+  const quote = (time: number): PluginTrade => ({ symbol: PLUGIN, time, price: 11, volume: 40 });
+
+  it("puts a plugin's quote into the forming seconds bar, adding its volume (#421)", async () => {
+    await symbolSessions(PLUGIN);
+    expect(bucketPluginTrade("5S", quote(at(15, 0, 7)))).toEqual({ time: at(15, 0, 5), open: 11, high: 11, low: 11, close: 11, volume: 40, volumeIsIncrement: true });
+    expect(bucketPluginTrade("15S", quote(at(15, 0, 29)))?.time).toBe(at(15, 0, 15));
+  });
+
+  it("leaves the minute and daily bars to the plugin's bars, and an interval it can't build", async () => {
+    await symbolSessions(PLUGIN);
+    for (const tf of ["1", "5", "1D"]) expect(bucketPluginTrade(tf, quote(at(15, 0)))).toBeNull();
+    expect(bucketPluginTrade("1S", quote(at(15, 0)))).toBeNull();
+  });
+
+  it("leaves pre- and post-market out of a regular-session chart", async () => {
+    await symbolSessions(PLUGIN);
+    expect(bucketPluginTrade("5S", quote(at(13, 0)), "RTH")).toBeNull();
+    expect(bucketPluginTrade("5S", quote(at(13, 0)), "ETH")?.time).toBe(at(13, 0));
   });
 });

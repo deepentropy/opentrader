@@ -244,6 +244,8 @@ pub struct PluginData {
     pages: Mutex<HashMap<PageKey, (Instant, Arc<Vec<Candle>>)>>,
     /// Each symbol's last quote time (UNIX seconds, the feed's clock).
     quoted: Mutex<HashMap<String, f64>>,
+    /// Each charted symbol's last quote as its seconds bars read it (#421).
+    traded: Mutex<HashMap<String, Traded>>,
     /// Chart pane → the plugin symbol it shows on a tick interval (#376).
     tick_charts: Mutex<HashMap<String, String>>,
     /// The tickers each plugin was last asked to stream ticks of.
@@ -1023,6 +1025,14 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
         let _ = ChartAggregate { symbol: symbol.clone(), time: m.time, open: m.open, high: m.high, low: m.low, close: m.close, volume: m.volume, day }
             .emit(app);
     }
+    if charted(app, &symbol) {
+        let running = minute.as_ref().map(|m| (m.time, m.volume)).or(q.day.map(|d| (d[0], d[5])));
+        let mut traded = state(app).traded.locked();
+        let volume = traded_since(traded.get(&symbol), time, running);
+        traded.insert(symbol.clone(), Traded { time, bar: running });
+        drop(traded);
+        let _ = PluginTrade { symbol: symbol.clone(), time, price, volume }.emit(app);
+    }
     let prev = q.prev_close.filter(|p| *p != 0.0);
     let _ = TradeTick {
         symbol: symbol.clone(),
@@ -1044,6 +1054,50 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
     if let Some(host) = app.try_state::<HostRef>() {
         host.on_quote(&symbol, price, minute.as_ref());
     }
+}
+
+/// A charted plugin symbol's quote as a trade (#421): the price and the volume traded since its previous quote, which
+/// the forming bar of a seconds chart takes in. A plugin's minute bars cannot form them, and its quotes are as frequent
+/// as its price changes.
+#[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginTrade {
+    pub symbol: String,
+    /// UNIX seconds of the quote.
+    pub time: f64,
+    pub price: f64,
+    pub volume: f64,
+}
+
+/// A symbol's last quote as `traded_since` reads it: its time, and its forming bar's start and running volume.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Traded {
+    time: f64,
+    bar: Option<(f64, f64)>,
+}
+
+/// A quote of the forming bar `bar` (start, running volume: the minute's, else the day's) at `time`: the volume traded
+/// since the previous quote `last`. Within one bar, the volume it gained; in the next bar, that bar's volume so far.
+/// Nothing after no quote, or one over a minute before: a quote's whole bar is not one moment's trades (the history poll
+/// gives the bars their volume).
+fn traded_since(last: Option<&Traded>, time: f64, bar: Option<(f64, f64)>) -> f64 {
+    let (Some(last), Some((start, volume))) = (last, bar) else { return 0.0 };
+    let Some((last_start, last_volume)) = last.bar else { return 0.0 };
+    if !(volume.is_finite() && time - last.time <= 60.0) {
+        return 0.0;
+    }
+    if start == last_start {
+        (volume - last_volume).max(0.0)
+    } else if start > last_start {
+        volume.max(0.0)
+    } else {
+        0.0
+    }
+}
+
+/// Whether a chart, a compared symbol or a script's other symbol shows `symbol` (`set_chart`).
+fn charted(app: &AppHandle, symbol: &str) -> bool {
+    state(app).subs.locked().charts.values().any(|s| s.eq_ignore_ascii_case(symbol))
 }
 
 // ── Ticks (#376) ─────────────────────────────────────────────────────────────
@@ -1423,6 +1477,24 @@ pub fn plugin_scripts(app: AppHandle) -> Vec<PluginScripts> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_quote_trades_the_volume_its_bar_gained_since_the_one_before() {
+        use super::{traded_since, Traded};
+        let at = |time: f64, start: f64, volume: f64| Traded { time, bar: Some((start, volume)) };
+        // The first quote of a charted symbol: its bar's volume is older trades.
+        assert_eq!(traded_since(None, 10.0, Some((0.0, 500.0))), 0.0);
+        // Same minute: what it gained.
+        assert_eq!(traded_since(Some(&at(10.0, 0.0, 500.0)), 11.0, Some((0.0, 650.0))), 150.0);
+        // Next minute: its volume so far.
+        assert_eq!(traded_since(Some(&at(59.0, 0.0, 650.0)), 61.0, Some((60.0, 40.0))), 40.0);
+        // A quote a while after the one before, a bar older, or no bar: nothing.
+        assert_eq!(traded_since(Some(&at(0.0, 0.0, 650.0)), 125.0, Some((120.0, 40.0))), 0.0);
+        assert_eq!(traded_since(Some(&at(61.0, 60.0, 40.0)), 62.0, Some((0.0, 700.0))), 0.0);
+        assert_eq!(traded_since(Some(&at(10.0, 0.0, 500.0)), 11.0, None), 0.0);
+        // A volume that went down (a corrected bar) is no trade.
+        assert_eq!(traded_since(Some(&at(10.0, 0.0, 500.0)), 11.0, Some((0.0, 450.0))), 0.0);
+    }
+
     #[test]
     fn gives_scripts_the_instrument_fields_of_plugin_api_10() {
         use serde_json::json;
