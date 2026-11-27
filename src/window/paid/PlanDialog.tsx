@@ -8,10 +8,12 @@
  *
  * During the live data beta the dialog only says so: signed in, live data is on
  * and free until the beta ends; signed out, signing in turns it on.
+ *
+ * The usage statistics count the way to live data (offer-stats.ts).
  */
 import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { showConfirm, showNotice } from "../../components/Dialogs";
-import { PROVIDER_LABELS, me, signIn } from "../../data/community/session";
+import { PROVIDER_LABELS, me } from "../../data/community/session";
 import { request } from "../../data/community/api";
 import {
   awaitPlan, betaEnds, openPortal, paidOffer, payInBrowser, planInfo, realtimeElsewhere, refreshPass, setCancelled, startCheckout, useRealtimeHere, type PlanInfo,
@@ -19,6 +21,7 @@ import {
 import { translateAs, translateWith } from "../../i18n/translator";
 import { dateText } from "../../i18n/format";
 import { Icon } from "../../components/Icon";
+import { offerShown as shown, signInFromOffer, type PlanDialogFrom } from "../../data/paid/offer-stats";
 
 /** dd/mm/yyyy of a UNIX time. */
 function day(sec: number): string {
@@ -57,7 +60,7 @@ async function goOn(): Promise<void> {
   await refreshPass();
   const plan = await request<PlanInfo>("GET", "/me/plan").catch(() => null);
   if (plan && plan.plan === "free" && plan.status !== "past_due" && plan.billing) await showPayment();
-  else showPlanDialog();
+  else showPlanDialog("after");
 }
 
 /** The payment page in a frame; tells when it is paid, or could not be loaded. */
@@ -129,7 +132,7 @@ function SignInButtons(props: { onDone: () => void; beta?: boolean }) {
           <button
             type="button"
             class="plan-signin-button"
-            onClick={() => signIn(p).then(props.onDone).then(props.beta ? refreshPass : goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
+            onClick={() => signInFromOffer(p, !!props.beta).then(props.onDone).then(props.beta ? refreshPass : goOn).catch((e) => e?.message !== "cancelled" && failed(e))}
           >
             <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="plan-signin-logo" /></Show>
             <span>
@@ -160,13 +163,14 @@ function confirmCancel(info: PlanInfo): void {
     mainText: "Cancel subscription",
     cancelText: "Keep my subscription",
     intent: "danger",
-    onConfirm: () => void setCancelled(true).then(showPlanDialog, failed),
+    onConfirm: () => void setCancelled(true).then(() => showPlanDialog("after"), failed),
   });
 }
 
-export function showPlanDialog(): void {
+export function showPlanDialog(from: PlanDialogFrom = "badge"): void {
   const info = planInfo();
   if (me() && realtimeElsewhere()) {
+    shown(from, "elsewhere");
     showConfirm({
       title: "Live data",
       text: "Live data is in use on another device. Use it here instead?",
@@ -179,6 +183,7 @@ export function showPlanDialog(): void {
   const beta = betaEnds();
   if (beta !== null) {
     const signedIn = !!me();
+    shown(from, "beta");
     const close = showConfirm({
       title: "Live data (beta)",
       titleTone: "success",
@@ -197,6 +202,7 @@ export function showPlanDialog(): void {
     return;
   }
   if (me() && info && (info.plan === "rt" || info.status === "past_due")) {
+    shown(from, "subscription");
     const close = showConfirm({
       title: "Live data",
       text: state(info),
@@ -210,7 +216,7 @@ export function showPlanDialog(): void {
           data-qa-id="plan-cancel"
           onClick={() => {
             close();
-            if (info.cancel_at_period_end) void setCancelled(false).then(showPlanDialog, failed);
+            if (info.cancel_at_period_end) void setCancelled(false).then(() => showPlanDialog("after"), failed);
             else confirmCancel(info);
           }}
         >
@@ -222,6 +228,7 @@ export function showPlanDialog(): void {
     return;
   }
   if (!me()) {
+    shown(from, "sign_in");
     const close = showConfirm({
       title: "Upgrade to live data",
       text: offerText(),
@@ -233,6 +240,7 @@ export function showPlanDialog(): void {
     });
     return;
   }
+  shown(from, "upgrade");
   showConfirm({
     title: "Upgrade to live data",
     text: offerText(),

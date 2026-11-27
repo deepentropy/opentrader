@@ -57,7 +57,7 @@ export function TabPanelActions(props: Props) {
     const step = betaPrompt(getItem(BETA_TOLD), getItem(BETA_REMINDED), !me(), now);
     if (step === "tell" || step === "stamp") setItem(BETA_TOLD, String(now));
     if (step === "remind") setItem(BETA_REMINDED, String(now));
-    if (step === "tell" || step === "remind") untrack(showPlanDialog);
+    if (step === "tell" || step === "remind") untrack(() => showPlanDialog(step === "tell" ? "notice" : "reminder"));
   });
   const badgeTip = () =>
     realtimeActive()
