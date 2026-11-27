@@ -12,6 +12,7 @@ import { me, ready } from "../data/community/session";
 import * as kv from "../data/kv";
 import { errorText } from "../community-shared/parts";
 import { go } from "./router";
+import { BacktestStrip, BacktestTags } from "./Backtest";
 import {
   DirTag, OriginTag, Pills, STATUS_LABEL, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,
 } from "./ui";
@@ -41,7 +42,10 @@ export function FeedItem(props: { post: Post }) {
           <span>{age(p().created_at)}</span>
         </div>
         <h4 class="cs-item-title"><a href={`/p/${p().id}`} onClick={go(`/p/${p().id}`)}>{p().title}</a></h4>
-        <Show when={p().excerpt}><p class="cs-item-ex">{plain(p().excerpt)}</p></Show>
+        {/* A backtest: what it ran on and its headline figures, no text. */}
+        <Show when={p().backtest} fallback={<Show when={p().excerpt}><p class="cs-item-ex">{plain(p().excerpt)}</p></Show>}>
+          {(b) => <><BacktestTags backtest={b()} /><BacktestStrip backtest={b()} /></>}
+        </Show>
         <div class="cs-item-foot">
           <a class="cs-replies" href={`/p/${p().id}`} onClick={go(`/p/${p().id}`)}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>

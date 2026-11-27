@@ -452,6 +452,44 @@ export function BacktestBody(props: { post: Post }) {
   );
 }
 
+// ── In lists ────────────────────────────────────────────────────────────
+
+/** What a backtest ran on, in a few tags: timeframe, length, stocks, sides. */
+export function BacktestTags(props: { backtest: Backtest }) {
+  const b = () => props.backtest;
+  const full = () => b().summary.default.full?.pooled;
+  const sides = () => (full() ? (full()!.long_trades && full()!.short_trades ? "Long & short" : full()!.long_trades ? "Long only" : "Short only") : null);
+  return (
+    <div class="cs-bt-tags">
+      <span class="cs-type is-plain">{tfLong(b().interval)}</span>
+      <span class="cs-type is-plain">{duration(b().first, b().last)}</span>
+      <span class="cs-type is-plain">{b().universe.count} stocks</span>
+      <Show when={sides()}><span class="cs-type is-plain">{sides()}</span></Show>
+    </div>
+  );
+}
+
+/** The headline figures: the median stock out-of-sample, with the setting that did best there. */
+export function BacktestStrip(props: { backtest: Backtest }) {
+  const b = () => props.backtest;
+  const best = (): Setting => ((b().summary.optimized.out?.median.avg_trade ?? -Infinity) > (b().summary.default.out?.median.avg_trade ?? -Infinity) ? "optimized" : "default");
+  const out = () => b().summary[best()].out;
+  const cell = (label: string, value: string, color?: string) => (
+    <div class="cs-bt-stat"><div class="cs-bt-stat-v" style={color ? { color } : undefined}>{value}</div><div class="cs-label">{label}</div></div>
+  );
+  return (
+    <Show when={out()}>
+      <div class="cs-bt-strip">
+        {cell("Avg trade", signed(out()!.median.avg_trade), tone(out()!.median.avg_trade))}
+        {cell("Win rate", share(out()!.median.win_rate))}
+        {cell("Profit factor", ratio(out()!.median.profit_factor))}
+        {cell("Stocks in profit", share(out()!.profitable))}
+        <div class="cs-bt-strip-note cs-fog">Out-of-sample · {best() === "default" ? "author's settings" : "optimized"}</div>
+      </div>
+    </Show>
+  );
+}
+
 /** The Backtests page: every backtest, newest first. */
 export function BacktestsPage() {
   createEffect(() => { document.title = "Backtests · OpenTrader Community"; });
