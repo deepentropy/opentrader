@@ -12,5 +12,5 @@ pub use crate::data::market_rest::{
     SymbolSearchResult, TickerInfo,
 };
 pub use crate::data::market_stream::{
-    ChartAggregate, ChartTrade, MarketTier, SecondAggregate, SubscribeMsg, TradeTick, WsHandle,
+    ChartAggregate, ChartTrade, LiveTicks, MarketTier, SecondAggregate, SubscribeMsg, TradeTick, WsHandle,
 };

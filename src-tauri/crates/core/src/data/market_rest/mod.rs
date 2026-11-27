@@ -35,6 +35,7 @@ mod reference;
 mod search;
 mod segments;
 mod snapshot;
+mod ticks;
 
 pub use aggs::{fetch_daily_aggs, fetch_minute_aggs, fetch_second_aggs, fetch_second_tail, probe_oldest_bar};
 pub use cache::clear_market_data_cache;
@@ -56,6 +57,7 @@ pub use reference::{
 pub use search::{search_tickers, SymbolSearchResult};
 pub use segments::{fetch_revenue_breakdown, BreakdownGroup, BreakdownMember, BreakdownReport, BreakdownRole, RevenueBreakdown};
 pub use snapshot::{fetch_ticker_snapshot, Snapshot};
+pub use ticks::fetch_ticks;
 
 /// Process-wide memo keyed by `K`, each value stamped with the day it was
 /// resolved for (callers rebuild it when the day changes).

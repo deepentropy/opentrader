@@ -37,6 +37,9 @@ import {
   subscribeBars,
   type LiveBar,
 } from "../../../data/datafeed";
+import { onTicks, setTickSubscription } from "../../../data/datafeed-live";
+import { nextTickBarTime, tickCount } from "../../../data/tick-bars";
+import type { Tick } from "../../../bindings";
 import { cachedSymbolSessions } from "../../../data/session";
 import { getFundamentals, type Fundamentals } from "../../../data/fundamentals";
 import { onPluginEventsChanged } from "../../../data/plugin-events";
@@ -48,6 +51,9 @@ import { intervalSeconds } from "../../../backtester/magnifier";
 
 /** Session of another symbol's bars. */
 const SESSION = "RTH";
+/** Ticks a script's tick timeframe is loaded back to at most: a script is given the last 100,000 lower-timeframe bars
+ *  at most (oakscriptjs MAX_INTRABARS), and a busy symbol's ticks behind a long chart would be millions. */
+const MAX_TICKS = 100_000;
 /** A symbol no study reads any more is kept this long: a study asks for its symbols again on another chart symbol or
  *  with other inputs (a comparison with SPY), they are not fetched again for that. */
 const IDLE_MS = 10_000;
@@ -70,6 +76,8 @@ type Entry = {
   extending: boolean;
   /** Per-day volume baseline of a forming week / month bar (live). */
   volBase: { barTime: number; dayTime: number; base: number } | null;
+  /** A tick timeframe: the live bar being filled and its ticks so far. */
+  tickBar: { time: number; count: number } | null;
   stopLive: (() => void) | null;
   /** Drops the entry once it is not read for IDLE_MS (null: it is in use). */
   idle: ReturnType<typeof setTimeout> | null;
@@ -203,7 +211,7 @@ export class OtherSymbolBars {
     const key = keyOf(sym, resolution);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null, idle: null };
+      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, tickBar: null, stopLive: null, idle: null };
       this.entries.set(key, e);
       this.load(key, e);
     }
@@ -226,7 +234,7 @@ export class OtherSymbolBars {
     const key = this.lowerKey(sym, resolution, session);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, session, lower: true, wantFrom: from, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null, idle: null };
+      e = { symbol: sym, resolution, session, lower: true, wantFrom: from, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, tickBar: null, stopLive: null, idle: null };
       this.entries.set(key, e);
       this.load(key, e);
     } else if (from < e.wantFrom) {
@@ -379,7 +387,7 @@ export class OtherSymbolBars {
   }
 
   private load(key: string, e: Entry): void {
-    if (!isSupportedResolution(e.resolution)) {
+    if (!isSupportedResolution(e.resolution) && tickCount(e.resolution) === null) {
       e.failed = true;
       return;
     }
@@ -404,11 +412,13 @@ export class OtherSymbolBars {
 
   /** Older bars of an intraday timeframe back to the chart's first bar (a lower-timeframe entry: back to the time
    *  its study asks for). A timeframe below the chart's is not extended (its whole history under a long chart would
-   *  be far too many bars). */
+   *  be far too many bars); ticks go back MAX_TICKS at most. */
   private extend(key: string, e: Entry): void {
     const target = e.lower ? e.wantFrom : this.chartFirst;
     if (!e.bars || e.failed || e.exhausted || e.extending || !Number.isFinite(target)) return;
-    if (!isIntradayResolution(e.resolution) && !isSecondResolution(e.resolution)) return;
+    const ticks = tickCount(e.resolution);
+    if (!isIntradayResolution(e.resolution) && !isSecondResolution(e.resolution) && ticks === null) return;
+    if (ticks !== null && e.bars.length * ticks >= MAX_TICKS) return;
     const first = e.bars.length ? (e.bars[0].time as number) : Infinity;
     if (first <= target || !Number.isFinite(first)) return;
     const seconds = Number(e.resolution) * 60 || 0;
@@ -440,15 +450,26 @@ export class OtherSymbolBars {
   private startLive(key: string, e: Entry): void {
     const slot = `${this.slot}:sym:${key}`;
     setLiveSymbol(e.symbol, slot).catch(() => {});
+    const n = tickCount(e.resolution);
+    // A tick timeframe takes the symbol's ticks: its data plugin's, or the app's own on a real-time session.
+    if (n !== null) setTickSubscription(e.symbol, slot).catch(() => {});
     let off: (() => void) | null = null;
     let dead = false;
-    subscribeBars(() => e.symbol, () => e.resolution, (bar) => {
-      if (!this.alive(key, e) || !e.bars) return;
-      if (this.mergeLive(e, bar)) {
-        e.seen = null;
-        this.changed(new Set([key]), true);
-      }
-    }, () => e.session).then((u) => {
+    const moved = () => {
+      e.seen = null;
+      this.changed(new Set([key]), true);
+    };
+    const listening =
+      n !== null
+        ? onTicks((ev) => {
+            if (!this.alive(key, e) || !e.bars || ev.symbol.toUpperCase() !== e.symbol) return;
+            if (this.mergeTicks(e, ev.ticks, n)) moved();
+          })
+        : subscribeBars(() => e.symbol, () => e.resolution, (bar) => {
+            if (!this.alive(key, e) || !e.bars) return;
+            if (this.mergeLive(e, bar)) moved();
+          }, () => e.session);
+    listening.then((u) => {
       if (dead) u();
       else off = u;
     });
@@ -456,7 +477,35 @@ export class OtherSymbolBars {
       dead = true;
       off?.();
       setLiveSymbol(null, slot).catch(() => {});
+      if (n !== null) setTickSubscription(null, slot).catch(() => {});
     };
+  }
+
+  /** Live ticks into the bars of `n` ticks, as the tick charts do: a tick goes into the last bar until it holds `n`,
+   *  then starts the next one; a bar loaded with the history is a whole one. Ticks out of the entry's session are left
+   *  out, as in the history. False = nothing moved. */
+  private mergeTicks(e: Entry, ticks: readonly Tick[], n: number): boolean {
+    const bars = e.bars!;
+    const spec = cachedSymbolSessions(e.symbol)?.spec(e.session);
+    let moved = false;
+    for (const t of ticks) {
+      if (t.timeMs === null || t.price === null) continue;
+      if (spec && !spec.contains(Math.floor(t.timeMs / 1000))) continue;
+      const last = bars[bars.length - 1];
+      const volume = t.volume ?? 0;
+      if (last && e.tickBar && e.tickBar.time === last.time && e.tickBar.count < n) {
+        bars[bars.length - 1] = { ...last, high: Math.max(last.high, t.price), low: Math.min(last.low, t.price), close: t.price, volume: (last.volume ?? 0) + volume };
+        e.tickBar.count++;
+      } else {
+        // A tick older than the last bar is in the history already.
+        if (last && t.timeMs / 1000 < (last.time as number)) continue;
+        const time = last ? nextTickBarTime(t.timeMs, last.time as number) : t.timeMs / 1000;
+        bars.push({ time, open: t.price, high: t.price, low: t.price, close: t.price, volume });
+        e.tickBar = { time, count: 1 };
+      }
+      moved = true;
+    }
+    return moved;
   }
 
   /** A live bar into the loaded bars, with the chart's volume rules per source. False = nothing moved. */

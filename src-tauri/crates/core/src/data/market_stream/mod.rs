@@ -69,7 +69,7 @@ use tokio_tungstenite::tungstenite::Message;
 mod events;
 mod subscriptions;
 
-pub use events::{ChartAggregate, ChartTrade, MarketTier, SecondAggregate, TradeTick};
+pub use events::{ChartAggregate, ChartTrade, LiveTicks, MarketTier, SecondAggregate, Tick, TradeTick};
 use events::handle_text;
 pub use subscriptions::{ticker_of, SubscribeMsg, SubscriptionState};
 
@@ -81,6 +81,8 @@ const BACKOFF_START: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// Channel prefix of the trades.
 const TRADES: &str = "trade:";
+/// Every trade of a symbol, for tick charts (real-time only).
+const TICKS: &str = "ticks:";
 /// Channels a real-time session asks for: under the gateway's 500.
 const MAX_CHANNELS: usize = 490;
 /// Re-check this often while the build has no gateway token. A local read.
@@ -314,12 +316,13 @@ enum SessionExit {
 }
 
 /// The channels of a session: the bars of the charted symbols; on a real-time
-/// one their trades too, then the watchlists' up to MAX_CHANNELS (the others
-/// keep the poller's quotes).
+/// one the ticks of the tick charts and the charts' trades too, then the
+/// watchlists' up to MAX_CHANNELS (the others keep the poller's quotes).
 fn desired(state: &SubscriptionState, mode: Mode, realtime: bool) -> HashSet<String> {
     let charts = state.chart_tickers();
     let mut out: HashSet<String> = charts.iter().map(|t| format!("{}{t}", mode.chart)).collect();
     if realtime {
+        out.extend(state.tick_tickers().into_iter().filter(|t| could_be_ticker(t)).map(|t| format!("{TICKS}{t}")));
         let mut rest: Vec<String> = state.all_tickers().into_iter().filter(|t| could_be_ticker(t)).collect();
         // The charts' first; the same list gives the same channels.
         rest.sort_by(|a, b| charts.contains(b).cmp(&charts.contains(a)).then_with(|| a.cmp(b)));
@@ -647,6 +650,16 @@ mod gate_tests {
         let d = desired(&state, SECOND_BARS, true);
         assert_eq!(d.len(), MAX_CHANNELS);
         assert!(d.contains("trade:ZM"), "the chart's");
+    }
+
+    #[test]
+    fn a_real_time_session_streams_the_ticks_of_the_tick_charts() {
+        let mut state = SubscriptionState::default();
+        state.apply(SubscribeMsg::SetChart { owner: "main:0".into(), symbol: Some("NASDAQ:AAPL".into()) });
+        state.apply(SubscribeMsg::SetTicks { owner: "main:0".into(), symbol: Some("NASDAQ:AAPL".into()) });
+        let set = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<HashSet<_>>();
+        assert_eq!(desired(&state, SECOND_BARS, false), set(&["bar1s:AAPL"]), "no ticks on the delayed stream");
+        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:AAPL", "ticks:AAPL", "trade:AAPL"]));
     }
 
     #[test]

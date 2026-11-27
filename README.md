@@ -15,7 +15,7 @@ It is an early work in progress: some features are stubbed or partially wired. C
 > **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform, broker or data provider. It is for charting and research and is **not financial advice**. Trading through a broker plugin you install sends real orders to your broker: you do it at your own risk, OpenTrader is not a broker and does not check your orders. Trading is off until you turn it on, and orders to a live account are confirmed first. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
 > [!WARNING]
-> **Market data is delayed by 15 minutes.** Live data is a paid plan at $10 a month, cancel any time. It is in beta in the desktop app and free until 31/12/2026: sign in with a Community account to get it.
+> **Market data is delayed by 15 minutes.** Live data, with tick charts, is a paid plan at $10 a month, cancel any time. It is in beta in the desktop app and free until 31/12/2026: sign in with a Community account to get it.
 >
 > **Second and minute history is limited to 5 years.** Daily history goes back to 2003.
 

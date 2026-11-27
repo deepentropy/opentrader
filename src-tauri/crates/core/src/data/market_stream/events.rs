@@ -120,7 +120,27 @@ pub struct MarketTier {
     pub reason: Option<String>,
 }
 
+/// One trade of a tick chart: when, its price and its size.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Tick {
+    /// UNIX milliseconds.
+    pub time_ms: f64,
+    pub price: f64,
+    pub volume: f64,
+}
+
+/// The new trades of a symbol on a tick chart (`ticks` channel, real-time only), in order.
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[cfg_attr(feature = "tauri", derive(tauri_specta::Event))]
+#[serde(rename_all = "camelCase")]
+pub struct LiveTicks {
+    pub symbol: String,
+    pub ticks: Vec<Tick>,
+}
+
 event!(MarketTier, "market-tier");
+event!(LiveTicks, "live-ticks");
 event!(ChartAggregate, "chart-aggregate");
 event!(SecondAggregate, "second-aggregate");
 event!(TradeTick, "trade-tick");
@@ -140,6 +160,8 @@ pub(super) struct Pending {
     second: HashMap<String, SecondAggregate>,
     /// Every trade of the charts: each adds its volume.
     chart_trades: Vec<ChartTrade>,
+    /// The ticks of the tick charts, in order.
+    ticks: Vec<LiveTicks>,
     trades: HashMap<String, TradeTick>,
     trades_sent: Instant,
     /// The trades of each symbol's current minute, as the bar the host's
@@ -149,11 +171,11 @@ pub(super) struct Pending {
 
 impl Pending {
     pub(super) fn new(app: &HostRef) -> Self {
-        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), chart_trades: Vec::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
+        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), chart_trades: Vec::new(), ticks: Vec::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.minute.is_empty() && self.second.is_empty() && self.chart_trades.is_empty() && self.trades.is_empty()
+        self.minute.is_empty() && self.second.is_empty() && self.chart_trades.is_empty() && self.ticks.is_empty() && self.trades.is_empty()
     }
 
     fn minute(&mut self, agg: ChartAggregate) {
@@ -209,6 +231,9 @@ impl Pending {
         }
         for trade in self.chart_trades.drain(..) {
             let _ = trade.emit(&self.app);
+        }
+        for ticks in self.ticks.drain(..) {
+            let _ = ticks.emit(&self.app);
         }
         if self.trades_sent.elapsed() >= TRADE_FLUSH {
             self.flush_trades();
@@ -267,6 +292,13 @@ pub(super) fn handle_text(pending: &mut Pending, state: &SubscriptionState, txt:
                     }
                 }
             }
+            "ticks" => {
+                if let Some((ticker, ticks)) = parse_ticks(&m) {
+                    for symbol in state.tick_symbols_for(&ticker) {
+                        pending.ticks.push(LiveTicks { symbol: symbol.clone(), ticks: ticks.clone() });
+                    }
+                }
+            }
             kind @ ("subscribed" | "unsubscribed") => {
                 if let Some(ticker) = m.get("channel").and_then(|v| v.as_str()).and_then(|c| c.strip_prefix(super::TRADES)) {
                     live_quotes::set_streamed(ticker, kind == "subscribed");
@@ -295,6 +327,23 @@ fn bar_values(m: &serde_json::Value) -> Option<(String, f64, [f64; 4], f64)> {
         [num("o")?, num("h")?, num("l")?, num("c")?],
         num("v").unwrap_or(0.0),
     ))
+}
+
+/// A `ticks` message: its ticker and its trades `[t, p, size]` (a row without a time or a price is left out).
+fn parse_ticks(m: &serde_json::Value) -> Option<(String, Vec<Tick>)> {
+    let ticker = m.get("ticker")?.as_str()?.to_string();
+    let ticks: Vec<Tick> = m
+        .get("ticks")?
+        .as_array()?
+        .iter()
+        .filter_map(|r| {
+            let r = r.as_array()?;
+            let n = |i: usize| r.get(i).and_then(|v| v.as_f64());
+            let tick = Tick { time_ms: n(0)?, price: n(1)?, volume: n(2).unwrap_or(0.0) };
+            (tick.price > 0.0).then_some(tick)
+        })
+        .collect();
+    (!ticks.is_empty()).then_some((ticker, ticks))
 }
 
 fn parse_second(m: &serde_json::Value) -> Option<SecondAggregate> {
@@ -366,6 +415,15 @@ fn parse_trade(m: &serde_json::Value) -> Option<StreamTrade> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_ticks_message_gives_its_trades() {
+        let m: serde_json::Value = serde_json::from_str(r#"{"type":"ticks","ticker":"AAPL","ticks":[[1000,10.5,100],[1001,0,5],[1002,10.6]]}"#).unwrap();
+        let (ticker, ticks) = super::parse_ticks(&m).unwrap();
+        assert_eq!(ticker, "AAPL");
+        assert_eq!(ticks, vec![super::Tick { time_ms: 1000.0, price: 10.5, volume: 100.0 }, super::Tick { time_ms: 1002.0, price: 10.6, volume: 0.0 }]);
+        assert!(super::parse_ticks(&serde_json::json!({"type":"ticks","ticker":"AAPL","ticks":[]})).is_none());
+    }
+
     use super::*;
     use crate::sync::LockExt;
 

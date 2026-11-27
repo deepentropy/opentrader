@@ -33,6 +33,7 @@ mod tests {
         same::<crate::data::types::ChartTrade>();
         same::<crate::data::types::TradeTick>();
         same::<crate::data::types::MarketTier>();
+        same::<crate::data::types::LiveTicks>();
         same::<crate::data::provider::capabilities::ProviderCapabilities>();
         same::<crate::screener::ScreenerUpdate>();
     }

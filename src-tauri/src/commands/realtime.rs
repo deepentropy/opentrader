@@ -31,6 +31,22 @@ pub async fn set_chart_subscription(
     Ok(core::subscribe(&live, SubscribeMsg::SetChart { owner, symbol: core::live_symbol(symbol) }).await?)
 }
 
+/// A pane (or a script's slot) shows `symbol` on a tick interval (None: no tick chart). A data plugin's symbol streams
+/// from its plugin (`data.tick`); the app's own one from the stream's `ticks` channel, on a real-time session.
+#[tauri::command]
+#[specta::specta]
+pub async fn watch_ticks(
+    app: tauri::AppHandle,
+    live: State<'_, WsHandle>,
+    window: tauri::Window,
+    pane: String,
+    symbol: Option<String>,
+) -> Result<(), String> {
+    let owner = core::chart_owner(window.label(), &pane);
+    let symbol = if crate::plugins::data::watch_ticks(&app, &owner, symbol.as_deref()) { None } else { symbol };
+    Ok(core::subscribe(&live, SubscribeMsg::SetTicks { owner, symbol: core::live_symbol(symbol) }).await?)
+}
+
 /// Watchlist contributions are keyed by the calling window's label — every
 /// window declares its own union and the live task merges them, so a second
 /// window can no longer clobber the first's subscription.

@@ -21,6 +21,9 @@ pub enum SubscribeMsg {
     SetWatchlist { owner: String, symbols: Vec<String> },
     /// Window destroyed — drop its watchlist and every chart slot it owned.
     DropOwner { owner: String },
+    /// One pane's symbol on a tick interval, or a script's ticks of a symbol: its every trade streams (real-time
+    /// only). `owner` as `SetChart`; None clears the slot.
+    SetTicks { owner: String, symbol: Option<String> },
 }
 
 /// Owner-keyed desired-subscription state shared by the REST poller and the
@@ -34,6 +37,9 @@ pub struct SubscriptionState {
     charts: HashMap<String, String>,
     /// window label → that window's watchlist union.
     watchlists: HashMap<String, HashSet<String>>,
+    /// "<window>:<pane>" (or a script's slot) → the symbol whose ticks it shows.
+    ticks: HashMap<String, String>,
+    ticks_of: HashMap<String, Vec<String>>,
     /// Vendor ticker → its full names, charted and in all: read on every
     /// message of the stream.
     charts_of: HashMap<String, Vec<String>>,
@@ -70,8 +76,18 @@ impl SubscriptionState {
                 self.watchlists.remove(&owner);
                 let prefix = format!("{owner}:");
                 self.charts.retain(|k, _| !k.starts_with(&prefix));
+                self.ticks.retain(|k, _| !k.starts_with(&prefix));
             }
+            SubscribeMsg::SetTicks { owner, symbol } => match symbol {
+                Some(s) => {
+                    self.ticks.insert(owner, s);
+                }
+                None => {
+                    self.ticks.remove(&owner);
+                }
+            },
         }
+        self.ticks_of = by_ticker(self.ticks.values().cloned().collect());
         self.charts_of = by_ticker(self.chart_symbols());
         self.all_of = by_ticker(self.all_symbols());
     }
@@ -106,6 +122,16 @@ impl SubscriptionState {
     /// Vendor tickers of everything subscribed.
     pub fn all_tickers(&self) -> HashSet<String> {
         self.all_of.keys().cloned().collect()
+    }
+
+    /// Vendor tickers whose ticks are shown.
+    pub fn tick_tickers(&self) -> HashSet<String> {
+        self.ticks_of.keys().cloned().collect()
+    }
+
+    /// Full names whose ticks are shown, of the vendor ticker `ticker`.
+    pub fn tick_symbols_for(&self, ticker: &str) -> &[String] {
+        self.ticks_of.get(ticker).map_or(&[], Vec::as_slice)
     }
 
     /// Charted full names whose vendor ticker is `ticker`.
@@ -202,6 +228,19 @@ mod subscription_state_tests {
         assert_eq!(charts, vec!["BOATS:INTC", "NASDAQ:INTC"]);
         assert_eq!(s.symbols_for("IBM"), vec!["NYSE:IBM"]);
         assert!(s.chart_symbols_for("IBM").is_empty());
+    }
+
+    #[test]
+    fn tick_slots_map_to_tickers_and_leave_with_their_window() {
+        let mut s = SubscriptionState::default();
+        s.apply(SubscribeMsg::SetTicks { owner: "main:1".into(), symbol: Some("NASDAQ:AAPL".into()) });
+        s.apply(SubscribeMsg::SetTicks { owner: "chart-x:1".into(), symbol: Some("NYSE:IBM".into()) });
+        assert_eq!(s.tick_symbols_for("AAPL"), vec!["NASDAQ:AAPL"]);
+        assert!(!s.is_chart_symbol("NASDAQ:AAPL"), "ticks are not a chart slot");
+        s.apply(SubscribeMsg::DropOwner { owner: "chart-x".into() });
+        assert_eq!(s.tick_tickers(), HashSet::from(["AAPL".to_string()]));
+        s.apply(SubscribeMsg::SetTicks { owner: "main:1".into(), symbol: None });
+        assert!(s.tick_tickers().is_empty());
     }
 
     #[test]

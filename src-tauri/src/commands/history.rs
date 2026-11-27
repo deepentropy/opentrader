@@ -81,6 +81,23 @@ pub async fn get_second_history(
     Ok(history::get_second_history(&provider, symbol, mult, days, adjusted).await?)
 }
 
+/// The newest `count` ticks of `symbol` before `before_ms` (none: up to now), oldest first; with `from_ms`, the first
+/// `count` from then on (Bar Replay). A data plugin's symbol asks its plugin (#376); the app's own data has them for a
+/// real-time account (the gateway refuses the others).
+#[tauri::command]
+#[specta::specta]
+pub async fn get_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>, from_ms: Option<f64>, count: u32) -> Result<Vec<plugin::Tick>, String> {
+    let count = count.clamp(1, MAX_TICKS);
+    if let Some(r) = plugin::route(&app, &symbol) {
+        return plugin::ticks(&app, &r, before_ms, from_ms, count).await;
+    }
+    plugin::refuse_idle(&app, &symbol)?;
+    opentrader_core::data::market_rest::fetch_ticks(&symbol, before_ms, from_ms, count).await.map_err(|e| e.to_string())
+}
+
+/// Ticks asked at most in one request.
+const MAX_TICKS: u32 = 100_000;
+
 /// Live-tail refresh for the seconds frames: `mult`-second bars strictly newer
 /// than `since_sec` (UNIX seconds). The 30s refresh loop calls this instead of
 /// refetching the whole 1-3 day window; the caller merges the overlap through

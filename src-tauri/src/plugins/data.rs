@@ -1102,18 +1102,8 @@ fn charted(app: &AppHandle, symbol: &str) -> bool {
 
 // ── Ticks (#376) ─────────────────────────────────────────────────────────────
 
-/// Ticks asked at most in one request.
-const MAX_TICKS: u32 = 100_000;
-
-/// One trade or quote of a symbol: tick charts build their bars from these.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct Tick {
-    /// UNIX milliseconds.
-    pub time_ms: f64,
-    pub price: f64,
-    pub volume: f64,
-}
+/// One trade or quote of a symbol: tick charts build their bars from these (the same as the app's own live ticks).
+pub use opentrader_core::data::market_stream::Tick;
 
 /// The live ticks of a charted plugin symbol (`data.tick`), in the order they came.
 #[derive(Clone, serde::Serialize, Deserialize, specta::Type, tauri_specta::Event)]
@@ -1149,23 +1139,18 @@ fn serves_ticks(i: &Info) -> bool {
 }
 
 /// The newest `count` ticks of a plugin symbol before `before_ms` (none: up to now), oldest first; with `from_ms`, the
-/// first `count` ticks from then on (Bar Replay, #377). Empty when the symbol is not a plugin's or its plugin has no
-/// ticks.
-#[tauri::command]
-#[specta::specta]
-pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>, from_ms: Option<f64>, count: u32) -> Result<Vec<Tick>, String> {
-    let Some(r) = route(&app, &symbol) else { return Ok(Vec::new()) };
-    let i = info(&app, &r).await?;
+/// first `count` ticks from then on (Bar Replay, #377). Empty when its plugin has no ticks.
+pub async fn ticks(app: &AppHandle, r: &Route, before_ms: Option<f64>, from_ms: Option<f64>, count: u32) -> Result<Vec<Tick>, String> {
+    let i = info(app, r).await?;
     if !serves_ticks(&i) {
         return Ok(Vec::new());
     }
     let to = before_ms.unwrap_or_else(|| (now() * 1000.0).ceil() + 1.0);
-    let count = count.clamp(1, MAX_TICKS);
     let mut params = json!({ "ticker": r.ticker, "to": to.floor(), "countBack": count });
     if let Some(from) = from_ms {
         params["from"] = json!(from.floor());
     }
-    let v = ask(&app, &r, "data.ticks", params, BARS_TIMEOUT).await?;
+    let v = ask(app, r, "data.ticks", params, BARS_TIMEOUT).await?;
     let mut ticks = parse_ticks(v.get("ticks").unwrap_or(&Value::Null));
     ticks.retain(|t| t.time_ms < to && from_ms.is_none_or(|f| t.time_ms >= f.floor()));
     if from_ms.is_some() {
@@ -1174,19 +1159,18 @@ pub async fn plugin_ticks(app: AppHandle, symbol: String, before_ms: Option<f64>
     Ok(ticks)
 }
 
-/// A chart pane shows `symbol` on a tick interval (None: no tick chart): its plugin streams its ticks (`data.tick`).
-#[tauri::command]
-#[specta::specta]
-pub fn plugin_watch_ticks(app: AppHandle, window: tauri::Window, pane: String, symbol: Option<String>) {
-    let owner = opentrader_core::commands::chart_owner(window.label(), &pane);
+/// A chart pane (`owner`) shows `symbol` on a tick interval (None: no tick chart): its plugin streams its ticks
+/// (`data.tick`). Returns whether a plugin serves the symbol.
+pub fn watch_ticks(app: &AppHandle, owner: &str, symbol: Option<&str>) -> bool {
     {
-        let mut charts = state(&app).tick_charts.locked();
+        let mut charts = state(app).tick_charts.locked();
         match symbol {
-            Some(s) => charts.insert(owner, s),
-            None => charts.remove(&owner),
+            Some(s) => charts.insert(owner.to_string(), s.to_string()),
+            None => charts.remove(owner),
         };
     }
-    push_tick_subscriptions(&app);
+    push_tick_subscriptions(app);
+    symbol.is_some_and(|s| route(app, s).is_some())
 }
 
 /// Tell each plugin the whole set of its tickers whose ticks a chart shows, when it changed (`data.watchTicks`).

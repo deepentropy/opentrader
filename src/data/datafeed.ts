@@ -17,7 +17,7 @@
  * Time is UNIX seconds everywhere (lightweight-charts UTCTimestamp), matching
  * the backend `Candle.time`.
  */
-import { commands, type Candle, type EconomicCountry, type PluginTrade, type SymbolEvent, type SymbolSearchResult } from "../bindings";
+import { commands, type Candle, type EconomicCountry, type SymbolEvent, type SymbolSearchResult } from "../bindings";
 import {
   getSecondHistory,
   getSecondHistoryTail,
@@ -34,6 +34,7 @@ import {
   onSecondAggregate,
   type ChartAggregate,
   type ChartTrade,
+  type PluginTrade,
   type SecondAggregate,
 } from "./datafeed-live";
 import { exchangeCode, exchangeName } from "./providers";
@@ -246,18 +247,26 @@ export function economicCountry(symbol: string): string {
 }
 
 /** Whether `resolution` is an interval the app can chart for some symbol: a
- *  served one, or ticks (a data plugin's symbols, #376). */
+ *  served one, or ticks (a data plugin's symbols, #376; the app's own on a
+ *  real-time session). */
 export function isChartableResolution(resolution: string): boolean {
   return isSupportedResolution(resolution) || tickCount(resolution) !== null;
 }
 
-/** Whether a symbol's data plugin serves ticks ("1T" among its intervals);
- *  true while its session is not known yet, so a restored tick chart keeps its
- *  interval. */
+/** Whether market data comes real-time on this device (set by ./paid/plan; false until then, and in workers). */
+let realtimeData: () => boolean = () => false;
+export function setRealtimeData(read: () => boolean): void {
+  realtimeData = read;
+}
+
+/** Whether a symbol has ticks: its data plugin lists "1T" among its intervals; the app's own symbols while market
+ *  data comes real-time (the gateway serves trades to real-time accounts only). True while its session is not known
+ *  yet, so a restored tick chart keeps its interval. Reactive: reads the real-time state. */
 function servesTicks(symbol: string | null | undefined): boolean {
   if (!symbol || isLocalSymbol(symbol) || isEconomicSymbol(symbol)) return false;
   const sessions = cachedSymbolSessions(symbol);
   if (!sessions) return true;
+  if (sessions.intervals.length === 0) return realtimeData();
   return sessions.intervals.some((i) => i.trim().toUpperCase() === "1T");
 }
 
@@ -832,12 +841,12 @@ export async function getBarsBefore(
   return getDailyHistoryBefore(symbol, beforeSec, spanDays ?? dailyConfig(resolution).days, adjusted);
 }
 
-/** Bars of `n` ticks of a data plugin's symbol: one page of whole bars before
+/** Bars of `n` ticks of a symbol: one page of whole bars before
  *  `beforeMs` (none: up to now), in the chosen session. None for a symbol
  *  without ticks. */
 async function tickHistory(symbol: string, n: number, beforeMs: number | null, session: SessionId): Promise<Candle[]> {
   if (!servesTicks(symbol)) return [];
-  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, beforeMs, null, ticksPerPage(n)), symbolSessions(symbol)]);
+  const [res, sessions] = await Promise.all([commands.getTicks(symbol, beforeMs, null, ticksPerPage(n)), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
   const spec = sessions.spec(session);
   const ticks = res.data as TickRow[];
@@ -852,12 +861,12 @@ async function tickHistory(symbol: string, n: number, beforeMs: number | null, s
  *  skips them). */
 export type TickPage = { ticks: TickRow[]; more: boolean; lastMs: number | null; atLast: number };
 
-/** The first `count` ticks of a data plugin's symbol from `fromMs` on, the
+/** The first `count` ticks of a symbol from `fromMs` on, the
  *  first `skip` of that millisecond left out (read already: the last page
  *  ended there), for Bar Replay on a tick chart (#377). */
 export async function getTicksFrom(symbol: string, fromMs: number, count: number, session: SessionId = "ETH", skip = 0): Promise<TickPage> {
   if (!servesTicks(symbol)) return { ticks: [], more: false, lastMs: null, atLast: 0 };
-  const [res, sessions] = await Promise.all([commands.pluginTicks(symbol, null, fromMs, count), symbolSessions(symbol)]);
+  const [res, sessions] = await Promise.all([commands.getTicks(symbol, null, fromMs, count), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
   const spec = sessions.spec(session);
   const all = res.data as TickRow[];

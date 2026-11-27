@@ -32,6 +32,7 @@ import { createEffect, createRoot, createSignal, on } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { commands, events, type MarketTier } from "../../bindings";
 import { emitAppEvent } from "../app-events";
+import { setRealtimeData } from "../datafeed";
 import { isTauri } from "../../window/shell/window-bridge";
 import { COMMUNITY_ENABLED, CommunityError, request } from "../community/api";
 import { initSession, me, ready } from "../community/session";
@@ -226,6 +227,8 @@ let started = false;
 
 /** Start once (the title bar mounts it): follows the offer, the sign-in and the stream's tier. */
 export function initPaid(): void {
+  // The app's own symbols have ticks while data comes real-time.
+  setRealtimeData(realtimeActive);
   if (!COMMUNITY_ENABLED || !isTauri() || started) return;
   started = true;
   createRoot(() => {

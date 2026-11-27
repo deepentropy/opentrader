@@ -838,7 +838,7 @@ export function ChartView(props: ChartViewProps) {
             <svg class="ot-interval-unsupported__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
               <path fill="currentColor" fill-rule="evenodd" d={INTERVAL_UNSUPPORTED_ICON} />
             </svg>
-            {/* Ticks: only a data plugin's symbols with ticks have them (#376). */}
+            {/* Ticks: a data plugin's symbols with ticks (#376), the app's own while data comes real-time. */}
             <Show
               when={isTickResolution(props.interval ?? "1D")}
               fallback={

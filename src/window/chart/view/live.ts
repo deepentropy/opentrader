@@ -17,7 +17,7 @@ import {
   tickCount,
   type LiveBar,
 } from "../../../data/datafeed";
-import { onPluginTicks, setTickSubscription } from "../../../data/datafeed-live";
+import { onTicks, setTickSubscription } from "../../../data/datafeed-live";
 import { nextTickBarTime } from "../../../data/tick-bars";
 import { cachedSymbolSessions } from "../../../data/session";
 import { setDataForType, type OHLC } from "../chart-types";
@@ -332,8 +332,8 @@ export function createLive(cx: ChartCx): LiveApi {
   });
 
   // ── Tick charts (#376) ─────────────────────────────────────────────
-  // The pane's data plugin streams the symbol's ticks while it shows a tick
-  // interval. A tick goes into the last bar until that bar holds N ticks, then
+  // The pane's data plugin (or the app's own real-time stream) sends the
+  // symbol's ticks while it shows a tick interval. A tick goes into the last bar until that bar holds N ticks, then
   // starts the next bar. A bar loaded with the history is a whole one: the
   // next tick starts a new bar.
   createEffect(() => {
@@ -345,7 +345,7 @@ export function createLive(cx: ChartCx): LiveApi {
   let tickBar: { time: number; count: number } | null = null;
   let unlistenTicks: UnlistenFn | null = null;
   onMount(() => {
-    onPluginTicks((e) => {
+    onTicks((e) => {
       const n = tickCount(props.interval ?? "1D");
       const sym = props.symbol;
       if (n === null || !sym || e.symbol.toUpperCase() !== sym.toUpperCase()) return;

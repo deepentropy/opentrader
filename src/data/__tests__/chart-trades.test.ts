@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PluginTrade, SymbolSession } from "../../bindings";
+import type { SymbolSession } from "../../bindings";
 
 // A subscriber's trades made into the forming bar of each interval.
 const mocks = vi.hoisted(() => ({ getSymbolSession: vi.fn() }));
@@ -8,7 +8,7 @@ vi.mock("../../bindings", () => ({ commands: { getSymbolSession: mocks.getSymbol
 vi.mock("../kv", () => ({ getItem: () => null, setItem: () => undefined, removeItem: () => undefined, onExternalChange: () => () => undefined }));
 
 import { bucketPluginTrade, bucketTrade } from "../datafeed";
-import type { ChartTrade } from "../datafeed-live";
+import type { ChartTrade, PluginTrade } from "../datafeed-live";
 import { symbolSessions } from "../session";
 
 const US: SymbolSession = {
