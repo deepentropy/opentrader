@@ -2,7 +2,8 @@
  * Watchlist view prefs saved on this machine: the settings menu's choices
  * (view, columns, logo, symbol display) and the column widths.
  */
-import { WL_SETTINGS_DEFAULTS, type WlSettings } from "../../../data/watchlist";
+import { WL_SETTINGS_DEFAULTS, type WlAddedColumn, type WlSettings } from "../../../data/watchlist";
+import { isScriptInterval } from "../../../data/script-screen";
 import * as kv from "../../../data/kv";
 
 export const SETTINGS_KEY = "ot:watchlist:settings";
@@ -35,10 +36,31 @@ export function loadSettings(): WlSettings {
         ...WL_SETTINGS_DEFAULTS,
         ...s,
         columns: { ...WL_SETTINGS_DEFAULTS.columns, ...(s.columns ?? {}) },
+        added: Array.isArray(s.added) ? s.added.filter(isAddedColumn) : [],
       };
     }
   } catch {
     /* malformed / unavailable — fall back to defaults */
   }
-  return { ...WL_SETTINGS_DEFAULTS, columns: { ...WL_SETTINGS_DEFAULTS.columns } };
+  return { ...WL_SETTINGS_DEFAULTS, columns: { ...WL_SETTINGS_DEFAULTS.columns }, added: [] };
+}
+
+/** A saved added column that is whole (anything else is dropped). */
+function isAddedColumn(c: unknown): c is WlAddedColumn {
+  const x = c as Partial<Record<string, unknown>> | null;
+  if (!x || typeof x.key !== "string" || !x.key.startsWith("x:")) return false;
+  if (x.kind === "metric") {
+    const col = x.col as { id?: unknown; params?: unknown } | undefined;
+    return typeof col?.id === "string" && !!col.params && typeof col.params === "object";
+  }
+  return (
+    x.kind === "script" &&
+    typeof x.indicatorId === "string" &&
+    typeof x.output === "string" &&
+    typeof x.header === "string" &&
+    typeof x.title === "string" &&
+    isScriptInterval(x.interval) &&
+    !!x.inputs &&
+    typeof x.inputs === "object"
+  );
 }

@@ -1,33 +1,60 @@
 /*
- * Values of the watchlist's "Rel Vol" column: the relative volume (today's volume / the average of the last 10
- * sessions) of the screener's market table, the same value as the screener's "Rel vol" column. The table loads
- * every 10 s only while a watchlist shows the column; each update reads the shown list's tickers.
+ * Values of the watchlist's columns read from the screener's market table: "Rel Vol" (today's volume / the average
+ * of the last 10 sessions, the screener's "Rel vol") and the metric columns added from "Add column" (ADR %, average
+ * volume, P/E...). The table loads every 10 s only while a watchlist shows such a column; each update reads the shown
+ * list's tickers, all fields in one scan. A symbol the table does not hold (futures, forex, crypto, a plugin's or a
+ * CSV series) has no value.
  */
 import { createEffect, onCleanup, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { onScreenerUpdate, screenerClose, screenerOpen, screenerScan } from "./screener-api";
 
-const OWNER = "watchlist:rvol";
+const OWNER = "watchlist:metrics";
+/** Field of "Rel Vol". */
+export const RVOL_FIELD = "relative_volume_10d_calc";
+/** Field of a row's currency (the unit of its prices and amounts). */
+const CURRENCY_FIELD = "currency";
 const bare = (s: string) => (s.split(":").pop() ?? s).toUpperCase();
 
-const [rvol, setRvol] = createStore<Record<string, number>>({});
+type Value = number | string;
+/** field -> ticker -> value. */
+const [values, setValues] = createStore<Record<string, Record<string, Value>>>({});
 
-/** Relative volume of a symbol ("NASDAQ:AAPL" or "AAPL"); undefined until the table has it. Reactive. */
-export function relativeVolumeOf(symbol: string): number | undefined {
-  return rvol[bare(symbol)];
+/** A field's value for a symbol ("NASDAQ:AAPL" or "AAPL"); undefined until (or unless) the table has it. Reactive. */
+export function metricValueOf(field: string, symbol: string): Value | undefined {
+  return values[field]?.[bare(symbol)];
 }
 
-/** Keep the relative volumes of `symbols` loaded while `wanted` holds (call in a component: stops with it). */
-export function useRelativeVolumes(symbols: () => string[], wanted: () => boolean): void {
+/** Relative volume of a symbol; undefined until the table has it. Reactive. */
+export function relativeVolumeOf(symbol: string): number | undefined {
+  const v = metricValueOf(RVOL_FIELD, symbol);
+  return typeof v === "number" ? v : undefined;
+}
+
+/** Currency of a symbol's prices in the table (null when unknown). Reactive. */
+export function metricCurrencyOf(symbol: string): string | null {
+  const v = metricValueOf(CURRENCY_FIELD, symbol);
+  return typeof v === "string" ? v : null;
+}
+
+/** Keep `fields` of `symbols` loaded while any field is asked for (call in a component: stops with it). */
+export function useWatchlistMetrics(symbols: () => string[], fields: () => string[]): void {
   let open = false;
   let off: (() => void) | null = null;
   const read = async () => {
     const tickers = [...new Set(untrack(symbols).map(bare))];
-    if (!open || !tickers.length) return;
-    const res = await screenerScan({ columns: ["relative_volume_10d_calc"], filter: [], sort: null, range: [0, tickers.length], tickers });
-    const next: Record<string, number> = {};
-    for (const r of res.rows) if (typeof r.d[0] === "number") next[r.s.toUpperCase()] = r.d[0];
-    setRvol(reconcile(next));
+    const wanted = untrack(fields);
+    if (!open || !tickers.length || !wanted.length) return;
+    const columns = [...new Set([...wanted, CURRENCY_FIELD])];
+    const res = await screenerScan({ columns, filter: [], sort: null, range: [0, tickers.length], tickers });
+    const next: Record<string, Record<string, Value>> = Object.fromEntries(columns.map((f) => [f, {}]));
+    for (const r of res.rows) {
+      columns.forEach((f, i) => {
+        const v = r.d[i];
+        if (typeof v === "number" || (typeof v === "string" && v)) next[f][r.s.toUpperCase()] = v;
+      });
+    }
+    setValues(reconcile(next));
   };
   const close = () => {
     open = false;
@@ -36,12 +63,12 @@ export function useRelativeVolumes(symbols: () => string[], wanted: () => boolea
     void screenerClose(OWNER).catch(() => {});
   };
   createEffect(() => {
-    const on = wanted();
+    const on = fields().length > 0;
     if (on && !open) {
       open = true;
       void screenerOpen(OWNER)
         .then(read)
-        .catch((e) => console.warn("[watchlist] relative volume", e));
+        .catch((e) => console.warn("[watchlist] metrics", e));
       void onScreenerUpdate((u) => {
         if (!u.error) void read().catch(() => {});
       }).then((f) => (open && !off ? (off = f) : f()));
@@ -49,10 +76,10 @@ export function useRelativeVolumes(symbols: () => string[], wanted: () => boolea
       close();
     }
   });
-  // Another list, or symbols added: read them at once, not at the next update.
+  // Another list, symbols added or a column added: read them at once, not at the next update.
   createEffect(() => {
     symbols();
-    if (untrack(wanted)) void read().catch(() => {});
+    if (fields().length) void read().catch(() => {});
   });
   onCleanup(() => {
     if (open) close();

@@ -17,7 +17,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { PanelHeader } from "../../components/PanelHeader";
 import { IconButton } from "../../components/IconButton";
-import type { SortKey, WlSettings } from "../../data/watchlist";
+import type { AddedColumnKey, SortKey, WlColKey, WlSettings } from "../../data/watchlist";
 import { HEADER_ITEMS, WL_COLUMNS, WL_ICONS } from "./watchlist/ui";
 import {
   watchlistStore,
@@ -37,7 +37,7 @@ import { SymbolSearchDialog } from "../header/SymbolSearchDialog";
 import { OpenListDialog } from "./OpenListDialog";
 import { AddAlertDialog } from "./AddAlertDialog";
 import * as kv from "../../data/kv";
-import { SETTINGS_KEY, loadSettings } from "./watchlist/prefs";
+import { DEFAULT_COL_W, MAX_COL_W, SETTINGS_KEY, loadSettings } from "./watchlist/prefs";
 import { listAlertListeners, type ListAlertListener } from "./watchlist/list-alerts";
 import { ListMarker } from "./watchlist/markers";
 import { attach, type WatchlistCore, type WatchlistCx, type WatchlistProps } from "./watchlist/context";
@@ -54,6 +54,8 @@ import { createKeyboard } from "./watchlist/keyboard";
 import { createRowMenus } from "./watchlist/row-menus";
 import { createRows } from "./watchlist/rows";
 import { createHeaders } from "./watchlist/headers";
+import { addedHeader, addedTitle, addedWidth } from "./watchlist/added-columns";
+import { AddColumnDialog } from "./AddColumnDialog";
 import { tickerOf } from "../../data/symbol-name";
 import { createPopover } from "../../components/popover";
 
@@ -77,6 +79,8 @@ export function Watchlist(props: WatchlistProps) {
 
   const [settings, setSettings] = createSignal<WlSettings>(loadSettings());
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [addColumnOpen, setAddColumnOpen] = createSignal(false);
+  const removeAddedColumn = (key: AddedColumnKey): void => void setSettings((s) => ({ ...s, added: s.added.filter((c) => c.key !== key) }));
   const [menuOpen, setMenuOpen] = createSignal(false);
   // "Add symbol" search dialog + where its symbols are inserted (anchor:
   // header button = end of list, section menu = top of that section, row
@@ -152,9 +156,14 @@ export function Watchlist(props: WatchlistProps) {
   // (Sort is per-list now — synced via the watchlist store's own cross-window sync.)
 
   /** Visible data columns (after the fixed Symbol column), in display order —
-   *  driven by the gear's per-column checkboxes. */
-  const visibleCols = () =>
-    WL_COLUMNS.filter((c) => settings().columns[c.key]);
+   *  the gear's per-column checkboxes, then the columns added from "Add column". */
+  const visibleCols = (): { key: WlColKey; menuLabel: string; header: string; width?: number }[] => [
+    ...WL_COLUMNS.filter((c) => settings().columns[c.key]),
+    ...settings().added.map((c) => {
+      const header = addedHeader(c);
+      return { key: c.key, menuLabel: addedTitle(c), header, width: addedWidth(header, DEFAULT_COL_W, MAX_COL_W) };
+    }),
+  ];
 
   /** Favourited lists — shown icon-only in the quick-switch bar under the title. */
   const favoriteLists = () => watchlistStore.lists().filter((l) => l.favorite);
@@ -174,6 +183,8 @@ export function Watchlist(props: WatchlistProps) {
     get listDraft() { return listDraft; },
     get listName() { return listName; },
     get setAddAnchor() { return setAddAnchor; },
+    get setAddColumnOpen() { return setAddColumnOpen; },
+    get removeAddedColumn() { return removeAddedColumn; },
     get setAlertOpen() { return setAlertOpen; },
     get setListDraft() { return setListDraft; },
     get setOpenListOpen() { return setOpenListOpen; },
@@ -317,7 +328,19 @@ export function Watchlist(props: WatchlistProps) {
         <WatchlistSettingsMenu
           settings={settings()}
           onChange={setSettings}
+          onAddColumn={() => {
+            setSettingsOpen(false);
+            setAddColumnOpen(true);
+          }}
           onClose={() => setSettingsOpen(false)}
+        />
+      </Show>
+
+      <Show when={addColumnOpen()}>
+        <AddColumnDialog
+          added={settings().added}
+          onAdd={(c) => setSettings((s) => ({ ...s, tableView: true, added: [...s.added, c] }))}
+          onClose={() => setAddColumnOpen(false)}
         />
       </Show>
 

@@ -5,7 +5,8 @@
  */
 import { relativeVolumeOf } from "../../../data/watchlist-metrics";
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import { FLAG_SORT_ORDER, type Row, type SortField, type SortKey, type WlColumnKey } from "../../../data/watchlist";
+import { FLAG_SORT_ORDER, type AddedColumnKey, type Row, type SortField, type SortKey, type WlColKey, type WlColumnKey } from "../../../data/watchlist";
+import { addedHeader, addedSortValue } from "./added-columns";
 import { COLUMN_HEADERS, WL_COLUMNS, WL_ICONS } from "./ui";
 import { flagOf } from "../../../data/symbol-flags";
 import { numFromStr } from "./format";
@@ -16,10 +17,10 @@ import type { JSX } from "solid-js";
 // the tile-view "Sort by" menu. The SortField/SortKey types live in the data
 // layer (watchlist.ts) since the store persists the active list's sort.
 /** A sortable table-header item: the flag button, the fixed Symbol column, or
- *  a data column. */
-export type HeaderCol = "flag" | "symbol" | WlColumnKey;
+ *  a data column (an added column sorts by its own key). */
+export type HeaderCol = "flag" | "symbol" | WlColKey;
 /** Maps a table column (incl. the fixed Symbol column) to its sort field. */
-const COL_SORT: Record<HeaderCol, SortField> = {
+const COL_SORT: Record<"flag" | "symbol" | WlColumnKey, SortField> = {
   flag: "flag",
   symbol: "symbol",
   last: "last",
@@ -40,7 +41,7 @@ export const SORT_MENU_FIELDS: { field: SortField; label: string }[] = [
 
 /** What createSort adds to the watchlist context. */
 export interface SortApi {
-  headerLabel: (key: WlColumnKey) => string;
+  headerLabel: (key: WlColKey) => string;
   isFlashing: (col: HeaderCol) => boolean;
   sortArrow: (col: HeaderCol) => JSX.Element;
   sortDirFor: (col: HeaderCol) => "asc" | "desc" | null;
@@ -50,12 +51,18 @@ export interface SortApi {
 }
 
 export function createSort(cx: WatchlistCx): SortApi {
-  const { quoteFor, setSortBy, sortBy } = cx;
+  const { quoteFor, setSortBy, settings, sortBy } = cx;
+  const sortFieldOf = (col: HeaderCol): SortField => (col.startsWith("x:") ? (col as AddedColumnKey) : COL_SORT[col as keyof typeof COL_SORT]);
   // ── Sorting (tile-view "Sort by") ── prefer the live quote, fall back to the
   // stored display value; missing values sort to the end either direction.
-  const sortNumber = (r: Row, field: Exclude<SortField, "symbol" | "flag">): number => {
+  const sortNumber = (r: Row, field: Exclude<SortField, "symbol" | "flag">): number | string => {
+    if (field.startsWith("x:")) {
+      const c = settings().added.find((a) => a.key === field);
+      const v = c ? addedSortValue(c, r.ticker) : undefined;
+      return v === undefined || v === "" ? NaN : v;
+    }
     const q = quoteFor(r.ticker);
-    switch (field) {
+    switch (field as Exclude<SortField, "symbol" | "flag" | AddedColumnKey>) {
       case "change": return q?.changePercent ?? numFromStr(r.changePercent);
       case "chg": return q?.change ?? numFromStr(r.change);
       case "last": return q?.last ?? numFromStr(r.last);
@@ -84,11 +91,16 @@ export function createSort(cx: WatchlistCx): SortApi {
       }
       const av = sortNumber(a, field as Exclude<SortField, "symbol" | "flag">);
       const bv = sortNumber(b, field as Exclude<SortField, "symbol" | "flag">);
-      const aMissing = !Number.isFinite(av);
-      const bMissing = !Number.isFinite(bv);
+      const aMissing = typeof av === "number" && !Number.isFinite(av);
+      const bMissing = typeof bv === "number" && !Number.isFinite(bv);
       if (aMissing && bMissing) return 0;
       if (aMissing) return 1; // missing values always last
       if (bMissing) return -1;
+      // A text column (sector, exchange) sorts by name; text after numbers.
+      if (typeof av === "string" || typeof bv === "string") {
+        if (typeof av !== typeof bv) return typeof av === "string" ? 1 : -1;
+        return sign * String(av).localeCompare(String(bv));
+      }
       return sign * (av - bv);
     });
     return copy;
@@ -99,12 +111,12 @@ export function createSort(cx: WatchlistCx): SortApi {
   // the right end of the header returns to the order from before the sort.
   // Sorting runs within each section.
   const sortDirFor = (col: HeaderCol): "asc" | "desc" | null => {
-    const f = COL_SORT[col];
+    const f = sortFieldOf(col);
     const cur = sortBy();
     return cur === `${f}-asc` ? "asc" : cur === `${f}-desc` ? "desc" : null;
   };
   const toggleSort = (col: HeaderCol) => {
-    const f = COL_SORT[col];
+    const f = sortFieldOf(col);
     setSortBy((cur) => (cur === `${f}-asc` ? `${f}-desc` : `${f}-asc`));
   };
   // The sort arrow and the blue label show for 5 s only, each time the sort
@@ -120,7 +132,7 @@ export function createSort(cx: WatchlistCx): SortApi {
     const t = setTimeout(() => setFlashField(null), 5000);
     onCleanup(() => clearTimeout(t));
   });
-  const isFlashing = (col: HeaderCol) => flashField() === COL_SORT[col];
+  const isFlashing = (col: HeaderCol) => flashField() === sortFieldOf(col);
   const sortArrow = (col: HeaderCol) => (
     <span
       class="watchlist-sort-arrow"
@@ -132,8 +144,11 @@ export function createSort(cx: WatchlistCx): SortApi {
   /** Header tooltip glyph: the direction the next click applies. */
   const sortTipIcon = (col: HeaderCol) => (sortDirFor(col) === "asc" ? WL_ICONS.sortTipDown : WL_ICONS.sortTipUp);
 
-  const headerLabel = (key: WlColumnKey) =>
-    WL_COLUMNS.find((c) => c.key === key)?.header ?? COLUMN_HEADERS.find((c) => c.key === key)?.label ?? key;
+  const headerLabel = (key: WlColKey) => {
+    const added = key.startsWith("x:") ? settings().added.find((a) => a.key === key) : undefined;
+    if (added) return addedHeader(added);
+    return WL_COLUMNS.find((c) => c.key === key)?.header ?? COLUMN_HEADERS.find((c) => c.key === key)?.label ?? key;
+  };
 
   return { headerLabel, isFlashing, sortArrow, sortDirFor, sortRows, sortTipIcon, toggleSort };
 }

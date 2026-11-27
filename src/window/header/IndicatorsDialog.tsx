@@ -82,7 +82,8 @@ const TAB_TITLES: Record<string, string> = Object.fromEntries(
 const PLUGIN_TAB_PREFIX = "plugin:";
 
 /** Render the FontIcon glyph for a sidebar item (a plugin's tab: the glyph of scripts from others). */
-function Glyph(props: { id: string }) {
+/** A sidebar item's icon (the Add column dialog shows the same ones). */
+export function SidebarGlyph(props: { id: string }) {
   const def = () => SIDEBAR_ICONS[props.id.startsWith(PLUGIN_TAB_PREFIX) ? "invite-only-scripts" : props.id];
   return (
     <Show when={def()}>
@@ -444,7 +445,7 @@ export function IndicatorsDialog(props: Props) {
                       disabled={item.disabled}
                       onClick={() => { if (!item.disabled) openTab(item.id); }}
                     >
-                      <Glyph id={item.id} />
+                      <SidebarGlyph id={item.id} />
                       <span class="indicators-sidebar-label" data-no-translate={item.id.startsWith(PLUGIN_TAB_PREFIX) || undefined}>
                         {item.label}
                       </span>

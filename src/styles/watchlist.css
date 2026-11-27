@@ -1326,6 +1326,103 @@ html.theme-dark .wl-flag-strip {
   height: 16px;
 }
 
+/* "Add column…" in the settings menu: a plus where the checkboxes are. */
+.wl-settings-add {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+.wl-settings-add svg {
+  display: block;
+}
+
+/* ── Add column dialog (AddColumnDialog.tsx): the Indicators dialog's frame and rows ── */
+/* A row: the name over the whole width, a metric's choice buttons at its end. */
+.wl-add-column .indicators-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+/* No favourite star in this dialog: the heading lines up with the names. */
+.wl-add-column .indicators-col-name {
+  padding-inline-start: 0;
+}
+.wl-add-column .indicators-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Already in the watchlist: the name (or the choice) greyed. */
+.wl-add-column .indicators-row.is-added .indicators-name,
+.wl-add-column .indicators-metric-period.is-added {
+  color: var(--color-text-secondary);
+}
+.wl-add-column-cat-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+}
+.wl-add-column-cat-icon svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+/* Where the values come from, under the list. */
+.wl-add-column-note {
+  flex-shrink: 0;
+  padding: 8px 20px 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-secondary);
+}
+/* An indicator's settings, in place of the list. */
+.wl-add-column-config {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 0 20px 16px;
+}
+.wl-add-column-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wl-add-column-form {
+  display: grid;
+  grid-template-columns: 120px auto;
+  align-items: center;
+  justify-content: start;
+  gap: 12px 16px;
+}
+.wl-add-column-label {
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+.wl-add-column-inputs {
+  justify-self: start;
+}
+.wl-add-column-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-secondary);
+}
+.wl-add-column-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 /* ── Watchlist dialogs (Open list…, Add alert…) + toast ─────────────────── */
 .wl-dialog-backdrop {
   position: fixed;

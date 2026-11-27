@@ -3,6 +3,7 @@
  * flag colours, plus the default list a new profile starts with. The panel's
  * labels, icons and menus are in window/right-rail/watchlist/ui.ts.
  */
+import type { ScriptInterval } from "./script-screen";
 
 export type Row = {
   ticker: string;
@@ -29,7 +30,7 @@ export type Group = {
  *  order. Shared by the table-header click-sort and the tile "Sort by" menu.
  *  `change` is change-PERCENT; `chg` is absolute change; `ext` is extended-hours;
  *  `flag` is the row flag colour (the header's flag button). */
-export type SortField = "symbol" | "last" | "chg" | "change" | "volume" | "ext" | "flag" | "rvol" | "turnover";
+export type SortField = "symbol" | "last" | "chg" | "change" | "volume" | "ext" | "flag" | "rvol" | "turnover" | AddedColumnKey;
 export type SortKey = "default" | `${SortField}-asc` | `${SortField}-desc`;
 
 // Default watchlist for a new profile (the "Watchlist" list): broad index
@@ -66,6 +67,28 @@ export type WlColumnKey = "last" | "change" | "change_percent" | "volume" | "rch
 /** Symbol-display radio value (`ticker` = symbol, `description` = company name). */
 export type WlSymbolDisplay = "ticker" | "description";
 
+/** Key of a column added from "Add column" (its width, its sort): "x:" then an id. */
+export type AddedColumnKey = `x:${string}`;
+/** Key of any data column of the table: a checkbox column or an added one. */
+export type WlColKey = WlColumnKey | AddedColumnKey;
+
+/** A column added from "Add column" (not in the reference watchlist): a metric of the screener's market table (its
+ *  catalog id and params), or a value of an indicator run on each symbol on a timeframe (`output`: the script
+ *  screen's cell key, "out:<plot>" or "cond:<id>"; `header` and `title` kept from when it was added, so the column is
+ *  named before the indicator library loads). */
+export type WlAddedColumn =
+  | { kind: "metric"; key: AddedColumnKey; col: { id: string; params: Record<string, string> } }
+  | {
+      kind: "script";
+      key: AddedColumnKey;
+      indicatorId: string;
+      inputs: Record<string, unknown>;
+      interval: ScriptInterval;
+      output: string;
+      header: string;
+      title: string;
+    };
+
 export interface WlSettings {
   /** Table view (true) vs the two-line tile view (false). */
   tableView: boolean;
@@ -75,6 +98,8 @@ export interface WlSettings {
   logo: boolean;
   /** Primary row label — ticker symbol or company name. */
   symbolDisplay: WlSymbolDisplay;
+  /** Columns added from "Add column", after the checkbox columns, in the order added. */
+  added: WlAddedColumn[];
 }
 
 /** Default checkbox/toggle/radio states. */
@@ -83,6 +108,7 @@ export const WL_SETTINGS_DEFAULTS: WlSettings = {
   columns: { last: true, change: false, change_percent: true, volume: false, rchp: true, rvol: false, turnover: false },
   logo: true,
   symbolDisplay: "ticker",
+  added: [],
 };
 
 /** Watchlist flag-marker palette.  Only `blue` is used by the default

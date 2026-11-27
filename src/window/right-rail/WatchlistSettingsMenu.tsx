@@ -4,16 +4,21 @@
  * Table-view toggle · Customize columns
  * (checkboxes) · Symbol display (Logo checkbox + Symbol/Name radio). Toggling a
  * control edits the parent's settings in place and keeps the popover open.
+ * Not in the reference: the columns added from "Add column" are listed checked
+ * under the others (unchecking one removes it), then "Add column…".
  */
 import { For } from "solid-js";
 import type { WlColumnKey, WlSettings, WlSymbolDisplay } from "../../data/watchlist";
-import { WL_COLUMNS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
+import { WL_COLUMNS, WL_ICONS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
 import { CheckMarkBox, SwitchMark } from "../../components/form";
 import { createPopover } from "../../components/popover";
+import { addedTitle } from "./watchlist/added-columns";
 
 type Props = {
   settings: WlSettings;
   onChange: (next: WlSettings) => void;
+  /** "Add column…": open the Add column dialog. */
+  onAddColumn: () => void;
   onClose: () => void;
 };
 
@@ -70,6 +75,25 @@ export function WatchlistSettingsMenu(props: Props) {
           </button>
         )}
       </For>
+      <For each={props.settings.added}>
+        {(c) => (
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked="true"
+            class="wl-settings-item wl-settings-item--check"
+            data-qa-id={c.key}
+            onClick={() => props.onChange({ ...props.settings, added: props.settings.added.filter((a) => a.key !== c.key) })}
+          >
+            <CheckMarkBox variant="menu" checked />
+            <span class="wl-settings-label apply-overflow-tooltip" data-no-translate>{addedTitle(c)}</span>
+          </button>
+        )}
+      </For>
+      <button type="button" role="menuitem" class="wl-settings-item wl-settings-item--check" data-qa-id="add-column" onClick={() => props.onAddColumn()}>
+        <span class="wl-settings-add" aria-hidden="true" innerHTML={WL_ICONS.plus} />
+        <span class="wl-settings-label apply-overflow-tooltip">Add column…</span>
+      </button>
 
       <div class="ot-popover__divider" />
 

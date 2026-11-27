@@ -1,21 +1,23 @@
 /*
  * Watchlist cell values: the live quote overlay on the stored rows (last,
- * change, change %, volume, Ext, turnover), the relative volume of the
- * screener's market table, the company names, the row label and the
- * market-status dot.
+ * change, change %, volume, Ext, turnover), the relative volume and the added
+ * metric columns of the screener's market table, the added indicator columns,
+ * the company names, the row label and the market-status dot.
  */
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
-import { type Row, type WlColumnKey } from "../../../data/watchlist";
+import { type Row, type WlColKey, type WlColumnKey } from "../../../data/watchlist";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../../data/quotes";
 import { getTickerInfo, tickerInfoEpoch } from "../../../data/datafeed";
-import { relativeVolumeOf, useRelativeVolumes } from "../../../data/watchlist-metrics";
+import { RVOL_FIELD, relativeVolumeOf, useWatchlistMetrics } from "../../../data/watchlist-metrics";
+import { useScriptColumns } from "../../../data/watchlist-script-columns";
+import { addedCell, metricFieldOf } from "./added-columns";
 import { fmtChange, fmtPercent, fmtVolume, formatLast, isNegative, marketState } from "./format";
 import { localNumber } from "../../../i18n/format";
 import { type WatchlistCx } from "./context";
 
 /** What createCells adds to the watchlist context. */
 export interface CellsApi {
-  cellFor: (r: Row, key: WlColumnKey) => { text: string; tint?: "up" | "down" };
+  cellFor: (r: Row, key: WlColKey) => { text: string; tint?: "up" | "down" };
   dotClass: (r: Row) => string;
   lastForRow: (row: { ticker: string; last: string }) => string;
   nameFor: (r: Row) => string;
@@ -30,11 +32,16 @@ export function createCells(cx: WatchlistCx): CellsApi {
   // subscription and the trade-tick feed for the app's lifetime. The panel just
   // reads them, so closing/reopening keeps prices and never refetches.
   const quoteFor = (symbol: string): LiveQuote | undefined => liveQuoteFor(symbol);
-  // "Rel Vol": loaded from the screener's market table while the column shows.
-  useRelativeVolumes(
-    () => allRows().map((r) => r.ticker),
-    () => settings().tableView && settings().columns.rvol,
-  );
+  // "Rel Vol" and the added metric columns: read from the screener's market table while they show (one scan for
+  // all of them); the added indicator columns: computed per symbol while they show.
+  const shownTickers = () => allRows().map((r) => r.ticker);
+  useWatchlistMetrics(shownTickers, () => {
+    const s = settings();
+    if (!s.tableView) return [];
+    const fields = s.added.map(metricFieldOf).filter((f): f is string => !!f);
+    return s.columns.rvol ? [RVOL_FIELD, ...fields] : fields;
+  });
+  useScriptColumns(shownTickers, () => (settings().tableView ? settings().added.flatMap((c) => (c.kind === "script" ? [c] : [])) : []));
 
   // (List-alert evaluation runs in the module-level singleton of
   // list-alerts.ts — it must keep firing while this panel is unmounted.)
@@ -112,9 +119,13 @@ export function createCells(cx: WatchlistCx): CellsApi {
 
   /** Map a column key to its display value + tint for a row, preferring the live
    *  quote and falling back to the stored static value. */
-  function cellFor(r: Row, key: WlColumnKey): { text: string; tint?: "up" | "down" } {
+  function cellFor(r: Row, key: WlColKey): { text: string; tint?: "up" | "down" } {
+    if (key.startsWith("x:")) {
+      const c = settings().added.find((a) => a.key === key);
+      return c ? addedCell(c, r.ticker) : { text: "—" };
+    }
     const q = quoteFor(r.ticker);
-    switch (key) {
+    switch (key as WlColumnKey) {
       case "last": return { text: lastForRow(r) };
       case "change": {
         // No static fallback in the sectioned capture → "—" (untinted) until a

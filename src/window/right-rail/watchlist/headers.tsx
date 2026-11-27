@@ -1,9 +1,13 @@
 /*
  * Watchlist list headers: the table view's column headers (click to sort,
- * flag sort, resize dividers, back to the custom order) and the tile view's
- * "Symbol" / "Sort by" header with its sort menu.
+ * flag sort, resize dividers, back to the custom order, right-click: Add
+ * column… and an added column's Remove column) and the tile view's "Symbol" /
+ * "Sort by" header with its sort menu.
  */
-import { For, Show } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
+import { Portal } from "solid-js/web";
+import { ChartContextMenu, type CtxNode } from "../../chart/ChartContextMenu";
+import type { AddedColumnKey, WlColKey } from "../../../data/watchlist";
 import { Tooltip } from "../../../components/Tooltip";
 import { WL_ICONS } from "./ui";
 import { SYMBOL_COL_KEY } from "./prefs";
@@ -103,13 +107,33 @@ export function createHeaders(cx: WatchlistCx): HeadersApi {
 
   /** Table view header: one sortable, resizable header per visible column. */
   function ColumnHeaders() {
+    // Right-click menu of a header: "Add column…", and "Remove column" on an added column.
+    const [menu, setMenu] = createSignal<{ x: number; y: number; key: WlColKey | null } | null>(null);
+    const menuNodes = (key: WlColKey | null): CtxNode[] => {
+      const nodes: CtxNode[] = [{ kind: "item", id: "add-column", label: "Add column…", onSelect: () => cx.setAddColumnOpen(true) }];
+      if (key?.startsWith("x:")) nodes.push({ kind: "item", id: "remove-column", label: "Remove column", onSelect: () => cx.removeAddedColumn(key as AddedColumnKey) });
+      return nodes;
+    };
+    const openMenu = (e: MouseEvent, key: WlColKey | null) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu({ x: e.clientX, y: e.clientY, key });
+    };
     return (
       <div
         ref={cx.headersEl}
         class="watchlist-column-headers"
         role="row"
         style={{ "grid-template-columns": gridTemplate() }}
+        onContextMenu={(e) => openMenu(e, null)}
       >
+        <Show when={menu()} keyed>
+          {(m) => (
+            <Portal>
+              <ChartContextMenu x={m.x} y={m.y} nodes={menuNodes(m.key)} onClose={() => setMenu(null)} />
+            </Portal>
+          )}
+        </Show>
         <span
           role="columnheader"
           class="watchlist-column-header watchlist-column-symbol"
@@ -147,9 +171,16 @@ export function createHeaders(cx: WatchlistCx): HeadersApi {
               role="columnheader"
               class="watchlist-column-header watchlist-column-header--num"
               aria-sort={sortDirFor(c.key) ? (sortDirFor(c.key) === "asc" ? "ascending" : "descending") : "none"}
+              onContextMenu={(e) => openMenu(e, c.key)}
             >
               {sortArrow(c.key)}
-              <Tooltip text={translateWith("Click to sort by {0}", translate(headerLabel(c.key)))} icon={sortTipIcon(c.key)} side="top" farther>
+              {/* An added column's header is already in the language (its long title in the tooltip). */}
+              <Tooltip
+                text={translateWith("Click to sort by {0}", c.key.startsWith("x:") ? c.menuLabel : translate(headerLabel(c.key)))}
+                icon={sortTipIcon(c.key)}
+                side="top"
+                farther
+              >
                 <button
                   type="button"
                   class="watchlist-column-label"

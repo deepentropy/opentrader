@@ -30,10 +30,10 @@ export function createColumns(cx: WatchlistCx): ColumnsApi {
   onCleanup(kv.onExternalChange(COL_WIDTHS_KEY, () => setColWidths(loadColWidths())));
   const symbolW = () => colWidths()[SYMBOL_COL_KEY] ?? DEFAULT_SYMBOL_W;
   const gridTemplate = () =>
-    `minmax(${symbolW()}px, 1fr) ${visibleCols().map((c) => `${colWidths()[c.key] ?? DEFAULT_COL_W}px`).join(" ")}`;
+    `minmax(${symbolW()}px, 1fr) ${visibleCols().map((c) => `${colWidths()[c.key] ?? c.width ?? DEFAULT_COL_W}px`).join(" ")}`;
   // The right panel opens wide enough for every column (no sideways scrolling); nothing asked in the tile view.
   createEffect(() =>
-    setWatchlistNeed(cx.settings().tableView ? tableWidth(symbolW(), visibleCols().map((c) => colWidths()[c.key] ?? DEFAULT_COL_W)) : 0),
+    setWatchlistNeed(cx.settings().tableView ? tableWidth(symbolW(), visibleCols().map((c) => colWidths()[c.key] ?? c.width ?? DEFAULT_COL_W)) : 0),
   );
   onCleanup(() => setWatchlistNeed(0));
 
@@ -62,7 +62,7 @@ export function createColumns(cx: WatchlistCx): ColumnsApi {
     const handle = e.currentTarget as HTMLElement;
     const startX = e.clientX;
     const isSymbol = key === SYMBOL_COL_KEY;
-    const startW = colWidths()[key] ?? (isSymbol ? DEFAULT_SYMBOL_W : DEFAULT_COL_W);
+    const startW = colWidths()[key] ?? (isSymbol ? DEFAULT_SYMBOL_W : visibleCols().find((c) => c.key === key)?.width ?? DEFAULT_COL_W);
     const min = isSymbol ? 60 : MIN_COL_W;
     const max = isSymbol ? MAX_COL_W : MAX_COL_W;
     resizing = true;

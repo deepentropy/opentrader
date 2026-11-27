@@ -71,6 +71,8 @@ export const WL_ICONS = {
   chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="m4.67 7.38.66-.76L9 9.84l3.67-3.22.66.76L9 11.16 4.67 7.38Z"></path></svg>',
   // Trash/delete glyph (vb 18×18) — revealed on hover for
   // both a row (remove symbol) and a section header (delete section).
+  /** "Add column…" in the settings menu. */
+  plus: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d="M8.5 3v5.5H3v1h5.5V15h1V9.5H15v-1H9.5V3h-1Z"/></svg>',
   trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M12 4h3v1h-1.04l-.88 9.64a1.5 1.5 0 0 1-1.5 1.36H6.42a1.5 1.5 0 0 1-1.5-1.36L4.05 5H3V4h3v-.5C6 2.67 6.67 2 7.5 2h3c.83 0 1.5.67 1.5 1.5V4ZM7.5 3a.5.5 0 0 0-.5.5V4h4v-.5a.5.5 0 0 0-.5-.5h-3ZM5.05 5l.87 9.55a.5.5 0 0 0 .5.45h5.17a.5.5 0 0 0 .5-.45L12.94 5h-7.9Z"></path></svg>',
   // Down-caret on the watchlists menu button (vb 16×8, rendered 8×4 — the
   // standard dropdown caret size). NOT the flag glyph the mock previously

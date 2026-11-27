@@ -6,7 +6,7 @@
  * mutable fields are live accessors of the panel's state.
  */
 import type { Accessor, Setter } from "solid-js";
-import type { Group, Row, SortKey, WlColumnKey, WlSettings } from "../../../data/watchlist";
+import type { AddedColumnKey, Group, Row, SortKey, WlColKey, WlSettings } from "../../../data/watchlist";
 import type { AddAnchor, WatchList } from "../../../data/watchlist-store";
 
 import type { ColumnsApi } from "./columns";
@@ -69,7 +69,12 @@ export interface WatchlistCore {
   sortMenuOpen: Accessor<boolean>;
   sortWrapEl: HTMLDivElement | undefined;
   uploadInput: HTMLInputElement | undefined;
-  visibleCols: () => { key: WlColumnKey; menuLabel: string; header: string }[];
+  /** `width`: the starting width of an added column (a dragged width is kept apart). */
+  visibleCols: () => { key: WlColKey; menuLabel: string; header: string; width?: number }[];
+  /** Open the "Add column" dialog. */
+  setAddColumnOpen: Setter<boolean>;
+  /** Remove a column added from "Add column". */
+  removeAddedColumn: (key: AddedColumnKey) => void;
 }
 
 export type WatchlistCx = WatchlistCore &
