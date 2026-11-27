@@ -1,32 +1,30 @@
 /*
- * A backtest post: a public strategy script run on many stocks. In order: the rules (as code), the data it ran on,
- * the results with the author's settings and a browser of every stock (its chart with the trades, the trade list,
- * the metrics by period), then the optimized setting and its results. The per-stock table and each stock's bars
- * and trades are files of the post on the server, loaded when shown. Also the Backtests page: the list.
+ * A backtest post: a public strategy script run on many stocks. In order: the rules (as code, highlighted), the data
+ * it ran on, the results with the author's settings (a period at a time: the whole run, in- or out-of-sample, a year)
+ * and a browser of every stock (its chart with the trades, the trade list, the metrics of each period), then the
+ * optimized setting and its results. The per-stock table and each stock's bars and trades are files of the post on
+ * the server, loaded when shown. Also the Backtests page: the list.
  */
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
+import { For, type JSX, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import type { IChartApi, ISeriesApi, SeriesMarker, Time } from "lightweight-charts";
-import { BACKTESTS, api, type Backtest, type BacktestPeriods, type BacktestStats, type BacktestStock, type BacktestStockRow, type BacktestSummary, type BacktestTrade, type Post } from "../data/community/api";
+import {
+  BACKTESTS, api, type Backtest, type BacktestPeriod, type BacktestStats, type BacktestStock, type BacktestStockRow, type BacktestSummary, type BacktestTrade, type Post,
+} from "../data/community/api";
 import { errorText } from "../community-shared/parts";
 import { DOWN, FOG, INK, Pills, UP, UserLink, age, tfLong } from "./ui";
 import { go } from "./router";
 
 type Setting = "default" | "optimized";
-type Period = keyof BacktestPeriods<unknown>;
 
 const MINUS = "−";
-/** A share (0.018) as a signed percent: "+1.8%". */
-const signed = (v: number | null | undefined, digits = 1) => (v == null ? "—" : `${v < 0 ? MINUS : "+"}${Math.abs(v * 100).toFixed(digits)}%`);
-/** A share (0.64) as a percent: "64%". */
+/** A fraction (0.018) as a signed percent: "+1.80%". */
+const signed = (v: number | null | undefined, digits = 2) => (v == null ? "—" : `${v < 0 ? MINUS : "+"}${Math.abs(v * 100).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`);
+/** A fraction (0.64) as a percent: "64%". */
 const share = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const ratio = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
+const count = (v: number | null | undefined) => (v == null ? "—" : String(Math.round(v)));
+const days = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v)} day${Math.round(v) === 1 ? "" : "s"}`);
 const tone = (v: number | null | undefined) => (v == null || v === 0 ? INK : v > 0 ? UP : DOWN);
-
-const PERIODS: { id: Period; label: string }[] = [
-  { id: "full", label: "Full period" },
-  { id: "in", label: "In-sample" },
-  { id: "out", label: "Out-of-sample" },
-];
 
 // The bars are in New York's session: times are shown there, whatever the reader's time zone.
 const NY = new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -41,64 +39,136 @@ const nyChartTime = (sec: number) => {
 };
 const nyDay = (sec: number) => nyParts(sec).text.slice(0, 10);
 
+/** How long from one time to another: "4 years 11 months", "6 months", "12 days". */
+export function duration(from: number, to: number): string {
+  const d = Math.max(0, to - from) / 86400;
+  const months = Math.round(d / 30.4375);
+  if (months < 1) return `${Math.round(d)} day${Math.round(d) === 1 ? "" : "s"}`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const part = (n: number, unit: string) => (n ? `${n} ${unit}${n === 1 ? "" : "s"}` : "");
+  return [part(y, "year"), part(m, "month")].filter(Boolean).join(" ");
+}
+
+const span = (p: { first: number; last: number }) => `${nyDay(p.first)} to ${nyDay(p.last)} (${duration(p.first, p.last)})`;
+
 function settingLine(b: Backtest, s: Setting): string {
   return b.inputs.map((i) => `${i.title} ${s === "default" ? i.default : i.optimized}`).join(", ");
 }
 
-/** The median stock's figures for the three periods. */
-function SummaryTable(props: { periods: BacktestPeriods<BacktestSummary> }) {
-  const row = (label: string, f: (m: BacktestSummary) => string, color?: (m: BacktestSummary) => string) => (
-    <tr>
-      <td>{label}</td>
-      <For each={PERIODS}>{(p) => <td class="cs-num" style={color ? { color: color(props.periods[p.id]) } : undefined}>{f(props.periods[p.id])}</td>}</For>
-    </tr>
-  );
+// ── Rules ───────────────────────────────────────────────────────────────
+
+/** The words of the rules' little language: what a line does, and the words joining conditions. */
+const ACTIONS = /^(LONG|SHORT|EXIT|ENTRY|STOP|TARGET|CLOSE)$/;
+const WORDS = /^(when|and|or|not|crosses|above|below|over|under|is|if|then|else|none)$/;
+const TOKEN = /(\/\/.*$)|(\d+(?:\.\d+)?%?)|([A-Za-z_][A-Za-z0-9_]*)|(=|\+|−|-|×|\*|\/|→|<=|>=|<|>)|(\s+)|(.)/g;
+
+/** The rules as code: actions, joining words, functions, the names the rules define, numbers and operators each in
+ *  their colour. */
+function RulesCode(props: { text: string }) {
+  const lines = () => props.text.split("\n");
+  // The names given a value ("Basis = …") read as variables wherever they come.
+  const defined = () => new Set(lines().map((l) => /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(l)?.[1]).filter(Boolean) as string[]);
+  const line = (l: string): JSX.Element[] => {
+    const out: JSX.Element[] = [];
+    for (const m of l.matchAll(TOKEN)) {
+      const [t, comment, num, word, op] = m;
+      const next = l.slice(m.index! + t.length).trimStart();
+      const cls = comment ? "is-comment" : num ? "is-num" : op ? "is-op"
+        : word ? (ACTIONS.test(word) ? "is-action" : WORDS.test(word) ? "is-word" : next.startsWith("(") ? "is-fn" : defined().has(word) ? "is-var" : "")
+        : "";
+      out.push(cls ? <span class={cls}>{t}</span> : t);
+    }
+    return out;
+  };
   return (
-    <table class="cs-table cs-bt-summary">
-      <thead>
-        <tr><th>Median stock</th><For each={PERIODS}>{(p) => <th class="cs-right-al">{p.label}</th>}</For></tr>
-      </thead>
-      <tbody>
-        {row("Trades", (m) => String(Math.round(m.trades)))}
-        {row("Win rate", (m) => share(m.win_rate))}
-        {row("Profit factor", (m) => ratio(m.profit_factor))}
-        {row("Average trade", (m) => signed(m.avg_trade, 2), (m) => tone(m.avg_trade))}
-        {row("Stocks with a profit", (m) => (m.profitable == null ? "—" : `${share(m.profitable)} of ${m.stocks}`))}
-        {row("Average trade, all stocks' trades together", (m) => signed(m.pooled_avg_trade, 2), (m) => tone(m.pooled_avg_trade))}
-      </tbody>
-    </table>
+    <pre class="cs-bt-rules"><code><For each={lines()}>{(l, i) => <>{line(l)}{i() < lines().length - 1 ? "\n" : ""}</>}</For></code></pre>
   );
 }
 
-type SortKey = "symbol" | "trades" | "win_rate" | "profit_factor" | "avg_trade" | "ret" | "max_dd";
-const COLUMNS: { id: SortKey; label: string; num?: boolean; fmt?: (s: BacktestStats) => string }[] = [
-  { id: "symbol", label: "Stock" },
-  { id: "trades", label: "Trades", num: true, fmt: (s) => String(s.trades) },
-  { id: "win_rate", label: "Win rate", num: true, fmt: (s) => share(s.win_rate) },
-  { id: "profit_factor", label: "Profit factor", num: true, fmt: (s) => ratio(s.profit_factor) },
-  { id: "avg_trade", label: "Avg trade", num: true, fmt: (s) => signed(s.avg_trade, 2) },
-  { id: "ret", label: "Return", num: true, fmt: (s) => signed(s.ret, 2) },
-  { id: "max_dd", label: "Max drawdown", num: true, fmt: (s) => share(s.max_dd) },
+// ── Metrics ─────────────────────────────────────────────────────────────
+
+type Metric = { id: keyof BacktestStats; label: string; fmt: (s: Partial<BacktestStats>) => string; colored?: boolean; account?: boolean };
+const METRICS: Metric[] = [
+  { id: "trades", label: "Trades", fmt: (s) => count(s.trades) },
+  { id: "win_rate", label: "Win rate", fmt: (s) => share(s.win_rate) },
+  { id: "profit_factor", label: "Profit factor", fmt: (s) => ratio(s.profit_factor) },
+  { id: "avg_trade", label: "Average trade", fmt: (s) => signed(s.avg_trade), colored: true },
+  { id: "avg_win", label: "Average win", fmt: (s) => signed(s.avg_win), colored: true },
+  { id: "avg_loss", label: "Average loss", fmt: (s) => signed(s.avg_loss), colored: true },
+  { id: "largest_win", label: "Largest win", fmt: (s) => signed(s.largest_win), colored: true },
+  { id: "largest_loss", label: "Largest loss", fmt: (s) => signed(s.largest_loss), colored: true },
+  { id: "avg_days", label: "Time in a trade", fmt: (s) => days(s.avg_days) },
+  { id: "long_trades", label: "Long trades", fmt: (s) => (s.long_trades == null ? "—" : `${count(s.long_trades)} · ${share(s.long_win_rate)} won`) },
+  { id: "short_trades", label: "Short trades", fmt: (s) => (s.short_trades == null ? "—" : `${count(s.short_trades)} · ${share(s.short_win_rate)} won`) },
+  { id: "ret", label: "Account return", fmt: (s) => signed(s.ret), colored: true, account: true },
+  { id: "max_dd", label: "Max drawdown", fmt: (s) => share(s.max_dd), account: true },
 ];
+
+/** An account's return and drawdown say nothing when every order is a fixed size (one share on 100,000: a fraction
+ *  of a percent), so those go. */
+const fixedSize = (b: Backtest) => /^[\d.]+ (share|contract)s?$/.test(b.costs.order);
+const metricsOf = (b: Backtest) => (fixedSize(b) ? METRICS.filter((m) => !m.account) : METRICS);
+
+/** One period across the stocks: the median stock beside all their trades together. */
+function SummaryTable(props: { backtest: Backtest; summary: BacktestSummary | undefined }) {
+  const rows = () => metricsOf(props.backtest).filter((m) => !m.account);
+  return (
+    <Show when={props.summary?.pooled} fallback={<p class="cs-note">No closed trade in this period.</p>}>
+      <table class="cs-table cs-bt-summary">
+        <thead>
+          <tr><th /><th class="cs-right-al">Median stock</th><th class="cs-right-al">All trades together</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Stocks with a profit</td>
+            <td class="cs-num" colspan="2">{share(props.summary!.profitable)} of {props.summary!.stocks} that traded</td>
+          </tr>
+          <For each={rows()}>
+            {(m) => (
+              <tr>
+                <td>{m.label}</td>
+                <td class="cs-num" style={m.colored ? { color: tone(props.summary!.median[m.id] as number) } : undefined}>{m.fmt(props.summary!.median)}</td>
+                <td class="cs-num" style={m.colored ? { color: tone(props.summary!.pooled![m.id] as number) } : undefined}>{m.fmt(props.summary!.pooled!)}</td>
+              </tr>
+            )}
+          </For>
+        </tbody>
+      </table>
+    </Show>
+  );
+}
+
+/** The period pills: the whole run, in- and out-of-sample, each year; and the chosen one's dates. */
+function PeriodPicker(props: { backtest: Backtest; value: string; onChange: (id: string) => void }) {
+  const p = () => props.backtest.periods.find((x) => x.id === props.value) ?? props.backtest.periods[0];
+  return (
+    <div class="cs-bt-period">
+      <Pills items={props.backtest.periods.map((x) => ({ id: x.id, label: x.label }))} value={props.value} onChange={props.onChange} label="Period" />
+      <span class="cs-fog">{span(p())}</span>
+    </div>
+  );
+}
+
+// ── Stocks ──────────────────────────────────────────────────────────────
+
+const BROWSER: Metric["id"][] = ["trades", "win_rate", "profit_factor", "avg_trade", "avg_win", "avg_loss", "largest_loss", "avg_days"];
+const SHORT_LABEL: Partial<Record<Metric["id"], string>> = { profit_factor: "Profit factor", avg_trade: "Avg trade", avg_win: "Avg win", avg_loss: "Avg loss", avg_days: "Days in trade" };
 const PAGE = 25;
 
-/** The columns of a backtest: an account's return and drawdown say nothing when every order is a fixed size (one share
- *  on 100,000: a fraction of a percent), so those go. */
-const columnsOf = (b: Backtest) => (/^[\d.]+ (share|contract)s?$/.test(b.costs.order) ? COLUMNS.filter((c) => c.id !== "ret" && c.id !== "max_dd") : COLUMNS);
-
 /** Every stock with the chosen setting and period: search, sort, open one. */
-function StockBrowser(props: { post: Post; setting: Setting; onSetting: (s: Setting) => void; open: string | null; onOpen: (symbol: string | null) => void }) {
+function StockBrowser(props: { post: Post; setting: Setting; onSetting: (s: Setting) => void; period: string; onPeriod: (id: string) => void; open: string | null; onOpen: (symbol: string | null) => void }) {
   const b = () => props.post.backtest!;
-  const [rows] = createResource(() => props.post.id, (id) => api.backtestFile<BacktestStockRow[]>(id, "stocks.json"));
-  const [period, setPeriod] = createSignal<Period>("out");
+  const [rows] = createResource(() => props.post.id, (id) => api.backtestFile<BacktestStockRow[]>(id, "stocks.json", b().files_version));
   const [query, setQuery] = createSignal("");
-  const [sort, setSort] = createSignal<{ key: SortKey; desc: boolean }>({ key: "avg_trade", desc: true });
+  const [sort, setSort] = createSignal<{ key: "symbol" | Metric["id"]; desc: boolean }>({ key: "avg_trade", desc: true });
   const [shown, setShown] = createSignal(PAGE);
+  const columns = () => METRICS.filter((m) => BROWSER.includes(m.id) || (m.account && !fixedSize(b())));
   const list = createMemo(() => {
     const q = query().trim().toUpperCase();
     const all = (rows() ?? []).filter((r) => !q || r.symbol.includes(q) || r.name.toUpperCase().includes(q));
     const { key, desc } = sort();
-    const val = (r: BacktestStockRow) => (key === "symbol" ? r.symbol : (r[props.setting][period()]?.[key] ?? null));
+    const val = (r: BacktestStockRow) => (key === "symbol" ? r.symbol : ((r[props.setting][props.period]?.[key] as number | undefined) ?? null));
     return all.sort((x, y) => {
       const a = val(x);
       const c = val(y);
@@ -108,14 +178,19 @@ function StockBrowser(props: { post: Post; setting: Setting; onSetting: (s: Sett
       return desc ? -d : d;
     });
   });
-  const pick = (key: SortKey) => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key !== "symbol" }));
+  const pick = (key: "symbol" | Metric["id"]) => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key !== "symbol" }));
+  const head = (key: "symbol" | Metric["id"], label: string, num: boolean) => (
+    <th class={num ? "cs-right-al" : ""} aria-sort={sort().key === key ? (sort().desc ? "descending" : "ascending") : undefined}>
+      <button type="button" class="cs-bt-sort" onClick={() => pick(key)}>{label}{sort().key === key ? (sort().desc ? " ↓" : " ↑") : ""}</button>
+    </th>
+  );
   return (
     <div class="cs-bt-browser">
       <div class="cs-bt-controls">
         <Pills items={[{ id: "default" as Setting, label: "Author's settings" }, { id: "optimized" as Setting, label: "Optimized setting" }]} value={props.setting} onChange={props.onSetting} label="Settings" />
-        <Pills items={PERIODS} value={period()} onChange={setPeriod} label="Period" />
         <input class="cs-input cs-bt-search" type="search" placeholder={`Search ${b().universe.count} stocks`} aria-label="Search stocks" value={query()} onInput={(e) => { setQuery(e.currentTarget.value); setShown(PAGE); }} />
       </div>
+      <PeriodPicker backtest={b()} value={props.period} onChange={props.onPeriod} />
       <div class="cs-note">{settingLine(b(), props.setting)}. Click a stock for its chart, trades and metrics.</div>
       <Show when={!rows.error} fallback={<p class="cs-error">{errorText(rows.error)}</p>}>
         <Show when={rows()} fallback={<p class="cs-loading">Loading the stocks…</p>}>
@@ -123,30 +198,19 @@ function StockBrowser(props: { post: Post; setting: Setting; onSetting: (s: Sett
             <table class="cs-table cs-bt-stocks">
               <thead>
                 <tr>
-                  <For each={columnsOf(b())}>
-                    {(c) => (
-                      <th class={c.num ? "cs-right-al" : ""} aria-sort={sort().key === c.id ? (sort().desc ? "descending" : "ascending") : undefined}>
-                        <button type="button" class="cs-bt-sort" onClick={() => pick(c.id)}>
-                          {c.label}{sort().key === c.id ? (sort().desc ? " ↓" : " ↑") : ""}
-                        </button>
-                      </th>
-                    )}
-                  </For>
+                  {head("symbol", "Stock", false)}
+                  <For each={columns()}>{(m) => head(m.id, SHORT_LABEL[m.id] ?? m.label, true)}</For>
                 </tr>
               </thead>
               <tbody>
                 <For each={list().slice(0, shown())}>
                   {(r) => {
-                    const s = () => r[props.setting][period()];
+                    const s = () => r[props.setting][props.period];
                     return (
                       <tr class={"is-link" + (props.open === r.symbol ? " is-open" : "")} onClick={() => props.onOpen(props.open === r.symbol ? null : r.symbol)}>
                         <td><strong data-no-translate>{r.symbol}</strong> <span class="cs-fog cs-bt-name" data-no-translate>{r.name}</span></td>
-                        <For each={columnsOf(b()).slice(1)}>
-                          {(c) => (
-                            <td class="cs-num" style={c.id === "avg_trade" || c.id === "ret" ? { color: tone(s()?.[c.id]) } : undefined}>
-                              {s() ? c.fmt!(s()!) : "—"}
-                            </td>
-                          )}
+                        <For each={columns()}>
+                          {(m) => <td class="cs-num" style={m.colored ? { color: tone(s()?.[m.id] as number) } : undefined}>{s() ? m.fmt(s()!) : "—"}</td>}
                         </For>
                       </tr>
                     );
@@ -216,9 +280,9 @@ function TradesChart(props: { stock: BacktestStock; setting: Setting; focus: Bac
   return <div class="cs-bt-chart" ref={el} />;
 }
 
-/** One stock: chart, trades, metrics by period; open it in the app. */
-function StockDetail(props: { post: Post; symbol: string; setting: Setting; onClose: () => void }) {
-  const [stock] = createResource(() => [props.post.id, props.symbol] as const, ([id, s]) => api.backtestFile<BacktestStock>(id, `s/${s}.json`));
+/** One stock: chart, metrics of every period (the chosen one marked), trades; open it in the app. */
+function StockDetail(props: { post: Post; symbol: string; setting: Setting; period: string; onClose: () => void }) {
+  const [stock] = createResource(() => [props.post.id, props.symbol] as const, ([id, s]) => api.backtestFile<BacktestStock>(id, `s/${s}.json`, props.post.backtest!.files_version));
   const [focus, setFocus] = createSignal<BacktestTrade | null>(null);
   const b = () => props.post.backtest!;
   // The app adds its port of the script with this setting's inputs (by title) to a new tab on the stock.
@@ -249,26 +313,37 @@ function StockDetail(props: { post: Post; symbol: string; setting: Setting; onCl
             return (
               <>
                 <TradesChart stock={s()} setting={props.setting} focus={focus()} />
-                <div class="cs-note">Times in New York. In-sample to {nyDay(b().split)}, out-of-sample after. Arrows: entries; dots: exits with the trade's return.</div>
+                <div class="cs-note">
+                  Times in New York. In-sample to {nyDay(s().split)}, out-of-sample after. Arrows: entries; dots: exits with the trade's return.
+                </div>
                 <h4 class="cs-bt-h4">Metrics</h4>
-                <table class="cs-table cs-bt-summary">
-                  <thead><tr><th /><For each={PERIODS}>{(p) => <th class="cs-right-al">{p.label}</th>}</For></tr></thead>
-                  <tbody>
-                    <For each={columnsOf(b()).slice(1)}>
-                      {(c) => (
-                        <tr>
-                          <td>{c.label}</td>
-                          <For each={PERIODS}>{(p) => <td class="cs-num">{run().metrics[p.id] ? c.fmt!(run().metrics[p.id]!) : "—"}</td>}</For>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
+                <div class="cs-bt-scroll">
+                  <table class="cs-table cs-bt-periods">
+                    <thead>
+                      <tr><th /><For each={b().periods}>{(p) => <th class={"cs-right-al" + (p.id === props.period ? " is-on" : "")}>{p.label}</th>}</For></tr>
+                    </thead>
+                    <tbody>
+                      <For each={metricsOf(b())}>
+                        {(m) => (
+                          <tr>
+                            <td>{m.label}</td>
+                            <For each={b().periods}>
+                              {(p) => {
+                                const v = () => run().metrics[p.id];
+                                return <td class={"cs-num" + (p.id === props.period ? " is-on" : "")} style={m.colored && v() ? { color: tone(v()![m.id] as number) } : undefined}>{v() ? m.fmt(v()!) : "—"}</td>;
+                              }}
+                            </For>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </div>
                 <h4 class="cs-bt-h4">Trades ({run().trades.length})</h4>
                 <div class="cs-bt-scroll is-trades">
                   <table class="cs-table cs-bt-trades">
                     <thead>
-                      <tr><th>#</th><th>Side</th><th>Entry</th><th class="cs-right-al">Price</th><th>Exit</th><th class="cs-right-al">Price</th><th class="cs-right-al">Return</th></tr>
+                      <tr><th>#</th><th>Side</th><th>Entry</th><th class="cs-right-al">Price</th><th>Exit</th><th class="cs-right-al">Price</th><th class="cs-right-al">Days</th><th class="cs-right-al">Return</th></tr>
                     </thead>
                     <tbody>
                       <For each={run().trades}>
@@ -280,7 +355,8 @@ function StockDetail(props: { post: Post; symbol: string; setting: Setting; onCl
                             <td class="cs-num">{t.entry_price.toFixed(2)}</td>
                             <td>{t.exit_time == null ? <span class="cs-fog">open at the end</span> : nyParts(t.exit_time).text}</td>
                             <td class="cs-num">{t.exit_price == null ? "—" : t.exit_price.toFixed(2)}</td>
-                            <td class="cs-num" style={{ color: tone(t.ret) }}>{signed(t.ret, 2)}</td>
+                            <td class="cs-num">{t.exit_time == null ? "—" : Math.round((t.exit_time - t.entry_time) / 86400)}</td>
+                            <td class="cs-num" style={{ color: tone(t.ret) }}>{signed(t.ret)}</td>
                           </tr>
                         )}
                       </For>
@@ -296,14 +372,18 @@ function StockDetail(props: { post: Post; symbol: string; setting: Setting; onCl
   );
 }
 
+// ── The post ────────────────────────────────────────────────────────────
+
 /** The post's content: rules, data, results and the stock browser, the optimized setting. */
 export function BacktestBody(props: { post: Post }) {
   const b = () => props.post.backtest!;
   const [setting, setSetting] = createSignal<Setting>("default");
+  const [period, setPeriod] = createSignal("out");
   const [open, setOpen] = createSignal<string | null>(null);
+  const periodOf = (id: string): BacktestPeriod => b().periods.find((p) => p.id === id) ?? b().periods[0];
   const browse = (s: Setting) => {
     setSetting(s);
-    document.getElementById("cs-bt-results")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("cs-bt-stocks")?.scrollIntoView({ behavior: "smooth" });
   };
   const costs = () => {
     const c = b().costs;
@@ -314,16 +394,17 @@ export function BacktestBody(props: { post: Post }) {
     <div class="cs-bt">
       <section>
         <h3 class="cs-bt-h3">Rules</h3>
-        <pre class="cs-bt-rules"><code>{b().rules}</code></pre>
+        <RulesCode text={b().rules} />
       </section>
 
       <section>
         <h3 class="cs-bt-h3">Data</h3>
         <dl class="cs-bt-facts">
           <dt>Timeframe</dt><dd>{tfLong(b().interval)} bars, regular session, split-adjusted</dd>
-          <dt>Period</dt><dd>{nyDay(b().first)} to {nyDay(b().last)}</dd>
-          <dt>In-sample</dt><dd>to {nyDay(b().split)}; out-of-sample after</dd>
-          <dt>Stocks</dt><dd>{b().universe.label}: {b().universe.rule} <a href="#cs-bt-results" onClick={(e) => { e.preventDefault(); browse(setting()); }}>See the list</a></dd>
+          <dt>Period</dt><dd>{span(periodOf("full"))}</dd>
+          <dt>In-sample</dt><dd>{span(periodOf("in"))}</dd>
+          <dt>Out-of-sample</dt><dd>{span(periodOf("out"))}. A stock listed later splits at 60% of its own history.</dd>
+          <dt>Stocks</dt><dd>{b().universe.label}: {b().universe.rule} <a href="#cs-bt-stocks" onClick={(e) => { e.preventDefault(); browse(setting()); }}>See the list</a></dd>
           <dt>Costs</dt><dd>{costs()}</dd>
         </dl>
       </section>
@@ -331,10 +412,16 @@ export function BacktestBody(props: { post: Post }) {
       <section id="cs-bt-results">
         <h3 class="cs-bt-h3">Results with the author's settings</h3>
         <div class="cs-note">{settingLine(b(), "default")}</div>
-        <SummaryTable periods={b().summary.default} />
-        <h4 class="cs-bt-h4">By stock</h4>
-        <StockBrowser post={props.post} setting={setting()} onSetting={setSetting} open={open()} onOpen={(s) => { setOpen(s); if (s) requestAnimationFrame(() => document.getElementById("cs-bt-detail")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
-        <Show when={open()}>{(s) => <StockDetail post={props.post} symbol={s()} setting={setting()} onClose={() => setOpen(null)} />}</Show>
+        <PeriodPicker backtest={b()} value={period()} onChange={setPeriod} />
+        <SummaryTable backtest={b()} summary={b().summary.default[period()]} />
+        <div class="cs-note">
+          A trade counts in the period its exit falls in. Profit factor: gross profit over gross loss in dollars, so with {b().costs.order} per order the
+          higher-priced stocks weigh more; returns are per trade.
+        </div>
+        <h4 class="cs-bt-h4" id="cs-bt-stocks">By stock</h4>
+        <StockBrowser post={props.post} setting={setting()} onSetting={setSetting} period={period()} onPeriod={setPeriod} open={open()}
+          onOpen={(s) => { setOpen(s); if (s) requestAnimationFrame(() => document.getElementById("cs-bt-detail")?.scrollIntoView({ behavior: "smooth", block: "start" })); }} />
+        <Show when={open()}>{(s) => <StockDetail post={props.post} symbol={s()} setting={setting()} period={period()} onClose={() => setOpen(null)} />}</Show>
       </section>
 
       <section>
@@ -354,8 +441,9 @@ export function BacktestBody(props: { post: Post }) {
             </For>
           </tbody>
         </table>
-        <div class="cs-note">{b().selection} The out-of-sample column is what that choice gave on data it had not seen.</div>
-        <SummaryTable periods={b().summary.optimized} />
+        <div class="cs-note">{b().selection} The out-of-sample results are what that choice gave on data it had not seen.</div>
+        <PeriodPicker backtest={b()} value={period()} onChange={setPeriod} />
+        <SummaryTable backtest={b()} summary={b().summary.optimized[period()]} />
         <button type="button" class="cs-btn" onClick={() => browse("optimized")}>Browse the stocks with the optimized setting</button>
       </section>
 
@@ -393,7 +481,7 @@ export function BacktestsPage() {
                           <td><a href={`/p/${p.id}`} onClick={go(`/p/${p.id}`)} data-no-translate>{p.title}</a> <span class="cs-fog">by <span data-no-translate>{p.backtest?.strategy.author}</span></span></td>
                           <td>{p.backtest ? tfLong(p.backtest.interval) : "—"}</td>
                           <td class="cs-num">{p.backtest?.universe.count ?? "—"}</td>
-                          <td class="cs-num" style={{ color: tone(out()?.avg_trade) }}>{signed(out()?.avg_trade, 2)}</td>
+                          <td class="cs-num" style={{ color: tone(out()?.median.avg_trade) }}>{signed(out()?.median.avg_trade)}</td>
                           <td class="cs-num">{share(out()?.profitable)}</td>
                           <td class="cs-num cs-fog">{age(p.created_at)} ago</td>
                         </tr>

@@ -4,6 +4,7 @@ import type { User } from "../src/auth";
 import { parseBacktest, putFile, serveFile } from "../src/backtests";
 
 const periods = { full: {}, in: {}, out: {} };
+const periodList = [{ id: "full", label: "Full period", first: 1, last: 3 }];
 const summary = {
   strategy: { name: "Bands", author: "someone" },
   rules: "LONG when close crosses above lower band",
@@ -11,6 +12,7 @@ const summary = {
   first: 1, split: 2, last: 3,
   universe: { label: "499 stocks", rule: "most traded", count: 499 },
   inputs: [],
+  periods: periodList,
   summary: { default: periods, optimized: periods },
 };
 
@@ -19,7 +21,7 @@ describe("a backtest's summary", () => {
     expect(JSON.parse(parseBacktest(summary))).toEqual(summary);
   });
   it("is refused when a field the page reads is missing", () => {
-    for (const drop of ["strategy", "rules", "interval", "split", "universe", "inputs", "summary"]) {
+    for (const drop of ["strategy", "rules", "interval", "split", "universe", "inputs", "periods", "summary"]) {
       const b: Record<string, unknown> = { ...summary };
       delete b[drop];
       expect(() => parseBacktest(b)).toThrow(expect.objectContaining({ status: 400 }));

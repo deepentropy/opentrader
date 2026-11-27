@@ -539,11 +539,13 @@ export function PostPage(props: { id: string }) {
             <ErrorBanner text={error()} onClose={() => setError(null)} />
 
             <Show when={p().locked}><p class="cs-note">Locked: no new replies.</p></Show>
-            <div class="cs-head is-strong is-replies" id="cs-replies">
-              <h3>{p().comment_count} {p().comment_count === 1 ? "reply" : "replies"}</h3>
-              <Pills items={[{ id: "useful", label: "Most useful" }, { id: "oldest", label: "Oldest" }]} value={sort()} onChange={setSort} label="Sort replies" />
+            {/* The bar's speech bubble gives the count; the order only matters with two replies or more. */}
+            <div class="cs-replies-sort" id="cs-replies">
+              <Show when={tops().length > 1}>
+                <Pills items={[{ id: "useful", label: "Most useful" }, { id: "oldest", label: "Oldest" }]} value={sort()} onChange={setSort} label="Sort replies" />
+              </Show>
             </div>
-            <For each={tops()} fallback={<p class="cs-note">No replies yet.</p>}>{(c) => <Reply c={c} />}</For>
+            <For each={tops()}>{(c) => <Reply c={c} />}</For>
 
             <Show when={!p().deleted && !p().removed && !p().locked && composing()}>
               <PostingCheckPrompt />

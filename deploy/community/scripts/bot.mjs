@@ -71,24 +71,25 @@ if (command === "backtest") {
   const backtest = {
     strategy: { name: p.name, author: p.author },
     rules: readFileSync(join(dir, "rules.txt"), "utf8").trim(),
-    interval: p.interval, first: p.first, split: p.split, last: p.last,
+    interval: p.interval, first: p.first, split: p.split, last: p.last, periods: p.periods,
     universe: p.universe, costs: p.costs, inputs: p.inputs, selection: p.selection, summary: p.summary,
     app_study: appStudy,
+    files_version: Math.floor(Date.now() / 1000),
   };
   // The text: what lists, search and the app's panel show; the page draws the rest from the summary.
   const day = (t) => new Intl.DateTimeFormat("en-GB", { timeZone: "America/New_York", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(t * 1000));
   const pct = (v) => (v == null ? "—" : `${v < 0 ? "−" : "+"}${Math.abs(v * 100).toFixed(2)}%`);
   const out = p.summary.default.out;
+  const outMedian = out.median;
   const body = [
     "```",
     backtest.rules,
     "```",
     `${p.universe.label}, ${day(p.first)} to ${day(p.last)}; out-of-sample after ${day(p.split)}.`,
-    `Median stock out-of-sample with the author's settings: average trade ${pct(out.avg_trade)}, ${Math.round(out.profitable * 100)}% of ${out.stocks} stocks with a profit.`,
+    `Median stock out-of-sample with the author's settings: average trade ${pct(outMedian.avg_trade)}, ${Math.round(out.profitable * 100)}% of ${out.stocks} stocks with a profit.`,
   ].join("\n");
-  let id = postId;
-  if (id) await send("PATCH", `/bot/posts/${id}`, { backtest, as });
-  else id = (await send("POST", "/bot/communities/c%3Abacktests/posts", { type: "backtest", title, body, backtest, as })).post.id;
+  // A new post first (its id names the files); a replaced one keeps its summary until the new files are all up.
+  const id = postId ?? (await send("POST", "/bot/communities/c%3Abacktests/posts", { type: "backtest", title, body, backtest, as })).post.id;
   const files = ["stocks.json", ...readdirSync(join(dir, "s")).filter((f) => f.endsWith(".json")).map((f) => `s/${f}`)];
   let done = 0;
   const q = `${as ? `?as=${encodeURIComponent(as)}` : ""}`;
@@ -99,6 +100,7 @@ if (command === "backtest") {
     }
   };
   await Promise.all(Array.from({ length: 8 }, next));
+  if (postId) await send("PATCH", `/bot/posts/${id}`, { backtest, as });
   console.log(`${id} ${url}/p/${id} (${done} files)`);
   process.exit(0);
 }

@@ -89,22 +89,36 @@ export type Suggestion = {
   external_author: string | null;
 };
 
-/** One stock's (or the median stock's) result over a period. Shares are fractions (0.55 = 55%); null: no trade. */
+/** One stock's closed trades over a period (or the median stock's, or all stocks' trades together). Returns and shares
+ *  are fractions (0.55 = 55%); a loss is negative; null: none (no losing trade, no long trade...). */
 export type BacktestStats = {
   trades: number;
-  win_rate: number | null;
+  /** Sum of the trades' profits, in the account's currency. */
+  net_profit: number;
+  win_rate: number;
+  /** Gross profit / gross loss, in the account's currency. */
   profit_factor: number | null;
   /** Average closed-trade return. */
-  avg_trade: number | null;
-  /** Net return of the account. */
-  ret: number | null;
-  max_dd: number | null;
+  avg_trade: number;
+  avg_win: number | null;
+  avg_loss: number | null;
+  largest_win: number | null;
+  largest_loss: number | null;
+  /** Average time from entry to exit, in days. */
+  avg_days: number;
+  long_trades: number;
+  short_trades: number;
+  long_win_rate: number | null;
+  short_win_rate: number | null;
+  /** The account's net return and largest drawdown (whole run, in-sample, out-of-sample only). */
+  ret?: number | null;
+  max_dd?: number | null;
 };
-/** The median stock over a period: its stats, the stocks that traded, the share of them with a profit, and the
- *  average of all their trades together. */
-export type BacktestSummary = BacktestStats & { stocks: number; profitable: number | null; pooled_avg_trade: number | null };
-/** "full": the whole period; "in": up to the split (where the optimized setting was chosen); "out": after it. */
-export type BacktestPeriods<T> = { full: T; in: T; out: T };
+/** A period: "full", "in" (up to the split, where the optimized setting was chosen), "out" (after it), or a year. */
+export type BacktestPeriod = { id: string; label: string; first: number; last: number };
+/** A period across the stocks: how many traded, the share with a profit, the median of each stat, all trades together. */
+export type BacktestSummary = { stocks: number; profitable: number | null; median: Partial<BacktestStats>; pooled: BacktestStats | null };
+type ByPeriod<T> = Record<string, T>;
 
 /** A public strategy script backtested on many stocks; the per-stock tables, bars and trades are files on the server
  *  (`/backtests/<post id>/stocks.json`, `s/<SYMBOL>.json`). */
@@ -113,28 +127,33 @@ export type Backtest = {
   /** The rules, as short code-like lines. */
   rules: string;
   interval: string;
-  /** First bar, split between in- and out-of-sample, last bar (unix seconds). */
+  /** First bar, split between in- and out-of-sample (a stock listed later: 60% of its own bars), last bar (unix seconds). */
   first: number;
   split: number;
   last: number;
+  periods: BacktestPeriod[];
   universe: { label: string; rule: string; count: number };
   costs: { capital: number; order: string; commission: number; slippage: number };
   inputs: { title: string; default: number; optimized: number; from: number; to: number; step: number }[];
   /** How the optimized setting was chosen. */
   selection: string;
-  summary: { default: BacktestPeriods<BacktestSummary>; optimized: BacktestPeriods<BacktestSummary> };
+  summary: { default: ByPeriod<BacktestSummary>; optimized: ByPeriod<BacktestSummary> };
   /** The app's strategy that runs the script (`strategy:<key>`): "Open in OpenTrader" adds it with the inputs. */
   app_study: string | null;
+  /** When the files were last uploaded: their addresses carry it, so a reader never gets a cached older file. */
+  files_version?: number;
 };
-export type BacktestStockRow = { symbol: string; name: string; default: BacktestPeriods<BacktestStats | null>; optimized: BacktestPeriods<BacktestStats | null> };
+export type BacktestStockRow = { symbol: string; name: string; default: ByPeriod<BacktestStats | null>; optimized: ByPeriod<BacktestStats | null> };
 export type BacktestTrade = { side: "long" | "short"; entry_time: number; entry_price: number; exit_time: number | null; exit_price: number | null; qty: number; profit: number | null; ret: number | null };
 export type BacktestStock = {
   symbol: string;
   name: string;
   interval: string;
   bars: { t: number[]; o: number[]; h: number[]; l: number[]; c: number[] };
-  default: { trades: BacktestTrade[]; metrics: BacktestPeriods<BacktestStats | null> };
-  optimized: { trades: BacktestTrade[]; metrics: BacktestPeriods<BacktestStats | null> };
+  /** The stock's own split (60% of its bars). */
+  split: number;
+  default: { trades: BacktestTrade[]; metrics: ByPeriod<BacktestStats | null> };
+  optimized: { trades: BacktestTrade[]; metrics: ByPeriod<BacktestStats | null> };
 };
 
 /** A trader's settled ideas: how many, the share that hit the target, the average R; and the open ones. */

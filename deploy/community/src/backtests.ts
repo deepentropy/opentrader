@@ -25,7 +25,7 @@ export function parseBacktest(raw: unknown): string {
     typeof b.rules === "string" && typeof b.interval === "string" &&
     num(b.first) && num(b.split) && num(b.last) &&
     typeof b.universe?.label === "string" && num(b.universe?.count) &&
-    Array.isArray(b.inputs) && typeof b.summary?.default?.out === "object" && typeof b.summary?.optimized?.out === "object";
+    Array.isArray(b.inputs) && Array.isArray(b.periods) && typeof b.summary?.default?.out === "object" && typeof b.summary?.optimized?.out === "object";
   if (!ok) throw new HttpError(400, "The backtest's summary is incomplete.");
   const text = JSON.stringify(b);
   if (text.length > MAX_SUMMARY) throw new HttpError(400, "The backtest's summary is too long.");

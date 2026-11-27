@@ -111,7 +111,8 @@ const qs = (o: Record<string, string | number | null | undefined>) =>
 
 export const api = {
   /** A file of a backtest post: the per-stock table, a stock's bars and trades, the script. */
-  backtestFile: <T>(postId: string, file: "stocks.json" | `s/${string}.json`) => request<T>("GET", `/backtests/${enc(postId)}/${file}`),
+  backtestFile: <T>(postId: string, file: "stocks.json" | `s/${string}.json`, version?: number) =>
+    request<T>("GET", `/backtests/${enc(postId)}/${file}${version ? `?v=${version}` : ""}`),
   providers: () => request<{ providers: string[] }>("GET", "/auth/providers"),
   me: () => request<Me>("GET", "/me"),
   updateMe: (fields: { name?: string; bio?: string }) => request<Me>("PATCH", "/me", fields),

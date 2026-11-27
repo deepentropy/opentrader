@@ -316,7 +316,7 @@ select.cs-input { padding-inline-end: 8px; }
 .cs-head.is-plain { border: 0; align-items: baseline; padding-bottom: 10px; }
 .cs-head h2 { margin: 6px 0 0; }
 .cs-head h3, .cs-head h4 { margin: 0; }
-.cs-head.is-replies { margin-top: 40px; padding-bottom: 12px; }
+.cs-replies-sort { display: flex; justify-content: flex-end; margin-top: 24px; padding-bottom: 8px; border-bottom: 1px solid var(--cs-chalk); }
 
 .cs-ruled-row { display: block; padding: 10px 0; border-top: 1px solid var(--cs-rule); font-size: 13px; color: var(--cs-chalk); }
 .cs-q:hover .cs-q-t { color: var(--cs-signal-text); }
@@ -680,6 +680,17 @@ select.cs-input { padding-inline-end: 8px; }
 .cs-bt-h4 { margin: 24px 0 10px; font-size: 14px; color: var(--cs-chalk); }
 .cs-bt-rules { margin: 0; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--cs-rule); border-radius: 6px; background: var(--cs-slate); color: var(--cs-chalk); font: 13px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .cs-bt-rules code { padding: 0; background: none; font-size: inherit; }
+/* The rules' colours: what a line does, joining words, functions, the rules' own names, numbers, operators. */
+.cs-bt-rules .is-action { color: #c792ea; font-weight: 700; }
+.cs-bt-rules .is-word { color: #89ddff; }
+.cs-bt-rules .is-fn { color: #82aaff; }
+.cs-bt-rules .is-var { color: #ffcb6b; }
+.cs-bt-rules .is-num { color: #f78c6c; }
+.cs-bt-rules .is-op { color: var(--cs-fog); }
+.cs-bt-rules .is-comment { color: #6b7080; font-style: italic; }
+.cs-bt-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; font-size: 13px; }
+.cs-bt-periods th.is-on, .cs-bt-periods td.is-on { background: var(--ot-tint-blue-16); }
+.cs-bt-periods td, .cs-bt-periods th { white-space: nowrap; }
 .cs-bt-facts { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 14px; }
 .cs-bt-facts dt { color: var(--cs-fog); }
 .cs-bt-facts dd { margin: 0; }
