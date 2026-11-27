@@ -20,7 +20,7 @@
 use super::Plugins;
 use crate::data::calendar::SessionCalendar;
 use crate::data::session::{Subsession, SymbolSession};
-use crate::data::types::{Candle, ChartAggregate, Snapshot, SymbolSearchResult, TickerInfo, TradeTick};
+use crate::data::types::{Candle, ChartAggregate, ChartQuote, Snapshot, SymbolSearchResult, TickerInfo, TradeTick};
 use opentrader_core::host::HostRef;
 use opentrader_core::plugins::hub::{HubEvent, PluginError};
 use opentrader_core::sync::LockExt;
@@ -999,6 +999,15 @@ struct Quote {
     /// Instrument values that changed (#383): `[{"name":…, "value":…}]`.
     #[serde(default)]
     fields: Vec<Value>,
+    /// The best bid and ask, and their sizes (Plugin API 11): the chart's bid and ask lines.
+    #[serde(default)]
+    bid: Option<f64>,
+    #[serde(default)]
+    ask: Option<f64>,
+    #[serde(default)]
+    bid_size: Option<f64>,
+    #[serde(default)]
+    ask_size: Option<f64>,
 }
 
 fn candle(a: [f64; 6]) -> Candle {
@@ -1024,6 +1033,11 @@ fn on_quote(app: &AppHandle, plugin: &str, params: Value) {
         let day = q.day.map(|d| Candle { time, ..candle(d) });
         let _ = ChartAggregate { symbol: symbol.clone(), time: m.time, open: m.open, high: m.high, low: m.low, close: m.close, volume: m.volume, day }
             .emit(app);
+    }
+    let price_of = |v: Option<f64>| v.filter(|p| p.is_finite() && *p > 0.0);
+    let (bid, ask) = (price_of(q.bid), price_of(q.ask));
+    if (bid.is_some() || ask.is_some()) && charted(app, &symbol) {
+        let _ = ChartQuote { symbol: symbol.clone(), time: time * 1000.0, bid, ask, bid_size: q.bid_size, ask_size: q.ask_size }.emit(app);
     }
     if charted(app, &symbol) {
         let running = minute.as_ref().map(|m| (m.time, m.volume)).or(q.day.map(|d| (d[0], d[5])));

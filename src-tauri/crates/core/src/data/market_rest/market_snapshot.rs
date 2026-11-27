@@ -192,6 +192,7 @@ pub async fn shape_feed_snapshots(snapshots: Vec<FeedSnapshot>) -> Result<Vec<Ma
             day: f.day.map(bar),
             prev: f.prev.map(bar),
             minute: f.minute_close.map(|c| MinBar { bar: SnapBar { c, ..SnapBar::default() }, t: 0 }),
+            quote: None,
         })
         .collect();
     Ok(market_rows(&entries, &ext).await)

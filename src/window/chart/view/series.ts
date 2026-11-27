@@ -311,6 +311,7 @@ export function createSeries(cx: ChartCx): SeriesApi {
     cx.updateSessionBreaks();
     cx.setAlertSeriesEpoch((n) => n + 1);
     cx.updatePrePostLine();
+    cx.updateBidAskLines();
     // Re-attach the dividend/split markers (their data is retained in the
     // instance and refreshed by the events effect below).
     series.attachPrimitive(cx.eventMarkers);

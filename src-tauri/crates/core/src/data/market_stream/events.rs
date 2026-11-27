@@ -139,7 +139,23 @@ pub struct LiveTicks {
     pub ticks: Vec<Tick>,
 }
 
+/// The best bid and ask of a charted symbol: the chart's bid and ask lines. From the stream's `quote` channel (a
+/// real-time session's, the newest per 100 ms), a real-time snapshot's last quote, or a data plugin's quote.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[cfg_attr(feature = "tauri", derive(tauri_specta::Event))]
+#[serde(rename_all = "camelCase")]
+pub struct ChartQuote {
+    pub symbol: String,
+    /// UNIX milliseconds of the quote (0 when not known): an older one does not replace a newer.
+    pub time: f64,
+    pub bid: Option<f64>,
+    pub ask: Option<f64>,
+    pub bid_size: Option<f64>,
+    pub ask_size: Option<f64>,
+}
+
 event!(MarketTier, "market-tier");
+event!(ChartQuote, "chart-quote");
 event!(LiveTicks, "live-ticks");
 event!(ChartAggregate, "chart-aggregate");
 event!(SecondAggregate, "second-aggregate");
@@ -162,6 +178,8 @@ pub(super) struct Pending {
     chart_trades: Vec<ChartTrade>,
     /// The ticks of the tick charts, in order.
     ticks: Vec<LiveTicks>,
+    /// The newest quote of each charted symbol.
+    quotes: HashMap<String, ChartQuote>,
     trades: HashMap<String, TradeTick>,
     trades_sent: Instant,
     /// The trades of each symbol's current minute, as the bar the host's
@@ -171,11 +189,11 @@ pub(super) struct Pending {
 
 impl Pending {
     pub(super) fn new(app: &HostRef) -> Self {
-        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), chart_trades: Vec::new(), ticks: Vec::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
+        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), chart_trades: Vec::new(), ticks: Vec::new(), quotes: HashMap::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.minute.is_empty() && self.second.is_empty() && self.chart_trades.is_empty() && self.ticks.is_empty() && self.trades.is_empty()
+        self.minute.is_empty() && self.second.is_empty() && self.chart_trades.is_empty() && self.ticks.is_empty() && self.quotes.is_empty() && self.trades.is_empty()
     }
 
     fn minute(&mut self, agg: ChartAggregate) {
@@ -235,6 +253,9 @@ impl Pending {
         for ticks in self.ticks.drain(..) {
             let _ = ticks.emit(&self.app);
         }
+        for (_, quote) in self.quotes.drain() {
+            let _ = quote.emit(&self.app);
+        }
         if self.trades_sent.elapsed() >= TRADE_FLUSH {
             self.flush_trades();
         }
@@ -292,6 +313,13 @@ pub(super) fn handle_text(pending: &mut Pending, state: &SubscriptionState, txt:
                     }
                 }
             }
+            "quote" => {
+                if let Some((ticker, quote)) = parse_quote(&m) {
+                    for symbol in state.chart_symbols_for(&ticker) {
+                        pending.quotes.insert(symbol.clone(), ChartQuote { symbol: symbol.clone(), ..quote.clone() });
+                    }
+                }
+            }
             "ticks" => {
                 if let Some((ticker, ticks)) = parse_ticks(&m) {
                     for symbol in state.tick_symbols_for(&ticker) {
@@ -327,6 +355,15 @@ fn bar_values(m: &serde_json::Value) -> Option<(String, f64, [f64; 4], f64)> {
         [num("o")?, num("h")?, num("l")?, num("c")?],
         num("v").unwrap_or(0.0),
     ))
+}
+
+/// A `quote` message: its ticker and its bid and ask (a quote without either is left out).
+fn parse_quote(m: &serde_json::Value) -> Option<(String, ChartQuote)> {
+    let ticker = m.get("ticker")?.as_str()?.to_string();
+    let num = |k: &str| m.get(k).and_then(|v| v.as_f64()).filter(|v| v.is_finite());
+    let price = |k: &str| num(k).filter(|v| *v > 0.0);
+    let quote = ChartQuote { symbol: String::new(), time: num("t").unwrap_or(0.0), bid: price("bid"), ask: price("ask"), bid_size: num("bidSize"), ask_size: num("askSize") };
+    (quote.bid.is_some() || quote.ask.is_some()).then_some((ticker, quote))
 }
 
 /// A `ticks` message: its ticker and its trades `[t, p, size]` (a row without a time or a price is left out).
@@ -415,6 +452,15 @@ fn parse_trade(m: &serde_json::Value) -> Option<StreamTrade> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_quote_message_gives_its_bid_and_ask() {
+        let m: serde_json::Value = serde_json::from_str(r#"{"type":"quote","ticker":"AAPL","t":1000,"bid":10.5,"bidSize":3,"ask":10.6,"askSize":null}"#).unwrap();
+        let (ticker, q) = super::parse_quote(&m).unwrap();
+        assert_eq!(ticker, "AAPL");
+        assert_eq!((q.time, q.bid, q.ask, q.bid_size, q.ask_size), (1000.0, Some(10.5), Some(10.6), Some(3.0), None));
+        assert!(super::parse_quote(&serde_json::json!({"type":"quote","ticker":"AAPL","bid":0,"ask":null})).is_none());
+    }
+
     #[test]
     fn a_ticks_message_gives_its_trades() {
         let m: serde_json::Value = serde_json::from_str(r#"{"type":"ticks","ticker":"AAPL","ticks":[[1000,10.5,100],[1001,0,5],[1002,10.6]]}"#).unwrap();

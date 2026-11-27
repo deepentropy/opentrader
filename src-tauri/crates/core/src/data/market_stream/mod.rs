@@ -69,7 +69,7 @@ use tokio_tungstenite::tungstenite::Message;
 mod events;
 mod subscriptions;
 
-pub use events::{ChartAggregate, ChartTrade, LiveTicks, MarketTier, SecondAggregate, Tick, TradeTick};
+pub use events::{ChartAggregate, ChartQuote, ChartTrade, LiveTicks, MarketTier, SecondAggregate, Tick, TradeTick};
 use events::handle_text;
 pub use subscriptions::{ticker_of, SubscribeMsg, SubscriptionState};
 
@@ -83,6 +83,8 @@ const BACKOFF_MAX: Duration = Duration::from_secs(30);
 const TRADES: &str = "trade:";
 /// Every trade of a symbol, for tick charts (real-time only).
 const TICKS: &str = "ticks:";
+/// The bid and ask of a charted symbol (real-time only).
+const QUOTES: &str = "quote:";
 /// Channels a real-time session asks for: under the gateway's 500.
 const MAX_CHANNELS: usize = 490;
 /// Re-check this often while the build has no gateway token. A local read.
@@ -316,13 +318,14 @@ enum SessionExit {
 }
 
 /// The channels of a session: the bars of the charted symbols; on a real-time
-/// one the ticks of the tick charts and the charts' trades too, then the
-/// watchlists' up to MAX_CHANNELS (the others keep the poller's quotes).
+/// one the ticks of the tick charts and the charts' quotes and trades too, then
+/// the watchlists' trades up to MAX_CHANNELS (the others keep the poller's quotes).
 fn desired(state: &SubscriptionState, mode: Mode, realtime: bool) -> HashSet<String> {
     let charts = state.chart_tickers();
     let mut out: HashSet<String> = charts.iter().map(|t| format!("{}{t}", mode.chart)).collect();
     if realtime {
         out.extend(state.tick_tickers().into_iter().filter(|t| could_be_ticker(t)).map(|t| format!("{TICKS}{t}")));
+        out.extend(charts.iter().filter(|t| could_be_ticker(t)).map(|t| format!("{QUOTES}{t}")));
         let mut rest: Vec<String> = state.all_tickers().into_iter().filter(|t| could_be_ticker(t)).collect();
         // The charts' first; the same list gives the same channels.
         rest.sort_by(|a, b| charts.contains(b).cmp(&charts.contains(a)).then_with(|| a.cmp(b)));
@@ -644,7 +647,7 @@ mod gate_tests {
         state.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: vec!["NASDAQ:AAPL".into(), "NYMEX:CL1!".into()] });
         let set = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<HashSet<_>>();
         assert_eq!(desired(&state, SECOND_BARS, false), set(&["bar1s:ZM"]));
-        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:ZM", "trade:ZM", "trade:AAPL"]), "CL1! is no ticker of the source");
+        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:ZM", "quote:ZM", "trade:ZM", "trade:AAPL"]), "CL1! is no ticker of the source");
         let many: Vec<String> = (0..1000).map(|i| format!("NYSE:A{i}X")).collect();
         state.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: many });
         let d = desired(&state, SECOND_BARS, true);
@@ -659,7 +662,7 @@ mod gate_tests {
         state.apply(SubscribeMsg::SetTicks { owner: "main:0".into(), symbol: Some("NASDAQ:AAPL".into()) });
         let set = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<HashSet<_>>();
         assert_eq!(desired(&state, SECOND_BARS, false), set(&["bar1s:AAPL"]), "no ticks on the delayed stream");
-        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:AAPL", "ticks:AAPL", "trade:AAPL"]));
+        assert_eq!(desired(&state, SECOND_BARS, true), set(&["bar1s:AAPL", "ticks:AAPL", "quote:AAPL", "trade:AAPL"]));
     }
 
     #[test]

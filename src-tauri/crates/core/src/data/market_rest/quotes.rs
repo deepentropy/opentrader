@@ -42,6 +42,18 @@ pub struct LiveTick {
     pub day: Option<Candle>,
     /// When the snapshot was last updated (Unix ms; 0 when not sent).
     pub updated_ms: f64,
+    /// The last quote (a real-time snapshot's): its time (Unix ms, 0 when not sent), bid, ask and their sizes.
+    pub quote: Option<SnapQuote>,
+}
+
+/// A snapshot's last quote.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SnapQuote {
+    pub time: f64,
+    pub bid: Option<f64>,
+    pub ask: Option<f64>,
+    pub bid_size: Option<f64>,
+    pub ask_size: Option<f64>,
 }
 
 /// Fetch delayed snapshots for many tickers in a single request. Tickers
@@ -105,6 +117,10 @@ pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
                 minute,
                 day,
                 updated_ms: t.updated_ms,
+                quote: t
+                    .quote
+                    .map(|q| SnapQuote { time: q.t.unwrap_or(0.0), bid: q.bid.filter(|v| *v > 0.0), ask: q.ask.filter(|v| *v > 0.0), bid_size: q.bid_size, ask_size: q.ask_size })
+                    .filter(|q| q.bid.is_some() || q.ask.is_some()),
             })
         })
         .collect())

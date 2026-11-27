@@ -170,8 +170,8 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** Right-click on the PRICE AXIS → the price-scale menu (Auto, Lock ratio,
    *  Scale price chart only, Invert, the four mode radios, Move scale,
    *  Labels/Lines submenus, Plus button, Session on intraday, More
-   *  settings…). Rows we have no surface for (bid-ask
-   *  labels+lines, no-overlapping-labels) are omitted. */
+   *  settings…). The row we have no surface for (no overlapping labels) is
+   *  omitted. */
   function openPriceScaleMenu(e: MouseEvent, corner?: DOMRect, target?: ScaleTarget) {
     if (!cx.chart) return;
     const t = currentTokens();
@@ -238,16 +238,18 @@ export function createMenus(cx: ChartCx): MenusApi {
           checked: t.symbolNameLabel, onSelect: () => patch({ symbolNameLabel: !t.symbolNameLabel }) },
         { kind: "item", id: "lbl-symbol", label: "Symbol last price label",
           checked: t.symbolLastValue, onSelect: () => patch({ symbolLastValue: !t.symbolLastValue }) },
-        { kind: "item", id: "lbl-prevclose", label: "Previous day close price label",
+        { kind: "item", id: "lbl-prevclose", label: "Symbol previous day close price label",
           checked: t.prevCloseLabel, onSelect: () => patch({ prevCloseLabel: !t.prevCloseLabel }) },
-        { kind: "item", id: "lbl-prepost", label: "Pre/post market price label",
+        { kind: "item", id: "lbl-prepost", label: "Pre/post/night market price label",
           checked: t.prePostLabel, onSelect: () => patch({ prePostLabel: !t.prePostLabel }) },
         { kind: "item", id: "lbl-hilo", label: "High and low price labels",
           checked: t.highLowLabels, onSelect: () => patch({ highLowLabels: !t.highLowLabels }) },
-        { kind: "item", id: "lbl-ind", label: "Indicators and financials value labels",
-          checked: t.indLastValue, onSelect: () => patch({ indLastValue: !t.indLastValue }) },
+        { kind: "item", id: "lbl-bidask", label: "Bid and ask labels",
+          checked: t.bidAskLabels, onSelect: () => patch({ bidAskLabels: !t.bidAskLabels }) },
         { kind: "item", id: "lbl-ind-name", label: "Indicators and financials name labels",
           checked: t.indNameLabel, onSelect: () => patch({ indNameLabel: !t.indNameLabel }) },
+        { kind: "item", id: "lbl-ind", label: "Indicators and financials value labels",
+          checked: t.indLastValue, onSelect: () => patch({ indLastValue: !t.indLastValue }) },
         { kind: "item", id: "lbl-countdown", label: "Countdown to bar close",
           checked: t.countdownVisible, onSelect: () => patch({ countdown: !t.countdownVisible }) },
       ] },
@@ -256,10 +258,12 @@ export function createMenus(cx: ChartCx): MenusApi {
           checked: t.symbolPriceLine, onSelect: () => patch({ symbolPriceLine: !t.symbolPriceLine }) },
         { kind: "item", id: "line-prevclose", label: "Previous day close price line",
           checked: t.prevCloseLine, onSelect: () => patch({ prevCloseLine: !t.prevCloseLine }) },
-        { kind: "item", id: "line-prepost", label: "Pre/post market price line",
+        { kind: "item", id: "line-prepost", label: "Pre/post/night market price line",
           checked: t.prePostLine, onSelect: () => patch({ prePostLine: !t.prePostLine }) },
         { kind: "item", id: "line-hilo", label: "High and low price lines",
           checked: t.highLowLines, onSelect: () => patch({ highLowLines: !t.highLowLines }) },
+        { kind: "item", id: "line-bidask", label: "Bid and ask lines",
+          checked: t.bidAskLines, onSelect: () => patch({ bidAskLines: !t.bidAskLines }) },
       ] },
       { kind: "item", id: "plus-button", label: "Plus button", checked: t.plusButton,
         onSelect: () => patch({ plusButton: !t.plusButton }) },

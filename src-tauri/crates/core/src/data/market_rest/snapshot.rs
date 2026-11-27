@@ -50,6 +50,25 @@ pub(super) struct WireSnapshot {
     /// The latest minute bar (`t` = its start, Unix ms).
     #[serde(default)]
     minute: Option<WireBar>,
+    /// The last quote: real-time answers only.
+    #[serde(default)]
+    quote: Option<WireQuote>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct WireQuote {
+    /// Unix ms.
+    #[serde(default)]
+    pub(super) t: Option<f64>,
+    #[serde(default)]
+    pub(super) bid: Option<f64>,
+    #[serde(default)]
+    pub(super) bid_size: Option<f64>,
+    #[serde(default)]
+    pub(super) ask: Option<f64>,
+    #[serde(default)]
+    pub(super) ask_size: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -102,6 +121,7 @@ pub(super) struct SnapEntry {
     pub(super) day: Option<SnapBar>,
     pub(super) prev: Option<SnapBar>,
     pub(super) minute: Option<MinBar>,
+    pub(super) quote: Option<WireQuote>,
 }
 
 impl SnapEntry {
@@ -115,6 +135,7 @@ impl SnapEntry {
             day: w.day.as_ref().map(WireBar::bar),
             prev: w.prev.as_ref().map(WireBar::bar),
             minute: w.minute.as_ref().map(|m| MinBar { bar: m.bar(), t: m.t.unwrap_or(0.0) as i64 }),
+            quote: w.quote,
         })
     }
 }

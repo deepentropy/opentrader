@@ -50,7 +50,7 @@ pub use filings::{fetch_filing_text, fetch_filings, Filing, FilingList, FilingQu
 pub use fundamentals::{fetch_fundamentals, Fundamentals};
 pub use market_snapshot::{fetch_market_snapshot, fetch_market_snapshot_counted, shape_feed_snapshots, ExtHours, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
-pub use quotes::{fetch_snapshots, LiveTick};
+pub use quotes::{fetch_snapshots, LiveTick, SnapQuote};
 pub use reference::{
     fetch_icon, fetch_reference_tickers, fetch_reference_tickers_counted, fetch_ticker_info, listing_date, set_icon_proxy_base, ticker_changes, RefTicker, TickerInfo,
 };

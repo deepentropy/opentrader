@@ -825,6 +825,10 @@ export type ChartAppearance = {
   /** "" = automatic (label colour of the bar direction). */
   highLowColor?: string;
   highLowWidth?: number;
+  bidAskLabels?: boolean;
+  bidAskLines?: boolean;
+  bidColor?: string;
+  askColor?: string;
   watermarkColor?: string;
   watermarkTicker?: boolean;
   watermarkInterval?: boolean;
@@ -1022,6 +1026,10 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     highLowLines: Sc.member('High and low', 'Line'),
     highLowColor: hl?.color,
     highLowWidth: hl?.width,
+    bidAskLabels: Sc.member('Bid and ask', 'Value'),
+    bidAskLines: Sc.member('Bid and ask', 'Line'),
+    bidColor: Sc.color('Bid and ask', 1),
+    askColor: Sc.color('Bid and ask', 2),
     watermarkColor: C.color('Watermark', 1),
     watermarkTicker: C.member('Watermark', 'Ticker'),
     watermarkInterval: C.member('Watermark', 'Interval'),
@@ -1052,6 +1060,8 @@ export type ScaleMenuPatch = {
   prePostLine?: boolean;
   highLowLabels?: boolean;
   highLowLines?: boolean;
+  bidAskLabels?: boolean;
+  bidAskLines?: boolean;
   countdown?: boolean;
   indLastValue?: boolean;
   indNameLabel?: boolean;
@@ -1095,6 +1105,8 @@ export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft
   setMember('Pre/post/night market', 'Line', p.prePostLine);
   setMember('High and low', 'Value', p.highLowLabels);
   setMember('High and low', 'Line', p.highLowLines);
+  setMember('Bid and ask', 'Value', p.bidAskLabels);
+  setMember('Bid and ask', 'Line', p.bidAskLines);
   setMember('Indicators and financials', 'Value', p.indLastValue);
   setMember('Indicators and financials', 'Name', p.indNameLabel);
   setChecked('Countdown to bar close', p.countdown);

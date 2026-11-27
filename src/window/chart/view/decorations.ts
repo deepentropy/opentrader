@@ -1,6 +1,6 @@
 /*
  * Price lines and labels drawn on the main series (Scales tab): high / low,
- * previous day close, pre / post market, the countdown plate, the baseline
+ * previous day close, pre / post market, bid and ask, the countdown plate, the baseline
  * waterline, the gradient label colour and the locked price-to-bar ratio.
  */
 import { translate, translateAs } from "../../../i18n/translator";
@@ -13,6 +13,7 @@ import { countdownText } from "../countdown";
 import { isEconomicSymbol, isIntradayInterval, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
 import { heikinAshiLast, isTransformType } from "../chart-types";
 import { quoteFor } from "../../../data/quotes";
+import { bidAskFor } from "../../../data/bid-ask";
 import { marketSession as marketSessionOf } from "../../../data/market-session";
 import { cachedSymbolSessions } from "../../../data/session";
 import { mixColor, textColorOn } from "./helpers";
@@ -35,6 +36,7 @@ export interface DecorationsApi {
   updateCountdown: () => void;
   updateHighLowLines: () => void;
   updatePrePostLine: () => void;
+  updateBidAskLines: () => void;
   updatePrevClosePriceLine: () => void;
 }
 
@@ -53,6 +55,10 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
   // series-owned lifecycle.
   let prePostLine: IPriceLine | null = null;
   let prePostKey = "";
+  // "Bid and ask" price lines + labels (Scales tab). Same series-owned lifecycle.
+  let bidLine: IPriceLine | null = null;
+  let askLine: IPriceLine | null = null;
+  let bidAskKey = "";
 
   /** Locked ratio, other direction: a price-scale change (axis drag, pane
    *  resize) sets the bar spacing that keeps the ratio
@@ -243,6 +249,53 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     });
   }
 
+  /** Scales → "Bid and ask": the symbol's best bid and ask as dotted lines with "Bid" / "Ask" price labels, while
+   *  quotes come (live data). Not in Bar Replay, which shows past bars. */
+  function updateBidAskLines() {
+    if (!cx.series) return;
+    const t = currentTokens();
+    const q = bidAskFor(props.symbol);
+    const enabled = (t.bidAskLabels || t.bidAskLines) && !!q && !cx.replayWatermark();
+    const key = `${t.bidAskLabels}|${t.bidAskLines}|${t.bidColor}|${t.askColor}`;
+    const sync = (line: IPriceLine | null, price: number | null | undefined, title: string, color: string): IPriceLine | null => {
+      if (!enabled || price == null) {
+        if (line) cx.series!.removePriceLine(line);
+        return null;
+      }
+      if (line && key === bidAskKey) {
+        line.applyOptions({ price });
+        return line;
+      }
+      if (line) cx.series!.removePriceLine(line);
+      return cx.series!.createPriceLine({
+        price,
+        color,
+        title,
+        // Dotted, width 1, as the pre/post line.
+        lineStyle: LineStyle.SparseDotted,
+        lineWidth: 1,
+        lineVisible: t.bidAskLines,
+        axisLabelVisible: t.bidAskLabels,
+        axisLabelColor: color,
+        axisLabelTextColor: textColorOn(color),
+      });
+    };
+    bidLine = sync(bidLine, q?.bid, translate("Bid"), t.bidColor);
+    askLine = sync(askLine, q?.ask, translate("Ask"), t.askColor);
+    bidAskKey = key;
+  }
+
+  createEffect(() => {
+    chartReady();
+    appearance();
+    const q = bidAskFor(props.symbol);
+    q?.bid;
+    q?.ask;
+    cx.replayWatermark();
+    if (hidden()) return;
+    updateBidAskLines();
+  });
+
   createEffect(() => {
     chartReady();
     appearance();
@@ -424,6 +477,9 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     prevCloseKey = "";
     prePostLine = null;
     prePostKey = "";
+    bidLine = null;
+    askLine = null;
+    bidAskKey = "";
   }
 
   return {
@@ -439,6 +495,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     updateCountdown,
     updateHighLowLines,
     updatePrePostLine,
+    updateBidAskLines,
     updatePrevClosePriceLine,
   };
 }

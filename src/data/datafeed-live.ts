@@ -66,6 +66,11 @@ export async function onTicks(fn: (ev: PluginTicks) => void): Promise<UnlistenFn
   return () => offs.forEach((off) => off());
 }
 
+/** The bid and ask of the charted symbols: the stream's on a real-time session, a data plugin's. */
+export function onChartQuote(fn: (ev: gen.ChartQuote) => void): Promise<UnlistenFn> {
+  return events.chartQuote.listen((e) => fn(e.payload));
+}
+
 /** The quotes of the data plugins' charted symbols as trades: the live source of their seconds bars (#421). */
 export function onPluginTrade(fn: (ev: PluginTrade) => void): Promise<UnlistenFn> {
   return events.pluginTrade.listen((e) => fn(e.payload as PluginTrade));

@@ -34,7 +34,7 @@ use crate::data::trading_calendar;
 use crate::data::symbol::could_be_ticker;
 use crate::screener::clock::ny_offset_hours;
 use chrono::{DateTime, Timelike, Utc};
-use crate::data::market_stream::{ticker_of, ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
+use crate::data::market_stream::{ticker_of, ChartAggregate, ChartQuote, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
 use crate::host::{Event, HostRef};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -204,6 +204,10 @@ impl Poller {
                 if let Some(e) = chart_aggregate(symbol, &t) {
                     let _ = e.emit(app);
                 }
+                // A real-time snapshot's last quote: the chart's bid and ask before the stream's next one.
+                if let Some(e) = chart_quote(symbol, &t) {
+                    let _ = e.emit(app);
+                }
             }
             self.last.insert(t.ticker.clone(), t);
         }
@@ -239,6 +243,11 @@ fn trade_tick(symbol: &str, t: &LiveTick) -> Option<TradeTick> {
 /// reads `day` directly, consumes such a tick).
 /// A symbol whose trades are streamed takes its intraday bars from them
 /// (`ChartTrade`): its day bar only.
+fn chart_quote(symbol: &str, t: &LiveTick) -> Option<ChartQuote> {
+    let q = t.quote?;
+    Some(ChartQuote { symbol: symbol.to_string(), time: q.time, bid: q.bid, ask: q.ask, bid_size: q.bid_size, ask_size: q.ask_size })
+}
+
 fn chart_aggregate(symbol: &str, t: &LiveTick) -> Option<ChartAggregate> {
     let day_only = t.minute.is_none() || live_quotes::streamed(&t.ticker);
     let bar = if day_only { t.day.as_ref()? } else { t.minute.as_ref()? };

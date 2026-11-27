@@ -236,6 +236,7 @@ mod tests {
             minute: None,
             day: (source == "live").then_some(Candle { time: 0.0, open: last, high: last + 1.0, low: last - 1.0, close: last, volume: 1000.0 }),
             updated_ms,
+            quote: None,
         }
     }
 

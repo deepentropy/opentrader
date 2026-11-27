@@ -93,6 +93,11 @@ export type ChartTokens = {
   /** "" = automatic: High line up colour, Low line down colour. */
   highLowColor: string;
   highLowWidth: number;
+  // Scales → "Bid and ask": the best bid and ask as price labels + lines (live data).
+  bidAskLabels: boolean;
+  bidAskLines: boolean;
+  bidColor: string;
+  askColor: string;
   // Canvas → Watermark (checkable list + colour).
   watermarkColor: string;
   watermarkTicker: boolean;
@@ -237,6 +242,11 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     highLowLines: o.highLowLines ?? false,
     highLowColor: o.highLowColor ?? "",
     highLowWidth: o.highLowWidth ?? 1,
+    // "Bid and ask" ships Value + Line on (series bidAsk.visible true + scalesProperties.showBidAskLabels true).
+    bidAskLabels: o.bidAskLabels ?? true,
+    bidAskLines: o.bidAskLines ?? true,
+    bidColor: o.bidColor || "#2962FF",
+    askColor: o.askColor || "#F7525F",
     watermarkColor: o.watermarkColor || "rgba(80, 83, 94, 0.3)",
     watermarkTicker: o.watermarkTicker ?? false,
     watermarkInterval: o.watermarkInterval ?? false,
