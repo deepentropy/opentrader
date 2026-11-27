@@ -64,9 +64,9 @@ export function age(sec: number, nowMs = Date.now()): string {
   return date(sec);
 }
 
-/** "34 ideas · 62% hit", "2 open ideas", "no ideas yet". */
+/** "34 ideas · 62% hit", "2 open ideas"; "" for a member who never posted an idea. */
 export function recordLine(r: TrackRecord | null | undefined): string {
-  if (!r || (!r.resolved && !r.open)) return translate("no ideas yet");
+  if (!r || (!r.resolved && !r.open)) return "";
   if (!r.resolved) return translatePlural(r.open, { one: "{0} open idea", other: "{0} open ideas" }, r.open);
   return translatePlural(r.resolved, { one: "{0} idea · {1}% hit", other: "{0} ideas · {1}% hit" }, r.resolved, String(r.hit_pct));
 }

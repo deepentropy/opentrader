@@ -260,7 +260,7 @@ export function PostPage(props: { id: string }) {
         <div class="cs-reply-main">
           <div class="cs-reply-head">
             <UserLink name={c().author} />
-            <span class="cs-fog">{post.p?.suggestion ? "" : `${recordLine(c().author_record)} · `}{age(c().created_at)}{c().edited_at ? " · edited" : ""}</span>
+            <span class="cs-fog">{[post.p?.suggestion ? "" : recordLine(c().author_record), age(c().created_at), c().edited_at ? "edited" : ""].filter(Boolean).join(" · ")}</span>
             <Show when={c().kind}><span class="cs-type is-plain">{KIND_LABEL[c().kind!]}</span></Show>
             <Show when={c().author_bot}><span class="cs-bot">bot</span></Show>
             <Show when={c().by_op}><span class="cs-type is-idea">Author</span></Show>
@@ -385,7 +385,7 @@ export function PostPage(props: { id: string }) {
                   <UserLink name={p().author} />
                   <Show
                     when={p().author_bot || p().backtest}
-                    fallback={<span class="cs-fog">{recordLong(p().author_record)} · posted {age(p().created_at)} ago{p().edited_at ? " · edited" : ""}</span>}
+                    fallback={<span class="cs-fog">{[recordLong(p().author_record), `posted ${age(p().created_at)} ago`, p().edited_at ? "edited" : ""].filter(Boolean).join(" · ")}</span>}
                   >
                     <Show when={p().author_bot}><span class="cs-bot">bot</span></Show>
                     <span class="cs-fog">

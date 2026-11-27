@@ -4378,7 +4378,6 @@
   "move {0} drawings": {"at":["window/drawings/drawing-store.ts:276"],"values":["{0}"]},
   "mult": {"at":["strategies: bollinger-bands input"]},
   "no change": {"at":["data/local-folders.ts:256"]},
-  "no ideas yet": {"at":["data/community/format.ts:69"]},
   "normal": {"at":["studies: technicals option"]},
   "not done": {"at":["window/assistant/AssistantPanel.tsx:430"]},
   "not found in": {"at":["window/header/SymbolSearchDialog.tsx:525"]},

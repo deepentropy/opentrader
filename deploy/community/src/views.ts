@@ -43,7 +43,8 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
   const at = now();
   const { since, visitor } = await visitStart(env, user, at);
   const type = url.searchParams.get("type");
-  const typed = !!type && (POST_TYPES as readonly string[]).includes(type);
+  // The members' types, and the project's backtests.
+  const typed = !!type && ([...POST_TYPES, "backtest"] as string[]).includes(type);
   const base = `p.created_at >= ? AND p.removed = 0 AND p.deleted = 0 AND p.author_id IS NOT ? AND p.community_id <> '${SUGGESTIONS}'`;
   const { results } = await env.DB.prepare(`${POST_SELECT} WHERE ${base} ${typed ? "AND p.type = ?" : ""} ORDER BY ${order(url.searchParams.get("sort") ?? "useful")} LIMIT ?`)
     .bind(since, BOT, ...(typed ? [type] : []), HOME_MAX)

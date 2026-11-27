@@ -26,7 +26,7 @@ describe("community format", () => {
   it("reads a record", () => {
     expect(recordLine({ resolved: 34, hit_pct: 62, avg_r: 0.42, open: 3 })).toBe("34 ideas · 62% hit");
     expect(recordLong({ resolved: 34, hit_pct: 62, avg_r: 0.42, open: 3 })).toBe("34 resolved ideas · 62% hit · +0.42R avg");
-    expect(recordLine(null)).toBe("no ideas yet");
+    expect(recordLine(null)).toBe("");
   });
   it("gives questions and post-mortems a status", () => {
     const base = { idea: null, type: "question", answer_id: "c1", linked: null } as unknown as Post;

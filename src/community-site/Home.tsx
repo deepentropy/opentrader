@@ -29,23 +29,20 @@ export function FeedItem(props: { post: Post }) {
     <article class="cs-item">
       <div class="cs-item-main">
         <div class="cs-meta">
-          <TypeTag type={p().type} />
+          {/* A backtest's community says what it is. */}
+          <Show when={p().type !== "backtest"}><TypeTag type={p().type} /></Show>
           <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
           <OriginTag post={p()} />
           <TickerTag id={p().community.id} />
           <span>·</span>
           <UserLink name={p().author} />
-          <Show when={!p().author_bot} fallback={<span class="cs-bot">bot</span>}><span>{recordLine(p().author_record)}</span></Show>
+          <Show when={!p().author_bot} fallback={<span class="cs-bot">bot</span>}><Show when={recordLine(p().author_record)}>{(r) => <span>{r()}</span>}</Show></Show>
           <span>·</span>
           <span>{age(p().created_at)}</span>
         </div>
         <h4 class="cs-item-title"><a href={`/p/${p().id}`} onClick={go(`/p/${p().id}`)}>{p().title}</a></h4>
         <Show when={p().excerpt}><p class="cs-item-ex">{plain(p().excerpt)}</p></Show>
         <div class="cs-item-foot">
-          <span class="cs-useful">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-            <strong>{p().useful_count}</strong> found useful
-          </span>
           <a class="cs-replies" href={`/p/${p().id}`} onClick={go(`/p/${p().id}`)}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
             {p().comment_count} {p().comment_count === 1 ? "reply" : "replies"}
@@ -93,7 +90,7 @@ export function Home() {
   const since = () => view()?.since ?? 0;
   const filters = (): { id: PostType | null; label: string; n: number }[] => [
     { id: null, label: "All", n: view()?.counts.all ?? 0 },
-    ...TYPES.map((t) => ({ id: t, label: TYPE_PLURAL[t], n: view()?.counts[t] ?? 0 })),
+    ...[...TYPES, "backtest" as const].map((t) => ({ id: t, label: TYPE_PLURAL[t], n: view()?.counts[t] ?? 0 })),
   ];
   const r30 = () => view()?.record30;
   return (
