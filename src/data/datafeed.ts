@@ -841,16 +841,29 @@ export async function getBarsBefore(
   return getDailyHistoryBefore(symbol, beforeSec, spanDays ?? dailyConfig(resolution).days, adjusted);
 }
 
+/** Pages of ticks read at most for one page of tick bars in a session. */
+const TICK_SESSION_PAGES = 6;
+
 /** Bars of `n` ticks of a symbol: one page of whole bars before
  *  `beforeMs` (none: up to now), in the chosen session. None for a symbol
  *  without ticks. */
 async function tickHistory(symbol: string, n: number, beforeMs: number | null, session: SessionId): Promise<Candle[]> {
   if (!servesTicks(symbol)) return [];
-  const [res, sessions] = await Promise.all([commands.getTicks(symbol, beforeMs, null, ticksPerPage(n)), symbolSessions(symbol)]);
-  if (res.status === "error") throw new Error(res.error);
-  const spec = sessions.spec(session);
-  const ticks = res.data as TickRow[];
-  const bars = tickBars(ticks.filter((t) => spec.contains(Math.floor(t.timeMs / 1000))), n);
+  const spec = (await symbolSessions(symbol)).spec(session);
+  const want = ticksPerPage(n);
+  // Ticks out of the session are read past: a regular-session chart before the open, or after a holiday, finds
+  // only extended-hours trades in the newest pages.
+  let kept: TickRow[] = [];
+  let before = beforeMs;
+  for (let page = 0; page < TICK_SESSION_PAGES && kept.length < want; page++) {
+    const res = await commands.getTicks(symbol, before, null, want);
+    if (res.status === "error") throw new Error(res.error);
+    const ticks = res.data as TickRow[];
+    kept = [...ticks.filter((t) => spec.contains(Math.floor(t.timeMs / 1000))), ...kept];
+    if (ticks.length < want) break;
+    before = ticks[0].timeMs;
+  }
+  const bars = tickBars(kept.slice(Math.max(0, kept.length - want)), n);
   // A page before a loaded bar stays before it.
   return beforeMs === null ? bars : bars.filter((b) => tickBarMs(b.time as number) < beforeMs);
 }

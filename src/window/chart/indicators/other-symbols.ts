@@ -105,6 +105,10 @@ export class OtherSymbolBars {
   /** First bar time of the chart's loaded bars (seconds): the span the other symbols cover. */
   private chartFirst = Infinity;
   private chartSeconds = 0;
+  /** The chart's symbol and session: a study's requests for that symbol read its bars in the chart's session (its
+   *  ticker id carries the session), another symbol's in the regular one. */
+  private chartTicker = "";
+  private chartSession: SessionId = SESSION;
   private disposed = false;
   /** Tell the studies; the keys whose forming bar is rebuilt from a changed key too. */
   private changed(keys: Set<string>, live: boolean): void {
@@ -176,7 +180,7 @@ export class OtherSymbolBars {
     if (!this.chartInterval || e.resolution === this.chartInterval) return null;
     const period = intervalSeconds(e.resolution) || (/M$/.test(e.resolution) ? 31 * 86400 * (parseInt(e.resolution, 10) || 1) : 0);
     if (!(period > this.chartSeconds) || !this.chartSeconds) return null;
-    const lowerKey = keyOf(e.symbol, this.chartInterval);
+    const lowerKey = this.entryKey(e.symbol, this.chartInterval);
     let deps = this.dependents.get(lowerKey);
     if (!deps) this.dependents.set(lowerKey, (deps = new Set()));
     deps.add(key);
@@ -199,26 +203,43 @@ export class OtherSymbolBars {
   }
   private readonly stopEventChanges: () => void;
 
+  /** The chart's symbol and session changed. */
+  setChartSession(ticker: string | undefined, session: SessionId): void {
+    this.chartTicker = (ticker ?? "").trim().toUpperCase();
+    this.chartSession = session;
+  }
+
+  /** Session of a study's bars of `symbol` (upper case). */
+  private sessionOf(symbol: string): SessionId {
+    return symbol === this.chartTicker ? this.chartSession : SESSION;
+  }
+
+  /** Key of a study's bars of `symbol` (upper case) on `resolution`: the session is part of it when not the regular one. */
+  private entryKey(symbol: string, resolution: string): string {
+    const session = this.sessionOf(symbol);
+    return session === SESSION ? keyOf(symbol, resolution) : `${keyOf(symbol, resolution)}@${session}`;
+  }
+
   /** Accessor key of a request, for the studies' usage sets. */
   key(symbol: string, timeframe: string, chartInterval: string): string {
-    return keyOf(symbol.trim().toUpperCase(), resolutionOf(timeframe, chartInterval));
+    return this.entryKey(symbol.trim().toUpperCase(), resolutionOf(timeframe, chartInterval));
   }
 
   /** Bars of `symbol` on `timeframe`; undefined while loading (the load starts), [] when it cannot be loaded. */
   bars(symbol: string, timeframe: string, chartInterval: string): Bar[] | undefined {
     const sym = symbol.trim().toUpperCase();
     const resolution = resolutionOf(timeframe, chartInterval);
-    const key = keyOf(sym, resolution);
+    const key = this.entryKey(sym, resolution);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, tickBar: null, stopLive: null, idle: null };
+      e = { symbol: sym, resolution, session: this.sessionOf(sym), lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, tickBar: null, stopLive: null, idle: null };
       this.entries.set(key, e);
       this.load(key, e);
     }
     this.inUse(e);
     if (e.failed) return [];
     if (!e.bars) return undefined;
-    if (!e.seen) e.seen = scriptBars(e.bars, scriptChartContext(e.symbol, e.resolution, SESSION));
+    if (!e.seen) e.seen = scriptBars(e.bars, scriptChartContext(e.symbol, e.resolution, e.session));
     return this.cut(key, e.seen);
   }
 

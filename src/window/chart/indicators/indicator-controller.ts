@@ -560,6 +560,7 @@ export class IndicatorController {
     // Another symbol or session: the drawings' lower-timeframe bars are read again.
     if (chart.tickerid !== this.scriptChart?.tickerid || chart.sessionType !== this.scriptChart?.sessionType) this.drawingKeys.clear();
     this.scriptChart = chart;
+    this.otherSymbols.setChartSession(chart.tickerid, chart.sessionType === 'extended' ? 'ETH' : 'RTH');
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
   }
 

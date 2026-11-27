@@ -349,6 +349,8 @@ export function createLive(cx: ChartCx): LiveApi {
       const n = tickCount(props.interval ?? "1D");
       const sym = props.symbol;
       if (n === null || !sym || e.symbol.toUpperCase() !== sym.toUpperCase()) return;
+      // As the history: the ticks of the chart's session only (a regular-session chart takes no pre-market trade).
+      const spec = cachedSymbolSessions(sym)?.spec(props.session ?? "RTH");
       let painted: { next: OHLC; appended: boolean } | null = null;
       let appended = false;
       for (const t of e.ticks) {
@@ -356,6 +358,7 @@ export function createLive(cx: ChartCx): LiveApi {
         const last = all[all.length - 1];
         // No bars yet (loading): the history has these ticks.
         if (!last || t.timeMs === null || t.price === null) continue;
+        if (spec && !spec.contains(Math.floor(t.timeMs / 1000))) continue;
         const lastTime = last.time as number;
         const volume = t.volume ?? 0;
         const one = { open: t.price, high: t.price, low: t.price, close: t.price };
