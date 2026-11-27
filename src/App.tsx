@@ -340,21 +340,35 @@ function App() {
   const { layoutDirty, layoutName, saveActiveLayout, requestOpenLayout } = layouts;
 
   // "Maximize chart": enlarge the focused pane over the rest of the layout
-  // (bottom-bar layoutFullscreen / Alt+Enter). App-level toggle, reset whenever
-  // the layout or active tab changes so we never stay maximized on a different
-  // pane set than the one that was enlarged.
-  const [maximized, setMaximized] = createSignal(false);
-  // `layout()` reads through activeTab() → tabs(), so tracking it directly made
-  // this effect re-run on EVERY tab patch — focusing a pane, persisting a scroll
-  // anchor, switching symbol — each one silently un-maximizing. Memoise so it
-  // fires only when the layout id or the tab actually changes, which is what the
-  // comment above always intended.
-  const maximizeScope = createMemo(() => `${activeTabId()}:${layout()}`);
-  createEffect(() => {
-    maximizeScope();
-    setMaximized(false);
-  });
-  const toggleMaximize = () => setMaximized((m) => !m);
+  // (bottom-bar layoutFullscreen / Alt+Enter). Each tab keeps its own, as the
+  // reference's tabs do (#420): leaving a tab and coming back finds the chart
+  // still maximized. Like the reference it lives for the session only (not saved
+  // with the layout) and a layout change in that tab ends it.
+  const [maximizedTabs, setMaximizedTabs] = createSignal<ReadonlySet<string>>(new Set());
+  const maximized = () => maximizedTabs().has(activeTabId());
+  const setTabMaximized = (tabId: string, on: boolean) =>
+    setMaximizedTabs((s) => {
+      if (s.has(tabId) === on) return s;
+      const next = new Set(s);
+      if (on) next.add(tabId);
+      else next.delete(tabId);
+      return next;
+    });
+  // Keyed on the layout id per tab, not on tabs(): every tab patch (focusing a
+  // pane, a scroll anchor, a symbol) would otherwise un-maximize.
+  const tabLayouts = createMemo(
+    () => new Map(tabs().map((t) => [t.id, t.layout] as const)),
+    undefined,
+    { equals: (a, b) => a.size === b.size && [...a].every(([id, l]) => b.get(id) === l) },
+  );
+  createEffect(
+    on(tabLayouts, (now, before) => {
+      for (const id of maximizedTabs()) {
+        if (!now.has(id) || (before && before.get(id) !== now.get(id))) setTabMaximized(id, false);
+      }
+    }),
+  );
+  const toggleMaximize = () => setTabMaximized(activeTabId(), !maximized());
 
   /** The active chart's Chart Settings as a draft (the Settings dialog seed). */
   function activeSettingsDraft() {
@@ -1054,7 +1068,7 @@ function App() {
               panes={tab().panes}
               activePane={tab().activePane}
               setActivePane={setActivePaneIndex}
-              maximized={tabId === activeTabId() && maximized()}
+              maximized={maximizedTabs().has(tabId)}
               onToggleMaximize={toggleMaximize}
               sizes={tab().layoutSizes?.[tab().layout]}
               onSizes={(sizes) => changeLayoutSizes(tabId, sizes)}
