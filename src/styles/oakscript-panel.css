@@ -386,6 +386,106 @@ html.theme-light .oak-panel__readonly-close:active::before { background: var(--c
   color: var(--color-text-primary);
 }
 
+/* "Open my script" dialog (#419): 480 x 617; header row 40 px (padding 9 17 3 32) with the sort button 28 px; rows
+   52 px: star 22 px (6 px in, orange when starred, shown on hover otherwise), name 14/22 #B8B8B8 + type glyph 8 px
+   after it, date 12/18 #8C8C8C, remove 22 px 18 px from the end. */
+.oak-open-dlg { width: 480px; height: 617px; }
+/* Under the app's dialogs, so Remove's confirmation shows over the list (as over the layouts browser). */
+.ot-dlg-layer.oak-open-dlg-layer { z-index: 1100; }
+.oak-open-dlg__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  box-sizing: border-box;
+  padding-block: 9px 3px;
+  padding-inline: 32px 17px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.oak-open-dlg__sort {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: var(--color-content-primary-neutral-semi-bold);
+  cursor: pointer;
+}
+.oak-open-dlg__sort:hover,
+.oak-open-dlg__sort.is-open { background-color: var(--color-popup-menu-item-hover-bg); }
+.oak-open-dlg__sort-menu {
+  position: fixed;
+  z-index: 1150; /* over the list's layer */
+  min-width: 220px;
+}
+.oak-open-dlg__list { padding: 0; }
+.oak-open-dlg__row {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  cursor: default;
+}
+.oak-open-dlg__row:hover,
+.oak-open-dlg__row.is-current { background-color: var(--color-popup-menu-item-hover-bg); }
+.oak-open-dlg__star,
+.oak-open-dlg__remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.oak-open-dlg__star { margin-inline: 6px 4px; }
+.oak-open-dlg__remove { margin-inline-end: 18px; }
+.oak-open-dlg__row.is-favorite .oak-open-dlg__star { color: var(--color-tan-orange-300); }
+.oak-open-dlg__row:not(:hover, .is-favorite) .oak-open-dlg__star { visibility: hidden; }
+.oak-open-dlg__star:hover,
+.oak-open-dlg__remove:hover { color: var(--color-text-primary); }
+.oak-open-dlg__info {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  padding-inline-end: 20px;
+}
+.oak-open-dlg__title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-content-primary-neutral-semi-bold);
+  line-height: 22px;
+}
+.oak-open-dlg__row:hover .oak-open-dlg__title,
+.oak-open-dlg__row.is-current .oak-open-dlg__title { color: var(--color-text-primary); }
+.oak-open-dlg__title .oak-builtin-dlg__type { margin-inline-start: 8px; color: inherit; }
+.oak-open-dlg__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.oak-open-dlg__details {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.oak-open-dlg__empty {
+  padding: 20px 32px;
+  color: var(--color-text-secondary);
+}
+
 /* Out of its chart (#325): the editor fills its tab or window. */
 .oak-panel--detached {
   flex: 1;

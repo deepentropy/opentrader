@@ -84,6 +84,17 @@ export function listScripts(): OakScriptMeta[] {
   return readIndex();
 }
 
+/** A stored script as the Open script dialog lists it. */
+export type OakScriptEntry = OakScriptMeta & { updatedAt: number; strategy: boolean };
+
+/** Every stored script with its last change and kind (a script whose body does not read is left out). */
+export function listScriptEntries(): OakScriptEntry[] {
+  return readIndex().flatMap((m) => {
+    const s = loadScript(m.id);
+    return s ? [{ id: m.id, name: m.name, updatedAt: s.updatedAt, strategy: !!s.meta?.strategy }] : [];
+  });
+}
+
 export function loadScript(id: string): OakScript | null {
   if (isPluginScriptId(id)) {
     const p = pluginScript(id);

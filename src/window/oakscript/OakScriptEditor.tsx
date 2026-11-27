@@ -54,6 +54,8 @@ type Props = {
   onOpenEditor?: (where: "window" | "tab") => void;
   /** "New window" is offered (the desktop app). */
   canOpenWindow?: boolean;
+  /** Ctrl+O: the Open script dialog (#419). */
+  onOpenScript?: () => void;
 };
 
 export default function OakScriptEditor(props: Props) {
@@ -142,6 +144,11 @@ export default function OakScriptEditor(props: Props) {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       flushSave();
       diffMarks?.saved();
+    });
+    // Ctrl+O lists the stored scripts (the reference's Open script…), not the browser's open-file dialog.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => {
+      flushSave();
+      props.onOpenScript?.();
     });
   });
 

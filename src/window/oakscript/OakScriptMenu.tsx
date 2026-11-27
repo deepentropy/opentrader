@@ -8,7 +8,8 @@
  *
  * A built-in shown read-only (reference rules): "Make a copy…" stays,
  * "Rename…" is disabled; it cannot be deleted either. "Built-in…" (the
- * reference's Create new > Built-in…) opens the list of built-in sources.
+ * reference's Create new > Built-in…) opens the list of built-in sources; "Open script…" (Ctrl+O) the list of every
+ * stored script, as the reference's does.
  */
 import { For, Show } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -29,6 +30,8 @@ type Props = {
   onRename: () => void;
   onCreateNew: () => void;
   onBuiltin: () => void;
+  /** "Open script…": the list of every stored script (#419). */
+  onOpen: () => void;
   onExport: () => void;
   onImport: () => void;
   onDelete: () => void;
@@ -45,7 +48,7 @@ export function OakScriptMenu(props: Props) {
     on: { target: "window", capture: false },
   });
 
-  const item = (label: string, action: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) => (
+  const item = (label: string, action: () => void, opts: { danger?: boolean; disabled?: boolean; hotkey?: string } = {}) => (
     <button
       type="button"
       role="menuitem"
@@ -62,6 +65,7 @@ export function OakScriptMenu(props: Props) {
           when empty so the label lands in the text column. */}
       <span class="ot-menu-item__icon" aria-hidden="true" />
       <span class="ot-menu-item__label">{label}</span>
+      <Show when={opts.hotkey}><span class="ot-menu-item__hotkey" data-no-translate>{opts.hotkey}</span></Show>
     </button>
   );
 
@@ -95,6 +99,7 @@ export function OakScriptMenu(props: Props) {
           </For>
           <div class="ot-popover__divider" />
         </Show>
+        {item("Open script…", props.onOpen, { hotkey: "Ctrl + O" })}
         {item("Export script…", props.onExport)}
         {item("Import script…", props.onImport)}
         <div class="ot-popover__divider" />

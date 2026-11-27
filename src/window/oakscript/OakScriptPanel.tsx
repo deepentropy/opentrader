@@ -62,6 +62,7 @@ import { chartsShowingScript } from "../shell/tabs";
 import { setShortcutsOpen } from "../shell/app-dialogs";
 import { releaseNotesNew } from "./help-links";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
+import { OpenScriptDialog } from "./OpenScriptDialog";
 import { OakScriptMoreMenu } from "./OakScriptMoreMenu";
 import { EditorSettingsDialog } from "./EditorSettingsDialog";
 import { openScriptLogs } from "./logs/script-logs";
@@ -135,6 +136,7 @@ export function OakScriptPanel(props: Props) {
   let nameBtn!: HTMLButtonElement;
   const [renaming, setRenaming] = createSignal(false);
   const [builtinDialog, setBuiltinDialog] = createSignal(false);
+  const [openDialog, setOpenDialog] = createSignal(false);
   const [moreOpen, setMoreOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   let moreBtn!: HTMLButtonElement;
@@ -482,10 +484,22 @@ export function OakScriptPanel(props: Props) {
     });
   }
 
-  /** Asks first (reference rule): the source cannot be had back. */
+  /** Open script… pick: the stored script, made the current one. */
+  function openFromList(id: string): void {
+    setOpenDialog(false);
+    openScript(id);
+    setMinimized(false);
+  }
+
+  /** Script menu "Delete script": the current one (a built-in cannot be deleted). */
   function deleteScript(): void {
-    if (builtin()) return; // a built-in cannot be deleted
+    if (builtin()) return;
     const { id, name } = currentScript();
+    askDeleteScript(id, name);
+  }
+
+  /** Asks first (reference rule): the source cannot be had back. */
+  function askDeleteScript(id: string, name: string): void {
     const charts = chartsShowingScript(id);
     confirmDelete({
       title: "Delete script?",
@@ -630,6 +644,7 @@ export function OakScriptPanel(props: Props) {
               onRename={() => setRenaming(true)}
               onCreateNew={createNewScript}
               onBuiltin={() => setBuiltinDialog(true)}
+              onOpen={() => setOpenDialog(true)}
               onExport={exportScript}
               onImport={() => importInputRef?.click()}
               onDelete={deleteScript}
@@ -790,6 +805,14 @@ export function OakScriptPanel(props: Props) {
       <Show when={builtinDialog()}>
         <BuiltinScriptDialog onPick={(t) => void newFromBuiltin(t)} onClose={() => setBuiltinDialog(false)} />
       </Show>
+      <Show when={openDialog()}>
+        <OpenScriptDialog
+          currentId={builtin() ? "" : currentScript().id}
+          onPick={openFromList}
+          onDelete={askDeleteScript}
+          onClose={() => setOpenDialog(false)}
+        />
+      </Show>
       <Show when={!minimized()}>
         <div class="oak-panel__body">
           <Suspense fallback={<div class="ot-empty-state">Loading editor…</div>}>
@@ -802,6 +825,7 @@ export function OakScriptPanel(props: Props) {
               profile={profiler() && !builtin() ? profile() : null}
               revealSlowest={revealSlowest()}
               onReady={(api) => (editorApi = api)}
+              onOpenScript={() => setOpenDialog(true)}
               onOpenEditor={!detached() && props.onOpenEditor ? (where) => props.onOpenEditor?.(where) : undefined}
               canOpenWindow={isTauri()}
             />
