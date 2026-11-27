@@ -230,6 +230,22 @@ export function DrawingsOverlay(props: OverlayProps) {
     }));
   }
 
+  /** The menu of the right click that left a tool: the overlay no longer
+   *  takes the pointer, so the release would open the chart's menu. */
+  function swallowNextContextMenu() {
+    const swallow = (ev: Event) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      stop();
+    };
+    const stop = () => {
+      window.removeEventListener("contextmenu", swallow, true);
+      window.removeEventListener("pointerdown", stop, true);
+    };
+    window.addEventListener("contextmenu", swallow, true);
+    window.addEventListener("pointerdown", stop, true);
+  }
+
   return (
     <>
     {/* The drawings' own text is drawn in the interface language (formatLabel); the text the user typed is not translated. */}
@@ -255,6 +271,18 @@ export function DrawingsOverlay(props: OverlayProps) {
         // While the inline text editor is open, a click outside it should just
         // commit (via the input's blur) — not start a new placement/selection.
         if (textEdit()) return;
+        // Right click with a tool armed returns to the cursor, Keep drawing on
+        // or off, and opens no menu: a path or polyline in progress is
+        // finished with its points, any other half-placed drawing or measure
+        // (and a finished ruler) is dropped.
+        if (e.button === 2 && (armedSpec() || regionTool())) {
+          e.stopPropagation();
+          finalizeVariableLength();
+          cx.setMeasureResult(null);
+          props.onDisarm();
+          swallowNextContextMenu();
+          return;
+        }
         const mode = cmode();
         // Eraser — click removes the drawing under the pointer; never places /
         // selects. The held button drives the sweep in onMove.

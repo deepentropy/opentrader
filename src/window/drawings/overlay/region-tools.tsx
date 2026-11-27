@@ -150,7 +150,8 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
       return;
     }
     // Second click: commit the ruler (ignore a zero-size double-tap) and
-    // return to the cursor.
+    // return to the cursor. With Keep drawing on the tool stays armed: the
+    // ruler stays until the next click starts a new one.
     const f = cx.frameByKey(measureKey());
     const pt = f ? measurePoint(e, f) : start;
     if (f && Math.hypot(pt.x - start.x, pt.y - start.y) > 3) {
@@ -160,6 +161,7 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
     }
     setMeasureStart(null);
     setRegion(null);
+    if (props.stayMode) return;
     props.onDisarm();
     // The press also reaches the chart beneath, so a drag from it pans the
     // chart (the finished ruler moves with it).
