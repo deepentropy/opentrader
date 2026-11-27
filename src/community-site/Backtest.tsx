@@ -461,10 +461,10 @@ export function BacktestTags(props: { backtest: Backtest }) {
   const sides = () => (full() ? (full()!.long_trades && full()!.short_trades ? "Long & short" : full()!.long_trades ? "Long only" : "Short only") : null);
   return (
     <div class="cs-bt-tags">
-      <span class="cs-type is-plain">{tfLong(b().interval)}</span>
-      <span class="cs-type is-plain">{duration(b().first, b().last)}</span>
-      <span class="cs-type is-plain">{b().universe.count} stocks</span>
-      <Show when={sides()}><span class="cs-type is-plain">{sides()}</span></Show>
+      <span class="cs-type is-plain"><span class="cs-fog">Timeframe</span> {tfLong(b().interval)}</span>
+      <span class="cs-type is-plain"><span class="cs-fog">Period</span> {duration(b().first, b().last)}</span>
+      <span class="cs-type is-plain"><span class="cs-fog">Stocks</span> {b().universe.count}</span>
+      <Show when={sides()}><span class="cs-type is-plain"><span class="cs-fog">Trades</span> {sides()}</span></Show>
     </div>
   );
 }

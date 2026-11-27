@@ -713,6 +713,7 @@ select.cs-input { padding-inline-end: 8px; }
 .cs-bt-caveat { margin-top: 28px; }
 /* A backtest in a list: its tags, then its headline figures. */
 .cs-bt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.cs-bt-tags .cs-type { gap: 5px; }
 .cs-bt-strip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 28px; padding: 10px 0 2px; }
 .cs-bt-stat-v { color: var(--color-white); font-size: 20px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .cs-bt-strip-note { margin-inline-start: auto; font-size: 12px; }
