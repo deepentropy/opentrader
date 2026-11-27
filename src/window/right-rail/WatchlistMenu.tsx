@@ -64,19 +64,17 @@ const ACTION_HANDLERS: Record<string, ActionHandlerKey> = {
   "open-list": "onOpenList",
 };
 
-/** A list's menu marker — colour flag, else emoji, else its initial letter. */
-function ListMarker(props: { flag: FlagColor | null; emoji: string | null; name: string }) {
+/** A recently used list's name as the reference draws it: its emoji before the name, its colour flag after it,
+ * nothing for a list with neither. */
+function ListTitle(props: { flag: FlagColor | null; emoji: string | null; name: string }) {
   return (
-    <Show
-      when={props.flag}
-      fallback={
-        props.emoji
-          ? <span class="watchlist-menu-emoji">{props.emoji}</span>
-          : <span class="watchlist-menu-initial">{props.name.charAt(0).toUpperCase()}</span>
-      }
-    >
-      {(flag) => <span class="watchlist-menu-flag" style={{ color: FLAG_HEX[flag()] }} innerHTML={WL_ICONS.flag} />}
-    </Show>
+    <span class="watchlist-menu-list-title">
+      <Show when={props.emoji}>{(emoji) => <span class="watchlist-menu-emoji">{emoji()}</span>}</Show>
+      <span class="ot-menu-item__label apply-overflow-tooltip">{props.name}</span>
+      <Show when={props.flag}>
+        {(flag) => <span class="watchlist-menu-flag watchlist-menu-list-flag" style={{ color: FLAG_HEX[flag()] }} innerHTML={WL_ICONS.flag} />}
+      </Show>
+    </span>
   );
 }
 
@@ -136,13 +134,11 @@ export function WatchlistMenu(props: Props) {
                   <button
                     type="button"
                     role="menuitem"
-                    class={`ot-menu-item${t.id === props.activeId ? " ot-menu-item--current" : ""}`}
+                    class="ot-menu-item watchlist-menu-list"
+                    classList={{ "ot-menu-item--current": t.id === props.activeId }}
                     onClick={() => { props.onSelectList(t.id); props.onClose(); }}
                   >
-                    <span class="ot-menu-item__icon" aria-hidden="true">
-                      <ListMarker flag={t.flag} emoji={t.emoji} name={t.name} />
-                    </span>
-                    <span class="ot-menu-item__label apply-overflow-tooltip">{t.name}</span>
+                    <ListTitle flag={t.flag} emoji={t.emoji} name={t.name} />
                     <Show when={!isDeletedList(t.id)}>
                     <span
                       role="button"

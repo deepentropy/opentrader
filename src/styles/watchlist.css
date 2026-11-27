@@ -1054,8 +1054,19 @@ html.theme-light .watchlist-col-guide {
   height: 18px;
 }
 
-/* ── Watchlists dropdown menu (ported from the mock) ───────────────────── */
+/* ── Watchlists dropdown menu ──────────────────────────────────────────────
+ * The reference's rounded-row menu: 32 px rows drawn as 6 px-radius pills
+ * 6 px inside the panel, 14 px text, the current list as an inverted pill.
+ * Its greys (#131313, #222, #303030) are not in the shared palette. */
 .watchlist-menu {
+  --wl-menu-bg: #fff;
+  --wl-menu-text: #000;
+  --wl-menu-secondary: var(--color-cold-gray-550);
+  --wl-menu-hover: var(--color-cold-gray-100);
+  --wl-menu-current-bg: #222;
+  --wl-menu-current-text: #fff;
+  --wl-menu-divider: var(--color-cold-gray-150);
+  --wl-menu-action-hover: var(--color-cold-gray-150);
   position: absolute;
   top: 44px;
   inset-inline-start: 8px;
@@ -1065,18 +1076,95 @@ html.theme-light .watchlist-col-guide {
   max-width: calc(100vw - 16px);
   z-index: 60;
 }
+/* Over the shared .ot-popover shell. */
+.ot-popover.watchlist-menu {
+  padding: 6px;
+  background-color: var(--wl-menu-bg);
+  color: var(--wl-menu-text);
+  font-size: 14px;
+}
+html.theme-dark .watchlist-menu {
+  --wl-menu-bg: #131313;
+  --wl-menu-text: var(--color-cold-gray-300);
+  --wl-menu-secondary: var(--color-cold-gray-450);
+  --wl-menu-hover: #222;
+  --wl-menu-current-bg: var(--color-cold-gray-100);
+  --wl-menu-current-text: #000;
+  --wl-menu-divider: #303030;
+  --wl-menu-action-hover: #464646;
+}
+
+/* Row: 2 px | 28 px icon | 4 px label 4 px | trailing | 4 px. */
+.watchlist-menu .ot-menu-item {
+  grid-template-columns: 28px 1fr auto;
+  gap: 0;
+  min-height: 32px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  color: var(--wl-menu-text);
+  font-size: 14px;
+  line-height: 18px;
+}
+.watchlist-menu .ot-menu-item:hover:not(.ot-menu-item--disabled) {
+  background-color: var(--wl-menu-hover);
+}
+.watchlist-menu .ot-menu-item--current,
+.watchlist-menu .ot-menu-item--current:hover:not(.ot-menu-item--disabled) {
+  background-color: var(--wl-menu-current-bg);
+  color: var(--wl-menu-current-text);
+}
+.watchlist-menu .ot-menu-item__label {
+  padding-inline: 4px;
+}
+.watchlist-menu .ot-menu-item__hotkey {
+  padding-inline: 24px 4px;
+  color: var(--wl-menu-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* 13 px band around a 1 px line across the rows' width. */
+.watchlist-menu .ot-popover__divider {
+  height: 1px;
+  margin: 6px 0;
+  background-color: var(--wl-menu-divider);
+}
 
 /* "RECENTLY USED" section label. */
 .watchlist-menu-section {
-  padding: 6px 12px 4px;
+  height: 24px;
+  padding: 4px 8px;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  line-height: 16px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--color-content-primary-neutral);
+  color: var(--wl-menu-secondary);
 }
 
-/* Active-list marker inside a menu row (flag 14×12 or 16px Twemoji). */
+/* A recently used list: no icon column; emoji, name, flag in one title. */
+.watchlist-menu .watchlist-menu-list {
+  grid-template-columns: 1fr auto;
+}
+.watchlist-menu-list-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-inline-start: 4px;
+}
+.watchlist-menu-list-title .ot-menu-item__label {
+  padding-inline: 0;
+}
+.watchlist-menu-emoji {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-inline-end: 4px;
+  font-size: 15px;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* Colour flag marker (also the Open list dialog's). */
 .watchlist-menu-flag {
   display: inline-flex;
   align-items: center;
@@ -1086,40 +1174,46 @@ html.theme-light .watchlist-col-guide {
   width: 14px;
   height: 12px;
 }
-.watchlist-menu-emoji {
-  display: block;
-  width: 16px;
-  height: 16px;
+.watchlist-menu-list-flag {
+  flex: none;
+  margin-inline-start: 6px;
 }
-/* Initial-letter fallback for lists with neither flag nor emoji. */
-.watchlist-menu-initial {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-content-primary-neutral);
+.watchlist-menu-list-flag svg {
+  width: 12px;
+  height: 13px;
 }
 
-/* Trailing favourite star (18×18) on recently-used rows — toggles the list's
- * persisted favourite flag (shared with the Watchlists manager's star). */
+/* Trailing favourite star: 18 px icon in a 24 px button. Shown on a
+ * favourite, else only while the row is hovered. */
 .watchlist-menu-star {
   display: inline-flex;
   align-items: center;
-  margin-inline-start: auto;
-  padding-inline-start: 12px;
-  color: var(--color-content-primary-neutral);
-  cursor: pointer;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-inline: 24px 2px;
   border-radius: 4px;
+  color: var(--wl-menu-secondary);
+  cursor: pointer;
+  visibility: hidden;
+}
+.watchlist-menu-star.is-on,
+.watchlist-menu-list:hover .watchlist-menu-star,
+.watchlist-menu-star:focus-visible {
+  visibility: visible;
 }
 .watchlist-menu-star:hover {
-  color: var(--color-toolbar-button-text);
+  background-color: var(--wl-menu-action-hover);
 }
-/* Favourited — filled near-white, matching the manager dialog's star. */
 .watchlist-menu-star.is-on {
   color: var(--ot-strong);
+}
+/* On the inverted current row the star takes the row's text colour. */
+.watchlist-menu .ot-menu-item--current .watchlist-menu-star {
+  color: inherit;
+}
+.watchlist-menu .ot-menu-item--current .watchlist-menu-star:hover {
+  background-color: transparent;
 }
 .watchlist-menu-star svg {
   display: block;
