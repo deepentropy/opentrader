@@ -177,6 +177,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_menu::AppZoomChanged,
             agent::AgentRequest,
             plugins::PluginsChanged,
+            plugins::PluginRemoved,
             plugins::PluginPrompt,
             plugins::PluginPromptDone,
             plugins::PluginToast,

@@ -67,7 +67,21 @@ describe("data plugins' watchlists (#381)", () => {
     syncPluginLists([]);
     expect(wl.lists().some((x) => x.id === id)).toBe(true);
 
+    // A set without it (#423: a plugin waiting for its login sends none): kept as it was, with the user's favourite,
+    // marked, and brought up to date in place when sent again.
+    wl.toggleFavorite(id);
     syncPluginLists([{ plugin: "algo", pluginName: "Algo", lists: [] }]);
+    let l = wl.lists().find((x) => x.id === id)!;
+    expect(l.unsent).toBe(true);
+    expect(l.favorite).toBe(true);
+    expect(listItems(l)).toEqual(["NSE:TCS", "###BANKS", "NSE:SBIN", "NSE:HDFCBANK"]);
+    syncPluginLists([{ plugin: "algo", pluginName: "Algo", lists: [nifty(["NSE:TCS"], ["NSE:SBIN", "NSE:HDFCBANK"])] }]);
+    l = wl.lists().find((x) => x.id === id)!;
+    expect(l.unsent).toBeUndefined();
+    expect(l.favorite).toBe(true);
+
+    // The plugin removed: its lists go.
+    wl.deletePluginLists("algo");
     expect(wl.lists().some((x) => x.id === id)).toBe(false);
   });
 

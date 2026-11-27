@@ -46,6 +46,11 @@ export type WatchList = {
   /** A data plugin's list (#381): the plugin's id and its id of the list. The
    *  plugin keeps it up to date, so it takes no change by hand. */
   source?: PluginListSource;
+  /** A plugin's list the plugin's last set left out (#423): kept as it was,
+   *  with the user's favourite, sections and alert, until the plugin sends it
+   *  again (a plugin still waiting for its login may send none), or the user
+   *  deletes it, or the plugin is removed. */
+  unsent?: boolean;
 };
 
 export type PluginListSource = { plugin: string; list: string };
@@ -1150,6 +1155,7 @@ export const watchlistStore = {
       JSON.stringify([cur.groups.map((g) => [g.name, g.rows.map((r) => r.ticker)]), cur.extras.map((r) => r.ticker)]) ===
       JSON.stringify([finalGroups.map((g) => [g.name, g.rows.map((r) => r.ticker)]), extras.map((r) => r.ticker)]);
     const nm = cur.name === name || state.lists.every((l) => l.name !== name) ? name : cur.name;
+    if (cur.unsent) setState("lists", i, "unsent", undefined);
     if (same && nm === cur.name) return cur.id;
     // Rows already shown keep their last quote.
     const kept = new Map(rowsOf(unwrap(cur)).map((r) => [r.ticker, r]));
@@ -1163,6 +1169,15 @@ export const watchlistStore = {
     }));
     if (!same) dropSort(cur.id);
     return cur.id;
+  },
+  /** A plugin's set left this list out: it stays, marked (#423). */
+  markPluginListUnsent(id: string): void {
+    const i = state.lists.findIndex((l) => l.id === id);
+    if (i >= 0 && state.lists[i].source && !state.lists[i].unsent) setState("lists", i, "unsent", true);
+  },
+  /** A plugin was removed: its lists go with it. */
+  deletePluginLists(plugin: string): void {
+    for (const l of state.lists.filter((x) => x.source?.plugin === plugin)) watchlistStore.deleteList(l.id);
   },
 
   // ── List alerts (local price-move alert per list) ──

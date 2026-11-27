@@ -203,7 +203,7 @@ Return at most 50 matches; an empty query may return the most used symbols. `typ
 | `fields` | Optional (Plugin API 6). Values of the instrument to show with it: `[{"name":"Upper circuit","value":2950.5},{"name":"Price band","value":"10%"}]`. See [Instrument values](#instrument-values). |
 | `root`, `expiration`, `isin`, `baseCurrency`, `country`, `sector`, `industry`, `volumeType` | Optional (Plugin API 10). What scripts read of the instrument (`syminfo.*`): the root of a future (`"NIFTY"` for `NIFTY26NOVFUT`; without it, the ticker without a continuous future's `1!` or a contract's month code and year), its last trading day (`"2026-11-25"`), the ISIN, the base currency (`"EUR"` of `EURUSD`; a forex pair of six letters gives it by itself), the two-letter code of the country it trades in, a company's sector and industry, and the unit of the volume (`"base"`, `"quote"`, `"tick"`; `"n/a"` when left out, except for crypto). A continuous future's `tradeTicker` is its `syminfo.current_contract`. A value left out that a symbol of its type has (a company's ISIN) stops a script that reads it with an error; one it doesn't have (a future's sector) reads as na. |
 
-**Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment.
+**Unknown symbols.** Answer a symbol you don't know (an expired contract, a renamed ticker) with the error code `-32004`. The app then stops asking for it and streaming it until the plugin connects again, and the watchlist shows it in red. Another error is taken as a failure of the moment. A plugin that cannot read its symbols yet (it waits for the user's login) sends `data.symbolInfoChanged` `{}` once it can: the symbols it answered unknown meanwhile are asked again. A change of the plugin's settings in the app does it too.
 
 ### `data.symbolInfoChanged` (plugin → app, notification)
 
@@ -302,7 +302,7 @@ Send the whole set once you know it (after `plugin.configure`, or once logged in
 
 Symbols are whole (`NSE:RELIANCE`); a one-exchange plugin may give bare tickers. A symbol of an exchange the plugin does not serve is dropped, and so is a symbol already in the list. A list holds at most 1000 symbols and sections, a set 100 lists.
 
-The Watchlists dialog (Open list…) shows the lists under the plugin's name. A list the user opens appears in the watchlist panel, read-only: the app brings it up to date from each set you send, and removes it when a set no longer holds it. The user changes a copy of it ("Make a copy").
+The Watchlists dialog (Open list…) shows the lists under the plugin's name. A list the user opens appears in the watchlist panel, read-only: the app brings it up to date from each set you send. A set that no longer holds it leaves it as it was, marked "no longer sent", with the user's favourite and alert, until a set holds it again; the user deletes it, and it goes when the plugin is removed. Keep a list's id the same across your versions. The user changes a copy of it ("Make a copy").
 
 ### `data.scripts` (plugin → app, notification)
 

@@ -130,6 +130,21 @@
   align-items: center;
   padding: 0 12px;
 }
+/* A plugin's list it no longer sends (#423). */
+.wl-lm-note {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  color: var(--color-default-gray);
+  white-space: nowrap;
+}
+.watchlist-notice {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-default-gray);
+  border-bottom: 1px solid var(--color-toolbar-divider-background);
+}
 .watchlist-tab {
   width: 28px;
   height: 32px;
@@ -167,7 +182,7 @@
   color: var(--color-default-gray);
 }
 .watchlist-tab.active .watchlist-tab-initial {
-  color: var(--color-cold-gray-800);
+  color: var(--color-content-primary-inverse);
 }
 .watchlist-tab .watchlist-flag {
   display: inline-flex;
@@ -771,6 +786,7 @@ html.theme-light .watchlist-col-guide {
 }
 .wl-settings-check.checked {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-primary-inverse);
 }
 .wl-settings-check svg {
   display: block;

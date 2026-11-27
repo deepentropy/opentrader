@@ -9,7 +9,12 @@ describe("unknown symbols (#341)", () => {
     expect(isUnknownSymbol("nfo:nifty09nov2624450ce")).toBe(true);
     expect(isUnknownSymbol("NASDAQ:AAPL")).toBe(true);
     expect(isUnknownSymbol("NSE:RELIANCE")).toBe(false);
-    forgetUnknownSymbols();
+    // Says whether some were unknown (#423: their charts load again).
+    expect(forgetUnknownSymbols((s) => s.startsWith("NSE:"))).toBe(false);
+    expect(forgetUnknownSymbols((s) => s.startsWith("NFO:"))).toBe(true);
+    expect(isUnknownSymbol("NFO:NIFTY09NOV2624450CE")).toBe(false);
+    expect(forgetUnknownSymbols()).toBe(true);
     expect(isUnknownSymbol("NASDAQ:AAPL")).toBe(false);
+    expect(forgetUnknownSymbols()).toBe(false);
   });
 });

@@ -436,6 +436,11 @@ fn on_info_changed(app: &AppHandle, plugin: &str, params: Value) {
     let _ = PluginSymbolInfoChanged { exchanges, symbols }.emit(app);
 }
 
+/// All of a plugin's symbols are asked again, as after its `data.symbolInfoChanged` `{}`: its settings changed.
+pub fn forget_symbols(app: &AppHandle, plugin: &str) {
+    on_info_changed(app, plugin, Value::Object(Default::default()));
+}
+
 /// Whether `symbol`'s info changed: it is one of `symbols` or an extra series of one (`NFO:NIFTY26NOVFUT_OI`), or,
 /// without a list, it is of the plugin's exchanges (`prefixes`, `"NSE:"`).
 fn info_changed(symbol: &str, prefixes: &[String], symbols: Option<&[String]>) -> bool {

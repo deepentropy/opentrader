@@ -507,8 +507,11 @@ function App() {
     if (!isTauri()) return;
     const stop = events.pluginSymbolInfoChanged.listen(({ payload }) => {
       const which = pluginChangeAffects(payload);
-      forgetUnknownSymbols(which);
+      const wereUnknown = forgetUnknownSymbols(which);
       forgetTickerInfo(which);
+      // A chart of a symbol the plugin answered unknown (it was waiting for its login, #423) failed to load: it loads
+      // again now that the plugin knows it.
+      if (wereUnknown) reloadCharts();
       void refreshPluginSessions(which).then((changed) => changed && reloadCharts());
       void recoverPluginSymbols(servedExchanges, reloadCharts, which);
     });

@@ -348,6 +348,11 @@ export function Watchlist(props: WatchlistProps) {
         </div>
       </Show>
 
+      {/* A plugin's list its last set left out (#423): kept as it was until the plugin sends it again. */}
+      <Show when={active()?.unsent}>
+        <div class="watchlist-notice" role="status">The plugin no longer sends this list. It is shown as it was.</div>
+      </Show>
+
       <Show
         when={settings().tableView}
         fallback={

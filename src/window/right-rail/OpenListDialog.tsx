@@ -137,6 +137,9 @@ export function OpenListDialog(props: Props) {
               <Icon name="menu-manage-layouts-rename" size={16} />
             </button>
           </Show>
+          <Show when={l.unsent}>
+            <span class="wl-lm-note" title="The plugin no longer sends this list. It is shown as it was.">Not sent</span>
+          </Show>
           <span class="wl-lm-spacer" />
           <span class="wl-lm-count">{count(l)}</span>
           <span class="wl-lm-actions" onClick={(e) => e.stopPropagation()}>

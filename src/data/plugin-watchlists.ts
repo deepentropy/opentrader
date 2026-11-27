@@ -2,8 +2,10 @@
  * Data plugins' ready-made watchlists (#381, `data.watchlists` in plugins/PROTOCOL.md): the index members, the
  * contracts of the month… The Watchlists dialog offers them under each plugin's name. A list opened once becomes a
  * store list tied to the plugin's list (`source`): read-only, and brought up to date by the main window whenever the
- * plugin sends its lists again. A list the plugin no longer sends is removed; the lists of a plugin turned off stay
- * as they were. "Make a copy" gives the user a list of their own.
+ * plugin sends its lists again. A list the plugin's set leaves out stays as it was, marked, with the user's favourite,
+ * sections and alert, until the plugin sends it again (#423: a plugin waiting for its login sent none, and the lists
+ * came back without their favourite); the user deletes it, or it goes with its plugin when that is removed. The lists of
+ * a plugin turned off stay as they were. "Make a copy" gives the user a list of their own.
  */
 import { createRoot, createEffect, createSignal, on } from "solid-js";
 import { commands, events, type PluginWatchlist, type PluginWatchlists } from "../bindings";
@@ -43,11 +45,15 @@ export function openPluginList(plugin: string, l: PluginWatchlist): void {
   watchlistStore.setActive(watchlistStore.setPluginList({ plugin, list: l.id }, l.name, groups, extras));
 }
 
-/** Main window: the store lists of the plugins' lists follow what the plugins send. */
+/** Main window: the store lists of the plugins' lists follow what the plugins send, and go with a removed plugin. */
 export function startPluginListSync(): () => void {
+  const removed = events.pluginRemoved.listen(({ payload }) => watchlistStore.deletePluginLists(payload.plugin));
   return createRoot((dispose) => {
     createEffect(on(sets, (all) => syncPluginLists(all)));
-    return dispose;
+    return () => {
+      dispose();
+      void removed.then((stop) => stop());
+    };
   });
 }
 
@@ -57,7 +63,7 @@ export function syncPluginLists(all: readonly PluginWatchlists[]): void {
     for (const l of watchlistStore.lists().filter((x) => x.source?.plugin === set.plugin)) {
       const p = sent.get(l.source!.list);
       if (!p) {
-        watchlistStore.deleteList(l.id);
+        watchlistStore.markPluginListUnsent(l.id);
         continue;
       }
       const { groups, extras } = listRows(p);

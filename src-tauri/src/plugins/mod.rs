@@ -117,6 +117,12 @@ pub struct PackagePreview {
 #[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
 pub struct PluginsChanged;
 
+/// The user removed a plugin: what the windows keep of it goes too (its watchlists, #423).
+#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
+pub struct PluginRemoved {
+    pub plugin: String,
+}
+
 /// A plugin asks the user something, or shows a message until it sends `PluginPromptDone` (`plugin.prompt`).
 #[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
@@ -862,6 +868,8 @@ pub fn plugin_set_settings(app: AppHandle, id: String, settings: BTreeMap<String
     }
     update_plugin(&app, &id, |p| p.settings = plain)?;
     configure(&app, &id);
+    // Its symbols may be others now, or known at last (#423: a key entered after start): asked again.
+    data::forget_symbols(&app, &id);
     Ok(status(&app))
 }
 
@@ -897,6 +905,7 @@ pub fn plugin_set_capability(app: AppHandle, id: String, capability: Capability,
 pub fn plugin_forget_secret(app: AppHandle, id: String, key: String) -> Result<PluginsStatus, String> {
     forget_secret(&app, &id, &key)?;
     configure(&app, &id);
+    data::forget_symbols(&app, &id);
     Ok(status(&app))
 }
 
@@ -956,6 +965,7 @@ pub async fn plugin_remove(app: AppHandle, id: String) -> Result<PluginsStatus, 
     write_config(&app, &config)?;
     state.logs.locked().remove(&id);
     apply(&app);
+    let _ = PluginRemoved { plugin: id.clone() }.emit(&app);
     last.map_err(|e| format!("The plugin's folder could not be deleted: {e}"))?;
     Ok(status(&app))
 }
